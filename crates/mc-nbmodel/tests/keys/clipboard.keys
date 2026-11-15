@@ -230,9 +230,9 @@ cells
 
 === a root copied from typeset output pastes as a root box
 --- before
-#% cell label=1
+#% cell in=1
 2^(1/2)
-#% output n=1
+#% output out=1
 #= ⟦2^(1/2)⟧
 
 #% cell
@@ -240,9 +240,9 @@ r=
 --- keys
 TypesetOutputs Ctrl+C Click(2,2) Ctrl+V
 --- after
-#% cell label=1
+#% cell in=1
 2^(1/2)
-#% output n=1
+#% output out=1
 #= 2^(1/2)
 
 #% cell typeset
@@ -253,9 +253,9 @@ boxes "((sqrt(2)))"
 
 === a part of typeset output without boxes copies as text only
 --- before
-#% cell label=1
+#% cell in=1
 x + y
-#% output n=1
+#% output out=1
 #= ⟦x⟧ + y
 --- keys
 TypesetOutputs Ctrl+C

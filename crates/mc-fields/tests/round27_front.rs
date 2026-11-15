@@ -22,7 +22,7 @@ fn d26_07_expand_of_a_factorisation_equals_the_polynomial() {
 
 #[test]
 fn d26_08_factor_over_a_prime_power_modulus() {
-    let r = ev("q = factor(x^4 + 1, modulus: 9); is_list(q) or not match_q(q, failure(__))");
+    let r = ev("q = factor(x^4 + 1, modulus: 9); is_list(q) or not is_match(q, failure(__))");
     assert_eq!(r, "true");
     assert_eq!(ev("expand(factor(x^4 + 1, modulus: 9)) == x^4 + 1"), "true");
 }

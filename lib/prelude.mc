@@ -48,7 +48,7 @@ fn fix_point(f, x, rest...) = last(apply(fixed_point_list, join([f, x], rest)))
 fn say(parts...) = { print(string_join(map(to_string, parts))); null }
 
 # from_digits(s), (s, b): the integer whose digits in base b are the characters of the string s (0-9, then letters
-# a-z or A-Z for 10-35); from_digits(s, "Roman"): the value of a Roman numeral (subtractive pairs such as XC)
+# a-z or A-Z for 10-35); from_digits(s, roman): the value of a Roman numeral (subtractive pairs such as XC)
 # from_digits([ds, e]), ([ds, e], b): the number 0.ds times b^e (the form real_digits gives); a list as the last
 # digit is a block repeated forever (0.a(r) = (A + R/(b^m - 1))/b^k)
 rule from_digit_point(p_) := from_digit_point(p, 10)
@@ -173,8 +173,8 @@ fn digit_sum(n: Int, b: Int) = total(integer_digits(n, b))
 fn digit_sum(n: Int, b: Int, k: Int) = { let ds = integer_digits(n, b); total(if k >= 0 then take(ds, min(k, length(ds))) else take(ds, max(k, -length(ds)))) }
 fn digit_sum(n: Int, bs) when is_list(bs) = map(b => digit_sum(n, b), bs)
 # in a mixed radix (the digits integer_digits gives in it)
-fn digit_sum(n: Int, b) when match_q(b, mixed_radix(_)) = total(integer_digits(n, b))
-fn digit_sum(n: Int, b, k: Int) when match_q(b, mixed_radix(_)) = { let ds = integer_digits(n, b); total(if k >= 0 then take(ds, min(k, length(ds))) else take(ds, max(k, -length(ds)))) }
+fn digit_sum(n: Int, b) when is_match(b, mixed_radix(_)) = total(integer_digits(n, b))
+fn digit_sum(n: Int, b, k: Int) when is_match(b, mixed_radix(_)) = { let ds = integer_digits(n, b); total(if k >= 0 then take(ds, min(k, length(ds))) else take(ds, max(k, -length(ds)))) }
 fn digit_sum(ns, rest...) when is_list(ns) = map(m => apply(digit_sum, join([m], rest)), ns)
 
 # key_value_map(f, a): [f(k1, v1), f(k2, v2), ...] for the entries of the association a
@@ -310,7 +310,7 @@ fn sequence_fold(f, init, xs, n: Int) when n >= length(init) = last(sequence_fol
 # (f of arguments i1, ..., ik of max(i) arguments) or n -> [i1, ..., ik]; arguments past the count are given to
 # the result; curry_applied(spec)(f) is curry_applied(f, spec). operator_applied(f, spec) is the same, and
 # operator_applied(f)(x)(y) is f(y, x); reverse_applied(f)(a, b, ...) is f(..., b, a)
-rule curry_applied(s_)(f_) := curry_applied(f, s) when is_integer(s) or is_list(s) or match_q(s, _ -> _)
+rule curry_applied(s_)(f_) := curry_applied(f, s) when is_integer(s) or is_list(s) or is_match(s, _ -> _)
 rule curry_applied(f_, s_)(xs___)(ys___) := apply(curry_applied(f, s), join(xs, ys))
 rule curry_applied(f_, s_)(xs___) := {
   let ar = if is_integer(s) then s else if is_list(s) then max(s) else s[1]
@@ -399,9 +399,9 @@ fn design_matrix(data, funs, xv) when is_list(data) and is_list(funs) = {
 
 # fit(data, [f1, ..., fm], x), (..., [x1, ..., xk]): the linear combination c1 f1 + ... + cm fm closest to the
 # data in least squares (data as for design_matrix), the coefficients found numerically through the pseudo-inverse
-# the option fit_regularization: ["Tikhonov", lambda], ["L2", lambda] or ["RidgeRegression", lambda] minimises the
+# the option fit_regularization: [tikhonov, lambda], [l2, lambda] or [ridge_regression, lambda] minimises the
 # squared residual plus lambda times the squared norm of the coefficients (the normal equations with lambda added
-# to the diagonal; Tikhonov, Solution of incorrectly formulated problems, 1963); ["LASSO", lambda] or ["L1", lambda]
+# to the diagonal; Tikhonov, Solution of incorrectly formulated problems, 1963); [lasso, lambda] or [l1, lambda]
 # minimises the squared residual plus lambda times the sum of the absolute coefficients (many coefficients become 0)
 fn fit(data, funs, xv; fit_regularization = none) when is_list(data) and is_list(funs) = {
   let vs = if is_list(xv) then xv else [xv]
@@ -409,8 +409,8 @@ fn fit(data, funs, xv; fit_regularization = none) when is_list(data) and is_list
   let rows = if every(data, d => not is_list(d)) then map(i => [i, data[i]], range(length(data))) else data
   let a = map(r => map(num, r), design_matrix(rows, funs, vs))
   let y = map(r => num(r[length(vs) + 1]), rows)
-  let ridge = is_list(fit_regularization) and length(fit_regularization) == 2 and some(["Tikhonov", "L2", "RidgeRegression"], s => s === fit_regularization[1])
-  let lasso = is_list(fit_regularization) and length(fit_regularization) == 2 and some(["LASSO", "L1"], s => s === fit_regularization[1])
+  let ridge = is_list(fit_regularization) and length(fit_regularization) == 2 and some([tikhonov, l2, ridge_regression], s => s === fit_regularization[1])
+  let lasso = is_list(fit_regularization) and length(fit_regularization) == 2 and some([lasso, l1], s => s === fit_regularization[1])
   let c = if ridge then {
     let m = length(funs)
     linear_solve(dot(transpose(a), a) + n(fit_regularization[2])*identity_matrix(m), dot(transpose(a), y))
@@ -452,7 +452,7 @@ fn b36_lasso(a, y, lam) = {
 fn association_map(f) = xs => association_map(f, xs)
 fn key_value_map(f) = a => key_value_map(f, a)
 fn key_map(f) = a => key_map(f, a)
-fn association_thread(r) when match_q(r, _ -> _) = association_thread(r[1], r[2])
+fn association_thread(r) when is_match(r, _ -> _) = association_thread(r[1], r[2])
 
 # --- item 9B part 2: coordinate bounds ---
 
@@ -465,7 +465,7 @@ fn coordinate_bounds(pts) when is_list(pts) = {
 }
 fn coordinate_bounds(pts, d) when is_list(pts) = {
   let bs = coordinate_bounds(pts)
-  let side = (p, w) => if match_q(p, scaled(_)) then p[1]*w else p
+  let side = (p, w) => if is_match(p, scaled(_)) then p[1]*w else p
   let pad = (b, p) => { let w = b[2] - b[1]; let q = if is_list(p) then p else [p, p]; [b[1] - side(q[1], w), b[2] + side(q[2], w)] }
   # a pair that is not one entry per coordinate is [below, above] for every coordinate
   map(i => pad(bs[i], if is_list(d) and length(d) == length(bs) then d[i] else d), range(length(bs)))
@@ -488,9 +488,9 @@ fn coordinate_bounds_array(bs, d, o) when is_list(bs) and every(bs, b => is_list
     let a = bs[i][1]
     let b = bs[i][2]
     let di = at(d, i)
-    let step = if match_q(di, into(_)) then (b - a)/di[1] else di
+    let step = if is_match(di, into(_)) then (b - a)/di[1] else di
     let oi = at(o, i)
-    let off = if oi === center then step/2 else if match_q(oi, scaled(_)) then oi[1]*step else oi
+    let off = if oi === center then step/2 else if is_match(oi, scaled(_)) then oi[1]*step else oi
     let r = (b - a - off)/step
     let k = floor(if is_inexact(r) then r + 1/10^9 else r)
     map(j => a + off + j*step, range(0, k))
@@ -532,7 +532,7 @@ fn echo_function(label, f) = x => echo(x, label, f)
 # after (f(value) with f), each after its label, and give the value
 fn echo_evaluation(held e) = { say(quote(e)); let v = e; print(v); v }
 fn echo_evaluation(held e, label) = {
-  let ls = if match_q(label, _ -> _) then [label[1], label[2]] else [label, label]
+  let ls = if is_match(label, _ -> _) then [label[1], label[2]] else [label, label]
   say(ls[1], " ", quote(e))
   let v = e
   say(ls[2], " ", v)
@@ -553,7 +553,7 @@ fn bin_lists(xs, spec) when is_list(xs) and length(xs) > 0 and head(xs[1]) === q
   let mag = q => if head(q) === quantity then quantity_magnitude(q, u) else q
   bin_lists(map(mag, xs) -> xs, map_all(mag, spec))
 }
-fn bin_lists(xs, w) when is_list(xs) and is_number(w) and w > 0 and length(xs) > 0 and every(xs, r => match_q(r, (_ -> _))) = bin_lists(map(first, xs) -> map(last, xs), w)
+fn bin_lists(xs, w) when is_list(xs) and is_number(w) and w > 0 and length(xs) > 0 and every(xs, r => is_match(r, (_ -> _))) = bin_lists(map(first, xs) -> map(last, xs), w)
 fn bin_lists(xs, w) when is_list(xs) and is_number(w) and w > 0 = {
   let vs = select(xs, x => is_real(n(x)))
   if length(vs) == 0 then [] else {
@@ -601,7 +601,7 @@ fn bin_lists(pts, s1, s2, rest...) when is_list(pts) = {
 fn bin_lists(xs) when is_list(xs) and length(xs) > 0 and head(xs[1]) === quantity = bin_lists(xs, quantity(1, quantity_unit(xs[1])))
 fn bin_lists(pts) when is_matrix(pts) and length(pts[1]) >= 2 = apply(bin_lists, join([pts], constant_array(1, length(pts[1]))))
 fn bin_lists(xs) when is_list(xs) and not is_matrix(xs) = bin_lists(xs, 1)
-fn bin_lists(r, spec) when match_q(r, _ -> _) and is_list(r[1]) = {
+fn bin_lists(r, spec) when is_match(r, _ -> _) and is_list(r[1]) = {
   let labels = if r[2] === automatic then range(length(r[1])) else r[2]
   map(ix => map(i => labels[i], ix), nl_bin_index(r[1], spec))
 }
@@ -615,12 +615,12 @@ fn minimal_by(xs, f) when is_list(xs) = if length(xs) == 0 then [] else { let ks
 fn maximal_by(a, f) when is_assoc(a) = { let m = max(map(f, values(a))); select_keys(a, k => (f(a[k]) == m) === true) }
 fn minimal_by(a, f) when is_assoc(a) = { let m = min(map(f, values(a))); select_keys(a, k => (f(a[k]) == m) === true) }
 fn maximal_by(xs, f, n) when is_list(xs) = {
-  let k = if match_q(n, up_to(_)) then min(n[1], length(xs)) else n
+  let k = if is_match(n, up_to(_)) then min(n[1], length(xs)) else n
   let ks = map(f, xs)
   map(i => xs[i], take(reverse(sort_by(range(length(xs)), i => [ks[i], -i])), k))
 }
 fn minimal_by(xs, f, n) when is_list(xs) = {
-  let k = if match_q(n, up_to(_)) then min(n[1], length(xs)) else n
+  let k = if is_match(n, up_to(_)) then min(n[1], length(xs)) else n
   let ks = map(f, xs)
   map(i => xs[i], take(sort_by(range(length(xs)), i => [ks[i], i]), k))
 }
@@ -753,8 +753,8 @@ fn alphabetic_order(lang: Str) when r37_tailoring(lang) !== null = {
 fn alphabetic_sort(xs) when is_list(xs) = sort(xs, alphabetic_order)
 fn alphabetic_sort(xs, lang: Str) when is_list(xs) and lang == "English" = sort(xs, alphabetic_order)
 fn alphabetic_sort(xs, lang: Str) when is_list(xs) and r37_tailoring(lang) !== null = sort(xs, alphabetic_order(lang))
-# case_ordering: "LowerFirst" (the default order); "UpperFirst" is not defined and the call stays
-rule alphabetic_sort(xs_, lang_, case_ordering: c_) := sort(xs, alphabetic_order) when is_list(xs) and lang === "English" and c === "LowerFirst"
+# case_ordering: lower_first (the default order); upper_first is not defined here and the call stays
+rule alphabetic_sort(xs_, lang_, case_ordering: c_) := sort(xs, alphabetic_order) when is_list(xs) and lang === "English" and c === lower_first
 
 # alphabet(), alphabet("English"): the lower-case letters a to z
 fn alphabet() = character_range("a", "z")
@@ -842,7 +842,7 @@ rule equivalent(xs___) := {
 # the discrete families (binomial, Poisson, geometric) the bounds are rounded to the integers they allow; the
 # probability of an interval is written with erf rather than a difference of erfc values
 fn probability(c, x, d) when is_symbol(x) = {
-  let discrete = match_q(d, binomial_distribution(___) | poisson_distribution(___) | geometric_distribution(___))
+  let discrete = is_match(d, binomial_distribution(___) | poisson_distribution(___) | geometric_distribution(___))
   let le = b => cdf(d, if discrete then floor(b) else b)
   let lt = b => if discrete then cdf(d, ceiling(b) - 1) else cdf(d, b)
   let flip = h => if h === less then greater else if h === less_equal then greater_equal else if h === greater then less else if h === greater_equal then less_equal else h
@@ -857,7 +857,7 @@ fn probability(c, x, d) when is_symbol(x) = {
   let below = q => { let s = side(q); if s[1] === greater then le(s[2]) else if s[1] === greater_equal then lt(s[2]) else null }
   let upper = q => { let s = side(q); s[1] === less or s[1] === less_equal }
   let lower = q => { let s = side(q); s[1] === greater or s[1] === greater_equal }
-  let r = if match_q(c, _ and _) and length(c) == 2 then (
+  let r = if is_match(c, _ and _) and length(c) == 2 then (
       if lower(c[1]) and upper(c[2]) then rewrite(one(c[2]) - below(c[1]), [erfc(z_) :> 1 - erf(z)])
       else if upper(c[1]) and lower(c[2]) then rewrite(one(c[1]) - below(c[2]), [erfc(z_) :> 1 - erf(z)]) else null)
     else one(c)
@@ -869,7 +869,7 @@ fn probability(c, x, d) when is_symbol(x) = {
 # hazard_function(d, x): the hazard rate of the distribution d at x, pdf(d, x) divided by the probability of a value
 # at least x (survival(d, x) for a continuous distribution)
 fn hazard_function(d, x) = {
-  let discrete = match_q(d, binomial_distribution(___) | poisson_distribution(___) | geometric_distribution(___))
+  let discrete = is_match(d, binomial_distribution(___) | poisson_distribution(___) | geometric_distribution(___))
   simplify(pdf(d, x) / (if discrete then pdf(d, x) + survival(d, x) else survival(d, x)))
 }
 
@@ -902,7 +902,7 @@ fn enclose(held e, f, tag) = catch(e, tag, (v, t) => f(v))
 
 # ---- lists: matrix builders, triangular parts, partitions, cellular automata (round 28) ----
 
-# array_pad(a, m), (a, m, pad), (a, m, "Fixed" | "Periodic" | "Reversed" | "Reflected"): the array a with m entries
+# array_pad(a, m), (a, m, pad), (a, m, fixed | periodic | reversed | reflected): the array a with m entries
 # added on every side of every level (m = [l, r]: l before, r after; m = [[l1, r1], [l2, r2], ...] per level;
 # a one-element [k] is [k, k]; negative counts remove entries); the new entries are pad (0) or taken from a by the
 # named rule (clamped to the edge, repeated cyclically, repeated cyclically with every other copy reversed, or
@@ -916,15 +916,17 @@ fn array_pad(a, m, pad) when is_list(a) = {
     else map(s => one(s), m)
   pad_levels(a, specs, pad)
 }
-# the modes that continue a level by its differences (point reflection about the edge value): "Extrapolated" (the
-# last difference again), "ReflectedDifferences" (the differences mirrored, the edge difference repeated),
-# "ReversedDifferences" (the differences mirrored with a zero difference at every edge); the left side is the right
+# the modes that continue a level by its differences (point reflection about the edge value): extrapolated (the
+# last difference again), reflected_differences (the differences mirrored, the edge difference repeated),
+# reversed_differences (the differences mirrored with a zero difference at every edge); the left side is the right
 # side of the reversed level
-fn pad_diff_mode(pad) = is_string(pad) and (pad == "Extrapolated" or pad == "ReflectedDifferences" or pad == "ReversedDifferences")
+fn pad_diff_mode(pad) = pad === extrapolated or pad === reflected_differences or pad === reversed_differences
+# pad_mode(pad): pad names a rule of taking the new entries from the array (otherwise it is the value they get)
+fn pad_mode(pad) = pad === fixed or pad === periodic or pad === reversed or pad === reflected or pad === reversed_negation or pad_diff_mode(pad)
 fn pad_diff_step(mode, d, len, i) = {
   let m = len - 1
-  if mode == "Extrapolated" then d[m]
-  else if mode == "ReflectedDifferences" then { let p = mod(i - 1, 2*m); if p < m then d[m - p] else d[p - m + 1] }
+  if mode === extrapolated then d[m]
+  else if mode === reflected_differences then { let p = mod(i - 1, 2*m); if p < m then d[m - p] else d[p - m + 1] }
   else { let q = mod(i - 1, 2*len); if q == 0 or q == len then 0*d[1] else if q < len then d[len - q] else d[q - len] }
 }
 fn pad_diff_right(mode, v, cnt) = {
@@ -950,23 +952,23 @@ fn pad_levels(a, specs, pad) = if length(specs) == 0 or not is_list(a) then a el
     let from = if l < 0 then 1 - l else 1
     let upto = length(full) + (if r < 0 then r else 0)
     map(k => full[k], range(from, upto))
-  } else if len == 0 and is_string(pad) then inner else pad_levels_plain(inner, l, r, len, pad)
+  } else if len == 0 and pad_mode(pad) then inner else pad_levels_plain(inner, l, r, len, pad)
 }
 fn pad_levels_plain(inner, l, r, len, pad) = {
-  let src = k => if is_string(pad) then pad_source(pad, k, len) else 0
-  let fill = if is_string(pad) then null else if len == 0 then pad else {
+  let src = k => if pad_mode(pad) then pad_source(pad, k, len) else 0
+  let fill = if pad_mode(pad) then null else if len == 0 then pad else {
     let d = dimensions(inner[1])
     if length(d) == 0 then pad else constant_array(pad, d)
   }
-  let at = k => if k >= 1 and k <= len then inner[k] else if is_string(pad) then (if pad == "ReversedNegation" and mod(floor((k - 1)/len), 2) != 0 then -inner[pad_source(pad, k, len)] else inner[pad_source(pad, k, len)]) else fill
+  let at = k => if k >= 1 and k <= len then inner[k] else if pad_mode(pad) then (if pad === reversed_negation and mod(floor((k - 1)/len), 2) != 0 then -inner[pad_source(pad, k, len)] else inner[pad_source(pad, k, len)]) else fill
   map(k => at(k), range(1 - l, len + r))
 }
 fn pad_source(mode, k, len) = {
   let c = mod(k - 1, len) + 1
   let blk = floor((k - 1)/len)
-  if mode == "Fixed" then clamp(k, 1, len)
-  else if mode == "Periodic" then c
-  else if mode == "Reversed" or mode == "ReversedNegation" then (if mod(blk, 2) == 0 then c else len + 1 - c)
+  if mode === fixed then clamp(k, 1, len)
+  else if mode === periodic then c
+  else if mode === reversed or mode === reversed_negation then (if mod(blk, 2) == 0 then c else len + 1 - c)
   else if len == 1 then 1
   else { let j = mod(k - 1, 2*len - 2); if j < len then j + 1 else 2*len - 1 - j }
 }
@@ -1040,9 +1042,9 @@ fn upper_triangularize(m, k: Int) when is_matrix(m) = {
   let z = if every(flatten(m), x => is_machine_number(x)) then 0.0 else 0
   a28_matrix(length(m), length(m[1]), (i, j) => if j - i >= k then m[i][j] else z)
 }
-# target_structure: "Dense", "Sparse" or automatic give the dense list form, as for the matrix constructors of
+# target_structure: dense, sparse or automatic give the dense list form, as for the matrix constructors of
 # mc-linalg (round 37); other structures are not done and the call stays
-fn r37_dense_structure(s) = s === "Dense" or s === "Sparse" or s === automatic
+fn r37_dense_structure(s) = s === dense or s === sparse or s === automatic
 rule hankel_matrix(c_, target_structure: s_) := hankel_matrix(c) when r37_dense_structure(s)
 rule hankel_matrix(c_, r_, target_structure: s_) := hankel_matrix(c, r) when r37_dense_structure(s)
 rule toeplitz_matrix(c_, target_structure: s_) := toeplitz_matrix(c) when r37_dense_structure(s)
@@ -1057,14 +1059,14 @@ fn lower_triangularize(m, k: Int) when is_matrix(m) = {
   a28_matrix(length(m), length(m[1]), (i, j) => if j - i <= k then m[i][j] else z)
 }
 
-# upper_triangular_matrix_q(m), (m, k): whether every entry of m below the k-th diagonal is zero;
-# lower_triangular_matrix_q(m, k): above it; diagonal_matrix_q(m), (m, k): off the k-th diagonal
-fn upper_triangular_matrix_q(m) = upper_triangular_matrix_q(m, 0)
-fn upper_triangular_matrix_q(m, k: Int) = is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => j - i >= k or m[i][j] == 0))
-fn lower_triangular_matrix_q(m) = lower_triangular_matrix_q(m, 0)
-fn lower_triangular_matrix_q(m, k: Int) = is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => j - i <= k or m[i][j] == 0))
-fn diagonal_matrix_q(m) = diagonal_matrix_q(m, 0)
-fn diagonal_matrix_q(m, k: Int) = is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => j - i == k or m[i][j] == 0))
+# is_upper_triangular_matrix(m), (m, k): whether every entry of m below the k-th diagonal is zero;
+# is_lower_triangular_matrix(m, k): above it; is_diagonal_matrix(m), (m, k): off the k-th diagonal
+fn is_upper_triangular_matrix(m) = is_upper_triangular_matrix(m, 0)
+fn is_upper_triangular_matrix(m, k: Int) = is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => j - i >= k or m[i][j] == 0))
+fn is_lower_triangular_matrix(m) = is_lower_triangular_matrix(m, 0)
+fn is_lower_triangular_matrix(m, k: Int) = is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => j - i <= k or m[i][j] == 0))
+fn is_diagonal_matrix(m) = is_diagonal_matrix(m, 0)
+fn is_diagonal_matrix(m, k: Int) = is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => j - i == k or m[i][j] == 0))
 
 # minors(m), minors(m, k), minors(m, k, f): the matrix of the k x k minors of m (k = n - 1 by default for an n-row
 # matrix): the determinants of the submatrices on each choice of k rows (rows of the result, in lexicographic
@@ -1226,7 +1228,7 @@ fn slice_rows(rows, a, b) = take(drop(rows, a - 1), b - a + 1)
 # the rule as [g, offsets], g(neighbourhood, step) the new cell; null when rl is not a rule
 fn ca_offsets(rr) = if is_list(rr) then (if length(rr) > 0 and is_list(rr[1]) then map(o => o[1], rr) else range(-rr[1], rr[1]))
   else if is_integer(rr) then range(-rr, rr) else range(-(rr + 1/2), rr - 1/2)
-fn ca_is_rule(q) = (match_q(q, _ -> _) or match_q(q, _ :> _)) and is_list(q[1])
+fn ca_is_rule(q) = (is_match(q, _ -> _) or is_match(q, _ :> _)) and is_list(q[1])
 # a function of m cells (a pure function with m parameters, boolean_function(n, m)): the cells of a neighbourhood of
 # m cells as its arguments, 0 and 1 read as false and true and the result written back as 0 or 1
 fn ca_bits(nb) = every(nb, c => c === true or c === false)
@@ -1243,7 +1245,7 @@ fn ca_spec(rl) =
   else if not is_list(rl) or length(rl) == 0 then null
   else if every(rl, ca_is_rule) then {
     let m = length(rl[1][1])
-    [(nb, s) => rewrite(nb, first(select(rl, q => match_q(nb, q[1])))), range(-floor(m/2), m - 1 - floor(m/2))]
+    [(nb, s) => rewrite(nb, first(select(rl, q => is_match(nb, q[1])))), range(-floor(m/2), m - 1 - floor(m/2))]
   }
   else if length(rl) >= 2 and rl[2] === [] then {
     let f = rl[1]
@@ -1335,7 +1337,7 @@ fn integer_string(m, b) when is_integer(m) and is_integer(b) and b >= 2 and b <=
   let alphabet = characters("0123456789abcdefghijklmnopqrstuvwxyz")
   string_join(map(d => alphabet[d + 1], integer_digits(abs(m), b)))
 }
-fn integer_string(m, style) when is_integer(m) and m > 0 and m < 4000 and style == "Roman" = {
+fn integer_string(m, style) when is_integer(m) and m > 0 and m < 4000 and style === roman = {
   let vals = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1]
   let syms = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"]
   var left = m
@@ -1346,12 +1348,12 @@ fn integer_string(m, style) when is_integer(m) and m > 0 and m < 4000 and style 
   string_join(out)
 }
 # integer_string(n, "Base64"): the digits of |n| in base 64 with the alphabet A-Z, a-z, 0-9, +, / (RFC 4648);
-# integer_string(n, "Arabic"): the decimal digits of |n| in the Arabic-Indic digits U+0660 to U+0669
+# integer_string(n, arabic): the decimal digits of |n| in the Arabic-Indic digits U+0660 to U+0669
 fn integer_string(m, style) when is_integer(m) and style == "Base64" = {
   let alphabet = characters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
   string_join(map(d => alphabet[d + 1], integer_digits(abs(m), 64)))
 }
-fn integer_string(m, style) when is_integer(m) and style == "Arabic" = from_characters(map(d => 1632 + d, integer_digits(abs(m), 10)))
+fn integer_string(m, style) when is_integer(m) and style === arabic = from_characters(map(d => 1632 + d, integer_digits(abs(m), 10)))
 fn integer_string(m, b, len: Int) when is_integer(m) and is_integer(b) = {
   let s = integer_string(m, b)
   let l = string_length(s)
@@ -1365,9 +1367,9 @@ rule indexed(x_, i_) := extract(x, i) when is_list(x) and is_list(i) and length(
 fn is_valid_path(x, path) = if length(path) == 0 then true else is_list(x) and abs(path[1]) <= length(x) and is_valid_path(x[path[1]], rest(path))
 
 # integer_name(n): the English name of the integer n: words below 1000 ("one hundred twenty-three"), digits and
-# scale names above ("1 million 234 thousand 567"); integer_name(n, "Words") spells every group; a list of
+# scale names above ("1 million 234 thousand 567"); integer_name(n, words) spells every group; a list of
 # integers gives a list
-fn integer_name(m) when is_integer(m) = integer_name(m, "Short")
+fn integer_name(m) when is_integer(m) = integer_name(m, short)
 fn integer_name(ms) when is_list(ms) = map(integer_name, ms)
 fn integer_name(m, style) when is_integer(m) = {
   let ones = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
@@ -1380,8 +1382,8 @@ fn integer_name(m, style) when is_integer(m) = {
   if a < 1000 then string_join([sign_word, below_thousand(a)]) else {
     let groups = reverse(integer_digits(a, 1000))
     let parts = select(map(g => [g, groups[g]], range(length(groups))), p => p[2] != 0)
-    let render = p => if style == "Words" then string_join([below_thousand(p[2]), if p[1] > 1 then string_join([" ", scales[p[1]]]) else ""]) else string_join([to_string(p[2]), if p[1] > 1 then string_join([" ", scales[p[1]]]) else ""])
-    string_join([sign_word, string_join(riffle(map(render, reverse(parts)), if style == "Words" then ", " else " "))])
+    let render = p => if style === words then string_join([below_thousand(p[2]), if p[1] > 1 then string_join([" ", scales[p[1]]]) else ""]) else string_join([to_string(p[2]), if p[1] > 1 then string_join([" ", scales[p[1]]]) else ""])
+    string_join([sign_word, string_join(riffle(map(render, reverse(parts)), if style === words then ", " else " "))])
   }
 }
 
@@ -1481,7 +1483,7 @@ fn optimization_point(f, cons, vars) = {
     let dim = lo_dimension([f, parts], vs[1])
     let xs = map(k => to_expression(string_join(["lo_v", to_string(k)])), range(dim))
     let r = optimization_point(rewrite(f, vs[1] -> xs), rewrite(cl, vs[1] -> xs), xs)
-    if is_list(r) and every(r, t => match_q(t, _ -> _)) then [vs[1] -> map(t => t[2], r)] else r
+    if is_list(r) and every(r, t => is_match(t, _ -> _)) then [vs[1] -> map(t => t[2], r)] else r
   } else {
     let c = if length(parts) == 0 then true else fold((a, b) => a and b, parts[1], rest(parts))
     let r = minimize([f, c], vs)
@@ -1514,7 +1516,7 @@ rule machine_precision := 15.954589770191003
 
 
 # numeric_array_values(xs, type), (xs, type, mode): the entries of numeric_array(xs, type[, mode]) as normal gives
-# them: integers kept to the range of an integer type (mode "ClipAndCoerce" clips to it, "Round" rounds real
+# them: integers kept to the range of an integer type (mode clip_and_coerce clips to it, round rounds real
 # entries first), real types as machine reals (no single-precision rounding yet)
 # na_single(x): the machine number (or complex number of machine parts) x rounded to the nearest single-precision
 # value (24 significant bits, ties to even)
@@ -1527,16 +1529,16 @@ fn na_single_real(x) = if not is_real(x) or x == 0 or abs(x) > 3.4e38 or abs(x) 
   n(round(rationalize(x, 0)/scale)*scale)
 }
 fn numeric_array_values(xs, ty, mode) when is_list(xs) = map(x => numeric_array_values(x, ty, mode), xs)
-fn numeric_array_values(xs, ty) when is_list(xs) = map(x => numeric_array_values(x, ty, "Coerce"), xs)
-fn numeric_array_values(x, ty) = numeric_array_values(x, ty, "Coerce")
+fn numeric_array_values(xs, ty) when is_list(xs) = map(x => numeric_array_values(x, ty, coerce), xs)
+fn numeric_array_values(x, ty) = numeric_array_values(x, ty, coerce)
 fn numeric_array_values(x, ty, mode) when not is_list(x) = {
   let bits = if string_contains(ty, "8") then 8 else if string_contains(ty, "16") then 16 else if string_contains(ty, "32") then 32 else 64
   let unsigned = string_contains(ty, "Unsigned")
   let is_int_type = string_contains(ty, "Integer")
   if not is_int_type then (if bits == 32 then na_single(n(x)) else n(x)) else {
-    let v = if mode == "Round" then round(x) else x
+    let v = if mode === round then round(x) else x
     let lo = if unsigned then 0 else -2^(bits - 1)
     let hi = if unsigned then 2^bits - 1 else 2^(bits - 1) - 1
-    if mode == "ClipAndCoerce" or mode == "Round" then clamp(v, lo, hi) else v
+    if mode === clip_and_coerce or mode === round then clamp(v, lo, hi) else v
   }
 }

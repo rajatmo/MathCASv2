@@ -24,9 +24,9 @@ fn operator_forms_stay() {
 #[test]
 fn alphabetic_orders_of_languages() {
     let l = "[\"A\", \"a\", \"æ\", \"Æ\", \"i\", \"I\"]";
-    assert_eq!(ev(&format!("alphabetic_sort({l}, \"Danish\", case_ordering: \"UpperFirst\")")), "[\"A\", \"a\", \"I\", \"i\", \"Æ\", \"æ\"]");
+    assert_eq!(ev(&format!("alphabetic_sort({l}, \"Danish\", case_ordering: upper_first)")), "[\"A\", \"a\", \"I\", \"i\", \"Æ\", \"æ\"]");
     // Danish puts upper case first by default
-    assert_eq!(ev(&format!("alphabetic_sort({l}, \"Danish\") === alphabetic_sort({l}, \"Danish\", case_ordering: \"UpperFirst\")")), "true");
+    assert_eq!(ev(&format!("alphabetic_sort({l}, \"Danish\") === alphabetic_sort({l}, \"Danish\", case_ordering: upper_first)")), "true");
     assert_eq!(ev("alphabetic_sort([\"ø\", \"å\", \"z\", \"æ\"], \"Danish\")"), "[\"z\", \"æ\", \"ø\", \"å\"]");
     assert_eq!(ev("alphabetic_sort([\"Ñ\", \"ĳ\", \"ñ\", \"Ş\", \"Ĳ\", \"ş\"], \"Dutch\", ignore_case: true)"), "[\"Ñ\", \"ñ\", \"Ş\", \"ş\", \"ĳ\", \"Ĳ\"]");
     let w = "[\"sonar\", \"cañón\", \"soñar\", \"cuña\", \"canon\", \"papá\", \"cuna\", \"papa\"]";
@@ -44,9 +44,9 @@ fn alphabetic_orders_of_languages() {
     assert_eq!(ev(&format!("alphabetic_sort({f}, ignore_punctuation: true)")), "[\"File 1\", \"File-2\", \"File 3\", \"File4\"]");
     assert_eq!(ev(&format!("alphabetic_sort({f}, ignore_punctuation: false)")), "[\"File 1\", \"File 3\", \"File-2\", \"File4\"]");
     let t = "[\"A\", \"a\", \"i\", \"I\", \"ı\", \"İ\"]";
-    assert_eq!(ev(&format!("alphabetic_sort({t}, \"Turkish\", case_ordering: \"UpperFirst\")")), "[\"A\", \"a\", \"I\", \"ı\", \"İ\", \"i\"]");
+    assert_eq!(ev(&format!("alphabetic_sort({t}, \"Turkish\", case_ordering: upper_first)")), "[\"A\", \"a\", \"I\", \"ı\", \"İ\", \"i\"]");
     assert_eq!(
-        ev(&format!("alphabetic_sort({t}, \"Turkish\", case_ordering: \"UpperFirst\", ignore_case: true)")),
+        ev(&format!("alphabetic_sort({t}, \"Turkish\", case_ordering: upper_first, ignore_case: true)")),
         "[\"A\", \"a\", \"I\", \"ı\", \"i\", \"İ\"]"
     );
     // Turkish ç and ş after c and s
@@ -63,19 +63,19 @@ fn alignments_with_options() {
         ev(&format!("sequence_alignment({ab}, merge_differences: false)")),
         "[\"abc\", [\"XX\", \"\"], \"abc\", [\"\", \"YY\"], [\"X\", \"Y\"], \"abc\"]"
     );
-    assert_eq!(ev(&format!("sequence_alignment({ab}, method: \"Global\") === sequence_alignment({ab})")), "true");
+    assert_eq!(ev(&format!("sequence_alignment({ab}, method: global) === sequence_alignment({ab})")), "true");
     assert_eq!(
-        ev(&format!("sequence_alignment({ab}, method: \"Local\")")),
+        ev(&format!("sequence_alignment({ab}, method: local)")),
         "[[\"abcXX\", \"\"], \"abc\", [\"X\", \"\"], \"abc\", [\"\", \"YYYabc\"]]"
     );
     assert_eq!(
-        ev("sequence_alignment(\"One fish two fish\", \"One fish two fish red fish blue fish\", method: \"Local\")"),
+        ev("sequence_alignment(\"One fish two fish\", \"One fish two fish red fish blue fish\", method: local)"),
         "[\"One fish two fish\", [\"\", \" red fish blue fish\"]]"
     );
     // the pieces put back together are the two inputs
     assert_eq!(
         ev(&format!(
-            "r = sequence_alignment({ab}, method: \"Local\"); [string_join(map(p => if is_list(p) then p[1] else p, r)), string_join(map(p => if is_list(p) then p[2] else p, r))]"
+            "r = sequence_alignment({ab}, method: local); [string_join(map(p => if is_list(p) then p[1] else p, r)), string_join(map(p => if is_list(p) then p[2] else p, r))]"
         )),
         "[\"abcXXabcXabc\", \"abcabcYYYabc\"]"
     );

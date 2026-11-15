@@ -36,4 +36,4 @@ string_cases("aaaa", "aa", overlaps: true)
 # See also
 
 #% text
-# `string_position`, `string_count`, `string_match_q`, `string_replace`, `string_expression`
+# `string_position`, `string_count`, `is_string_match`, `string_replace`, `string_expression`

@@ -64,7 +64,7 @@ fn infinite_sums_carry_their_convergence_condition() {
 fn moved_library_functions_still_work() {
     // the Levenshtein distance kitten -> sitting is 3 (two substitutions, one insertion); of a list against itself 0
     assert_eq!(ev("[edit_distance(\"kitten\", \"sitting\"), edit_distance([1, 2, 3], [1, 2, 3]), hamming_distance(\"abc\", \"abd\")]"), "[3, 0, 1]");
-    assert_eq!(ev("[palindrome_q(12321), palindrome_q(\"ab\"), chessboard_distance([1, 5], [4, 3]), squared_euclidean_distance([1, 5], [4, 3])]"), "[true, false, 3, 13]");
+    assert_eq!(ev("[is_palindrome(12321), is_palindrome(\"ab\"), chessboard_distance([1, 5], [4, 3]), squared_euclidean_distance([1, 5], [4, 3])]"), "[true, false, 3, 13]");
     assert_eq!(ev("[commonest([a, b, a, c, b, a], up_to(2)), reverse_sort_by([3, 1, 2], x => x), ordering_by([c, a, b], x => x)]"), "[[a, b], [3, 2, 1], [2, 3, 1]]");
     assert_eq!(ev("delete_missing([1, missing(), [2, missing()]], 2)"), "[1, [2]]");
     // prime_zeta_p(2) = 0.4522474200410654985..., the sum of 1/p^2 over the primes

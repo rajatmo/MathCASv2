@@ -18,7 +18,7 @@ pub const ORIGIN: &str = "lib/wavelets.mc";
 pub const FUNCTIONS: &[(&str, &str)] = &[
     ("haar_wavelet", "haar_wavelet(): the Haar wavelet, the orthonormal filter [1, 1]/sqrt(2)"),
     ("daubechies_wavelet", "daubechies_wavelet(n): the orthonormal Daubechies wavelet with n vanishing moments (2 n taps); daubechies_wavelet() is n = 2"),
-    ("discrete_wavelet_transform", "discrete_wavelet_transform(data), (data, w), (data, w, r): the r-level discrete wavelet transform of a list or matrix (padding: \"Periodic\", a number, \"Fixed\", \"Reflected\")"),
+    ("discrete_wavelet_transform", "discrete_wavelet_transform(data), (data, w), (data, w, r): the r-level discrete wavelet transform of a list or matrix (padding: periodic, a number, fixed, reflected)"),
     ("discrete_wavelet_packet_transform", "discrete_wavelet_packet_transform(data), (data, w), (data, w, r): the wavelet packet transform, every node split"),
     ("stationary_wavelet_transform", "stationary_wavelet_transform(data), (data, w), (data, w, r): the undecimated (stationary) wavelet transform of a list or matrix"),
     ("inverse_wavelet_transform", "inverse_wavelet_transform(d): the data reconstructed from the discrete wavelet data d"),

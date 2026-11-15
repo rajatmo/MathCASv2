@@ -84,6 +84,17 @@ pub struct Props {
 }
 
 impl Cell {
+    /// The label as it is shown (tooltips, the status bar, exports): `in 3` for an evaluated input cell, `out 3`
+    /// for an output cell; `None` for an unlabelled cell and for the hidden labels of Print and Message cells.
+    pub fn label_text(&self) -> Option<String> {
+        let n = self.label?;
+        match self.style {
+            Style::Output => Some(format!("out {n}")),
+            s if s.info().label => Some(format!("in {n}")),
+            _ => None,
+        }
+    }
+
     /// A cell with this identity, style and content.
     pub fn new(id: CellId, style: Style, text: &str) -> Cell {
         Cell {

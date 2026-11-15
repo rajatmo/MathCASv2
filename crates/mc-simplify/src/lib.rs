@@ -402,7 +402,7 @@ fn hide_walk<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, pats: &[T<'
     let h = b.heap();
     if b.call_of(t).is_some() && !b.is_number(t) {
         for &p in pats {
-            let m = cx.eval(b.call_named("match_q", &[t, p]))?;
+            let m = cx.eval(b.call_named("is_match", &[t, p]))?;
             if cx.is_true(m) {
                 if let Some(&(s, _)) = back.iter().find(|x| x.1 == t) {
                     return Ok(s);

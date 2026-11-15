@@ -713,18 +713,18 @@ fn convex_hull_order(p: &[Vec<f64>]) -> Vec<usize> {
     hull
 }
 
-/// `bounding_region(points, form)`: "MinRectangle" / "MinCuboid" / "MinInterval" (the box of the coordinates,
-/// the default), "MinDisk" / "MinBall" (the smallest enclosing ball, by trying the balls through two to four of
+/// `bounding_region(points, form)`: `min_rectangle` / `min_cuboid` / `min_interval` (the box of the coordinates,
+/// the default), `min_disk` / `min_ball` (the smallest enclosing ball, by trying the balls through two to four of
 /// the points: Welzl's characterisation that the smallest ball is fixed by at most d + 1 of them), and
-/// "MinConvexPolygon" (the convex hull, anticlockwise from its first point in the input order).
+/// `min_convex_polygon` (the convex hull, anticlockwise from its first point in the input order).
 #[allow(clippy::type_complexity)]
 pub fn bounding_region<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let e = E { h };
     let (pt, form) = match a {
-        [p] => (*p, "MinRectangle".to_string()),
+        [p] => (*p, "min_rectangle".to_string()),
         [p, f] => match h.view(*f) {
-            View::Str(s) => (*p, s.to_string()),
+            View::Sym(s) => (*p, h.sym_name(s).to_string()),
             _ => return Ok(Reply::Decline),
         },
         _ => return Ok(Reply::Decline),
@@ -734,14 +734,14 @@ pub fn bounding_region<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Re
         None => match read(cx, pt) {
             Some(Region::Points(v)) => v,
             // a region other than points: its box is the one of its bounds
-            Some(_) if matches!(form.as_str(), "MinRectangle" | "MinCuboid" | "MinInterval") => return region_box(cx, pt),
+            Some(_) if matches!(form.as_str(), "min_rectangle" | "min_cuboid" | "min_interval") => return region_box(cx, pt),
             _ => return Ok(Reply::Decline),
         },
     };
     let Some(vn) = points(cx, &v)? else { return Ok(Reply::Decline) };
     let n = v[0].len();
     match form.as_str() {
-        "MinRectangle" | "MinCuboid" | "MinInterval" => {
+        "min_rectangle" | "min_cuboid" | "min_interval" => {
             let mut lo = vec![];
             let mut hi = vec![];
             for k in 0..n {
@@ -757,7 +757,7 @@ pub fn bounding_region<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Re
                 _ => e.f("cuboid", &[e.list(&lo), e.list(&hi)]),
             }))
         }
-        "MinDisk" | "MinBall" if v.len() <= 60 => {
+        "min_disk" | "min_ball" if v.len() <= 60 => {
             let m = v.len();
             let mut best: Option<(Vec<T<'h>>, Vec<f64>, f64, Vec<usize>)> = None;
             let mut sets: Vec<Vec<usize>> = (0..m).map(|i| vec![i]).collect();
@@ -793,8 +793,8 @@ pub fn bounding_region<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Re
                 Ok(Reply::Done(e.f(head, &[h.reals(&cn), h.real(r2.sqrt())])))
             }
         }
-        "MinOrientedRectangle" if n == 2 => oriented_rectangle(cx, &v, &vn),
-        "MinConvexPolygon" if n == 2 => {
+        "min_oriented_rectangle" if n == 2 => oriented_rectangle(cx, &v, &vn),
+        "min_convex_polygon" if n == 2 => {
             let hull = convex_hull_order(&vn);
             if hull.len() < 3 {
                 return Ok(Reply::Decline);
@@ -831,7 +831,7 @@ fn region_box<'h>(cx: &mut NativeCx<'_, '_, 'h>, reg: T<'h>) -> Res<Reply<'h>> {
     }))
 }
 
-/// The rectangle of least area holding plane points (`bounding_region(pts, "MinOrientedRectangle")`), as
+/// The rectangle of least area holding plane points (`bounding_region(pts, min_oriented_rectangle)`), as
 /// `parallelogram(corner, [a, b])`.
 ///
 /// Freeman and Shapira ("Determining the minimum-area encasing rectangle for an arbitrary closed curve", Comm. ACM

@@ -28,25 +28,25 @@ type Case<'h> = (T<'h>, T<'h>);
 /// The `method:` suboptions read.
 #[derive(Default)]
 struct Opts {
-    /// `"OrderlessConditions" -> true`: exclusive conditions even with symbols
+    /// `orderless_conditions -> true`: exclusive conditions even with symbols
     orderless: bool,
-    /// `"BooleanResult" -> true`: a disjunction instead of a piecewise
+    /// `boolean_result -> true`: a disjunction instead of a piecewise
     boolean: bool,
-    /// `"ConditionSimplifier" -> reduce`: every condition reduced
+    /// `condition_simplifier -> reduce`: every condition reduced
     reduce: bool,
 }
 
-/// Read `method: ["Name" -> value, ...]`.
+/// Read `method: [name -> value, ...]`.
 fn read_method<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'h>, o: &mut Opts) {
     let h = b.heap();
     let Some(rules) = cx.as_list(v) else { return };
     for &r in rules {
         let View::App { args: &[k, val], .. } = h.view(r) else { continue };
-        let View::Str(name) = h.view(k) else { continue };
-        match name {
-            "OrderlessConditions" => o.orderless = cx.is_true(val),
-            "BooleanResult" => o.boolean = cx.is_true(val),
-            "ConditionSimplifier" => o.reduce = val == h.sym_term(h.sym("reduce")),
+        let View::Sym(name) = h.view(k) else { continue };
+        match h.sym_name(name).as_str() {
+            "orderless_conditions" => o.orderless = cx.is_true(val),
+            "boolean_result" => o.boolean = cx.is_true(val),
+            "condition_simplifier" => o.reduce = val == h.sym_term(h.sym("reduce")),
             _ => {}
         }
     }

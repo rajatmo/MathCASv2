@@ -30,10 +30,10 @@ fn typeset_cell_turned_into_prose_survives_save_and_reopen() {
 #[test]
 
 fn undo_of_divide_keeps_the_evaluation_label() {
-    let mut n = nb("#% cell label=1\na + b\n#% output n=1\n#= 3\n");
+    let mut n = nb("#% cell in=1\na + b\n#% output out=1\n#= 3\n");
     let mut env = FakeEnv::default();
     let before = n.to_text();
-    assert!(before.contains("label=1"), "{before}");
+    assert!(before.contains("in=1"), "{before}");
     let id = n.cells()[0].id;
     n.apply(Command::ClickText(id, 1, false), &mut env);
     n.apply(Command::Divide, &mut env);
@@ -44,7 +44,7 @@ fn undo_of_divide_keeps_the_evaluation_label() {
 #[test]
 
 fn undo_of_a_style_change_keeps_the_evaluation_label() {
-    let mut n = nb("#% cell label=1\na + b\n#% output n=1\n#= 3\n");
+    let mut n = nb("#% cell in=1\na + b\n#% output out=1\n#= 3\n");
     let mut env = FakeEnv::default();
     let before = n.to_text();
     let id = n.cells()[0].id;
@@ -57,7 +57,7 @@ fn undo_of_a_style_change_keeps_the_evaluation_label() {
 #[test]
 
 fn undo_of_a_style_change_keeps_the_output_number() {
-    let mut n = nb("#% cell label=1\na + b\n#% output n=1\n#= 3\n");
+    let mut n = nb("#% cell in=1\na + b\n#% output out=1\n#= 3\n");
     let mut env = FakeEnv::default();
     let before = n.to_text();
     let out = n.cells()[1].id;

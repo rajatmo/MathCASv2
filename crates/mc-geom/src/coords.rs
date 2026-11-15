@@ -1,6 +1,6 @@
 //! Measures of a region written as a map and its ranges (round 33): `arc_length(map, [t, a, b])`,
 //! `area(map, [u, a, b], [v, c, d])`, `volume(map, [u, ..], [v, ..], [w, ..])`, each with an optional coordinate
-//! system `"Polar"`, `"Cylindrical"` or `"Spherical"` naming the coordinates of the map, and `perimeter(map, [u, a,
+//! system `polar`, `cylindrical` or `spherical` naming the coordinates of the map, and `perimeter(map, [u, a,
 //! b], [v, c, d])` (also of a `parametric_region`).
 //!
 //! A map with its ranges is the `parametric_region(map, ranges)` of the same ranges; the system turns the map into
@@ -12,14 +12,14 @@ use crate::ex::E;
 use mc_core::{Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
 
-/// The ranges `[v, lo, hi]` among the arguments and the coordinate system named by a trailing string.
+/// The ranges `[v, lo, hi]` among the arguments and the coordinate system named by a trailing symbol.
 fn ranges_of<'h>(cx: &NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Option<(Vec<[T<'h>; 3]>, Option<String>)> {
     let h = cx.heap();
     let mut rest = &a[1..];
     let mut system = None;
     if let Some((&last, init)) = rest.split_last() {
-        if let View::Str(s) = h.view(last) {
-            system = Some(s.to_string());
+        if let View::Sym(s) = h.view(last) {
+            system = Some(h.sym_name(s).to_string());
             rest = init;
         }
     }
@@ -41,10 +41,10 @@ fn ranges_of<'h>(cx: &NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Option<(Vec<[T<'h>; 
 fn cartesian<'h>(cx: &mut NativeCx<'_, '_, 'h>, map: &[T<'h>], system: Option<&str>) -> Res<Option<Vec<T<'h>>>> {
     let e = E { h: cx.heap() };
     let out: Vec<T<'h>> = match (system, map) {
-        (None | Some("Cartesian"), m) => m.to_vec(),
-        (Some("Polar"), &[r, t]) => vec![e.mul(&[r, e.f("cos", &[t])]), e.mul(&[r, e.f("sin", &[t])])],
-        (Some("Cylindrical"), &[r, t, z]) => vec![e.mul(&[r, e.f("cos", &[t])]), e.mul(&[r, e.f("sin", &[t])]), z],
-        (Some("Spherical"), &[r, t, p]) => vec![
+        (None | Some("cartesian"), m) => m.to_vec(),
+        (Some("polar"), &[r, t]) => vec![e.mul(&[r, e.f("cos", &[t])]), e.mul(&[r, e.f("sin", &[t])])],
+        (Some("cylindrical"), &[r, t, z]) => vec![e.mul(&[r, e.f("cos", &[t])]), e.mul(&[r, e.f("sin", &[t])]), z],
+        (Some("spherical"), &[r, t, p]) => vec![
             e.mul(&[r, e.f("sin", &[t]), e.f("cos", &[p])]),
             e.mul(&[r, e.f("sin", &[t]), e.f("sin", &[p])]),
             e.mul(&[r, e.f("cos", &[t])]),

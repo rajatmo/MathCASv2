@@ -93,7 +93,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("canonicalize_polygon", "canonicalize_polygon(p): the polygon with its distinct corners sorted and the boundary as indices, anticlockwise"),
     ("outer_polygon", "outer_polygon(p): the outer boundary of a polygon (its holes filled), indexed"),
     ("inner_polygon", "inner_polygon(p): the holes of a polygon as a polygon (empty_region(2) when there are none)"),
-    ("bounding_region", "bounding_region(points, form): a region holding the points: \"MinRectangle\" (default; also \"MinCuboid\", \"MinInterval\"), \"MinDisk\" or \"MinBall\" (the smallest ball), \"MinConvexPolygon\" (the convex hull)"),
+    ("bounding_region", "bounding_region(points, form): a region holding the points: min_rectangle (default; also min_cuboid, min_interval), min_disk or min_ball (the smallest ball), min_convex_polygon (the convex hull)"),
     ("winding_count", "winding_count(curve, p): how many times a closed curve (points, a line or a polygon) turns about the point p, anticlockwise positive"),
     ("crossing_count", "crossing_count(curve, p): the least number of crossings of a ray from p with a closed curve (plus 1 when p is on it)"),
     ("region_equal", "region_equal(r1, r2, ...): whether the regions are the same set of points (regions of the line and plane polygons)"),

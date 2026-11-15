@@ -1,10 +1,10 @@
 #! mathcas 2 notebook
 
 #% title
-# palindrome_q
+# is_palindrome
 
 #% text
-# `palindrome_q(x)` gives true when the list, the string or the decimal digits of the integer x read the same backwards.
+# `is_palindrome(x)` gives true when the list, the string or the decimal digits of the integer x read the same backwards.
 
 #% section
 # Examples
@@ -13,22 +13,22 @@
 # Basic examples
 
 #% cell
-palindrome_q("racecar")
+is_palindrome("racecar")
 #% output
 #= true
 
 #% cell
-palindrome_q([1, 2, 3, 2, 1])
+is_palindrome([1, 2, 3, 2, 1])
 #% output
 #= true
 
 #% cell
-palindrome_q(12321)
+is_palindrome(12321)
 #% output
 #= true
 
 #% cell
-palindrome_q(1232)
+is_palindrome(1232)
 #% output
 #= false
 
@@ -36,7 +36,7 @@ palindrome_q(1232)
 # The numbers below 200 whose squares are palindromes:
 
 #% cell
-select(range(200), k => palindrome_q(k^2))
+select(range(200), k => is_palindrome(k^2))
 #% output
 #= [1, 2, 3, 11, 22, 26, 101, 111, 121]
 

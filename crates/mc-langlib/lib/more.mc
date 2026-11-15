@@ -114,12 +114,12 @@ fn around_replace_parts(rules) = {
   var blocks = []
   var bad = false
   for r in rs {
-    if not match_q(r, _ -> _) then bad = true
-    else if is_symbol(r[1]) and match_q(r[2], around(_, _)) then {
+    if not is_match(r, _ -> _) then bad = true
+    else if is_symbol(r[1]) and is_match(r[2], around(_, _)) then {
       vars = append(vars, r[1])
       means = append(means, r[2][1])
       blocks = append(blocks, [[r[2][2]^2]])
-    } else if is_list(r[1]) and every(r[1], is_symbol) and match_q(r[2], vector_around(_, _)) and is_list(r[2][1]) and length(r[2][1]) == length(r[1]) then {
+    } else if is_list(r[1]) and every(r[1], is_symbol) and is_match(r[2], vector_around(_, _)) and is_list(r[2][1]) and length(r[2][1]) == length(r[1]) then {
       vars = join(vars, r[1])
       means = join(means, r[2][1])
       blocks = append(blocks, vector_around_covariance(r[2][2]))

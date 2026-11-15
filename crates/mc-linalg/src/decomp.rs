@@ -144,7 +144,7 @@ pub fn qr<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h
 /// `cholesky(m)`: the upper triangular `u` with `m == dot(conjugate_transpose(u), u)` for a Hermitian (symmetric)
 /// positive definite `m`.
 pub fn cholesky<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
-    // `target_structure: "Dense"` and friends give the dense factor
+    // `target_structure: dense` and friends give the dense factor
     let (args, opts) = crate::ops::options(env, args);
     if opts.is_none_or(|o| o.precision_bits.is_some()) {
         return Ok(Out::Decline);
@@ -218,8 +218,8 @@ pub fn cholesky<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<
 }
 
 /// What `svd(m, spec)` returns: all `min(rows, columns)` singular values (the default, a thin decomposition), the
-/// `q` largest, the `q` smallest (`spec` a negative integer), the nonzero ones (`"Compact"`), or the square
-/// unitary factors with a rectangular `s` (`"Full"`).
+/// `q` largest, the `q` smallest (`spec` a negative integer), the nonzero ones (`compact`), or the square
+/// unitary factors with a rectangular `s` (`full`).
 #[derive(Clone, Copy)]
 enum SvdShape {
     Thin,
@@ -234,7 +234,7 @@ fn svd_shape<'h>(env: &Env<'h>, spec: T<'h>) -> Option<SvdShape> {
     match env.h().view(spec) {
         View::Int(q) if q > 0 => Some(SvdShape::Top(q as usize)),
         View::Int(q) if q < 0 => Some(SvdShape::Bottom(q.unsigned_abs() as usize)),
-        View::Str(t) => match t.to_ascii_lowercase().as_str() {
+        View::Sym(t) => match env.h().sym_name(t).as_str() {
             "thin" => Some(SvdShape::Thin),
             "compact" => Some(SvdShape::Compact),
             "full" => Some(SvdShape::Full),
@@ -285,8 +285,8 @@ fn svd_shaped<S: Scalar>(a: &Mat<S>, f: (Mat<S>, Vec<f64>, Mat<S>), shape: SvdSh
 
 /// `svd(m)`, `svd(m, spec)`: `[u, s, v]` with `m == dot(u, s, conjugate_transpose(v))`, `s` the diagonal matrix of
 /// the `k = min(rows, columns)` singular values in decreasing order (a thin decomposition). `spec`: a positive
-/// integer q or `up_to(q)` (the q largest), a negative integer (the smallest), `"Thin"`, `"Compact"` (the nonzero
-/// ones) or `"Full"` (unitary `u` and `v`, `s` of the size of `m`). Exact and ball matrices are decomposed in
+/// integer q or `up_to(q)` (the q largest), a negative integer (the smallest), `thin`, `compact` (the nonzero
+/// ones) or `full` (unitary `u` and `v`, `s` of the size of `m`). Exact and ball matrices are decomposed in
 /// machine arithmetic.
 pub fn svd<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
     let shape = match args {

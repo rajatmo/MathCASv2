@@ -151,7 +151,7 @@ import as a dataset 312 ms (as lists of rows: 935 ms), aggregate by a 20-value k
   data (repeated abscissae, a bare symbol as a value) still fail.
 - Statistics and colour operations of images are library rules (`lib/lists.mc`): `mean`, `median`, `variance`,
   `std_dev` per channel over all pixels (one number for a gray image); `color_negate`, `darker`, `lighter` on the
-  colour channels (an alpha channel kept); `color_convert(img, "RGB" | "Grayscale")` (gray to RGB by copying, RGB
+  colour channels (an alpha channel kept); `color_convert(img, "RGB" | gray_level)` (gray to RGB by copying, RGB
   to gray by the ITU-R BT.601 luma weights 0.299, 0.587, 0.114); other conversions fail with `unsupported`.
 
 ## Round 41: interpolation with derivative data

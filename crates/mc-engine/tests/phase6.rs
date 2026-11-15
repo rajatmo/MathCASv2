@@ -121,8 +121,8 @@ fn structure_functions() {
 #[test]
 fn parts_by_position_and_pattern() {
     check(&[
-        ("match_q(f(1), f(_: Int))", "true"),
-        ("match_q([1, \"a\"], [_, _: Int])", "false"),
+        ("is_match(f(1), f(_: Int))", "true"),
+        ("is_match([1, \"a\"], [_, _: Int])", "false"),
         ("head(f(x))", "f"),
         ("map(head, [1, 1/2, 2.5, \"s\", x, 1 + im, [1]])", "[Int, Rat, Float, Str, Sym, Complex, list]"),
         ("dimensions([[1, 2, 3], [4, 5, 6]])", "[2, 3]"),

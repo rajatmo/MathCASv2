@@ -7,12 +7,12 @@ norms, traces, minimal polynomials, primitive elements, discrete logarithms, roo
 
 ## Terms (decisions n25f.1-n25f.4)
 
-- **n25f.1 A field is a term that reads back to itself**: `finite_field(17, &(14 + &1 + &1^3), "Polynomial")`: the
+- **n25f.1 A field is a term that reads back to itself**: `finite_field(17, &(14 + &1 + &1^3), polynomial)`: the
   characteristic, the defining polynomial as a pure function of one argument, the element representation
-  (`"Polynomial"` or `"Exponential"`). The native rebuilds the canonical form from the parsed polynomial (terms by
+  (`polynomial` or `exponential`). The native rebuilds the canonical form from the parsed polynomial (terms by
   increasing degree, unit coefficients left out), so any spelling of the same field evaluates to one term, and the
   printed field evaluates to itself. The defining polynomial is kept as given modulo p, also when it is not monic
-  (`finite_field(509, &(2*&1^4 + ...), "Polynomial")`); arithmetic uses its monic multiple.
+  (`finite_field(509, &(2*&1^4 + ...), polynomial)`); arithmetic uses its monic multiple.
 - **n25f.2 Elements**: `finite_field_element(F, [c0, c1, ...])` with the coefficients of the residue (no trailing
   zeros; zero is `[]`), and `finite_field_element(F, k)` in an exponential field (0 is zero, k >= 1 is x^(k - 1)).
   `F(k)` and `finite_field_element(F, k)` read k as the index (the base-p digits are the coefficients), `F([..])` as

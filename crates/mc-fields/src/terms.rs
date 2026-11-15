@@ -1,6 +1,6 @@
 //! Terms of the language and the crate's data: reading and writing fields, elements and polynomials.
 //!
-//! - A field is the term `finite_field(p, &(c0 + c1*&1 + ... + &1^n), "Polynomial")` (or `"Exponential"`): the
+//! - A field is the term `finite_field(p, &(c0 + c1*&1 + ... + &1^n), polynomial)` (or `exponential`): the
 //!   characteristic, the defining polynomial as a pure function and the element representation. Its canonical form
 //!   has the polynomial's terms by increasing degree, a unit coefficient left out, so that it reads back to itself.
 //! - An element is `finite_field_element(F, [c0, c1, ...])` (coefficients of its residue, no trailing zeros) in a
@@ -171,8 +171,8 @@ pub fn field_parts(h: &Heap, s: &Syms, t: T<'_>) -> Option<(u64, Poly, Repr)> {
         _ => return None,
     };
     let repr = match h.view(*r) {
-        View::Str("Polynomial") => Repr::Polynomial,
-        View::Str("Exponential") => Repr::Exponential,
+        View::Sym(r) if h.sym_name(r) == "polynomial" => Repr::Polynomial,
+        View::Sym(r) if h.sym_name(r) == "exponential" => Repr::Exponential,
         _ => return None,
     };
     let (x, body) = function_parts(h, s, *f)?;
@@ -236,7 +236,7 @@ pub fn field_term<'h>(h: &'h Heap, s: &Syms, f: &Field) -> T<'h> {
     }
     let body = if parts.len() == 1 { parts[0] } else { h.call(s.add, &parts) };
     let fun = h.call(s.fun, &[h.call(s.list, &[x]), body]);
-    h.call(s.ff, &[h.int(f.p() as i64), fun, h.string(f.repr.name())])
+    h.call(s.ff, &[h.int(f.p() as i64), fun, h.sym_term(h.sym(f.repr.name()))])
 }
 
 /// An element read from a term: its field, the field's term and the element.

@@ -37,18 +37,18 @@ fn wv_highpass(h) = { let l = length(h); map(k => (-1)^k*h[l - k], range(0, l - 
 
 # ---------------------------------------------------------------- one level of the periodized transform
 
-# wv_extend(x, m, pad): the list x extended on the right to length m: "Periodic" repeats it, a number pads with
-# it, "Fixed" repeats the last entry, "Reflected" mirrors without repeating the end
+# wv_extend(x, m, pad): the list x extended on the right to length m: periodic repeats it, a number pads with
+# it, fixed repeats the last entry, reflected mirrors without repeating the end
 fn wv_extend(x, m, pad) = {
   let k = length(x)
   if m <= k then x
-  else if pad === "Periodic" then map(i => x[mod(i - 1, k) + 1], range(m))
-  else if pad === "Fixed" then join(x, constant_array(x[k], m - k))
-  else if pad === "Reflected" then map(p => { let q = mod(p - 1, 2*k - 2); x[if q < k then q + 1 else 2*k - 1 - q] }, range(m))
+  else if pad === periodic then map(i => x[mod(i - 1, k) + 1], range(m))
+  else if pad === fixed then join(x, constant_array(x[k], m - k))
+  else if pad === reflected then map(p => { let q = mod(p - 1, 2*k - 2); x[if q < k then q + 1 else 2*k - 1 - q] }, range(m))
   else join(x, constant_array(pad, m - k))
 }
 # the extended length of a level: L - 2 more entries of the padding (none when periodic), then even
-fn wv_len(k, l, pad) = { let m = if pad === "Periodic" then k else k + l - 2; m + mod(m, 2) }
+fn wv_len(k, l, pad) = { let m = if pad === periodic then k else k + l - 2; m + mod(m, 2) }
 
 # wv_down(x, f): the periodized filtering of the even-length list x by f followed by downsampling,
 # y_i = sum_j f_j x_((2 i + j) mod m)
@@ -136,27 +136,27 @@ fn wv_ok(x) = (is_list(x) and length(x) >= 2 and not is_list(x[1]) and every(n(x
 fn wv_transform(x, w, r, pad, kind) = {
   let h = wv_lowpass(w)
   let xd = wv_data(x)
-  let rr = if r === automatic then wv_levels(xd, h, if kind === "SWT" then "Periodic" else pad) else r
+  let rr = if r === automatic then wv_levels(xd, h, if kind === "SWT" then periodic else pad) else r
   let t = wv_tree(xd, h, rr, pad, kind)
   discrete_wavelet_data(t[1], assoc("Wavelet" -> wv_name(w), "Levels" -> rr, "Transform" -> kind, "Padding" -> pad, "Shapes" -> t[2], "DataDimensions" -> wv_shape(x)))
 }
 
 # discrete_wavelet_transform(data), (data, w), (data, w, r): the r-level discrete wavelet transform of a list or a
-# matrix with the orthonormal wavelet w (haar_wavelet() by default; daubechies_wavelet(n)); padding: "Periodic"
-# (default), a number, "Fixed" or "Reflected"
-fn discrete_wavelet_transform(x; padding = "Periodic") when wv_ok(x) = wv_transform(x, automatic, automatic, padding, "DWT")
-fn discrete_wavelet_transform(x, w; padding = "Periodic") when wv_ok(x) and wv_lowpass(w) !== null = wv_transform(x, w, automatic, padding, "DWT")
-fn discrete_wavelet_transform(x, w, r; padding = "Periodic") when wv_ok(x) and wv_lowpass(w) !== null and (r === automatic or (is_integer(r) and r >= 1)) = wv_transform(x, w, r, padding, "DWT")
+# matrix with the orthonormal wavelet w (haar_wavelet() by default; daubechies_wavelet(n)); padding: periodic
+# (default), a number, fixed or reflected
+fn discrete_wavelet_transform(x; padding = periodic) when wv_ok(x) = wv_transform(x, automatic, automatic, padding, "DWT")
+fn discrete_wavelet_transform(x, w; padding = periodic) when wv_ok(x) and wv_lowpass(w) !== null = wv_transform(x, w, automatic, padding, "DWT")
+fn discrete_wavelet_transform(x, w, r; padding = periodic) when wv_ok(x) and wv_lowpass(w) !== null and (r === automatic or (is_integer(r) and r >= 1)) = wv_transform(x, w, r, padding, "DWT")
 
 # discrete_wavelet_packet_transform: every node of the tree is split, approximations and details alike
-fn discrete_wavelet_packet_transform(x; padding = "Periodic") when wv_ok(x) = wv_transform(x, automatic, automatic, padding, "Packet")
-fn discrete_wavelet_packet_transform(x, w; padding = "Periodic") when wv_ok(x) and wv_lowpass(w) !== null = wv_transform(x, w, automatic, padding, "Packet")
-fn discrete_wavelet_packet_transform(x, w, r; padding = "Periodic") when wv_ok(x) and wv_lowpass(w) !== null and (r === automatic or (is_integer(r) and r >= 1)) = wv_transform(x, w, r, padding, "Packet")
+fn discrete_wavelet_packet_transform(x; padding = periodic) when wv_ok(x) = wv_transform(x, automatic, automatic, padding, "Packet")
+fn discrete_wavelet_packet_transform(x, w; padding = periodic) when wv_ok(x) and wv_lowpass(w) !== null = wv_transform(x, w, automatic, padding, "Packet")
+fn discrete_wavelet_packet_transform(x, w, r; padding = periodic) when wv_ok(x) and wv_lowpass(w) !== null and (r === automatic or (is_integer(r) and r >= 1)) = wv_transform(x, w, r, padding, "Packet")
 
 # stationary_wavelet_transform: the undecimated transform, every level of the length of the data (circular)
-fn stationary_wavelet_transform(x) when wv_ok(x) = wv_transform(x, automatic, automatic, "Periodic", "SWT")
-fn stationary_wavelet_transform(x, w) when wv_ok(x) and wv_lowpass(w) !== null = wv_transform(x, w, automatic, "Periodic", "SWT")
-fn stationary_wavelet_transform(x, w, r) when wv_ok(x) and wv_lowpass(w) !== null and (r === automatic or (is_integer(r) and r >= 1)) = wv_transform(x, w, r, "Periodic", "SWT")
+fn stationary_wavelet_transform(x) when wv_ok(x) = wv_transform(x, automatic, automatic, periodic, "SWT")
+fn stationary_wavelet_transform(x, w) when wv_ok(x) and wv_lowpass(w) !== null = wv_transform(x, w, automatic, periodic, "SWT")
+fn stationary_wavelet_transform(x, w, r) when wv_ok(x) and wv_lowpass(w) !== null and (r === automatic or (is_integer(r) and r >= 1)) = wv_transform(x, w, r, periodic, "SWT")
 
 # the leaves of the tree: the keys that are not split, which hold the data between them
 fn wv_leaves(d) = {
@@ -189,8 +189,8 @@ fn wv_select(cs, leaves, sel) = {
   let ks = keys(cs)
   if sel === all then ks
   else if sel === automatic then leaves
-  else if is_list(sel) and length(sel) >= 1 and every(sel, is_list) then select(ks, k => some(sel, s => match_q(k, s)))
-  else select(ks, k => match_q(k, sel))
+  else if is_list(sel) and length(sel) >= 1 and every(sel, is_list) then select(ks, k => some(sel, s => is_match(k, s)))
+  else select(ks, k => is_match(k, sel))
 }
 rule discrete_wavelet_data(cs_, info_)(sel_) := {
   let d = discrete_wavelet_data(cs, info)
@@ -303,8 +303,8 @@ fn wv_icwt(c, sel) = {
 }
 fn wv_isc(c) = not is_atom(c) and head(c) === continuous_wavelet_data
 fn inverse_continuous_wavelet_transform(c) when wv_isc(c) = wv_icwt(c, all)
-# method: "LeastSquares" is the method above (the only one)
-rule inverse_continuous_wavelet_transform(c_, options(method -> m_)) := wv_icwt(c, all) when wv_isc(c) and (m === automatic or m === "LeastSquares")
+# method: least_squares is the method above (the only one)
+rule inverse_continuous_wavelet_transform(c_, options(method -> m_)) := wv_icwt(c, all) when wv_isc(c) and (m === automatic or m === least_squares)
 fn inverse_continuous_wavelet_transform(c, w) when wv_isc(c) and (w === automatic or w === lookup(c[2], "Wavelet")) = wv_icwt(c, all)
 fn inverse_continuous_wavelet_transform(c, w, sel) when wv_isc(c) and (w === automatic or w === lookup(c[2], "Wavelet")) = wv_icwt(c, sel)
 
@@ -321,7 +321,7 @@ fn wv_cdata(rs, w) = {
   let cs = association_thread(map(r => r[1], sc), map(r => if key_exists(lk, r[1]) then lookup(lk, r[1]) else constant_array(0.0, k), sc))
   continuous_wavelet_data(cs, assoc("Wavelet" -> wv_cwave(w), "Octaves" -> noct, "Voices" -> nvoc, "Scales" -> apply(assoc, sc), "Residual" -> constant_array(0.0, k), "Real" -> every(flatten(map(r => n(r[2]), rs)), x => im_part(x) == 0), "Length" -> k))
 }
-fn wv_rules_ok(rs) = is_list(rs) and length(rs) >= 1 and every(rs, r => match_q(r, _ -> _) and is_list(r[1]) and length(r[1]) == 2 and is_integer(r[1][1]) and is_integer(r[1][2]) and r[1][1] >= 1 and r[1][2] >= 1 and is_list(r[2]) and length(r[2]) == length(rs[1][2]) and length(r[2]) >= 2)
+fn wv_rules_ok(rs) = is_list(rs) and length(rs) >= 1 and every(rs, r => is_match(r, _ -> _) and is_list(r[1]) and length(r[1]) == 2 and is_integer(r[1][1]) and is_integer(r[1][2]) and r[1][1] >= 1 and r[1][2] >= 1 and is_list(r[2]) and length(r[2]) == length(rs[1][2]) and length(r[2]) >= 2)
 rule continuous_wavelet_data(rs_) := wv_cdata(rs, automatic) when wv_rules_ok(rs)
 rule continuous_wavelet_data(rs_, w_) := wv_cdata(rs, w) when wv_rules_ok(rs) and wv_cok(w)
 
@@ -337,7 +337,7 @@ rule continuous_wavelet_data(cs_, info_)(sel_) := {
 
 # options for the plots: the layout option is read here, the rest goes to the plotting functions
 fn wv_opts(o) = apply(options, select(apply(list, o), r => not (r[1] === plot_layout)))
-fn wv_layout(o) = { let rs = select(apply(list, o), r => r[1] === plot_layout); if length(rs) == 0 then "CommonXAxis" else rs[1][2] }
+fn wv_layout(o) = { let rs = select(apply(list, o), r => r[1] === plot_layout); if length(rs) == 0 then common_x_axis else rs[1][2] }
 fn wv_label(k) = to_string(k)
 # real values as they are, complex ones by their modulus
 fn wv_real(v) = if every(flatten([v]), x => im_part(x) == 0) then re(v) else abs(v)
@@ -349,13 +349,13 @@ fn wv_vjoin(a, b) = { let c = max(length(a[1]), length(b[1])); join(wv_pad(a, le
 
 # wavelet_list_plot(d), (d, sel), (d, sel, f): the coefficients of the discrete wavelet data d (or a list of them,
 # drawn together), one plot of f(c) (default the coefficients themselves, the modulus of complex ones) per index;
-# plot_layout: "CommonXAxis" (a column, default) or "CommonYAxis" (a row)
+# plot_layout: common_x_axis (a column, default) or common_y_axis (a row)
 fn wv_isd(d) = not is_atom(d) and head(d) === discrete_wavelet_data and length(wv_info(d, "DataDimensions")) == 1
 fn wv_list_plot(ds, sel, f, o) = {
   let d = ds[1]
   let ks = wv_select(d[1], wv_leaves(d), sel)
   let plots = map(k => list_plot(map(e => wv_real(f(lookup(e[1], k))), ds), filling: axis, plot_label: wv_label(k), wv_opts(o)), ks)
-  if wv_layout(o) === "CommonYAxis" then graphics_row(plots) else graphics_column(plots)
+  if wv_layout(o) === common_y_axis then graphics_row(plots) else graphics_column(plots)
 }
 rule wavelet_list_plot(d_) := wv_list_plot([d], automatic, x => x, options()) when wv_isd(d)
 rule wavelet_list_plot(d_, o_) := wv_list_plot([d], automatic, x => x, o) when wv_isd(d) and not is_atom(o) and head(o) === options
@@ -382,7 +382,7 @@ fn wv_tile(d, key, depth, f) = {
 fn wv_matrix_plot(d, r, sel, f, o) = {
   let kind = wv_info(d, "Transform")
   let ks = wv_select(d[1], wv_leaves(d), sel)
-  if kind === "DWT" and sel === automatic and wv_layout(o) !== "Grid" then matrix_plot(wv_tile(d, [], if r === automatic then wv_info(d, "Levels") else r, f), wv_opts(o))
+  if kind === "DWT" and sel === automatic and wv_layout(o) !== grid then matrix_plot(wv_tile(d, [], if r === automatic then wv_info(d, "Levels") else r, f), wv_opts(o))
   else graphics_grid(wv_rows(map(k => matrix_plot(wv_mval(f, lookup(d[1], k)), plot_label: wv_label(k), wv_opts(o)), ks), 4))
 }
 rule wavelet_matrix_plot(d_) := wv_matrix_plot(d, automatic, automatic, x => x, options()) when wv_ism(d)

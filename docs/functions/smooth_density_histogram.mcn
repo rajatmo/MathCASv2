@@ -10,7 +10,7 @@
 # Details
 
 #% item
-# `smooth_density_histogram(data, automatic, "CDF")` draws the distribution function.
+# `smooth_density_histogram(data, automatic, cdf)` draws the distribution function.
 
 #% section
 # Examples

@@ -245,9 +245,9 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("stacked_list_plot", "stacked_list_plot([data1, data2, ...]): the data sets stacked on one another, the bands between them filled"),
     ("list_fit_plot", "list_fit_plot(data) or list_fit_plot(data, n): the points with their least-squares line (or polynomial of degree n); data -> [xname, yname] labels the axes"),
     ("point_value_plot", "point_value_plot([p1 -> v1, ...]) (also [p1, ...] -> [v1, ...] or an association): points coloured by their values, with a colour bar"),
-    ("paired_histogram", "paired_histogram(d1, d2) or paired_histogram(d1, d2, bins, form): histograms of two data sets back to back (form \"PDF\", \"CDF\", \"SF\", \"HF\", \"CHF\", \"Probability\")"),
+    ("paired_histogram", "paired_histogram(d1, d2) or paired_histogram(d1, d2, bins, form): histograms of two data sets back to back (form pdf, cdf, sf, hf, chf, probability)"),
     ("paired_smooth_histogram", "paired_smooth_histogram(d1, d2): kernel density estimates of two data sets back to back"),
-    ("smooth_density_histogram", "smooth_density_histogram([[x, y], ...]): a kernel density estimate of points of the plane as colours (smooth_density_histogram(data, automatic, \"CDF\") the distribution function)"),
+    ("smooth_density_histogram", "smooth_density_histogram([[x, y], ...]): a kernel density estimate of points of the plane as colours (smooth_density_histogram(data, automatic, cdf) the distribution function)"),
     ("distribution_chart", "distribution_chart(data) or distribution_chart([d1, d2, ...]): violins: each data set's density estimate mirrored, with the quartile range and median"),
     ("candlestick_chart", "candlestick_chart([[date, [open, high, low, close]], ...]): a candle per day (dates as [y, m, d] lists or numbers), rising days green and falling days red"),
     ("renko_chart", "renko_chart([[date, price], ...]) or renko_chart(prices, size): bricks of a fixed size drawn each time the price moves that far"),
@@ -257,14 +257,14 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("list_curve_path_plot", "list_curve_path_plot([[x, y], ...]): a curve through the points in nearest-neighbour order"),
     ("chromaticity_plot", "chromaticity_plot(space) or chromaticity_plot([s1, s2, ...]): the CIE 1931 chromaticity diagram with the gamut triangles of RGB colour spaces (\"sRGB\", \"AdobeRGB\", \"WideGamutRGB\", \"ProPhotoRGB\", \"DisplayP3\", \"Rec2020\", ...) or colours as points"),
     ("chromaticity_plot3d", "chromaticity_plot3d(space) or chromaticity_plot3d(space, \"XYZ\" | \"xyY\" | \"LAB\" | \"LUV\"): the gamut of an RGB colour space as a solid in a colour space"),
-    ("slice_density_plot3d", "slice_density_plot3d(f, surface, [x, a, b], [y, c, d], [z, e, f]): the values of f as colours on surfaces in the box: \"CenterPlanes\" (default), \"BackPlanes\", \"XStackedPlanes\", ..., an equation, or a region (sphere, cylinder, infinite_plane, implicit_region, ...)"),
+    ("slice_density_plot3d", "slice_density_plot3d(f, surface, [x, a, b], [y, c, d], [z, e, f]): the values of f as colours on surfaces in the box: center_planes (default), back_planes, x_stacked_planes, ..., an equation, or a region (sphere, cylinder, infinite_plane, implicit_region, ...)"),
     ("slice_contour_plot3d", "slice_contour_plot3d(f, surface, [x, ...], [y, ...], [z, ...]): the values of f in ten bands of colour on surfaces in the box"),
     ("slice_vector_plot3d", "slice_vector_plot3d([vx, vy, vz], surface, [x, ...], [y, ...], [z, ...]): arrows of a vector field on surfaces in the box"),
     ("list_slice_density_plot3d", "list_slice_density_plot3d(array, surface): a 3D array of values (layers along z, rows along y; option data_range) as colours on surfaces"),
     ("list_slice_contour_plot3d", "list_slice_contour_plot3d(array, surface): a 3D array of values in bands of colour on surfaces"),
     ("list_slice_vector_plot3d", "list_slice_vector_plot3d(array, surface): a 3D array of vectors as arrows on surfaces"),
     ("list_density_plot3d", "list_density_plot3d(array): a 3D array of values as coloured, translucent points (more opaque for larger values; option data_range)"),
-    ("histogram3d", "histogram3d([[x, y], ...]): counts of points in the cells of a grid as boxes (histogram3d(data, n, \"PDF\" | \"Probability\") other heights)"),
+    ("histogram3d", "histogram3d([[x, y], ...]): counts of points in the cells of a grid as boxes (histogram3d(data, n, pdf | probability) other heights)"),
     ("smooth_histogram3d", "smooth_histogram3d([[x, y], ...]): a kernel density estimate of points of the plane as a surface"),
     ("rectangle_chart3d", "rectangle_chart3d([[w, d, h], ...]): boxes of width w, depth d and height h side by side"),
     ("sector_chart3d", "sector_chart3d([[a, r, h], ...]): sectors with angles in proportion to a, radii to r and heights to h"),
@@ -1747,7 +1747,7 @@ fn one_option<'h>(cx: &NativeCx<'_, '_, 'h>, key: &str, v: T<'h>, look: &mut Loo
                 look.legend.clear();
                 return Some(true);
             }
-            if is(v, "automatic") || text(v).is_some_and(|s| s == "Expressions") || is(v, "expressions") {
+            if is(v, "automatic") || is(v, "expressions") {
                 look.legend = vec![AUTO_LEGEND.to_string()];
                 look.legend_terms = vec![];
                 return Some(true);
@@ -1869,7 +1869,7 @@ fn one_option<'h>(cx: &NativeCx<'_, '_, 'h>, key: &str, v: T<'h>, look: &mut Loo
             }
             look.curve_labels = match cx.as_list(v) {
                 Some(items) => items.to_vec(),
-                None if is(v, "automatic") || text(v).is_some_and(|s| s == "Expressions") => vec![],
+                None if is(v, "automatic") || is(v, "expressions") => vec![],
                 None => vec![v],
             };
         }
@@ -1893,11 +1893,15 @@ fn one_option<'h>(cx: &NativeCx<'_, '_, 'h>, key: &str, v: T<'h>, look: &mut Loo
         "x_scale" if takes("x_scale") => look.scale.x = axis_option(h, v)?,
         "y_scale" if takes("y_scale") => look.scale.y = axis_option(h, v)?,
         "scaling_functions" if takes("y_scale") => {
-            // "Log" / "Log10" for y, or [x, y]
-            let one = |t: T<'h>| match text(t).as_deref() {
-                Some("Log" | "Log10" | "Log2") => Some(Axis::Log),
-                None if is(t, "none") || is(t, "automatic") => Some(Axis::Linear),
-                _ => None,
+            // `log` / `log10` / `log2` for y, or [x, y]
+            let one = |t: T<'h>| {
+                if is(t, "log") || is(t, "log10") || is(t, "log2") {
+                    Some(Axis::Log)
+                } else if is(t, "none") || is(t, "automatic") {
+                    Some(Axis::Linear)
+                } else {
+                    None
+                }
             };
             match cx.as_list(v) {
                 Some(&[x, y]) => {

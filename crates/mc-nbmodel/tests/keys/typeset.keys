@@ -146,9 +146,9 @@ f(▮
 --- keys
 Ctrl+/ "3" Shift+Enter
 --- after
-#% cell label=1 typeset
+#% cell in=1 typeset
 ((6)/(3))
-#% output n=1
+#% output out=1
 #= ((6)/(3))
 ‖
 

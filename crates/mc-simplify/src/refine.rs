@@ -24,7 +24,7 @@
 //! | `re(u)`, `im_part(u)` | the real, imaginary part | every term of `u` real or a complex number times a real |
 //! | `atan(tan(u))`, `asin(sin(u))`, `acos(cos(u))` | `u` | `u` (or `re(u)`) in `(-pi/2, pi/2)`, `[-pi/2, pi/2]`, `[0, pi]` |
 //! | `mod(a, m)` | `mod(c, m)` | `m` an integer, `a - m k` a number `c` for a term `k` the facts make an integer |
-//! | `mod(a^(k euler_phi(m)), m)` | `1` | `a`, `m > 1`, `k >= 0` integers, `coprime_q(a, m)` a fact (Euler's theorem) |
+//! | `mod(a^(k euler_phi(m)), m)` | `1` | `a`, `m > 1`, `k >= 0` integers, `coprime(a, m)` a fact (Euler's theorem) |
 //! | `fractional_part(a)` | `0`; `c`, `c - 1` | `a` an integer; `mod(a, 1) == c` by the facts and `a >= 0`, `a < 0` |
 //! | `conditional_expression(v, c)` | `conditional_expression(v', c)` | `v'`: `v` refined under the facts and `c` |
 //!
@@ -524,7 +524,7 @@ fn modulus<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, 
     Ok(None)
 }
 
-/// Euler's theorem (round 19): `mod(a^(k euler_phi(m)), m) = 1` for integers `a`, `m > 1` with `coprime_q(a, m)`
+/// Euler's theorem (round 19): `mod(a^(k euler_phi(m)), m) = 1` for integers `a`, `m > 1` with `coprime(a, m)`
 /// and a nonnegative integer `k` (Hardy and Wright, Theorem 72).
 fn euler<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, a: T<'h>, m: T<'h>) -> Res<Option<T<'h>>> {
     let Some((p, &[base, ex])) = b.call_of(a) else { return Ok(None) };
@@ -545,14 +545,14 @@ fn euler<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, a:
     Ok(ok.then(|| b.int(1)))
 }
 
-/// Is `coprime_q(a, m)` (or `gcd(a, m) == 1`, either order) one of the facts? (Asked of the facts themselves: the
+/// Is `coprime(a, m)` (or `gcd(a, m) == 1`, either order) one of the facts? (Asked of the facts themselves: the
 /// evaluator's `gcd` of two symbols is 1, the gcd of the polynomials, so the decision service would prove it for
 /// any `a` and `m`.)
 fn coprime<'h>(b: &B<'h>, f: &Facts<'_, 'h>, a: T<'h>, m: T<'h>) -> bool {
     let h = b.heap();
     let pair = |xs: &[T<'h>]| xs == [a, m] || xs == [m, a];
     f.d.fact_terms().iter().any(|&t| match b.call_of(t) {
-        Some((s, xs)) if h.sym_name(s) == "coprime_q" => pair(xs),
+        Some((s, xs)) if h.sym_name(s) == "coprime" => pair(xs),
         Some((s, &[g, one])) if h.sym_name(s) == "equal" && one == b.int(1) => {
             matches!(b.call_of(g), Some((gs, xs)) if h.sym_name(gs) == "gcd" && pair(xs))
         }

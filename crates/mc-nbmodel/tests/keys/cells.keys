@@ -45,7 +45,7 @@ Ctrl+Shift+D
 
 === a divided input loses its label
 --- before
-#% cell label=4
+#% cell in=4
 x▮y
 --- keys
 Ctrl+Shift+D
@@ -76,9 +76,9 @@ c
 
 === merge drops generated cells
 --- before
-#% cell label=1
+#% cell in=1
 1
-#% output n=1
+#% output out=1
 #= 1
 
 #% cell
@@ -86,7 +86,7 @@ c
 --- keys
 Bracket(0) Shift+Bracket(2) Ctrl+Shift+M
 --- after
-#% cell label=1 ◆
+#% cell in=1 ◆
 1
 2
 
@@ -122,17 +122,17 @@ f(x)▮
 
 === output from above makes an input
 --- before
-#% cell label=1
+#% cell in=1
 1+1
-#% output n=1
+#% output out=1
 #= 2
 ‖
 --- keys
 Ctrl+Shift+L
 --- after
-#% cell label=1
+#% cell in=1
 1+1
-#% output n=1
+#% output out=1
 #= 2
 
 #% cell
@@ -140,19 +140,19 @@ Ctrl+Shift+L
 
 === same style below goes directly after the cell, before its outputs
 --- before
-#% cell label=1
+#% cell in=1
 x▮
-#% output n=1
+#% output out=1
 #= x
 --- keys
 Alt+Enter "y"
 --- after
-#% cell label=1
+#% cell in=1
 x
 
 #% cell
 y▮
-#% output n=1
+#% output out=1
 #= x
 --- groups
 x {y x}
@@ -182,7 +182,7 @@ Alt+4
 
 === a style without labels drops the label
 --- before
-#% cell label=2
+#% cell in=2
 x▮
 --- keys
 Alt+7
@@ -208,12 +208,12 @@ y▮
 
 === show expression shows the cell's source; edited and shown again it reads back
 --- before
-#% cell label=2
+#% cell in=2
 x▮
 --- keys
-Ctrl+Shift+E Click(0,15) " noeval" Ctrl+Shift+E
+Ctrl+Shift+E Click(0,12) " noeval" Ctrl+Shift+E
 --- after
-#% cell label=2 noeval ◆
+#% cell in=2 noeval ◆
 x
 
 === a cell shown as its source is saved as the cell it describes
@@ -258,9 +258,9 @@ a
 
 === copy and paste cells at an insertion point
 --- before
-#% cell label=1
+#% cell in=1
 a
-#% output n=1
+#% output out=1
 #= a
 
 #% text
@@ -268,17 +268,17 @@ a
 --- keys
 Bracket(0,2) Ctrl+C Gap(3) Ctrl+V
 --- after
-#% cell label=1
+#% cell in=1
 a
-#% output n=1
+#% output out=1
 #= a
 
 #% text
 # t
 
-#% cell label=1
+#% cell in=1
 a
-#% output n=1
+#% output out=1
 #= a
 ‖
 

@@ -50,4 +50,4 @@ unitize(x)
 # See also
 
 #% text
-# `sign`, `chop`, `possible_zero_q`
+# `sign`, `chop`, `is_possible_zero`

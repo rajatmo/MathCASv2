@@ -43,4 +43,4 @@ replace_list(x, [x -> a, x -> b, x -> c])
 # See also
 
 #% text
-# `replace`, `rewrite`, `match_q`, `cases`
+# `replace`, `rewrite`, `is_match`, `cases`

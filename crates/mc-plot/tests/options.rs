@@ -38,7 +38,7 @@ fn is_image(e: &mut CoreEngine, src: &str) -> String {
 fn common_options_are_accepted() {
     let mut e = CoreEngine::new();
     for src in [
-        "plot(sin(x), [x, 0, 10], plot_legends: [\"sine\"], plot_style: [red, thick], frame: true, mesh: all, plot_theme: \"plain\")",
+        "plot(sin(x), [x, 0, 10], plot_legends: [\"sine\"], plot_style: [red, thick], frame: true, mesh: all, plot_theme: plain)",
         "plot([sin(x), cos(x)], [x, 0, 10], plot_style: [directive(red, dashed), directive(blue, thickness(0.01))], axes_label: [x, y])",
         "plot(x^2, [x, -1, 1], plot_legends: automatic, plot_labels: [\"p\"], frame: false, axes_origin: [0, 0])",
         "plot(x, [x, 0, 1], exclusions: none, plot_points: 50, max_recursion: 3, image_size: 300, aspect_ratio: 1)",
@@ -371,7 +371,7 @@ fn given_ticks_in_data_values_frame_ticks_and_minor_marks() {
 #[test]
 fn legend_layouts_frames_and_places() {
     let mut e = CoreEngine::new();
-    let s = svg(&is_image(&mut e, r#"plot([x, x^2], [x, 0, 1], plot_legends: line_legend(["a", "b"], legend_layout: "Row", legend_function: frame))"#));
+    let s = svg(&is_image(&mut e, r#"plot([x, x^2], [x, 0, 1], plot_legends: line_legend(["a", "b"], legend_layout: row, legend_function: frame))"#));
     let ((xa, ya, _), (xb, yb, _)) = (label_at(&s, "a").unwrap(), label_at(&s, "b").unwrap());
     assert!(ya == yb && xb > xa + 10.0, "side by side: {xa} {ya}, {xb} {yb}");
     // the frame is chrome: a class before its data (round nb-svg)

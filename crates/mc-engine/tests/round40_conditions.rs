@@ -181,12 +181,12 @@ fn euler_and_bernoulli_polynomials_at_one_half() {
 #[test]
 fn even_perfect_numbers() {
     let mut e = CoreEngine::new();
-    assert_eq!(ev(&mut e, "perfect_number(3, \"Even\")"), "496");
-    assert_eq!(ev(&mut e, "perfect_number(range(5), \"Even\") == map(perfect_number, range(5))"), "true");
+    assert_eq!(ev(&mut e, "perfect_number(3, even)"), "496");
+    assert_eq!(ev(&mut e, "perfect_number(range(5), even) == map(perfect_number, range(5))"), "true");
     // each is perfect: sigma_1(k) = 2 k
     assert_eq!(ev(&mut e, "map(k => divisor_sigma(1, k) == 2*k, perfect_number(range(6)))"), "[true, true, true, true, true, true]");
     // no odd perfect number is known: no value
-    let odd = ev(&mut e, "perfect_number(1, \"Odd\")");
+    let odd = ev(&mut e, "perfect_number(1, odd)");
     assert!(odd.contains("perfect_number"), "{odd}");
 }
 

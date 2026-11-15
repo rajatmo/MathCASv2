@@ -13,7 +13,7 @@
 # Basic examples
 
 #% cell
-list_slice_vector_plot3d(table([y, -x, z], z, range(-1, 1, 0.25), y, range(-1, 1, 0.25), x, range(-1, 1, 0.25)), "CenterPlanes")
+list_slice_vector_plot3d(table([y, -x, z], z, range(-1, 1, 0.25), y, range(-1, 1, 0.25), x, range(-1, 1, 0.25)), center_planes)
 #% output
 #= image("list_slice_vector_plot3d.files/list_slice_vector_plot3d-1.svgz")
 

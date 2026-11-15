@@ -13,7 +13,7 @@
 # `key` is a key present in both, a rule `lk -> rk` for keys of different names, or a list of them (a record matches when all the pairs of values agree).
 
 #% item
-# A fourth argument gives the type of join: `"inner"` (the default) keeps only the matching pairs, `"left"` also the records of `left` without a partner, `"right"` those of `right`, `"outer"` both. The keys the missing side would have are `missing("Unmatched")`. A string in any case or a symbol is accepted.
+# A fourth argument gives the type of join: `inner` (the default) keeps only the matching pairs, `left` also the records of `left` without a partner, `right` those of `right`, `outer` both. The keys the missing side would have are `missing("Unmatched")`. A string in any case or a symbol is accepted.
 
 #% item
 # Records come in the order of `left`, partners in the order of `right`; unmatched records of `right` follow.
@@ -41,7 +41,7 @@ join_across([assoc("name" -> "Ana", "age" -> 31), assoc("name" -> "Bo", "age" ->
 
 #% cell
 join_across([assoc("k" -> 1, "v" -> "a"), assoc("k" -> 2, "v" -> "b")],
-  [assoc("k" -> 1, "w" -> "x"), assoc("k" -> 3, "w" -> "y")], "k", "left")
+  [assoc("k" -> 1, "w" -> "x"), assoc("k" -> 3, "w" -> "y")], "k", left)
 #% output
 #= [assoc("k" -> 1, "v" -> "a", "w" -> "x"), assoc("k" -> 2, "v" -> "b", "w" -> missing("Unmatched"))]
 
@@ -50,7 +50,7 @@ join_across([assoc("k" -> 1, "v" -> "a"), assoc("k" -> 2, "v" -> "b")],
 
 #% cell
 join_across([assoc("k" -> 1, "v" -> "a"), assoc("k" -> 2, "v" -> "b")],
-  [assoc("k" -> 1, "w" -> "x"), assoc("k" -> 3, "w" -> "y")], "k", "outer")
+  [assoc("k" -> 1, "w" -> "x"), assoc("k" -> 3, "w" -> "y")], "k", outer)
 #% output
 #= [assoc("k" -> 1, "v" -> "a", "w" -> "x"), assoc("k" -> 2, "v" -> "b", "w" -> missing("Unmatched")), assoc("k" -> 3, "v" -> missing("Unmatched"), "w" -> "y")]
 
@@ -99,7 +99,7 @@ join_across([assoc("k" -> 1, "v" -> "a")], [assoc("k" -> 1, "v" -> "x")], "k", k
 # An inner join over several keys, and a join with an empty side:
 
 #% cell
-[join_across([assoc("a" -> 1, "b" -> 2, "v" -> 1)], [assoc("a" -> 1, "b" -> 2, "w" -> 5), assoc("a" -> 1, "b" -> 3, "w" -> 6)], ["a", "b"]), join_across([], [assoc("k" -> 1)], "k"), join_across([assoc("k" -> 1)], [], "k", "outer")]
+[join_across([assoc("a" -> 1, "b" -> 2, "v" -> 1)], [assoc("a" -> 1, "b" -> 2, "w" -> 5), assoc("a" -> 1, "b" -> 3, "w" -> 6)], ["a", "b"]), join_across([], [assoc("k" -> 1)], "k"), join_across([assoc("k" -> 1)], [], "k", outer)]
 #% output
 #= [[assoc("a" -> 1, "b" -> 2, "v" -> 1, "w" -> 5)], [], [assoc("k" -> 1)]]
 

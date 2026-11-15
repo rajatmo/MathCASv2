@@ -65,7 +65,7 @@ fn r38_berlekamp_massey(s) = {
   var bb = 1
   for k in range(length(s)) {
     let dk = together(s[k] + total(map(i => c[i + 1]*s[k - i], range(min(l, length(c) - 1)))))
-    if dk === 0 or possible_zero_q(dk) then m = m + 1
+    if dk === 0 or is_possible_zero(dk) then m = m + 1
     else {
       let t = c
       let shifted = join(constant_array(0, m), b*(dk/bb))
@@ -92,8 +92,8 @@ fn find_linear_recurrence(xs, d) when is_list(xs) and is_integer(d) and d >= 1 a
   if length(r) >= 1 and length(r) <= d and 2*length(r) < length(xs) then r else failure(no_recurrence)
 }
 
-# perfect_number_q(k): whether the integer k is perfect, the sum of its proper divisors (sigma_1(k) = 2 k)
-rule perfect_number_q(k_) := is_integer(k) and k > 0 and divisor_sigma(1, k) == 2*k
+# is_perfect_number(k): whether the integer k is perfect, the sum of its proper divisors (sigma_1(k) = 2 k)
+rule is_perfect_number(k_) := is_integer(k) and k > 0 and divisor_sigma(1, k) == 2*k
 
 # --- Roman numerals ---
 
@@ -119,7 +119,7 @@ rule roman_numeral(k_) := roman_numeral(-k) when is_integer(k) and k < 0
 rule from_roman_numeral(ss_) := map(from_roman_numeral, ss) when is_list(ss)
 # "N" (nulla) is 0, the inverse of roman_numeral(0)
 rule from_roman_numeral(s_) := 0 when is_string(s) and to_upper(s) == "N"
-rule from_roman_numeral(s_) := from_digits(to_upper(s), "Roman") when is_string(s) and to_upper(s) != "N"
+rule from_roman_numeral(s_) := from_digits(to_upper(s), roman) when is_string(s) and to_upper(s) != "N"
 
 # --- polynomial forms of the Bernoulli, Euler and Bell numbers ---
 
@@ -389,12 +389,12 @@ rule de_bruijn_sequence(s_, m_) := string_join(map(i => characters(s)[i + 1], de
 
 # the exponents of the Mersenne primes found so far (2^p - 1 for p in the list; the 52nd is 136279841)
 combinat_mersenne_exponents := [2, 3, 5, 7, 13, 17, 19, 31, 61, 89, 107, 127, 521, 607, 1279, 2203, 2281, 3217, 4253, 4423, 9689, 9941, 11213, 19937, 21701, 23209, 44497, 86243, 110503, 132049, 216091, 756839, 859433, 1257787, 1398269, 2976221, 3021377, 6972593, 13466917, 20996011, 24036583, 25964951, 30402457, 32582657, 37156667, 42643801, 43112609, 57885161, 74207281, 77232917, 82589933, 136279841]
-# mersenne_prime_exponent(k): the k-th known Mersenne prime exponent, k = 1 to 52; mersenne_prime_exponent_q(p):
+# mersenne_prime_exponent(k): the k-th known Mersenne prime exponent, k = 1 to 52; is_mersenne_prime_exponent(p):
 # whether p is one of the known exponents; lists thread
 rule mersenne_prime_exponent(ks_) := map(mersenne_prime_exponent, ks) when is_list(ks)
 rule mersenne_prime_exponent(k_) := combinat_mersenne_exponents[k] when is_integer(k) and k >= 1 and k <= 52
-rule mersenne_prime_exponent_q(ps_) := map(mersenne_prime_exponent_q, ps) when is_list(ps)
-rule mersenne_prime_exponent_q(p_) := if is_integer(p) then member_of(combinat_mersenne_exponents, p) else false
+rule is_mersenne_prime_exponent(ps_) := map(is_mersenne_prime_exponent, ps) when is_list(ps)
+rule is_mersenne_prime_exponent(p_) := if is_integer(p) then member_of(combinat_mersenne_exponents, p) else false
 
 # finite_abelian_group_count(k): the number of abelian groups of order k, the product of partitions_p(e) over the
 # prime powers p^e exactly dividing k
@@ -697,21 +697,21 @@ rule apply_sides(f_, r_) := calc_side_map(r, q => calc_sides(q, f)) when not is_
 # numerator_denominator(e): [numerator(e), denominator(e)]
 rule numerator_denominator(e_) := [numerator(e), denominator(e)]
 
-# rational_expression_q(e, x), (e, [x, y, ...]), (e): whether e is a quotient of polynomials in the variables (every
+# is_rational_expression(e, x), (e, [x, y, ...]), (e): whether e is a quotient of polynomials in the variables (every
 # variable of e when none is given)
 fn rx_poly(e, vs) = if every(vs, v => free_of(e, v)) then true else if member(vs, e) then true else if is_atom(e) then false
   else if head(e) === add or head(e) === mul then every(map(i => rx_poly(e[i], vs), range(length(e))), x => x === true)
   else if head(e) === pow then (is_integer(e[2]) and e[2] >= 0 and rx_poly(e[1], vs))
   else false
 fn rx_vars(v) = if is_list(v) then v else [v]
-rule rational_expression_q(e_) := rx_poly(numerator(together(e)), variables(e, kernels: true)) and rx_poly(denominator(together(e)), variables(e, kernels: true))
-rule rational_expression_q(e_, v_) := rx_poly(numerator(together(e)), rx_vars(v)) and rx_poly(denominator(together(e)), rx_vars(v))
+rule is_rational_expression(e_) := rx_poly(numerator(together(e)), variables(e, kernels: true)) and rx_poly(denominator(together(e)), variables(e, kernels: true))
+rule is_rational_expression(e_, v_) := rx_poly(numerator(together(e)), rx_vars(v)) and rx_poly(denominator(together(e)), rx_vars(v))
 # (e, vars, test): also every coefficient (a part free of the variables) passes test
 fn rx_poly_t(e, vs, t) = if every(vs, v => free_of(e, v)) then t(e) === true else if member(vs, e) then true else if is_atom(e) then false
   else if head(e) === add or head(e) === mul then every(map(i => rx_poly_t(e[i], vs, t), range(length(e))), x => x === true)
   else if head(e) === pow then (is_integer(e[2]) and e[2] >= 0 and rx_poly_t(e[1], vs, t))
   else false
-rule rational_expression_q(e_, v_, t_) := rx_poly_t(numerator(together(e)), rx_vars(v), t) and rx_poly_t(denominator(together(e)), rx_vars(v), t)
+rule is_rational_expression(e_, v_, t_) := rx_poly_t(numerator(together(e)), rx_vars(v), t) and rx_poly_t(denominator(together(e)), rx_vars(v), t)
 
 # the walkers of expand_numerator, expand_denominator and expand_all
 fn ex_parts(e) = map(i => e[i], range(length(e)))

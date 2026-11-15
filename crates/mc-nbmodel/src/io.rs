@@ -3,7 +3,7 @@
 //! Reading: consecutive output lines with the same prefix form one generated cell: `#|` a Print cell, `#=` an
 //! Output cell, `#!` an Output cell showing a failure when its block is numbered or its text is a failure (else a
 //! Message cell holding an error), `#?` a Message cell (a warning). Writing: the generated cells after a code cell
-//! become its output blocks; a numbered Output cell closes a block (`n=N`), the rest share one block. Generated
+//! become its output blocks; a numbered Output cell closes a block (`out=N`), the rest share one block. Generated
 //! cells that follow no code cell cannot be written and are dropped (decision NB-core.4).
 use crate::cell::{Cell, CellId};
 use crate::notebook::Notebook;
@@ -12,7 +12,7 @@ use mc_nbfile::{self as file, Attrs, OutputBlock, OutputKind, OutputLine};
 
 /// The attributes the model interprets on a cell marker.
 const KNOWN: [&str; 13] = [
-    "label",
+    file::IN_LABEL,
     "typeset",
     "traditional",
     "closed",
@@ -35,7 +35,7 @@ fn cell_from_file(nb: &mut Notebook, fc: &file::Cell) -> Cell {
     let extra_breaks = if fc.outputs.is_empty() { fc.gap.saturating_sub(1) } else { 0 };
     let mut c = nb.new_cell(style, &format!("{}{}", fc.content(), NL.to_string().repeat(extra_breaks)));
     let a = &fc.attrs;
-    c.label = a.number("label");
+    c.label = a.number(file::IN_LABEL);
     // typeset cells of older notebooks keep their square roots, fractions and powers as boxes and write every other
     // box as its linear text (NBUI.5); a cell is marked typeset exactly when boxes remain
     if a.has("typeset") && style.is_code() {
@@ -71,8 +71,8 @@ fn cell_from_file(nb: &mut Notebook, fc: &file::Cell) -> Cell {
 }
 
 fn generated_from_block(nb: &mut Notebook, input: CellId, block: &OutputBlock, out: &mut Vec<Cell>) {
-    let n: Option<u32> = block.attrs.number("n");
-    let extra = Attrs(block.attrs.0.iter().filter(|a| a.name != "n").cloned().collect());
+    let n: Option<u32> = block.attrs.number(file::OUT_LABEL);
+    let extra = Attrs(block.attrs.0.iter().filter(|a| a.name != file::OUT_LABEL).cloned().collect());
     let mut k = 0;
     while k < block.lines.len() {
         let kind = block.lines[k].kind;
@@ -191,7 +191,7 @@ impl Notebook {
                     // closes its block, so the attributes stay with it
                     if g.style == Style::Output && (g.label.is_some() || !g.out_extra.is_empty()) {
                         if g.label.is_some() {
-                            block.attrs.set("n", g.label.map(|n| n.to_string()));
+                            block.attrs.set(file::OUT_LABEL, g.label.map(|n| n.to_string()));
                         }
                         block.attrs.0.extend(g.out_extra.0.iter().cloned());
                         fc.outputs.push(std::mem::take(&mut block));
@@ -275,7 +275,7 @@ impl Notebook {
 fn cell_attrs(c: &Cell) -> Attrs {
     let mut a = Attrs::new();
     if let Some(n) = c.label {
-        a.set("label", Some(n.to_string()));
+        a.set(file::IN_LABEL, Some(n.to_string()));
     }
     a.flag("typeset", c.props.typeset);
     a.flag("traditional", c.props.traditional);
@@ -316,18 +316,18 @@ mod tests {
 #% section closed
 # S
 
-#% cell label=1 future=x
+#% cell in=1 future=x
 1 + 1
 3 + 3
-#% output n=1
+#% output out=1
 #= 2
-#% output n=2
+#% output out=2
 #| hi
 #= 6
 #% output
 #? note
 
-#% code label=3 together
+#% code in=3 together
 f(x) = 1
 
 #% cell noeval

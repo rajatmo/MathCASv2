@@ -54,8 +54,8 @@ strings (300 KB, 10^5 pieces, a size-limit failure), identical at 1 and 4 thread
 ## Round 30: string patterns
 
 Modules: `strpat` (pattern terms read as string patterns, the matcher), `regex` (`regular_expression`), `scan`
-(the searching functions). New functions: `string_cases`, `string_position`, `string_count`, `string_match_q`,
-`string_free_q`, `string_delete`, `regular_expression`, and the pattern symbols `digit_character`,
+(the searching functions). New functions: `string_cases`, `string_position`, `string_count`, `is_string_match`,
+`is_string_free`, `string_delete`, `regular_expression`, and the pattern symbols `digit_character`,
 `letter_character`, `whitespace_character`, `word_character`, `punctuation_character`, `hexadecimal_character`,
 `whitespace`, `number_string`, `start_of_string`, `end_of_string`, `start_of_line`, `end_of_line`,
 `word_boundary`. `string_replace`, `string_split`, `string_contains`, `string_starts`, `string_ends` take
@@ -80,11 +80,11 @@ patterns too; their literal forms keep the old fast paths.
   1-based, inclusive). `ignore_case: true` compares case-insensitively. A rule's right side is evaluated with the
   variables bound; `string_replace` joins the pieces with `string_expression`, so a right side that is not a string
   leaves `string_expression(...)` (this replaces the old `failure(argument, string_replace, 2)` for `"a" -> 1`).
-  `string_match_q` reads `*` and `@` in a literal string as wildcards. `string_split` with a pattern keeps empty
+  `is_string_match` reads `*` and `@` in a literal string as wildcards. `string_split` with a pattern keeps empty
   pieces like the literal form (S.3); `p -> v` puts `v` between the pieces.
 - Lists in a pattern are alternatives (`characters("aeiou")`, `character_range("a", "f")`); alternatives of single
   characters become one character class.
-- Exceptions: `x_ when not match_q(x, c)` and `x @ p when not match_q(x, c)` (how `except(c)`, `except(c, p)` are
+- Exceptions: `x_ when not is_match(x, c)` and `x @ p when not is_match(x, c)` (how `except(c)`, `except(c, p)` are
   written) match what `p` matches when that text does not match the string pattern `c`. A compound term that is no
   pattern form is evaluated once and read as a pattern (`characters("aeiou")` held in a condition).
 - Gaps: `string_replace_list`, `string_replace_part`, `any_order` not done;

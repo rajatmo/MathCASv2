@@ -13,12 +13,12 @@
 # Basic examples
 
 #% cell
-match_q(x_, verbatim(x_))
+is_match(x_, verbatim(x_))
 #% output
 #= true
 
 #% cell
-match_q(y, verbatim(x_))
+is_match(y, verbatim(x_))
 #% output
 #= false
 
@@ -36,4 +36,4 @@ free_of(f(_), verbatim(_))
 # See also
 
 #% text
-# `hold_pattern`, `match_q`, `cases`
+# `hold_pattern`, `is_match`, `cases`

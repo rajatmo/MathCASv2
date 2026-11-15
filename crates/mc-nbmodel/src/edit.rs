@@ -1367,7 +1367,7 @@ mod tests {
     use super::smart_quotes;
     use crate::{Command, FakeEnv, Motion, Notebook, Selection};
 
-    const TWO_OUTPUTS: &str = "#! mathcas 2 notebook\n\n#% cell label=1\nx/2\n#% output n=1\n#= x/2\n\n#% cell label=2\nsqrt(y)\n#% output n=2 form=linear\n#= sqrt(y)\n";
+    const TWO_OUTPUTS: &str = "#! mathcas 2 notebook\n\n#% cell in=1\nx/2\n#% output out=1\n#= x/2\n\n#% cell in=2\nsqrt(y)\n#% output out=2 form=linear\n#= sqrt(y)\n";
 
     #[test]
     fn quotes() {
@@ -1469,7 +1469,7 @@ mod tests {
     /// Selection in typeset input and output by keys and clicks (round nb-ui: the bugs found by driving the window).
     #[test]
     fn selections_in_typeset_cells_extend_by_lines_and_keep_their_anchor() {
-        let text = "#! mathcas 2 notebook\n\n#% cell label=1 typeset\nfirst+line\nsecond+((z)^(3))\n#% output n=1\n#= a + x^2 + b\n";
+        let text = "#! mathcas 2 notebook\n\n#% cell in=1 typeset\nfirst+line\nsecond+((z)^(3))\n#% output out=1\n#= a + x^2 + b\n";
         let mut nb = Notebook::parse(text).unwrap();
         let (input, out) = (nb.cells()[0].id, nb.cells()[1].id);
         let mut env = FakeEnv { atomic: vec![out], ..FakeEnv::default() };
@@ -1520,7 +1520,7 @@ mod tests {
     /// text; a cell left without boxes is plain. Loading and saving give the same text again (NBUI.5).
     #[test]
     fn older_typeset_cells_keep_the_three_boxes_and_round_trip() {
-        let old = "#! mathcas 2 notebook\n\n#% cell label=1 typeset\n((subscript(x, i)))+((sqrt(((a)/(b)))))\n\n\
+        let old = "#! mathcas 2 notebook\n\n#% cell in=1 typeset\n((subscript(x, i)))+((sqrt(((a)/(b)))))\n\n\
                    #% cell typeset\n((sum(k, [k, 1, n])))\n\n#% cell\nx^2 + a/b\n";
         let nb = Notebook::parse(old).unwrap();
         let c = nb.cells();

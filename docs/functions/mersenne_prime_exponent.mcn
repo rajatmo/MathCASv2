@@ -31,4 +31,4 @@ is_prime(2^mersenne_prime_exponent(8) - 1)
 # See also
 
 #% text
-# `mersenne_prime_exponent_q`, `is_prime`
+# `is_mersenne_prime_exponent`, `is_prime`

@@ -32,13 +32,13 @@ fn vectors() {
 
 #[test]
 fn matrix_predicates_and_numbers() {
-    assert_eq!(ev("symmetric_matrix_q([[1, 2], [2, 3]])"), "true");
-    assert_eq!(ev("symmetric_matrix_q([[1, 2], [3, 3]])"), "false");
-    assert_eq!(ev("positive_definite_matrix_q([[2, 1], [1, 2]])"), "true");
-    assert_eq!(ev("positive_definite_matrix_q([[1, 2], [2, 1]])"), "false");
-    assert_eq!(ev("positive_definite_matrix_q([[2, 1 + im], [1 - im, 3]])"), "true");
+    assert_eq!(ev("is_symmetric_matrix([[1, 2], [2, 3]])"), "true");
+    assert_eq!(ev("is_symmetric_matrix([[1, 2], [3, 3]])"), "false");
+    assert_eq!(ev("is_positive_definite_matrix([[2, 1], [1, 2]])"), "true");
+    assert_eq!(ev("is_positive_definite_matrix([[1, 2], [2, 1]])"), "false");
+    assert_eq!(ev("is_positive_definite_matrix([[2, 1 + im], [1 - im, 3]])"), "true");
     // a non-Hermitian matrix is tested through its Hermitian part
-    assert_eq!(ev("positive_definite_matrix_q([[2.3, -1.2], [0.6, 3.7]])"), "true");
+    assert_eq!(ev("is_positive_definite_matrix([[2.3, -1.2], [0.6, 3.7]])"), "true");
     assert_eq!(ev("coefficient_arrays([a + x - y - z == 0, b + x + z + 2*y == 0], [x, y, z])"), "[[a, b], [[1, -1, -1], [1, 2, 1]]]");
     assert_eq!(ev("permanent([[1, 2], [3, 4]])"), "10");
     assert_eq!(ev("permanent([[1, 1, 1], [1, 1, 1], [1, 1, 1]])"), "6");
@@ -66,7 +66,7 @@ fn number_functions() {
     assert_eq!(ev("mixed_fraction_parts(17/(1 + 3*im))"), "[complex(1, -5), complex(7/10, -1/10)]");
     assert_eq!(ev("map(perfect_number, [1, 2, 3, 4])"), "[6, 28, 496, 8128]");
     assert_eq!(ev("map(rudin_shapiro, range(0, 9))"), "[1, 1, 1, -1, 1, 1, -1, 1, 1, 1]");
-    assert_eq!(ev("quadratic_irrational_q([sqrt(2) + 1, sqrt(2) + sqrt(3), 3/2, pi])"), "[true, false, false, false]");
+    assert_eq!(ev("is_quadratic_irrational([sqrt(2) + 1, sqrt(2) + sqrt(3), 3/2, pi])"), "[true, false, false, false]");
     assert_eq!(ev("discrete_indicator(a, a, [a, b, c])"), "1");
     assert_eq!(ev("discrete_indicator(x, a, [a, b, c])"), "discrete_indicator(x, a, [a, b, c])");
     assert_eq!(ev("cumulant([1, 2, 3, 4, 7], 2)"), "106/25");
@@ -100,9 +100,9 @@ fn polynomials_and_decompositions() {
 
 #[test]
 fn intervals_and_knapsack() {
-    assert_eq!(ev("interval_member_q(interval([2, 5]), pi)"), "true");
-    assert_eq!(ev("interval_member_q(interval([2, 5]), interval([4, 6]))"), "false");
-    assert_eq!(ev("interval_member_q(centered_interval(2 + 3*im, 1 + im), e + pi*im)"), "true");
+    assert_eq!(ev("is_interval_member(interval([2, 5]), pi)"), "true");
+    assert_eq!(ev("is_interval_member(interval([2, 5]), interval([4, 6]))"), "false");
+    assert_eq!(ev("is_interval_member(centered_interval(2 + 3*im, 1 + im), e + pi*im)"), "true");
     assert_eq!(ev("interval_union(interval([1, 3]), interval([2, 4]))"), "interval([1, 4])");
     assert_eq!(ev("interval_union(centered_interval(-1, 1/2), centered_interval(1, 1/2))"), "interval([-3/2, -1/2], [1/2, 3/2])");
     assert_eq!(ev("knapsack_solve([[3, 4], [2, 5]], 10)"), "[2, 0]");
@@ -128,7 +128,7 @@ fn convex_optimization_family() {
     assert_eq!(ev("quadratic_optimization([[[2, 0], [0, 2]], [0, 0]], [[[1, 1]], [-1]])"), "[1/2, 1/2]");
     assert_eq!(ev("conic_optimization(x + 2*y, [x^2 + 2*y^2 <= 3, x + y == 2, x >= 1], [x, y])"), "[x -> 5/3, y -> 1/3]");
     assert_eq!(ev("second_order_cone_optimization(x + y, [norm([x, y]) <= 1, y >= 0], [x, y], \"PrimalMinimumValue\")"), "-1");
-    assert_eq!(ev("semidefinite_optimization(x + y, vector_greater_equal([[[x, 1], [1, y]], 0], [\"SemidefiniteCone\", 2]), [x, y])"), "[x -> 1, y -> 1]");
+    assert_eq!(ev("semidefinite_optimization(x + y, vector_greater_equal([[[x, 1], [1, y]], 0], [semidefinite_cone, 2]), [x, y])"), "[x -> 1, y -> 1]");
     assert_eq!(ev("robust_convex_optimization(x + y, for_all(t, -1 <= t and t <= 1, [x + 2*y >= 3 + t, x >= -1]), [x, y])"), "[x -> -1, y -> 5/2]");
     assert_eq!(ev("parametric_convex_optimization((x - a)^2 + (y - b)^2, [x >= 0, y >= 0, x + 2*y <= 1], [x, y], [a, b], \"PrimalMinimumValue\")(0, 0)"), "0");
 }
@@ -146,7 +146,7 @@ fn distributions() {
     assert_eq!(ev("n(sum(map(i => sum(map(j => pdf(multivariate_poisson_distribution(1, [1, 1]), [i, j]), range(0, 30))), range(0, 30)))) > 0.999999"), "true");
     assert_eq!(ev("mean(wishart_matrix_distribution(3, diagonal_matrix([2, 1, 3])))"), "[[6, 0, 0], [0, 3, 0], [0, 0, 9]]");
     assert_eq!(ev("abs(n(pdf(wishart_matrix_distribution(3, [[1, 0], [0, 1]]), [[1, 0], [0, 1]])) - n(1/(4*e*pi))) < 1.0e-12"), "true");
-    assert_eq!(ev("let w = random_variate(wishart_matrix_distribution(10, [[1, 1/3], [1/3, 1]])); [symmetric_matrix_q(w), positive_definite_matrix_q(w)]"), "[true, true]");
+    assert_eq!(ev("let w = random_variate(wishart_matrix_distribution(10, [[1, 1/3], [1/3, 1]])); [is_symmetric_matrix(w), is_positive_definite_matrix(w)]"), "[true, true]");
 }
 
 #[test]

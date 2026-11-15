@@ -39,7 +39,7 @@ fn uncertain_and_unit_entries() {
 #[test]
 fn matrix_functions_accept_a_method() {
     check(&[(
-        r#"matrix_function(exp, [[0, 1], [0, 0]], method: "Jordan")"#,
+        r#"matrix_function(exp, [[0, 1], [0, 0]], method: jordan)"#,
         "[[1, 1], [0, 1]]",
     )]);
 }

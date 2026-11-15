@@ -1,10 +1,10 @@
 #! mathcas 2 notebook
 
 #% title
-# quadratic_irrational_q
+# is_quadratic_irrational
 
 #% text
-# `quadratic_irrational_q(x)` gives `true` if `x` is an irrational root of a quadratic polynomial with integer coefficients.
+# `is_quadratic_irrational(x)` gives `true` if `x` is an irrational root of a quadratic polynomial with integer coefficients.
 
 #% section
 # Details
@@ -22,22 +22,22 @@
 # Basic examples
 
 #% cell
-quadratic_irrational_q(sqrt(2) + 1)
+is_quadratic_irrational(sqrt(2) + 1)
 #% output
 #= true
 
 #% cell
-quadratic_irrational_q(sqrt(2) + sqrt(3))
+is_quadratic_irrational(sqrt(2) + sqrt(3))
 #% output
 #= false
 
 #% cell
-quadratic_irrational_q([3/2, pi, sqrt(3), (1 + sqrt(5))/2])
+is_quadratic_irrational([3/2, pi, sqrt(3), (1 + sqrt(5))/2])
 #% output
 #= [false, false, true, true]
 
 #% cell
-quadratic_irrational_q(s)
+is_quadratic_irrational(s)
 #% output
 #= false
 

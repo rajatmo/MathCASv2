@@ -193,7 +193,7 @@ c
 === cells.keys / merge drops generated cells
 #! mathcas 2 notebook
 
-#% cell label=1 ◆
+#% cell in=1 ◆
 1
 2
 --- clip
@@ -221,9 +221,9 @@ f(x)▮
 === cells.keys / output from above makes an input
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 1+1
-#% output n=1
+#% output out=1
 #= 2
 
 #% cell
@@ -233,12 +233,12 @@ f(x)▮
 === cells.keys / same style below goes directly after the cell, before its outputs
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 x
 
 #% cell
 y▮
-#% output n=1
+#% output out=1
 #= x
 --- clip
 
@@ -279,7 +279,7 @@ y▮
 === cells.keys / show expression shows the cell's source; edited and shown again it reads back
 #! mathcas 2 notebook
 
-#% cell label=2 noeval ◆
+#% cell in=2 noeval ◆
 x
 --- clip
 
@@ -311,17 +311,17 @@ a
 === cells.keys / copy and paste cells at an insertion point
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 a
-#% output n=1
+#% output out=1
 #= a
 
 #% text
 # t
 
-#% cell label=1
+#% cell in=1
 a
-#% output n=1
+#% output out=1
 #= a
 ‖
 --- clip
@@ -425,9 +425,9 @@ text "((a)/(b))"
 === eval.keys / Shift+Enter labels the input and its output, the insertion point goes below the output
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 1+1
-#% output n=1
+#% output out=1
 #= 2
 ‖
 --- clip
@@ -435,22 +435,22 @@ text "((a)/(b))"
 === eval.keys / every statement consumes a number: input 2, outputs 2 and 3, then input 4
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 a
-#% output n=1
+#% output out=1
 #= a
 
-#% cell label=2
+#% cell in=2
 1+1
 3+3
-#% output n=2
+#% output out=2
 #= 2
-#% output n=3
+#% output out=3
 #= 6
 
-#% cell label=4
+#% cell in=4
 5
-#% output n=4
+#% output out=4
 #= 5
 ‖
 --- clip
@@ -458,10 +458,10 @@ a
 === eval.keys / a statement ending in ; consumes a number and shows nothing
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 1;
 2
-#% output n=2
+#% output out=2
 #= 2
 ‖
 --- clip
@@ -469,9 +469,9 @@ a
 === eval.keys / re-evaluating replaces the generated cells and the label
 #! mathcas 2 notebook
 
-#% cell label=2
+#% cell in=2
 7
-#% output n=2
+#% output out=2
 #= 7
 ‖
 --- clip
@@ -479,11 +479,11 @@ a
 === eval.keys / print and warnings become Print and Message cells in the output block of the value
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 print("hi")
 warn("careful")
 3
-#% output n=3
+#% output out=3
 #| hi
 #? careful
 #= 3
@@ -493,16 +493,16 @@ warn("careful")
 === eval.keys / a read error labels the input and shows the error in a Message cell
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 1 +
 #% output
 #! <cell>:1:1: expected an expression
 #!   1 +
 #!   ^
 
-#% cell label=2
+#% cell in=2
 2
-#% output n=2
+#% output out=2
 #= 2
 ‖
 --- clip
@@ -510,9 +510,9 @@ warn("careful")
 === eval.keys / a failure is the statement's value
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 1/0
-#% output n=1
+#% output out=1
 #! failure(division_by_zero)
 ‖
 --- clip
@@ -520,9 +520,9 @@ warn("careful")
 === eval.keys / abort ends the running statement with aborted
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 loop
-#% output n=1
+#% output out=1
 #! aborted
 ‖
 --- clip
@@ -530,9 +530,9 @@ loop
 === eval.keys / abort clears the queue
 #! mathcas 2 notebook
 
-#% cell label=1 ◆
+#% cell in=1 ◆
 loop
-#% output n=1
+#% output out=1
 #! aborted
 
 #% cell ◆
@@ -542,9 +542,9 @@ loop
 === eval.keys / a running cell is not queued twice
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 loop
-#% output n=1
+#% output out=1
 #! aborted
 ‖
 --- clip
@@ -552,15 +552,15 @@ loop
 === eval.keys / a kernel without numbering: one value per cell, the notebook counts
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 1+1
 3+3
-#% output n=1
+#% output out=1
 #= 6
 
-#% cell label=2
+#% cell in=2
 4
-#% output n=2
+#% output out=2
 #= 4
 ‖
 --- clip
@@ -573,9 +573,9 @@ loop
 #% output
 #! the kernel stopped: exit code 1
 
-#% cell label=1
+#% cell in=1
 5
-#% output n=1
+#% output out=1
 #= 5
 ‖
 --- clip
@@ -583,14 +583,14 @@ loop
 === eval.keys / quitting the kernel keeps labels; the next kernel starts at 1
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 5
-#% output n=1
+#% output out=1
 #= 5
 
-#% cell label=1
+#% cell in=1
 6
-#% output n=1
+#% output out=1
 #= 6
 ‖
 --- clip
@@ -598,12 +598,12 @@ loop
 === eval.keys / initialization cells first when the answer is yes
 #! mathcas 2 notebook
 
-#% code label=1
+#% code in=1
 c = 1
 
-#% cell label=2
+#% cell in=2
 2
-#% output n=2
+#% output out=2
 #= 2
 ‖
 --- clip
@@ -614,14 +614,14 @@ c = 1
 #% code
 c = 1
 
-#% cell label=1
+#% cell in=1
 2
-#% output n=1
+#% output out=1
 #= 2
 
-#% cell label=2
+#% cell in=2
 3
-#% output n=2
+#% output out=2
 #= 3
 ‖
 --- clip
@@ -629,26 +629,26 @@ c = 1
 === eval.keys / evaluating selected cells evaluates the evaluatable ones in order
 #! mathcas 2 notebook
 
-#% cell label=1 ◆
+#% cell in=1 ◆
 1
-#% output n=1
+#% output out=1
 #= 1
 
 #% text ◆
 # t
 
-#% cell label=2 ◆
+#% cell in=2 ◆
 2
-#% output n=2
+#% output out=2
 #= 2
 --- clip
 
 === eval.keys / Shift+Keypad Enter goes on to the next input
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 1
-#% output n=1
+#% output out=1
 #= 1
 
 #% text
@@ -661,9 +661,9 @@ c = 1
 === eval.keys / editing an output duplicates it as a new input after the output's group
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 1+1
-#% output n=1
+#% output out=1
 #= 2
 
 #% cell
@@ -676,7 +676,7 @@ c = 1
 === eval.keys / Print cells are edited in place
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 print(1)
 #% output
 #| 1!▮
@@ -685,7 +685,7 @@ print(1)
 === eval.keys / delete all output keeps inputs and text
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 print(1)
 2
 
@@ -697,36 +697,36 @@ print(1)
 === eval.keys / editing an evaluated input keeps its label
 #! mathcas 2 notebook
 
-#% cell label=3
+#% cell in=3
 xy▮
-#% output n=3
+#% output out=3
 #= x
 --- clip
 
 === eval.keys / undo does not remove generated cells
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 ▮
-#% output n=1
+#% output out=1
 #= 4
 --- clip
 
 === eval.keys / G91: every shown statement of a cell gets its own output, in order; ; and definitions show nothing
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 1+2
 x = 4;
 print("p")
 2+3
 x
-#% output n=1
+#% output out=1
 #= 3
-#% output n=4
+#% output out=4
 #| p
 #= 5
-#% output n=5
+#% output out=5
 #= x
 ‖
 --- clip
@@ -737,9 +737,9 @@ x
 #% cell
 1+2
 2+3
-#% output n=1
+#% output out=1
 #= 3
-#% output n=2
+#% output out=2
 #= 5
 
 #% cell
@@ -751,9 +751,9 @@ x
 === graphics.keys / a picture value becomes an Output cell holding its image value
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 image("p.png")
-#% output n=1
+#% output out=1
 #= image("p.png")
 ‖
 --- clip
@@ -761,9 +761,9 @@ image("p.png")
 === graphics.keys / resizing stores the size on the output block, undo takes it back
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 image("p.png")
-#% output n=1 size=320x200
+#% output out=1 size=320x200
 #= image("p.png")
 ‖
 --- clip
@@ -771,9 +771,9 @@ image("p.png")
 === graphics.keys / undoing a resize
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 image("p.png")
-#% output n=1
+#% output out=1
 #= image("p.png")
 ‖
 --- clip
@@ -781,9 +781,9 @@ image("p.png")
 === graphics.keys / a double-click restores the natural size
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 image("p.png")
-#% output n=1
+#% output out=1
 #= image("p.png")
 ‖
 --- clip
@@ -791,9 +791,9 @@ image("p.png")
 === graphics.keys / the size is kept when the input is evaluated again and shows a picture again
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 image("p.png")
-#% output n=1 size=320x200
+#% output out=1 size=320x200
 #= image("p.png")
 ‖
 --- clip
@@ -801,15 +801,15 @@ image("p.png")
 === graphics.keys / the k-th picture keeps the k-th size; a value that is not a picture takes none
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 image("a.png")
 7
 image("b.png")
-#% output n=1 size=100x50
+#% output out=1 size=100x50
 #= image("a.png")
-#% output n=2
+#% output out=2
 #= 7
-#% output n=3 size=300x150
+#% output out=3 size=300x150
 #= image("b.png")
 ‖
 --- clip
@@ -817,9 +817,9 @@ image("b.png")
 === graphics.keys / resizing something that is not a graphic does nothing
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 1+1
-#% output n=1
+#% output out=1
 #= 2
 ‖
 --- clip
@@ -881,7 +881,7 @@ image("b.png")
 
 #% cell
 i
-#% output n=1
+#% output out=1
 #= o
 
 #% text
@@ -889,11 +889,11 @@ i
 
 #% cell
 i2
-#% output n=2
+#% output out=2
 #| p
 #? m
 #= o2
-#% output n=3
+#% output out=3
 #= o3
 
 #% cell
@@ -901,7 +901,7 @@ i3
 
 #% cell
 i4
-#% output n=4
+#% output out=4
 #= o4
 ‖
 --- clip
@@ -911,7 +911,7 @@ i4
 
 #% code
 c
-#% output n=1
+#% output out=1
 #= o
 
 #% cell
@@ -928,7 +928,7 @@ i
 #% item
 # i
 
-#% itemparagraph
+#% item_paragraph
 # ip
 
 #% subitem
@@ -946,10 +946,10 @@ i
 #% text
 # t
 
-#% itemnumbered
+#% item_numbered
 # n
 
-#% subitemnumbered
+#% subitem_numbered
 # sn
 ‖
 --- clip
@@ -968,7 +968,7 @@ i
 
 #% cell
 c
-#% output n=1
+#% output out=1
 #= o
 
 #% subsection
@@ -990,7 +990,7 @@ c
 
 #% cell
 In
-#% output n=1
+#% output out=1
 #= Out
 
 #% cell
@@ -1016,7 +1016,7 @@ x
 
 #% code
 c
-#% output n=2
+#% output out=2
 #? m
 #| pr
 #= o
@@ -1075,10 +1075,10 @@ x▮
 === groups.keys / Ctrl+' in an output closes the input group showing the output
 #! mathcas 2 notebook
 
-#% cell label=1 shown=3
+#% cell in=1 shown=3
 print(1)
 2
-#% output n=2
+#% output out=2
 #| 1
 #= 2▮
 --- clip
@@ -1086,18 +1086,18 @@ print(1)
 === groups.keys / Ctrl+' in the input closes the group showing the input; again opens it
 #! mathcas 2 notebook
 
-#% cell label=1 closed
+#% cell in=1 closed
 2▮
-#% output n=1
+#% output out=1
 #= 2
 --- clip
 
 === groups.keys / Ctrl+' twice opens the group again
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 2▮
-#% output n=1
+#% output out=1
 #= 2
 --- clip
 
@@ -1115,7 +1115,7 @@ print(1)
 
 #% cell closed ◆
 x
-#% output n=1
+#% output out=1
 #= 1 ◆
 --- clip
 
@@ -1299,9 +1299,9 @@ f(▮)
 === manipulate.keys / a manipulate value asks for its result at the initial positions
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 manipulate(a+1, [a, 0, 10, 1], [[b, 2], 0, 1])
-#% output n=1
+#% output out=1
 #= manipulate(a+1, [a, 0, 10, 1], [[b, 2], 0, 1])
 #% output manipulated
 #= { let a = 0; let b = 1.0; a+1 }
@@ -1311,9 +1311,9 @@ manipulate(a+1, [a, 0, 10, 1], [[b, 2], 0, 1])
 === manipulate.keys / moving a control keeps its position and shows the new result; the file reads back the same
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 manipulate(a+1, [a, 0, 10, 1])
-#% output n=1 controls=3
+#% output out=1 controls=3
 #= manipulate(a+1, [a, 0, 10, 1])
 #% output manipulated
 #= { let a = 3; a+1 }
@@ -1323,9 +1323,9 @@ manipulate(a+1, [a, 0, 10, 1])
 === manipulate.keys / a saved position is evaluated from where it was, and re-evaluating the input starts at the initial one
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 manipulate(a+1, [a, 0, 10, 1])▮
-#% output n=1 controls=6
+#% output out=1 controls=6
 #= manipulate(a+1, [a, 0, 10, 1])
 #% output manipulated
 #= { let a = 6; a+1 }
@@ -1395,7 +1395,7 @@ b
 === motion.keys / movement skips Message cells
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 1 +
 #% output
 #! error
@@ -1479,9 +1479,9 @@ b
 === motion.keys / Up from an insertion point goes into the output above
 #! mathcas 2 notebook
 
-#% cell label=1
+#% cell in=1
 1
-#% output n=1
+#% output out=1
 #= ▮1
 --- clip
 

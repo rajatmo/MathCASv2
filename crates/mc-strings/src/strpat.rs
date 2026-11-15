@@ -14,7 +14,7 @@
 //! | `repeated(p)`, `repeated(p, n)`, `repeated(p, [n])`, `repeated(p, [m, n])` | `p` repeated (1 or more, 1 to n, n, m to n times; `inf`: no bound) |
 //! | `x @ p` | what `p` matches, bound to `x` |
 //! | `p when c` | `p`, then `c` gives `true` with the bindings so far |
-//! | `x_ when not match_q(x, c)`, `x @ p when not match_q(x, c)` | one character / what `p` matches, when that text does not match the string pattern `c` (an exception) |
+//! | `x_ when not is_match(x, c)`, `x @ p when not is_match(x, c)` | one character / what `p` matches, when that text does not match the string pattern `c` (an exception) |
 //! | any other compound term | its value, read as a pattern (`characters("aeiou")` is a list: alternatives) |
 //! | `longest(p)`, `shortest(p)` | `p` with its runs and repetitions taking as much / as little as possible first |
 //! | `regular_expression("...")` | a regular expression (the common syntax: `.`, `[...]`, `\d \w \s \b`, `* + ? {m,n}` with lazy `?`, `\|`, groups, `^ $`) |
@@ -214,7 +214,7 @@ impl<'h> Compiler<'_, '_, 'h> {
         Ok(Some(ns))
     }
 
-    /// `p when not match_q(x, c)` with `p` binding `x` (how an exception `except(c)`, `except(c, p)` is written):
+    /// `p when not is_match(x, c)` with `p` binding `x` (how an exception `except(c)`, `except(c, p)` is written):
     /// what `p` matches when that text does not match the string pattern `c`.
     fn except(&mut self, p: T<'h>, c: T<'h>, d: usize) -> Res<Option<Node<'h>>> {
         let h = self.h;
@@ -223,7 +223,7 @@ impl<'h> Compiler<'_, '_, 'h> {
             _ => None,
         };
         let Some(&[m]) = call(c, "not") else { return Ok(None) };
-        let Some(&[x, q]) = call(m, "match_q") else { return Ok(None) };
+        let Some(&[x, q]) = call(m, "is_match") else { return Ok(None) };
         let binds_x = match call(p, "any").or_else(|| call(p, "named")) {
             Some(args) => args.first() == Some(&x),
             None => false,

@@ -1,5 +1,5 @@
 //! The functions that search a string with string patterns ([`crate::strpat`]): `string_cases`, `string_position`,
-//! `string_count`, `string_match_q`, `string_free_q`, `string_delete`, and the pattern forms of `string_replace`,
+//! `string_count`, `is_string_match`, `is_string_free`, `string_delete`, and the pattern forms of `string_replace`,
 //! `string_split`, `string_contains`, `string_starts` and `string_ends` (decision S.10).
 //!
 //! A search spec is a pattern, a rule `p -> r` / `p :> r`, or a list of them (a list of patterns only is one
@@ -58,7 +58,7 @@ pub(crate) fn items<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, rule
     Ok(Some(out))
 }
 
-/// The `string_match_q` reading of a literal string: `*` any run of characters, `@` a run of characters that are
+/// The `is_string_match` reading of a literal string: `*` any run of characters, `@` a run of characters that are
 /// not capital letters (`\*`, `\@` the characters themselves).
 fn wildcard<'h>(s: &str) -> Node<'h> {
     let mut parts = vec![];
@@ -314,8 +314,8 @@ pub(crate) fn string_count<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h
     Ok(Reply::Done(h.int(found.len() as i64)))
 }
 
-/// `string_match_q(s, p)`: whether the whole of `s` matches `p` (a literal string: `*` and `@` are wildcards).
-pub(crate) fn string_match_q<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+/// `is_string_match(s, p)`: whether the whole of `s` matches `p` (a literal string: `*` and `@` are wildcards).
+pub(crate) fn is_string_match<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let (args, o) = take!(opts(lib, h, args, Overlap::No));
     let &[s, p] = args else { return Ok(Reply::Decline) };
@@ -329,8 +329,8 @@ pub(crate) fn string_match_q<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<
     Ok(Reply::Done(cx.bool(!found.is_empty())))
 }
 
-/// `string_free_q(s, p)`: whether no substring of `s` matches `p`.
-pub(crate) fn string_free_q<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+/// `is_string_free(s, p)`: whether no substring of `s` matches `p`.
+pub(crate) fn is_string_free<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let (args, o) = take!(opts(lib, h, args, Overlap::No));
     if args.len() != 2 {

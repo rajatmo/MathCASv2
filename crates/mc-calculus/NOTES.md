@@ -652,7 +652,7 @@ under the facts).
    different forms are not recognised as equal.
 5. **Open (mc-sums):** `n_sum((n - 3) unit_step(n - 3) 5^-n, [n, 0, inf])` is 0.0 (the value is
    1/400); the Z check uses partial sums instead.
-6. **Open:** `factor_list`, `exponent`, `polynomial_q` and `residue` are not functions of the system.
+6. **Open:** `factor_list`, `exponent`, `is_polynomial` and `residue` are not functions of the system.
 
 ## Round 20 (roadmap 16A): parallel portfolios
 
@@ -903,7 +903,7 @@ language library (one install block in `mc-engine/src/engine.rs`); listed in the
 
 - **Decisions.** `rule` definitions where a call of another form must stay unevaluated (waves, Heaviside shapes,
   harmonic-type numbers, transforms, `difference_root`); `fn` with options where options are needed (asymptotic
-  relations, sides, `possible_zero_q`). A rule whose value has to be computed to know it applies repeats the
+  relations, sides, `is_possible_zero`). A rule whose value has to be computed to know it applies repeats the
   computation in its `when` (the language has no decline from a rule body). `if ... then ... else` on the right of a
   `rule ... when` must be parenthesised (the `when` binds to the `else` branch otherwise). `piecewise` holds its
   arguments: built with `apply`. Pattern-carrying rules (`dt(s_, x) :> ...`) evaluate their left side, so `dt` refuses
@@ -922,7 +922,7 @@ language library (one install block in `mc-engine/src/engine.rs`); listed in the
   only; undecided limits give `failure(undecided, ...)`.
 - **Polynomial structure.** `polynomial_reduce` is the division algorithm of Cox, Little and O'Shea (2.3) in lex
   order; `cyclotomic` by Moebius inversion; `partial_fractions` by residues `p(a)/q'(a)` at simple roots from `solve`
-  (repeated roots fall back to `apart`); `possible_zero_q` simplifies, then evaluates at three complex sample points
+  (repeated roots fall back to `apart`); `is_possible_zero` simplifies, then evaluates at three complex sample points
   (machine first, then 40 digits; a precision failure there counts as zero).
 - **Transforms.** Hankel: closed forms for `r^mu`, `r^mu e^(-ar)` (a 2F1), `r^mu e^(-ar^2)` (a 1F1),
   `r^nu (r^2+a^2)^-p` (a K Bessel function) and deltas (DLMF 10.22.43/49/51, Erdelyi II ch. 8); detection by
@@ -1002,7 +1002,7 @@ language library (one install block in `mc-engine/src/engine.rs`); listed in the
   by other means, logarithmic generating functions.
 - `integrate_change_variables`: one variable by f/g' with g(x) replaced by u when that removes x, else x = h(u)
   from `solve` (conditional solutions reduced to their principal branch); limits through g; several variables
-  with |det J|. Coordinate-system names ("Cartesian" -> "Polar") are not supported.
+  with |det J|. Coordinate-system names (cartesian -> polar) are not supported.
 - `radon_transform`: the line integral in t of f(p cos - t sin, p sin + t cos), simplified with sin^2 -> 1 - cos^2
   and `trig_reduce`. Unit-step and delta integrands fail (the integrator does not take them over the real line).
 - `asymptotic_integrate/sum/product`: term-by-term expansion for a parameter at a finite point, else the series of
@@ -1344,7 +1344,7 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   and evaluated at t = ((y - c)/b_v)^(1/v): a Puiseux series written as a sum with O((y - c)^((n1 - v + 1)/v)).
   A Puiseux series at 0 as input (terms c x^p with rational p and O(x^q)) is written as a series in t = x^(1/v),
   v the common denominator, inverted in t, and x = t^v follows in the series arithmetic.
-- `polynomial_q(e, xs)`: like `polynomial_expression_q`, but a coefficient may not contain a symbol of the variables
+- `is_polynomial(e, xs)`: like `is_polynomial_expression`, but a coefficient may not contain a symbol of the variables
   (so `sec(x)` is not a coefficient in `cos(x)`), and b^p is the power (b^q)^(p/q) of a variable b^q when p/q is a
   non-negative integer.
 - `solve_always(eqs, xs)`: every coefficient of the numerator of lhs - rhs (polynomial in xs) set to zero and solved

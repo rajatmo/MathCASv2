@@ -110,9 +110,9 @@ fn polynomial_structure() {
         ("polynomial_mod(3*x^3 + 21*x^2 - 7*x + 55, [2*x^2 - 7, 9])", "7 + 8*x"),
         ("polynomial_mod(x^2, x + a)", "a^2"),
         ("polynomial_reduce(x^3 + y^3, [x - y], [x, y])", "[[x*y + x^2 + y^2], 2*y^3]"),
-        ("polynomial_expression_q(x - 1/x, x)", "false"),
-        ("possible_zero_q((e + pi)^2 - e^2 - pi^2 - 2*e*pi)", "true"),
-        ("possible_zero_q(sqrt(x^2) - x)", "false"),
+        ("is_polynomial_expression(x - 1/x, x)", "false"),
+        ("is_possible_zero((e + pi)^2 - e^2 - pi^2 - 2*e*pi)", "true"),
+        ("is_possible_zero(sqrt(x^2) - x)", "false"),
     ]);
 }
 

@@ -243,7 +243,7 @@ fn p30_is0(v) = v === 0 or (is_number(v) and v == 0)
 
 # whether the inexact z or parameters ask for a ball value (not machine numbers)
 fn c30_fox_inexact(a, b, z) = some(join([z], flatten([a, b])), v => is_inexact(v))
-fn c30_fox_machine_q(a, b, z) = every(join([z], flatten([a, b])), v => not is_inexact(v) or is_machine_number(v) or is_machine_number(re(v)))
+fn c30_is_fox_machine(a, b, z) = every(join([z], flatten([a, b])), v => not is_inexact(v) or is_machine_number(v) or is_machine_number(re(v)))
 
 # gamma(w)^-1 that is 0 at the poles
 fn c30_rgamma(w) = if abs(n(w) - round(re(n(w)))) < 1.0e-14 and re(n(w)) < 0.5 then 0 else 1/gamma(w)
@@ -331,8 +331,8 @@ rule fox_h(a_, b_, z_) := {
   if c === 1 then meijer_g(g(a), g(b), z) else meijer_g(g(a), g(b), z, c)/c
 } when not is_list(z) and c30_pairs_ok(a) and c30_pairs_ok(b) and c30_fox_cancel_at(a, b) === none and c30_fox_scale(a, b) !== none
 rule fox_h(a_, b_, z_) := c30_fox_at0(a, b) when (z === 0) and c30_pairs_ok(a) and c30_pairs_ok(b) and c30_fox_cancel_at(a, b) === none and c30_fox_scale(a, b) === none and c30_fox_numeric(a, b) and c30_fox_at0(a, b) !== none
-rule fox_h(a_, b_, z_) := c30_fox_mach(a, b, z) when is_numeric(z) and not is_list(z) and z !== 0 and c30_pairs_ok(a) and c30_pairs_ok(b) and c30_fox_cancel_at(a, b) === none and c30_fox_scale(a, b) === none and c30_fox_numeric(a, b) and c30_fox_inexact(a, b, z) and c30_fox_machine_q(a, b, z)
-rule fox_h(a_, b_, z_) := c30_fox_ball(a, b, z, floor(min(map(v => precision(v), select(join([z], flatten([a, b])), v => is_inexact(v) and v != 0))))) when is_numeric(z) and not is_list(z) and z !== 0 and c30_pairs_ok(a) and c30_pairs_ok(b) and c30_fox_cancel_at(a, b) === none and c30_fox_scale(a, b) === none and c30_fox_numeric(a, b) and c30_fox_inexact(a, b, z) and not c30_fox_machine_q(a, b, z)
+rule fox_h(a_, b_, z_) := c30_fox_mach(a, b, z) when is_numeric(z) and not is_list(z) and z !== 0 and c30_pairs_ok(a) and c30_pairs_ok(b) and c30_fox_cancel_at(a, b) === none and c30_fox_scale(a, b) === none and c30_fox_numeric(a, b) and c30_fox_inexact(a, b, z) and c30_is_fox_machine(a, b, z)
+rule fox_h(a_, b_, z_) := c30_fox_ball(a, b, z, floor(min(map(v => precision(v), select(join([z], flatten([a, b])), v => is_inexact(v) and v != 0))))) when is_numeric(z) and not is_list(z) and z !== 0 and c30_pairs_ok(a) and c30_pairs_ok(b) and c30_fox_cancel_at(a, b) === none and c30_fox_scale(a, b) === none and c30_fox_numeric(a, b) and c30_fox_inexact(a, b, z) and not c30_is_fox_machine(a, b, z)
 
 # --- spheroidal_s1 ---
 # The radial function of the first kind (Flammer, Spheroidal wave functions, 1957, 4.1.17; DLMF 30.11.3): with the
@@ -642,7 +642,7 @@ fn c30_sos_quadratic(p, vs) = {
   if ok then out else none
 }
 fn c30_total_degree(p, vs) = max(map(t => total(map(v => exponent(t, v), vs)), if not is_atom(expand(p)) and head(expand(p)) === add then apply(list, expand(p)) else [expand(p)]))
-fn polynomial_sum_of_squares_list(p, vs) when is_list(vs) and polynomial_expression_q(p, vs) and c30_total_degree(p, vs) <= 2 and c30_sos_quadratic(p, vs) !== none = c30_sos_quadratic(p, vs)
+fn polynomial_sum_of_squares_list(p, vs) when is_list(vs) and is_polynomial_expression(p, vs) and c30_total_degree(p, vs) <= 2 and c30_sos_quadratic(p, vs) !== none = c30_sos_quadratic(p, vs)
 
 # --- inverse_radon_transform ---
 # inverse_radon_transform(g, [p, phi], [x, y]) for g = e^(-p^2) Q(p, cos phi, sin phi), Q a polynomial: the preimage
@@ -703,7 +703,7 @@ fn c30_iradon_delta(w, p, f, x, y) = {
 fn c30_iradon_gauss(g, p, f, x, y) = {
   let h = expand(trig_expand(simplify(g*e^(p^2))))
   let hc = rewrite(h, [cos(f) -> c30_rc, sin(f) -> c30_rs])
-  if not free_of(hc, f) or not polynomial_expression_q(hc, [p, c30_rc, c30_rs]) then none
+  if not free_of(hc, f) or not is_polynomial_expression(hc, [p, c30_rc, c30_rs]) then none
   else {
     let dg = max(c30_total_degree(hc, [p, c30_rc, c30_rs]), 0)
     let mons = flatten(map(i => map(j => [i, j], range(0, dg - i)), range(0, dg)), 1)

@@ -24,7 +24,7 @@ workspace 458 passed, 0 failed, 6 ignored; clippy clean.
   functions are inlined, recursion refused; anything else refused with a reason.
 - `spec.rs`: `Specialisation` (implements `Compiled`), the natives `compile` and `compiled_info`, the `Jit` handle
   (`install`, `flush`, `polls`, `info`).
-- Natives: `compile(f)` and `compile(f, back_end: "interpreter")` return `f` or `failure(not_compilable, f, "reason")`;
+- Natives: `compile(f)` and `compile(f, back_end: interpreter)` return `f` or `failure(not_compilable, f, "reason")`;
   `compiled_info(f)` lists `params`, `result`, `hir_nodes`, `lir_instructions`, `code_bytes`, `back_end`,
   `compile_microseconds`, `inlined`, `state` (pending / active / stale), `runs`, `declines` (and `fallback`), or
   `failure(not_compiled, f)`. Both in `FUNCTIONS`.

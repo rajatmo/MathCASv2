@@ -10,10 +10,10 @@
 # Details
 
 #% item
-# `threshold(data, [kind, delta, ...])` applies a thresholding function: `"Hard"` (keep `x` when `abs(x) > delta`), `"Soft"` (shrink toward zero by `delta`), `"Firm"` with `[delta, r, p]` (linear between the thresholds `delta - p r delta` and `delta + (1 - p) r delta`), `"PiecewiseGarrote"` (`x - delta^2/x`), `"SmoothGarrote"` with `[delta, k]` (`x^(2k + 1)/(delta^(2k) + x^(2k))`) and `"Hyperbola"` (`sign(x) sqrt(x^2 - delta^2)`).
+# `threshold(data, [kind, delta, ...])` applies a thresholding function: `hard` (keep `x` when `abs(x) > delta`), `soft` (shrink toward zero by `delta`), `firm` with `[delta, r, p]` (linear between the thresholds `delta - p r delta` and `delta + (1 - p) r delta`), `piecewise_garrote` (`x - delta^2/x`), `smooth_garrote` with `[delta, k]` (`x^(2k + 1)/(delta^(2k) + x^(2k))`) and `hyperbola` (`sign(x) sqrt(x^2 - delta^2)`).
 
 #% item
-# `threshold(data, ["LargestValues", k])` keeps the `k` elements largest in absolute value.
+# `threshold(data, [largest_values, k])` keeps the `k` elements largest in absolute value.
 
 #% item
 # The data may be nested lists of any depth; exact zeros stay exact and inexact elements become inexact zeros.
@@ -35,7 +35,7 @@ threshold([-3, 1, -2, 0, 2, -1, 0, 1, -3, 3, 2], 3/2)
 #= [-3, 0, -2, 0, 2, 0, 0, 0, -3, 3, 2]
 
 #% cell
-threshold([-3, 1, -2, 0, 2, -1, 0, 1, -3, 3, 2], ["LargestValues", 3])
+threshold([-3, 1, -2, 0, 2, -1, 0, 1, -3, 3, 2], [largest_values, 3])
 #% output
 #= [-3, 0, 0, 0, 0, 0, 0, 0, -3, 3, 0]
 
@@ -45,7 +45,7 @@ threshold([[0, 0.2, 0.4], [0.6, 0.8, 1]], 0.5)
 #= [[0, 0.0, 0.0], [0.6, 0.8, 1]]
 
 #% cell
-threshold([-1.0, -0.5, 0.1, 0.5, 1.0], ["Soft", 0.3])
+threshold([-1.0, -0.5, 0.1, 0.5, 1.0], [soft, 0.3])
 #% output
 #= [-0.7, -0.2, 0.0, 0.2, 0.7]
 

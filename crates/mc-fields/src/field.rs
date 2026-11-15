@@ -32,8 +32,8 @@ impl Repr {
     /// The name the language writes.
     pub fn name(self) -> &'static str {
         match self {
-            Repr::Polynomial => "Polynomial",
-            Repr::Exponential => "Exponential",
+            Repr::Polynomial => "polynomial",
+            Repr::Exponential => "exponential",
         }
     }
 }

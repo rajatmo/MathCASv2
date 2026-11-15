@@ -19,7 +19,7 @@
 # When a condition is a symbol the first-match order is kept, each piece with the conditions along its path.
 
 #% item
-# `method: ["OrderlessConditions" -> true]` makes exclusive pieces also then; `method: ["BooleanResult" -> true]` gives the disjunction of the pieces' conditions and values; `method: ["ConditionSimplifier" -> reduce]` reduces every condition.
+# `method: [orderless_conditions -> true]` makes exclusive pieces also then; `method: [boolean_result -> true]` gives the disjunction of the pieces' conditions and values; `method: [condition_simplifier -> reduce]` reduces every condition.
 
 #% section
 # Examples
@@ -94,12 +94,12 @@ piecewise_expand(piecewise([[piecewise([[piecewise([[4, a]], 2), b]], 3), c]], 1
 #= piecewise([[4, c and b and a], [2, c and b], [3, c]], 1)
 
 #% cell
-piecewise_expand(piecewise([[piecewise([[piecewise([[4, a]], 2), b]], 3), c]], 1), method: ["OrderlessConditions" -> true])
+piecewise_expand(piecewise([[piecewise([[piecewise([[4, a]], 2), b]], 3), c]], 1), method: [orderless_conditions -> true])
 #% output
 #= piecewise([[2, c and b and not a], [3, c and not b], [4, c and b and a]], 1)
 
 #% cell
-piecewise_expand(if a then b else c, method: ["BooleanResult" -> true])
+piecewise_expand(if a then b else c, method: [boolean_result -> true])
 #% output
 #= a and b or not a and c
 

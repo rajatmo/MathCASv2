@@ -722,7 +722,7 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
   interval. Still declining: spheroidal_s1 (no ball form), inverse_gamma_regularized (no ball form on a spread),
   mathieu_c at r = 1, harmonic_number(1/2, s) across s = 1 (removable there; the Hurwitz ball declines at s = 1),
   and log_integral, zeta, zeta(s, a) across their poles (correct). Slow at r = 1: barnes_g (11 s), kelvin_ber (6 s).
-- Gap: `interval_member_q` answers false when a comparison of a symbolic end with a ball is undecided
+- Gap: `is_interval_member` answers false when a comparison of a symbolic end with a ball is undecided
   (whittaker_w(1, 2, 4) <= a 30-digit 3 stays a relation); the tests compare with `n` of the interval.
 
 ## Round 43: functions of several intervals from enclosures

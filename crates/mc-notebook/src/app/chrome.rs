@@ -501,8 +501,8 @@ impl App {
             }
             if let Some(c) = self.doc.nb.current_cell().and_then(|id| self.doc.nb.cell(id)) {
                 let mut s = format!("· {}", c.style.info().name);
-                if let Some(n) = c.label.filter(|_| c.style == Style::Output) {
-                    s.push_str(&format!(" out({n})"));
+                if let Some(l) = c.label_text() {
+                    s.push_str(&format!(" {l}"));
                 }
                 if let Selection::Caret { pos, .. } = self.doc.nb.selection() {
                     let before = &c.text[..(*pos).min(c.text.len())];

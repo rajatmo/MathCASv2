@@ -10,7 +10,7 @@
 # Details
 
 #% item
-# `paired_histogram(d1, d2, bins, form)` with form `"Probability"`, `"PDF"`, `"CDF"`, `"SF"`, `"HF"` or `"CHF"`.
+# `paired_histogram(d1, d2, bins, form)` with form `probability`, `pdf`, `cdf`, `sf`, `hf` or `chf`.
 
 #% section
 # Examples

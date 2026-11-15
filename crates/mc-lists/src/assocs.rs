@@ -86,7 +86,7 @@ pub(crate) fn call<'h>(
     }
     // free_of tests the association itself first (a key_value_pattern, or the whole association), then its values
     if sym_name(h, t).as_deref() == Some("free_of") && args.len() >= 2 {
-        let m = cx.eval(h.call(h.sym("match_q"), &[args[0], args[1]]))?;
+        let m = cx.eval(h.call(h.sym("is_match"), &[args[0], args[1]]))?;
         if cx.is_true(m) {
             return Ok(Reply::Done(cx.bool(false)));
         }

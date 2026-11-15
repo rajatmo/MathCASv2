@@ -36,7 +36,7 @@ fn vector_variables_and_comparisons() {
     assert_eq!(s.run("vector_greater_equal([[3, 2], [1, 2]])"), "true");
     assert_eq!(s.run("vector_less([[3, 2], [1, 2]])"), "false");
     // the norm cone: |(x, y)| <= 3
-    let (f, _) = extremum(&mut s, "n_minimize([x + y, vector_greater_equal([[x, y, 3], 0], [\"NormCone\", 3])], [x, y])");
+    let (f, _) = extremum(&mut s, "n_minimize([x + y, vector_greater_equal([[x, y, 3], 0], [norm_cone, 3])], [x, y])");
     assert!(close(f, -3.0 * 2f64.sqrt(), 1e-14), "{f}");
 }
 

@@ -10,7 +10,7 @@
 # Details
 
 #% item
-# For packet and stationary data, and with `plot_layout: "Grid"`, the arrays are drawn one by one in a grid. Complex coefficients are drawn by their modulus.
+# For packet and stationary data, and with `plot_layout: grid`, the arrays are drawn one by one in a grid. Complex coefficients are drawn by their modulus.
 
 #% section
 # Examples
@@ -24,7 +24,7 @@ wavelet_matrix_plot(discrete_wavelet_transform(diamond_matrix(32), automatic, 3)
 #= image("wavelet_matrix_plot.files/wavelet_matrix_plot-1.svgz")
 
 #% cell
-wavelet_matrix_plot(discrete_wavelet_transform(cross_matrix(5), automatic, 2), plot_layout: "Grid")
+wavelet_matrix_plot(discrete_wavelet_transform(cross_matrix(5), automatic, 2), plot_layout: grid)
 #% output
 #= image("wavelet_matrix_plot.files/wavelet_matrix_plot-2.svgz")
 

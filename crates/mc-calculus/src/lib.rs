@@ -176,7 +176,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("polynomial_reduction", "polynomial_reduction(p, [g1, ...], xs): the remainder of p on division by the gi"),
     ("symmetric_reduction", "symmetric_reduction(f, xs), (f, xs, ss): [p, q] with f = p + q, p a polynomial in the elementary symmetric polynomials (or the names ss), q the remainder"),
     ("find_generating_function", "find_generating_function(a, x): a rational generating function of the list a, from the shortest linear recurrence with constant coefficients"),
-    ("polynomial_q", "polynomial_q(e, x), (e, [x1, ...]), (e): whether e is a polynomial in the variables, with coefficients free of their symbols"),
+    ("is_polynomial", "is_polynomial(e, x), (e, [x1, ...]), (e): whether e is a polynomial in the variables, with coefficients free of their symbols"),
     ("solve_always", "solve_always(eqs, vars): the values of the other symbols for which the polynomial equations hold for every value of vars"),
     ("compose_series", "compose_series(f, g), (f, g, h, ...): the power series f(g(x)) of the series f and g (g at the expansion point of f)"),
     ("inverse_series", "inverse_series(s), (s, y): the series x(y) with s(x(y)) = y, a Puiseux series when s starts at a power above 1"),

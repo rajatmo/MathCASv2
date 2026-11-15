@@ -92,10 +92,10 @@ functions! {
         "string_position(s, p): the [start, end] positions of the matches of p in s (overlapping by default); (s, p, n): at most n";
     "string_count" => scan::string_count, 2, 3, true,
         "string_count(s, p): the number of matches of the string pattern p in s, without overlaps";
-    "string_match_q" => scan::string_match_q, 2, 3, true,
-        "string_match_q(s, p): whether the whole of s matches the string pattern p (in a literal string, * and @ are wildcards)";
-    "string_free_q" => scan::string_free_q, 2, 3, true,
-        "string_free_q(s, p): whether no substring of s matches the string pattern p";
+    "is_string_match" => scan::is_string_match, 2, 3, true,
+        "is_string_match(s, p): whether the whole of s matches the string pattern p (in a literal string, * and @ are wildcards)";
+    "is_string_free" => scan::is_string_free, 2, 3, true,
+        "is_string_free(s, p): whether no substring of s matches the string pattern p";
     "string_delete" => string_delete, 2, 4, true,
         "string_delete(s, p): s without the substrings matching the string pattern p";
     "string_take" => shape::string_take, 2, 2, true,

@@ -3,7 +3,7 @@
 //! notebook is one file that shows its plots, their hover read-outs and 3D rotation on any machine.
 //!
 //! ```text
-//! #% output n=3
+//! #% output out=3
 //! #= image("plot-3f2a91c04b7e.svg")
 //! #~ @plot-3f2a91c04b7e.svg deflate
 //! #~ eJzVvWuTHMeRJPj3+5...      (base64, 100 characters a line)

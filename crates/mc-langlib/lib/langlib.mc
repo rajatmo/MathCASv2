@@ -77,12 +77,12 @@ rule elementwise(f_)(xs___) := elementwise_apply(f, xs)
 # --- join_across ---
 
 # the key column names of a join: a key, a rule lk -> rk or a list of them, as a list of [lk, rk] (key(k) is k)
-fn join_unkey(k) = if match_q(k, key(_)) then k[1] else k
-fn join_pairs(key) = map(k => if match_q(k, _ -> _) then [join_unkey(k[1]), join_unkey(k[2])] else [join_unkey(k), join_unkey(k)], if is_list(key) then key else [key])
+fn join_unkey(k) = if is_match(k, key(_)) then k[1] else k
+fn join_pairs(key) = map(k => if is_match(k, _ -> _) then [join_unkey(k[1]), join_unkey(k[2])] else [join_unkey(k), join_unkey(k)], if is_list(key) then key else [key])
 
 # the join type as "inner", "left", "right" or "outer" (a string in any case, or a symbol), else null
 fn join_type(t) = {
-  let s = if is_string(t) then to_lower(t) else if is_symbol(t) then to_lower(to_string(t)) else null
+  let s = if is_symbol(t) then symbol_name(t) else null
   if s === null or not member(["inner", "left", "right", "outer"], s) then null else s
 }
 
@@ -104,14 +104,14 @@ fn join_record(l, r, shared, f) = {
 
 # join_across(left, right, key), (..., type), (..., key_collision_function: f): the records of two lists of
 # associations (or two datasets) joined on a key: a key present in both, a rule lk -> rk, or a list of them; the type
-# "inner" (default), "left", "right" or "outer" decides whether records without a partner are kept (their other
+# inner (default), left, right or outer decides whether records without a partner are kept (their other
 # keys missing("Unmatched")); a key present in both records goes to the result with the left value, or by
 # key_collision_function: left, right, or a function of the key giving the two new keys [kl, kr]
-fn join_across(l, r, key, type = "inner"; key_collision_function = automatic) when is_dataset(l) and is_dataset(r) = {
+fn join_across(l, r, key, type = inner; key_collision_function = automatic) when is_dataset(l) and is_dataset(r) = {
   let t = join_type(type)
   if t === null then failure(argument, join_across, 4) else join_on(l, r, key, how: (if t === "inner" then inner else if t === "left" then left else if t === "right" then right else outer))
 }
-fn join_across(l, r, key, type = "inner"; key_collision_function = automatic) when is_list(l) and is_list(r) = {
+fn join_across(l, r, key, type = inner; key_collision_function = automatic) when is_list(l) and is_list(r) = {
   let t = join_type(type)
   if t === null then failure(argument, join_across, 4)
   else if not every(l, is_assoc) then failure(argument, join_across, 1)
@@ -259,12 +259,12 @@ fn bool_sop(ones, dc, vars) = {
 fn bool_sort_terms(terms, vars) = {
   let n = length(vars)
   let base = 2*n + 2
-  let key = t => fold((acc, l) => acc*base + 1 + 2*(position_of(vars, if match_q(l, not(_)) then l[1] else l)) + (if match_q(l, not(_)) then 1 else 0), 0, join(t, constant_array(-1, 0))) * base^(n - length(t))
+  let key = t => fold((acc, l) => acc*base + 1 + 2*(position_of(vars, if is_match(l, not(_)) then l[1] else l)) + (if is_match(l, not(_)) then 1 else 0), 0, join(t, constant_array(-1, 0))) * base^(n - length(t))
   sort_by(terms, key)
 }
 
 # the negation of a literal
-fn bool_neg(l) = if match_q(l, not(_)) then l[1] else not l
+fn bool_neg(l) = if is_match(l, not(_)) then l[1] else not l
 
 # the expression of a sum of products and the product of sums of the negated terms
 fn bool_or(terms) = apply(`or`, map(t => apply(`and`, t), terms))
@@ -310,9 +310,9 @@ fn bool_binary(e, g) = {
   } else e
 }
 
-# the form name as a lower case string, or null
+# the form name (a symbol) as a string, or null
 fn bool_form(f) = {
-  let s = if is_string(f) then to_lower(f) else if is_symbol(f) then to_lower(to_string(f)) else null
+  let s = if is_symbol(f) then symbol_name(f) else null
   let t = if s === null then null else string_replace(s, "_" -> "")
   if t !== null and member(["dnf", "cnf", "anf", "esop", "nand", "nor", "binarynand", "binarynor", "and", "or", "implies", "bff", "ite", "booleanfunction"], t) then (if t === "booleanfunction" then "bff" else t) else null
 }
@@ -361,12 +361,12 @@ fn bool_form_of(f, ones, zeros, dc, vars) = {
 }
 
 # boolean_convert(e), (e, form), (e, form, cond), (e, cond): the Boolean expression e (in symbols; a boolean_function
-# call too) in the form "dnf" (the default: a sum of products, by Quine-McCluskey with a greedy cover), "cnf", "anf"
-# or "esop" (exclusive or of products), "nand", "nor", "binary_nand", "binary_nor" (only those operations), "and",
-# "or", "implies" (with not) or "bff" (a boolean_function call); with cond the result need only agree with e where
-# cond is true. Strings in any case, or symbols.
-fn boolean_convert(e) = boolean_convert(e, "dnf", null)
-fn boolean_convert(e, form) = if bool_form(form) !== null then boolean_convert(e, form, null) else if is_string(form) then failure(argument, boolean_convert, 2) else boolean_convert(e, "dnf", form)
+# call too) in the form dnf (the default: a sum of products, by Quine-McCluskey with a greedy cover), cnf, anf
+# or esop (exclusive or of products), nand, nor, binary_nand, binary_nor (only those operations), `and`,
+# `or`, implies (with not) or bff (a boolean_function call); with cond the result need only agree with e where
+# cond is true. The forms are symbols (`and` and `or` in backquotes, being keywords).
+fn boolean_convert(e) = boolean_convert(e, dnf, null)
+fn boolean_convert(e, form) = if bool_form(form) !== null then boolean_convert(e, form, null) else if is_string(form) then failure(argument, boolean_convert, 2) else boolean_convert(e, dnf, form)
 fn boolean_convert(e, form, cond) = {
   let f = bool_form(form)
   let vars = bool_vars(if cond === null then e else [e, cond])
@@ -383,7 +383,7 @@ fn boolean_convert(e, form, cond) = {
 # form), with the condition as in boolean_convert
 fn boolean_minimize(e) = boolean_minimize(e, null, null)
 fn boolean_minimize(e, form) = if bool_form(form) !== null then boolean_minimize(e, form, null) else boolean_minimize(e, null, form)
-fn boolean_minimize(e, form, cond) = boolean_convert(e, if form === null then "dnf" else form, cond)
+fn boolean_minimize(e, form, cond) = boolean_convert(e, if form === null then dnf else form, cond)
 
 # boolean_function(k, n): the Boolean function of n variables whose truth table is the binary digits of k (bit i is
 # its value at the assignment i read as a binary number, false 0 and true 1, the first argument the highest bit);
@@ -397,7 +397,7 @@ fn bool_least_arity(bits) = length(integer_digits(bits - 1, 2))
 # the function of a specification: an index, a table (true, false, other for free values) or a list of rules
 fn bool_function_of(spec) =
   if is_integer(spec) then boolean_function(spec, max(1, bool_least_arity(length(integer_digits(spec, 2)))))
-  else if every(spec, r => match_q(r, _ -> _)) then {
+  else if every(spec, r => is_match(r, _ -> _)) then {
     let n = length(spec[1][1])
     if some(spec, r => not is_list(r[1]) or length(r[1]) != n or not every(r[1], b => b === true or b === false)) then failure(argument, boolean_function, 1)
     else {
@@ -419,7 +419,7 @@ fn bool_function_of(spec) =
     }
   }
 rule boolean_function(spec_) := bool_function_of(spec) when (is_integer(spec) and spec >= 0) or (is_list(spec) and length(spec) > 0)
-rule boolean_function(spec_, vars_) := boolean_convert(apply(bool_function_of(spec), vars), "dnf") when is_list(vars) and (is_list(spec) or is_integer(spec))
+rule boolean_function(spec_, vars_) := boolean_convert(apply(bool_function_of(spec), vars), dnf) when is_list(vars) and (is_list(spec) or is_integer(spec))
 rule boolean_function(k_, n_) := failure(argument, boolean_function, 1) when is_integer(k) and is_integer(n) and (k < 0 or k >= 2^(2^n))
 
 # f(a, ...) for f = boolean_function(k, n): the value, or the function of the arguments that are not true or false
@@ -444,7 +444,7 @@ rule boolean_function(k_, n_)(xs___) := {
 } when length(xs) == n and (some(xs, x => x === true or x === false) or k == 0 or k == 2^(2^n) - 1)
 
 # boolean_counting_function(spec, [x, ...]): the sum of products in those variables
-rule boolean_counting_function(k_, vars_) := boolean_convert(apply(boolean_counting_function(k, length(vars)), vars), "dnf") when is_list(vars)
+rule boolean_counting_function(k_, vars_) := boolean_convert(apply(boolean_counting_function(k, length(vars)), vars), dnf) when is_list(vars)
 
 # boolean_counting_function(k, n): true when at most k of its n arguments are true; ([kmin, kmax], n): when between
 # kmin and kmax are; ([[k1, k2, ...]], n): when exactly k1, k2, ... are. A call with all arguments true or false
@@ -497,7 +497,7 @@ fn logical_expand(e) = {
   let absorbed = select(kept, t => not some(kept, u => u != t and every(u, l => member(t, l))))
   # a sum that is true or false for every assignment of its few symbols is that constant
   let vars = bool_vars(absorbed)
-  let atoms = unique(map(l => if match_q(l, not(_)) then l[1] else l, flatten(absorbed, 1)))
+  let atoms = unique(map(l => if is_match(l, not(_)) then l[1] else l, flatten(absorbed, 1)))
   if length(vars) > 0 and length(vars) <= 8 and length(vars) == length(atoms) then {
     let t = bool_table(bool_or(absorbed), vars)
     if t !== null and every(t, b => b) then true else bool_or(absorbed)
@@ -597,20 +597,20 @@ fn resample_all(a, poss, how, pads) =
 
 # the number of output samples along an axis of m samples (with positions from lo to hi in point mode) for the size
 # spec s (an integer or scaled(f))
-fn resample_size(s, m, bin, span) = if match_q(s, scaled(_)) then (if bin then round(s[1]*m) else round(s[1]*span) + 1) else s
+fn resample_size(s, m, bin, span) = if is_match(s, scaled(_)) then (if bin then round(s[1]*m) else round(s[1]*span) + 1) else s
 
-# the name of a resampling, padding or mode setting in lower case without underscores
-fn resample_name(x) = if is_string(x) then string_replace(to_lower(x), "_" -> "") else if is_symbol(x) then string_replace(to_lower(to_string(x)), "_" -> "") else x
+# the name of a resampling, padding or mode setting (a symbol) as a string without underscores; anything else as it is
+fn resample_name(x) = if is_symbol(x) then string_replace(symbol_name(x), "_" -> "") else x
 
 # array_resample(a, n), (a, n, mode), (a, n, mode, [lo, hi]): the array a (a list, or an array of lists, of numbers or
 # symbolic elements) resampled to n samples along the first axis and in proportion along the others (n a list: along
-# each; scaled(f): f times as many); mode "point" (default: the samples run from the first to the last element, or
-# over the positions lo to hi) or "bin" (each element a cell of width 1: the samples are cell centres), also
-# ["bin", d] with a shift d of the cells (-1 to 1). Options: resampling: "linear" (default), "nearest",
-# "nearest_left", "nearest_right", "quadratic", "cubic"; padding: "fixed" (default), "periodic", "reflected" or a
+# each; scaled(f): f times as many); mode point (default: the samples run from the first to the last element, or
+# over the positions lo to hi) or bin (each element a cell of width 1: the samples are cell centres), also
+# [bin, d] with a shift d of the cells (-1 to 1). Options: resampling: linear (default), nearest,
+# nearest_left, nearest_right, quadratic, cubic; padding: fixed (default), periodic, reflected or a
 # number (one for all axes, or a list with one for each), for positions outside the data; data_range: [a, b] (a list of
 # them for several axes) the coordinates of the first and last element, for the positions lo to hi.
-fn array_resample(a, n, mode = "point", rng = automatic; resampling = "linear", padding = "fixed", data_range = automatic) = {
+fn array_resample(a, n, mode = point, rng = automatic; resampling = linear, padding = fixed, data_range = automatic) = {
   let m = dimensions(a)
   let md = resample_name(if is_list(mode) and length(mode) == 2 then mode[1] else mode)
   let shift = if is_list(mode) and length(mode) == 2 then mode[2] else 0
@@ -629,7 +629,7 @@ fn array_resample(a, n, mode = "point", rng = automatic; resampling = "linear", 
     let ranges = if rng === automatic then map(d => [1, d], m) else map(i => map(x => toidx(i, x), if rank == 1 then rng else rng[i]), range(rank))
     # the number of samples along each axis
     let sizes = if is_list(n) then map(i => resample_size(n[i], m[i], bin, ranges[i][2] - ranges[i][1]), range(rank))
-      else if match_q(n, scaled(_)) then map(i => resample_size(n, m[i], bin, ranges[i][2] - ranges[i][1]), range(rank))
+      else if is_match(n, scaled(_)) then map(i => resample_size(n, m[i], bin, ranges[i][2] - ranges[i][1]), range(rank))
       else if is_integer(n) and n >= 1 then {
         let s = if bin then n/m[1] else (if m[1] == 1 then 1 else (n - 1)/(ranges[1][2] - ranges[1][1]))
         join([n], map(i => if bin then round(s*m[i]) else round(s*(ranges[i][2] - ranges[i][1])) + 1, range(2, rank)))
@@ -646,7 +646,7 @@ fn array_resample(a, n, mode = "point", rng = automatic; resampling = "linear", 
 # --- arguments_options, check_arguments ---
 
 # is x an option: a rule, or a list of options (any depth)?
-fn is_option_item(x) = match_q(x, _ -> _) or match_q(x, _ :> _) or (is_list(x) and every(x, is_option_item)) or (not is_atom(x) and head(x) === options)
+fn is_option_item(x) = is_match(x, _ -> _) or is_match(x, _ :> _) or (is_list(x) and every(x, is_option_item)) or (not is_atom(x) and head(x) === options)
 
 # the rules of an option item or list of them, flattened
 fn option_rules(x) = if is_list(x) then flatten(map(option_rules, x), 1) else if not is_atom(x) and head(x) === options then apply(list, x) else [x]
@@ -663,7 +663,7 @@ fn argument_bounds(spec) =
 # [min, max] with max possibly inf). A rule that is needed to reach the minimum counts as an argument. The call is
 # held (f itself is not evaluated, so f may call this function on its own arguments); its arguments are evaluated,
 # unless wrapper: h is given (or "Head" in the third argument): then the result is [h(arguments), h(options)] of the unevaluated ones. options_mode: none
-# takes every item as an argument, "shortest" as many as the spec allows (the rest is the options). The settings may also come as a third argument, an association with the keys
+# takes every item as an argument, shortest as many as the spec allows (the rest is the options). The settings may also come as a third argument, an association with the keys
 # "Head", "OptionsMode". The options f declares are not known: any trailing rule is an option.
 fn arguments_options(held call, spec, cfg = automatic; options_mode = automatic, wrapper = automatic, extra_options = automatic) = {
   let b = argument_bounds(spec)
@@ -671,8 +671,9 @@ fn arguments_options(held call, spec, cfg = automatic; options_mode = automatic,
   let setting = (opt, key) => if opt !== automatic then opt else if is_assoc(cfg) and key_exists(cfg, key) then cfg[key] else automatic
   let h = setting(wrapper, "Head")
   let mode = setting(options_mode, "OptionsMode")
-  let nomode = mode === none or mode === "none"
-  if b === null then failure(argument, arguments_options, 2)
+  let nomode = mode === none
+  if not (mode === automatic or mode === none or mode === shortest) then failure(argument, arguments_options, 3)
+  else if b === null then failure(argument, arguments_options, 2)
   else if is_atom(q[1]) then failure(argument, arguments_options, 1)
   else {
     # a call written apply(g, [a, b, ...]) (a sequence variable's way of writing g(a, b, ...), which would run g) is the call g(a, b, ...)
@@ -686,7 +687,7 @@ fn arguments_options(held call, spec, cfg = automatic; options_mode = automatic,
     var p = cut
     while p < b[1] and p < n { p = p + 1 }
     # the shortest option list: as many leading items as arguments as the spec allows
-    if (mode === "Shortest" or mode === "shortest") and p < n then p = min(n, if b[2] === inf then n else b[2])
+    if mode === shortest and p < n then p = min(n, if b[2] === inf then n else b[2])
     if p < b[1] or (b[2] !== inf and p > b[2]) then failure(argument_count, f, p, spec)
     else if h === automatic then [take(items, p), flatten(map(option_rules, drop(items, p)), 1)]
     else [apply(h, take(items, p)), apply(h, flatten(map(option_rules, drop(items, p)), 1))]
@@ -756,7 +757,7 @@ fn throw_exception(exc) when is_exception(exc) = throw(exc, exc[1])
 fn catch_exception(held body, type) = catch_exception(quote(body), type, e => e)
 fn catch_exception(held body, type, f) = catch(unquote(body), exception_kind_pattern(type), (e, tag) => f(e))
 
-# --- associations and lists: key_union, key_intersection, key_member_q, key_free_q, disjoint_q, intersecting_q,
+# --- associations and lists: key_union, key_intersection, is_key_member, is_key_free, is_disjoint, is_intersecting,
 #     compose_list, longest_common_subsequence, longest_common_sequence ---
 
 # the associations of a list of associations or lists of rules
@@ -765,14 +766,14 @@ fn assocs_of(xs) = map(x => if is_assoc(x) then x else assoc(x), xs)
 # key_union([a1, a2, ...]), (list, f): the associations with every key of any of them, in order of first appearance;
 # a key an association lacks gets missing("KeyAbsent", key), or f(key)
 fn key_union(xs) = key_union(xs, automatic)
-fn key_union(xs, f) when is_list(xs) and every(xs, x => is_assoc(x) or (is_list(x) and every(x, y => match_q(y, _ -> _)))) = {
+fn key_union(xs, f) when is_list(xs) and every(xs, x => is_assoc(x) or (is_list(x) and every(x, y => is_match(y, _ -> _)))) = {
   let al = assocs_of(xs)
   let ks = unique(flatten(map(keys, al), 1))
   map(a => assoc(map(k => k -> (if key_exists(a, k) then a[k] else if f === automatic then missing("KeyAbsent", k) else f(k)), ks)), al)
 }
 
 # key_intersection([a1, a2, ...]): the associations restricted to the keys all of them have
-fn key_intersection(xs) when is_list(xs) and every(xs, x => is_assoc(x) or (is_list(x) and every(x, y => match_q(y, _ -> _)))) = {
+fn key_intersection(xs) when is_list(xs) and every(xs, x => is_assoc(x) or (is_list(x) and every(x, y => is_match(y, _ -> _)))) = {
   let al = assocs_of(xs)
   if length(al) == 0 then [] else {
     let common = select(keys(al[1]), k => every(al, a => key_exists(a, k)))
@@ -780,18 +781,18 @@ fn key_intersection(xs) when is_list(xs) and every(xs, x => is_assoc(x) or (is_l
   }
 }
 
-# key_member_q(a, k), key_free_q(a, k): whether the association (or list of rules) a has the key k, or lacks it
-fn key_member_q(a, k) = {
-  let ks = if is_assoc(a) then keys(a) else if is_list(a) and every(a, r => match_q(r, _ -> _)) then map(r => r[1], a) else null
-  ks !== null and (member(ks, k) or some(ks, x => match_q(x, k)))
+# is_key_member(a, k), is_key_free(a, k): whether the association (or list of rules) a has the key k, or lacks it
+fn is_key_member(a, k) = {
+  let ks = if is_assoc(a) then keys(a) else if is_list(a) and every(a, r => is_match(r, _ -> _)) then map(r => r[1], a) else null
+  ks !== null and (member(ks, k) or some(ks, x => is_match(x, k)))
 }
-fn key_free_q(a, k) = not key_member_q(a, k)
-fn key_member_q(k) = a => key_member_q(a, k)
-fn key_free_q(k) = a => key_free_q(a, k)
+fn is_key_free(a, k) = not is_key_member(a, k)
+fn is_key_member(k) = a => is_key_member(a, k)
+fn is_key_free(k) = a => is_key_free(a, k)
 
-# disjoint_q(xs, ys), intersecting_q(xs, ys): whether the lists have no element in common, or at least one
-fn intersecting_q(xs, ys) when is_list(xs) and is_list(ys) = length(intersection(xs, ys)) > 0
-fn disjoint_q(xs, ys) when is_list(xs) and is_list(ys) = length(intersection(xs, ys)) == 0
+# is_disjoint(xs, ys), is_intersecting(xs, ys): whether the lists have no element in common, or at least one
+fn is_intersecting(xs, ys) when is_list(xs) and is_list(ys) = length(intersection(xs, ys)) > 0
+fn is_disjoint(xs, ys) when is_list(xs) and is_list(ys) = length(intersection(xs, ys)) == 0
 
 # compose_list([f1, f2, ...], x): the list x, f1(x), f2(f1(x)), ...
 fn compose_list(fs, x) when is_list(fs) = fold_list((acc, f) => f(acc), x, fs)

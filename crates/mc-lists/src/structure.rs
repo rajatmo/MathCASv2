@@ -1,5 +1,5 @@
 #![allow(clippy::needless_borrow, clippy::redundant_guards)]
-//! Parts by position and by pattern (decision p6core.15): `match_q`, `head`, `dimensions`, `array_depth`,
+//! Parts by position and by pattern (decision p6core.15): `is_match`, `head`, `dimensions`, `array_depth`,
 //! `extract`, `replace_part`, `delete`, `map_at`, `level`, `replace`, `delete_cases`, `first_case`,
 //! `reverse_sort`, `take_largest`, `take_smallest`, and the display wrappers `full_form` and `input_form`.
 //!
@@ -179,8 +179,8 @@ fn settle<'h>(_lib: &Lib, _h: &'h Heap, v: T<'h>) -> Reply<'h> {
     Reply::Again(v)
 }
 
-/// `match_q(x, p)`: whether `x` matches the pattern `p`.
-pub(crate) fn match_q<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+/// `is_match(x, p)`: whether `x` matches the pattern `p`.
+pub(crate) fn is_match<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [x, p] = *args else { return Ok(Reply::Decline) };
     let Some(mut m) = Matcher::new(lib, h, p) else { return Ok(Reply::Done(lib.bad_arg(h, t, 2))) };
@@ -210,7 +210,7 @@ pub(crate) fn head<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, arg
 
 /// `dimensions(x)`: the lengths of the levels of `x` down to where its parts stop having one head and one length
 /// (`[2, 3]` for a 2 by 3 matrix, `[]` for an atom).
-/// `dimensions(x, n)`: at most `n` levels; `allowed_heads: list` (or `"ListLike"`): only levels of lists
+/// `dimensions(x, n)`: at most `n` levels; `allowed_heads: list`: only levels of lists
 /// (`all` any one head per level; the default, the top level's head at every level).
 pub(crate) fn dimensions<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
@@ -240,7 +240,6 @@ pub(crate) fn dimensions<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h
         None => args.first().and_then(|&x| top(x)),
         Some(View::Sym(s)) if h.sym_name(s) == "all" || h.sym_name(s) == "full" => None,
         Some(View::Sym(s)) if h.sym_name(s) == "list" => Some(list),
-        Some(View::Str("ListLike")) => Some(list),
         Some(_) => return Ok(Reply::Decline),
     };
     let (x, most) = match *args {
@@ -305,7 +304,7 @@ fn dims_by<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, only: Option<T<'h>>, ful
 }
 
 /// A set of allowed heads: `[h1, h2, ...]` (each level of one head of the set) or `h1 | h2 | ...` (the parts of
-/// a level may have different heads of the set); `"ListLike"` stands for `list`. `None` for another value.
+/// a level may have different heads of the set). `None` for another value.
 fn head_set<'h>(cx: &NativeCx<'_, '_, 'h>, spec: T<'h>) -> Option<(Vec<T<'h>>, bool)> {
     let h = cx.heap();
     let (items, mixed): (Vec<T<'h>>, bool) = match cx.as_list(spec) {
@@ -315,12 +314,10 @@ fn head_set<'h>(cx: &NativeCx<'_, '_, 'h>, spec: T<'h>) -> Option<(Vec<T<'h>>, b
             _ => return None,
         },
     };
-    let list = h.sym_term(h.sym("list"));
     let mut set = Vec::with_capacity(items.len());
     for x in items {
         match h.view(x) {
             View::Sym(_) => set.push(x),
-            View::Str("ListLike") => set.push(list),
             _ => return None,
         }
     }
@@ -388,7 +385,7 @@ fn dims_in_set<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, set: &[T<'h>], mixed
 }
 
 /// `array_depth(x)`: the number of levels of `x` that form a full array (the length of `dimensions(x)`).
-/// `allowed_heads: list` (or `"ListLike"`) counts only levels of lists, `allowed_heads: all` levels of any one head
+/// `allowed_heads: list` counts only levels of lists, `allowed_heads: all` levels of any one head
 /// (the default, P9B.6).
 pub(crate) fn array_depth<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
@@ -404,7 +401,6 @@ pub(crate) fn array_depth<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h
         None if h.packed(x).is_some() => Some(list),
         None => args_of(h, x).map(|(g, _)| g),
         Some(View::Sym(s)) if h.sym_name(s) == "all" || h.sym_name(s) == "full" => None,
-        Some(View::Str(s)) if s == "ListLike" => Some(list),
         Some(_) if heads == Some(list) => Some(list),
         Some(_) => return Ok(Reply::Decline),
     };

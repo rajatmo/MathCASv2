@@ -124,7 +124,7 @@ Tests: unit 18; `tests/interop.rs` 11; `tests/plot.rs` 14 (sign changes never br
   left out. `sector_chart`, `rectangle_chart`, `paired_bar_chart`, `bubble_chart`, `box_whisker_chart`,
   `smooth_histogram`, `bar_chart3d`, the gauges and the new charts read through it (`src/charts3.rs`):
   grouped data, labels (`plot_labels: automatic` / given lists), per-item styles, notched boxes, smooth
-  distribution functions (`"CDF"`, `"SF"`, `"HF"`, `"CHF"`), reversed gauge ranges. Data with no numbers draws
+  distribution functions (`cdf`, `sf`, `hf`, `chf`), reversed gauge ranges. Data with no numbers draws
   an empty chart with a message; a bare undefined name (or `name -> labels`) as the data stays a failure (there is
   nothing to draw).
 - **New plots** (`src/panels.rs`, 2D): the five pairwise plots (a grid of panels, histograms on the diagonal;

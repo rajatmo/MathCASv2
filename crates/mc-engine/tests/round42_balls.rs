@@ -19,7 +19,7 @@ fn outside(e: &mut CoreEngine, f: &str, a: &str, b: &str) -> String {
         e,
         &format!(
             "vs = table(n({fx}, 30), [k, 1, 40]); rn = n(ri, 40); \
-             select(vs, v => if is_number(v) === true and is_real(v) === true then not(interval_member_q(rn, v)) else false)"
+             select(vs, v => if is_number(v) === true and is_real(v) === true then not(is_interval_member(rn, v)) else false)"
         ),
     )
 }
@@ -140,7 +140,7 @@ fn a_pole_inside_gives_two_rays() {
     assert!(g.starts_with("interval([-inf, -3.544907701811"), "{g}");
     // independent check: the gap between the rays holds no value; gamma(-1/2) = -2 sqrt(pi) and gamma(1/2) = sqrt(pi)
     // are the inner ends (gamma decreases on [-1/2, 0) and on (0, 1/2])
-    assert_eq!(ev(&mut e, "[interval_member_q(g, 0), interval_member_q(g, n(-2 sqrt(pi), 30)), interval_member_q(g, n(sqrt(pi), 30))]"), "[false, true, true]");
+    assert_eq!(ev(&mut e, "[is_interval_member(g, 0), is_interval_member(g, n(-2 sqrt(pi), 30)), is_interval_member(g, n(sqrt(pi), 30))]"), "[false, true, true]");
     let (_, bad) = interval_image(&mut e, "csch(X)", "-1", "1");
     assert_eq!(bad, "[]");
     let (_, bad) = interval_image(&mut e, "sec(X)", "1", "2");

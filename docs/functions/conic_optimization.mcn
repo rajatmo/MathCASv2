@@ -13,7 +13,7 @@
 # A bound `norm([x, y]) <= t` is the second-order cone constraint `x^2 + y^2 <= t^2`, `t >= 0`.
 
 #% item
-# `vector_greater_equal([v, 0], ["NormCone", n])` asks the vector `v` (its last entry the cone's axis) to lie in the second-order cone, and `["SemidefiniteCone", n]` asks a symmetric matrix to be positive semidefinite.
+# `vector_greater_equal([v, 0], [norm_cone, n])` asks the vector `v` (its last entry the cone's axis) to lie in the second-order cone, and `[semidefinite_cone, n]` asks a symmetric matrix to be positive semidefinite.
 
 #% item
 # A fourth argument selects "PrimalMinimumValue", "PrimalMinimizer" or "PrimalMinimizerRules" as for `quadratic_optimization`.

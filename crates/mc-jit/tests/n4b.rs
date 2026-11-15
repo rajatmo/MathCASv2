@@ -83,7 +83,7 @@ fn compiled_draws_are_the_interpreters() {
             let mut e = engine(threads);
             for (name, def) in DRAWS {
                 assert_eq!(eval(&mut e, def), "null");
-                assert_eq!(eval(&mut e, &format!("compile({name}, back_end: \"{back_end}\")")), *name);
+                assert_eq!(eval(&mut e, &format!("compile({name}, back_end: {back_end})")), *name);
             }
             for (i, call) in CALLS.iter().enumerate() {
                 let got = eval(&mut e, &format!("seed({}); {call}", 100 + i));

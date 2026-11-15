@@ -206,7 +206,7 @@ fn real_digits_beyond_precision_and_deep_positions() {
 
 #[test]
 fn from_digits_of_strings_and_roman_numerals() {
-    assert_eq!(ev("[from_digits(\"892\"), from_digits(\"ff\", 16), from_digits(\"DCCCXCII\", \"Roman\"), from_digits(\"MCMXCIV\", \"Roman\")]"), "[892, 255, 892, 1994]");
+    assert_eq!(ev("[from_digits(\"892\"), from_digits(\"ff\", 16), from_digits(\"DCCCXCII\", roman), from_digits(\"MCMXCIV\", roman)]"), "[892, 255, 892, 1994]");
 }
 
 #[test]
@@ -502,11 +502,11 @@ fn r32_eigensystem_of_exact_matrices_with_radical_entries_stays_exact() {
 
 #[test]
 fn r32_array_pad_continues_by_differences() {
-    assert_eq!(ev("array_pad([a, b, c], 3, \"ReflectedDifferences\")"), "[b + -2*c + 2*a, -c + 2*a, -b + 2*a, a, b, c, -b + 2*c, -a + 2*c, b + -2*a + 2*c]");
-    assert_eq!(ev("array_pad([a, b, c], 4, \"ReversedDifferences\")"), "[-c + 2*a, -c + 2*a, -b + 2*a, a, a, b, c, c, -b + 2*c, -a + 2*c, -a + 2*c]");
-    assert_eq!(ev("array_pad([a, b, c], 3, \"Extrapolated\")"), "[-3*b + 4*a, -2*b + 3*a, -b + 2*a, a, b, c, -b + 2*c, -2*b + 3*c, -3*b + 4*c]");
-    assert_eq!(ev("[array_pad([1, 5, 7, 8], [0, 3], \"Extrapolated\"), center_array([1, 2, 3], 6, \"Extrapolated\")]"), "[[1, 5, 7, 8, 9, 10, 11], [0, 1, 2, 3, 4, 5]]");
-    assert_eq!(ev("array_pad([[1, 2, 4]], [[0, 0], [1, 2]], \"ReflectedDifferences\")"), "[[0, 1, 2, 4, 6, 7]]");
+    assert_eq!(ev("array_pad([a, b, c], 3, reflected_differences)"), "[b + -2*c + 2*a, -c + 2*a, -b + 2*a, a, b, c, -b + 2*c, -a + 2*c, b + -2*a + 2*c]");
+    assert_eq!(ev("array_pad([a, b, c], 4, reversed_differences)"), "[-c + 2*a, -c + 2*a, -b + 2*a, a, a, b, c, c, -b + 2*c, -a + 2*c, -a + 2*c]");
+    assert_eq!(ev("array_pad([a, b, c], 3, extrapolated)"), "[-3*b + 4*a, -2*b + 3*a, -b + 2*a, a, b, c, -b + 2*c, -2*b + 3*c, -3*b + 4*c]");
+    assert_eq!(ev("[array_pad([1, 5, 7, 8], [0, 3], extrapolated), center_array([1, 2, 3], 6, extrapolated)]"), "[[1, 5, 7, 8, 9, 10, 11], [0, 1, 2, 3, 4, 5]]");
+    assert_eq!(ev("array_pad([[1, 2, 4]], [[0, 0], [1, 2]], reflected_differences)"), "[[0, 1, 2, 4, 6, 7]]");
 }
 
 #[test]
@@ -538,7 +538,7 @@ fn r32_orthogonalize_of_ill_conditioned_numbers_stays_orthogonal() {
 #[test]
 fn r32_total_of_machine_reals_is_compensated_on_request() {
     // the default is the canonical plain sum (the same packed, unpacked and compiled); compensation is an option
-    assert_eq!(ev("x = constant_array(0.1, 10^6); total(x, method: \"CompensatedSummation\") - 10^5"), "0.0");
+    assert_eq!(ev("x = constant_array(0.1, 10^6); total(x, method: compensated_summation) - 10^5"), "0.0");
 }
 
 #[test]
@@ -560,7 +560,7 @@ fn r32_replace_part_with_conditioned_position_patterns_and_association_keys() {
 #[test]
 fn r32_numeric_arrays_of_single_precision_round_to_24_bits() {
     assert_eq!(ev("normal(numeric_array([0.1, 1.1, 2.1], \"Real32\"))"), "[0.10000000149011612, 1.100000023841858, 2.0999999046325684]");
-    assert_eq!(ev("normal(numeric_array([1 / 3 + (2 / 3) * im], \"ComplexReal32\", \"Coerce\"))"), "[complex(0.3333333432674408, 0.6666666865348816)]");
+    assert_eq!(ev("normal(numeric_array([1 / 3 + (2 / 3) * im], \"ComplexReal32\", coerce))"), "[complex(0.3333333432674408, 0.6666666865348816)]");
     assert_eq!(ev("normal(numeric_array([0.1, 1.1], \"Real64\"))"), "[0.1, 1.1]");
 }
 
@@ -644,11 +644,11 @@ fn r33_find_peaks_interpolation_order_refines_with_the_clamped_spline() {
 #[test]
 fn r33_svd_takes_a_shape_thin_full_compact_a_count_or_up_to() {
     assert_eq!(
-        ev("m = [[1.2, 3.4], [5.6, 7.8], [9., 1.2]]; f = svd(m, \"Full\"); [map(dimensions, f), max(abs(dot(f[1], f[2], transpose(f[3])) - m)) < 1e-13, max(abs(dot(transpose(f[1]), f[1]) - identity_matrix(3))) < 1e-13]"),
+        ev("m = [[1.2, 3.4], [5.6, 7.8], [9., 1.2]]; f = svd(m, full); [map(dimensions, f), max(abs(dot(f[1], f[2], transpose(f[3])) - m)) < 1e-13, max(abs(dot(transpose(f[1]), f[1]) - identity_matrix(3))) < 1e-13]"),
         "[[[3, 3], [3, 2], [2, 2]], true, true]"
     );
-    assert_eq!(ev("m = [[1.2, 3.4], [5.6, 7.8], [9., 1.2]]; [map(dimensions, svd(m, \"Thin\")), map(dimensions, svd(m, -1)), map(dimensions, svd(m, up_to(5)))]"), "[[[3, 2], [2, 2], [2, 2]], [[3, 1], [1, 1], [2, 1]], [[3, 2], [2, 2], [2, 2]]]");
-    assert_eq!(ev("map(dimensions, svd([[1., 2, 3], [2, 4, 6], [3, 6, 9]], \"Compact\"))"), "[[3, 1], [1, 1], [3, 1]]");
+    assert_eq!(ev("m = [[1.2, 3.4], [5.6, 7.8], [9., 1.2]]; [map(dimensions, svd(m, thin)), map(dimensions, svd(m, -1)), map(dimensions, svd(m, up_to(5)))]"), "[[[3, 2], [2, 2], [2, 2]], [[3, 1], [1, 1], [2, 1]], [[3, 2], [2, 2], [2, 2]]]");
+    assert_eq!(ev("map(dimensions, svd([[1., 2, 3], [2, 4, 6], [3, 6, 9]], compact))"), "[[3, 1], [1, 1], [3, 1]]");
 }
 
 #[test]
@@ -677,12 +677,12 @@ fn r33_sparse_array_with_pattern_positions_is_fast() {
 #[test]
 fn r33_number_theory_threading_options_and_irrational_constants() {
     assert_eq!(ev("[mod(sqrt(28), 3), mod(pi, 2), mod(-pi, 2), mod(x, 2), quotient(e^e^e, pi), quotient(7, 3, 1), quotient(x, pi)]"), "[-3 + 2*7^(1/2), -2 + pi, 4 - pi, mod(x, 2), 1214122, 2, quotient(x, pi)]");
-    assert_eq!(ev("[divisors([6, 10]), divisor_sum([2, 5, 10], &(&1^2)), prime_pi(10^6, method: \"Lehmer\")]"), "[[[1, 2, 3, 6], [1, 2, 5, 10]], [5, 26, 130], 78498]");
+    assert_eq!(ev("[divisors([6, 10]), divisor_sum([2, 5, 10], &(&1^2)), prime_pi(10^6, method: lehmer)]"), "[[[1, 2, 3, 6], [1, 2, 5, 10]], [5, 26, 130], 78498]");
 }
 
 #[test]
 fn r33_linear_algebra_options_counts_and_ball_matrices() {
-    assert_eq!(ev("[hilbert_matrix(3, target_structure: \"Dense\"), rotation_matrix(pi/2, target_structure: \"Dense\"), cholesky([[4, 2], [2, 3]], target_structure: \"Dense\")[1][1]]"), "[[[1, 1/2, 1/3], [1/2, 1/3, 1/4], [1/3, 1/4, 1/5]], [[0, -1], [1, 0]], 2]");
+    assert_eq!(ev("[hilbert_matrix(3, target_structure: dense), rotation_matrix(pi/2, target_structure: dense), cholesky([[4, 2], [2, 3]], target_structure: dense)[1][1]]"), "[[[1, 1/2, 1/3], [1/2, 1/3, 1/4], [1/3, 1/4, 1/5]], [[0, -1], [1, 0]], 2]");
     assert_eq!(ev("hilbert_matrix(2, working_precision: machine_precision)"), "[[1.0, 0.5], [0.5, 0.3333333333333333]]");
     // eigenvalues of a matrix of 12-digit numbers: the smallest three (machine arithmetic), the Hilbert-type matrix
     assert_eq!(ev("h = table(n(1/(i + j + 1), 12), i, 6, j, 6); e = eigenvalues(h, -3); [length(e), abs(e[3]/5.374160219636232e-9 - 1) < 1e-6]"), "[3, true]");
@@ -731,7 +731,7 @@ fn r33_trace_of_vectors_nonsquare_matrices_and_with_a_head_and_level() {
 fn r33_fit_with_tikhonov_regularization() {
     // the normal equations plus lambda on the diagonal; numpy gives 0.499984875, 0.005499611, 5.0496022e-5
     assert_eq!(
-        ev("data = [[0, 0], [0.001, 1], [0.01, 1]]; f = fit(data, [1, x, x^2], x, fit_regularization: [\"Tikhonov\", 1]); c = coefficient_list(f, x); [abs(c[1] - 0.4999848748) < 1e-9, abs(c[2] - 0.005499610866) < 1e-9, abs(c[3] - 5.0496022e-5) < 1e-12]"),
+        ev("data = [[0, 0], [0.001, 1], [0.01, 1]]; f = fit(data, [1, x, x^2], x, fit_regularization: [tikhonov, 1]); c = coefficient_list(f, x); [abs(c[1] - 0.4999848748) < 1e-9, abs(c[2] - 0.005499610866) < 1e-9, abs(c[3] - 5.0496022e-5) < 1e-12]"),
         "[true, true, true]"
     );
 }
@@ -796,14 +796,14 @@ fn r33_dataset_part_with_a_list_of_column_names() {
 #[test]
 fn r33_measures_of_a_map_with_ranges_and_coordinate_systems() {
     assert_eq!(ev("arc_length([sin(t), cos(t)], [t, 0, 2*pi])"), "2*pi");
-    assert_eq!(ev("arc_length([1, t, t], [t, 0, 2*pi], \"Cylindrical\")"), "2*pi*2^(1/2)");
+    assert_eq!(ev("arc_length([1, t, t], [t, 0, 2*pi], cylindrical)"), "2*pi*2^(1/2)");
     assert_eq!(ev("area([r*sin(t), r*cos(t)], [r, 1, 2], [t, 0, 2*pi])"), "3*pi");
-    assert_eq!(ev("area([1, t, z], [z, 0, 1], [t, 0, 2*pi], \"Cylindrical\")"), "2*pi");
+    assert_eq!(ev("area([1, t, z], [z, 0, 1], [t, 0, 2*pi], cylindrical)"), "2*pi");
     assert_eq!(ev("volume([s, t, u], [s, 0, a], [t, 0, b], [u, 0, c])"), "a*b*c");
-    assert_eq!(ev("volume([r, t, p], [r, 0, 1], [t, 0, pi], [p, 0, 2*pi], \"Spherical\")"), "(4/3)*pi");
+    assert_eq!(ev("volume([r, t, p], [r, 0, 1], [t, 0, pi], [p, 0, 2*pi], spherical)"), "(4/3)*pi");
     // the seam of a full turn is inside the annulus: its boundary is the two circles (2 pi + 4 pi)
     assert_eq!(ev("perimeter([r*sin(t), r*cos(t)], [r, 1, 2], [t, 0, 2*pi])"), "6*pi");
-    assert_eq!(ev("perimeter([r, t], [r, 0, 1], [t, 0, pi/3], \"Polar\")"), "2 + (1/3)*pi");
+    assert_eq!(ev("perimeter([r, t], [r, 0, 1], [t, 0, pi/3], polar)"), "2 + (1/3)*pi");
 }
 
 #[test]

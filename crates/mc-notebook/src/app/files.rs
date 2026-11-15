@@ -63,7 +63,7 @@ impl App {
             let mut copy = self.doc.nb.clone();
             copy.apply(Command::DeleteAllOutput, &mut mc_nbmodel::FakeEnv::default());
             let mut f = copy.to_file();
-            f.cells.iter_mut().for_each(|c| c.attrs.remove("label"));
+            f.cells.iter_mut().for_each(|c| c.attrs.remove(mc_nbfile::IN_LABEL));
             f
         } else {
             self.doc.nb.to_file()

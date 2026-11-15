@@ -238,7 +238,7 @@ fn gaussian_primes() {
 #[test]
 fn angle_of_parallel_machine_vectors_is_exact() {
     // 0.2 = 2 * 0.1 in binary, so [1, 2] and [0.1, 0.2] are parallel: every 2 x 2 minor is exactly 0
-    assert_eq!(ev("[vector_angle([1, 2], [0.1, 0.2]), possible_zero_q(vector_angle([1, 2], [0.1, 0.2]))]"), "[0.0, true]");
+    assert_eq!(ev("[vector_angle([1, 2], [0.1, 0.2]), is_possible_zero(vector_angle([1, 2], [0.1, 0.2]))]"), "[0.0, true]");
     assert_eq!(ev("vector_angle([1, 2], [-0.1, -0.2]) == n(pi)"), "true");
     assert_eq!(ev("abs(vector_angle([1, 2], [1.0, 2.0000001]) - 2.0e-8) < 1.0e-15"), "true");
 }

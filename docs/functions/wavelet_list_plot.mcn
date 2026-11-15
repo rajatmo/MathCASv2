@@ -10,7 +10,7 @@
 # Details
 
 #% item
-# The option `plot_layout` puts the plots in a column ("CommonXAxis", default) or a row ("CommonYAxis"); the other options go to the plots. Complex coefficients are drawn by their modulus.
+# The option `plot_layout` puts the plots in a column (common_x_axis, default) or a row (common_y_axis); the other options go to the plots. Complex coefficients are drawn by their modulus.
 
 #% section
 # Examples
@@ -24,7 +24,7 @@ wavelet_list_plot(discrete_wavelet_transform(table(2 - 5*t + 5*exp(-500*(t - 0.5
 #= image("wavelet_list_plot.files/wavelet_list_plot-1.svgz")
 
 #% cell
-wavelet_list_plot(stationary_wavelet_transform(sin(range(30)^2/50), automatic, 3), plot_layout: "CommonYAxis")
+wavelet_list_plot(stationary_wavelet_transform(sin(range(30)^2/50), automatic, 3), plot_layout: common_y_axis)
 #% output
 #= image("wavelet_list_plot.files/wavelet_list_plot-2.svgz")
 

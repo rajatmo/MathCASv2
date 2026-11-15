@@ -2,7 +2,7 @@
 //!
 //! - **What is hashed**: a string's UTF-8 bytes; a byte array `byte_array([...])` its bytes; any other term the
 //!   UTF-8 bytes of its `to_string` form (so equal
-//!   terms have equal hashes, and the value does not depend on the session). `method: "Expression"` (the default)
+//!   terms have equal hashes, and the value does not depend on the session). `method: expression` (the default)
 //!   is the kernel's structural hash of the term, a 64-bit value stable across collections and sessions of one
 //!   build.
 //! - **Methods**: `"MD5"` (RFC 1321), `"SHA"` (SHA-1), `"SHA256"`, `"SHA512"`, `"SHA384"`, `"SHA224"` (FIPS 180-4),
@@ -11,9 +11,10 @@
 //!   `"MD4"`, `"RIPEMD160"`, `"SHA3-224"` to `"SHA3-512"` (`["SHA3", n]`), `"Keccak224"` to `"Keccak512"`,
 //!   `"BLAKE2b"`, `"BLAKE2s"` (`["BLAKE2b", bits]` for other lengths), `["BLAKE2xb", bits]`, `["BLAKE2xs", bits]`, and
 //!   the compositions `"SHA256SHA256"` (SHA-256 twice) and `"RIPEMD160SHA256"` (RIPEMD-160 of the SHA-256 digest).
-//! - **Formats**: `"Integer"` (the default: the digest as a big-endian unsigned integer), `"HexString"` (lower-case
-//!   hexadecimal), `"DecimalString"`, `"Base36String"`, `"Base64Encoding"`, `"ByteList"` (the digest's bytes as a list
-//!   of integers), `"ByteArray"`.
+//! - **Formats** (symbols): `integer` (the default: the digest as a big-endian unsigned integer), `hex_string`
+//!   (lower-case hexadecimal), `decimal_string`, `base36_string`, `base64_encoding`, `byte_list` (the digest's bytes
+//!   as a list of integers), `byte_array`. The method names are strings: their spelling is the one of the standards
+//!   that define them.
 use crate::ctx::Lib;
 use mc_core::{Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
@@ -414,8 +415,8 @@ pub(crate) fn hash<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
     };
     let m = match method {
         None => None,
+        Some(m) if matches!(h.view(m), View::Sym(s) if h.sym_name(s) == "expression") => None,
         Some(m) => match (str_of(m), cx.as_list(m)) {
-            (Some(s), _) if s.eq_ignore_ascii_case("expression") => None,
             (Some(s), _) => match method_of(&s, None) {
                 Some(m) => Some(m),
                 None => return Ok(Reply::Done(lib.bad_arg(h, t, 2))),
@@ -451,13 +452,13 @@ pub(crate) fn hash<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
             digest(m, text.as_bytes())
         }
     };
-    let format = match format.map(str_of) {
-        None => "Integer".to_string(),
-        Some(Some(f)) => f,
-        Some(None) => return Ok(Reply::Done(lib.bad_arg(h, t, 3))),
+    let format = match format.map(|f| h.view(f)) {
+        None => "integer".to_string(),
+        Some(View::Sym(f)) => h.sym_name(f).to_string(),
+        Some(_) => return Ok(Reply::Done(lib.bad_arg(h, t, 3))),
     };
     Ok(Reply::Done(match format.as_str() {
-        "Integer" => {
+        "integer" => {
             // big-endian bytes as little-endian limbs
             let words: Vec<u64> = bytes
                 .rchunks(8)
@@ -465,15 +466,15 @@ pub(crate) fn hash<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
                 .collect();
             h.big_int(false, &words)
         }
-        "HexString" => h.string(&bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()),
-        "DecimalString" => h.string(&decimal(&bytes)),
-        "Base36String" => h.string(&base36(&bytes)),
-        "Base64Encoding" => h.string(&base64(&bytes)),
-        "ByteList" => {
+        "hex_string" => h.string(&bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()),
+        "decimal_string" => h.string(&decimal(&bytes)),
+        "base36_string" => h.string(&base36(&bytes)),
+        "base64_encoding" => h.string(&base64(&bytes)),
+        "byte_list" => {
             let v: Vec<T<'h>> = bytes.iter().map(|&b| h.int(b as i64)).collect();
             cx.list(&v)
         }
-        "ByteArray" => {
+        "byte_array" => {
             let v: Vec<T<'h>> = bytes.iter().map(|&b| h.int(b as i64)).collect();
             h.call(h.sym("byte_array"), &[cx.list(&v)])
         }

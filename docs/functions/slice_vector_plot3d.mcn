@@ -19,7 +19,7 @@
 # Basic examples
 
 #% cell
-slice_vector_plot3d([y, -x, z], "CenterPlanes", [x, -2, 2], [y, -2, 2], [z, -2, 2])
+slice_vector_plot3d([y, -x, z], center_planes, [x, -2, 2], [y, -2, 2], [z, -2, 2])
 #% output
 #= image("slice_vector_plot3d.files/slice_vector_plot3d-1.svgz")
 

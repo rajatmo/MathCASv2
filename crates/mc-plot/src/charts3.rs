@@ -338,8 +338,12 @@ pub(crate) fn quantile(sorted: &[f64], q: f64) -> f64 {
 pub(crate) fn box_whisker_chart<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], o: Option<T<'h>>) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [d, rest @ ..] = a else { return Ok(Reply::Decline) };
-    let notched = rest.iter().any(|&s| matches!(h.view(s), View::Str(s) if s.contains("Notched")));
-    let outliers = !rest.iter().any(|&s| matches!(h.view(s), View::Str(s) if s.contains("Basic")));
+    let word = |s: T<'h>| match h.view(s) {
+        View::Sym(s) => h.sym_name(s),
+        _ => String::new(),
+    };
+    let notched = rest.iter().any(|&s| word(s).contains("notched"));
+    let outliers = !rest.iter().any(|&s| word(s).contains("basic"));
     let data = chartdata::read(cx, *d)?;
     let mut look = look_of(cx, o, Look::default(), "box_whisker_chart");
     // groups of data sets: a set; a list of sets; a list of lists of sets
@@ -479,7 +483,6 @@ pub(crate) fn smooth_histogram<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], o
     // bandwidth: a number, or automatic
     let bw_given = rest.first().and_then(|&b| crate::values::call_of(h, b).map_or(mc_graphics::num::number(h, b), |_| None));
     let kind = rest.get(1).map(|&k| match h.view(k) {
-        View::Str(s) => s.to_uppercase(),
         View::Sym(s) => h.sym_name(s).to_uppercase(),
         _ => "PDF".into(),
     });

@@ -557,8 +557,8 @@ fn list_fit_plot<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], o: Option<T<'h>
     // the model: a degree (an integer) or a name; linear by default
     let deg = match a.get(1).map(|&m| h.view(m)) {
         Some(View::Int(k)) => k.clamp(0, 8) as usize,
-        Some(View::Str(s)) if s.contains("Quadratic") => 2,
-        Some(View::Str(s)) if s.contains("Cubic") => 3,
+        Some(View::Sym(s)) if h.sym_name(s).contains("quadratic") => 2,
+        Some(View::Sym(s)) if h.sym_name(s).contains("cubic") => 3,
         _ => 1,
     };
     let mut under = vec![];
@@ -681,8 +681,13 @@ fn bins_for(all: &[f64], spec: Option<T<'_>>, h: &Heap) -> Vec<f64> {
     (0..=n).map(|k| lo + (hi - lo) * k as f64 / n as f64).collect()
 }
 
+/// The height a histogram shows: a symbol (`count`, `probability`, `pdf`, `cdf`, `sf`, `hf`, `chf`).
 fn kind_arg(h: &Heap, t: Option<&T<'_>>) -> String {
-    t.and_then(|&k| sym_named(h, k)).map(|s| s.to_uppercase()).unwrap_or_else(|| "COUNT".into())
+    let name = t.and_then(|&k| match h.view(k) {
+        View::Sym(s) => Some(h.sym_name(s)),
+        _ => None,
+    });
+    name.map(|s| s.to_uppercase()).unwrap_or_else(|| "COUNT".into())
 }
 
 fn paired_histogram<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], o: Option<T<'h>>) -> Res<Reply<'h>> {

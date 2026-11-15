@@ -1,10 +1,10 @@
 #! mathcas 2 notebook
 
 #% title
-# mandelbrot_set_member_q
+# is_mandelbrot_set_member
 
 #% text
-# `mandelbrot_set_member_q(c)` gives `true` when the number `c` belongs to the Mandelbrot set, the set of `c` for which the orbit of 0 under `z -> z^2 + c` stays bounded.
+# `is_mandelbrot_set_member(c)` gives `true` when the number `c` belongs to the Mandelbrot set, the set of `c` for which the orbit of 0 under `z -> z^2 + c` stays bounded.
 
 #% section
 # Details
@@ -28,22 +28,22 @@
 # Basic examples
 
 #% cell
-mandelbrot_set_member_q(1 + im)
+is_mandelbrot_set_member(1 + im)
 #% output
 #= false
 
 #% cell
-mandelbrot_set_member_q([0, 1, im/2, im + 1])
+is_mandelbrot_set_member([0, 1, im/2, im + 1])
 #% output
 #= [true, false, true, false]
 
 #% cell
-[mandelbrot_set_member_q(0.2501, max_iterations: 250), mandelbrot_set_member_q(0.2501, max_iterations: 500)]
+[is_mandelbrot_set_member(0.2501, max_iterations: 250), is_mandelbrot_set_member(0.2501, max_iterations: 500)]
 #% output
 #= [true, false]
 
 #% cell
-mandelbrot_set_member_q(im)
+is_mandelbrot_set_member(im)
 #% output
 #= true
 

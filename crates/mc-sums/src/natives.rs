@@ -61,7 +61,6 @@ fn read_options<'h>(cx: &mut NativeCx<'_, '_, 'h>, name: &str, opts: &[T<'h>]) -
             "working_precision" | "digits" => {}
             "method" => {
                 let text = match h.view(v) {
-                    View::Str(s) => s.to_string(),
                     View::Sym(s) => h.sym_name(s),
                     _ => String::new(),
                 };

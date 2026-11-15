@@ -59,3 +59,12 @@ picture helpers (`svg_size`, `image_path`, `ImageFormat::sniff`): 3,000 cases of
   a drawing of ours and deflates within `SVG_LIMIT`; a dense plot embedded as PNG does not. A notebook saved without
   its cache keeps a carried twin: siblings are matched by the stem plus a dot (`plot-h.column.svg` is a sibling of
   `plot-h.svg`). Cost about 4.6 KB of base64 per 2D plot. Test `a_plots_column_twin_travels_with_its_svg`.
+
+## Round 43: names before 1.0
+
+- Labels are written `in=N` on a cell marker and `out=N` on an output block (the labels `in N`, `out N`); six kinds
+  take an underscore (`item_paragraph`, `subitem_paragraph`, `item_numbered`, `subitem_numbered`,
+  `subsubitem_numbered`, `display_formula`). Reading converts the spellings of earlier notebooks (`label=N`, `n=N`,
+  `itemnumbered`, ...) in `read_cells`, so every reader sees the current names and the next save writes them; a
+  marker with both spellings keeps the current one. Fixtures in both formats: `tests/data/old-names.mcn`,
+  `tests/data/new-names.mcn` (`tests/old_names.rs`). Design 08-notebook, 2.1, 2.6 and 7.4.

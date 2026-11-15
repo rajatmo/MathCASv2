@@ -36,7 +36,7 @@ finite_field_index(F([3, 4]))
 # In the exponential representation:
 
 #% cell
-E = finite_field(7, 2, "Exponential")
+E = finite_field(7, 2, exponential)
 
 #% cell
 finite_field_index(E(10) * E(20))
@@ -47,7 +47,7 @@ finite_field_index(E(10) * E(20))
 # Zero and one, in both representations:
 
 #% cell
-[finite_field_index(finite_field(5, 2)(0)), finite_field_index(finite_field(5, 2)(1)), finite_field_index(finite_field(7, 2, "Exponential")(0)), finite_field_index(finite_field(7, 2, "Exponential")(1))]
+[finite_field_index(finite_field(5, 2)(0)), finite_field_index(finite_field(5, 2)(1)), finite_field_index(finite_field(7, 2, exponential)(0)), finite_field_index(finite_field(7, 2, exponential)(1))]
 #% output
 #= [0, 1, 0, 1]
 

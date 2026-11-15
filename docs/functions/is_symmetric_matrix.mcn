@@ -1,10 +1,10 @@
 #! mathcas 2 notebook
 
 #% title
-# symmetric_matrix_q
+# is_symmetric_matrix
 
 #% text
-# `symmetric_matrix_q(m)` gives `true` if the square matrix `m` equals its transpose.
+# `is_symmetric_matrix(m)` gives `true` if the square matrix `m` equals its transpose.
 
 #% section
 # Details
@@ -22,22 +22,22 @@
 # Basic examples
 
 #% cell
-symmetric_matrix_q([[1, 2], [2, 3]])
+is_symmetric_matrix([[1, 2], [2, 3]])
 #% output
 #= true
 
 #% cell
-symmetric_matrix_q([[1, 2], [3, 3]])
+is_symmetric_matrix([[1, 2], [3, 3]])
 #% output
 #= false
 
 #% cell
-symmetric_matrix_q([[a, b], [b, c]])
+is_symmetric_matrix([[a, b], [b, c]])
 #% output
 #= true
 
 #% cell
-symmetric_matrix_q([[1, 2, 3], [2, 3, 4]])
+is_symmetric_matrix([[1, 2, 3], [2, 3, 4]])
 #% output
 #= false
 
@@ -45,4 +45,4 @@ symmetric_matrix_q([[1, 2, 3], [2, 3, 4]])
 # See also
 
 #% text
-# `positive_definite_matrix_q`, `transpose`, `diagonal_matrix_q`
+# `is_positive_definite_matrix`, `transpose`, `is_diagonal_matrix`

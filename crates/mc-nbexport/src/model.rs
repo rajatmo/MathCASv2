@@ -197,8 +197,8 @@ mod tests {
     #[test]
     fn numbered_items_count_within_sections() {
         let nb = Notebook::parse(
-            "#! mathcas 2 notebook\n\n#% itemnumbered\n# a\n\n#% subitemnumbered\n# b\n\n#% itemnumbered\n# c\n\n\
-             #% section\n# S\n\n#% itemnumbered\n# d\n",
+            "#! mathcas 2 notebook\n\n#% item_numbered\n# a\n\n#% subitem_numbered\n# b\n\n#% item_numbered\n# c\n\n\
+             #% section\n# S\n\n#% item_numbered\n# d\n",
         )
         .unwrap();
         let numbers: Vec<String> = parts(&nb)

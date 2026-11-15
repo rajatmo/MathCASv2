@@ -25,7 +25,7 @@ rules there handle the forms the natives decline (symbolic second argument: Bern
   -1, 5 of 2^e; values through the Hurwitz zeta function `zeta(s, a)`.
 - a28n.8 `finite_group_count`: table for k <= 64 (OEIS A000001) and Hoelder's formula for squarefree k (verified for
   k = 6, 30, 2310 = 2*3*5*7*11: 36).
-- a28n.9 `mersenne_prime_exponent`: the 52 known exponents (as of 2024); `mersenne_prime_exponent_q` tests membership.
+- a28n.9 `mersenne_prime_exponent`: the 52 known exponents (as of 2024); `is_mersenne_prime_exponent` tests membership.
 
 ## Gaps
 
@@ -106,7 +106,7 @@ rules there handle the forms the natives decline (symbolic second argument: Bern
 
 - `bit_set`, `bit_clear` through `bit_or`/`bit_and` with 2^i (two's complement for negative k), `bit_shift_left` as
   k 2^s (a negative s shifts right with the floor), all threading over lists.
-- `perfect_number_q(k)`: sigma_1(k) = 2 k for positive integers, false otherwise.
+- `is_perfect_number(k)`: sigma_1(k) = 2 k for positive integers, false otherwise.
 - `find_linear_recurrence(xs)`, `(xs, d)`: the Berlekamp-Massey algorithm (Massey, IEEE Trans. Inform. Theory 15,
   1969) over the exact numbers of the list. Decision: a recurrence of order L counts as found only when the list is
   longer than the 2 L terms that determine it (a generic list of 2 L terms has linear complexity L, so 2 L terms
@@ -157,7 +157,7 @@ rules there handle the forms the natives decline (symbolic second argument: Bern
   places from the leading one and the rest in the last term; n the given length or the base-b digits of the
   precision.
 - `det` and `inverse` with `modulus: m` of an integer matrix: det reduced; the inverse is the adjugate times the
-  inverse of det mod m when gcd(det, m) = 1. `rational_expression_q(e, vars, test)`: also every coefficient passes
+  inverse of det mod m when gcd(det, m) = 1. `is_rational_expression(e, vars, test)`: also every coefficient passes
   test. Gaussian integers: `divisors(z)` for a non-real z (one first-quadrant associate each, sorted) and
   `power_mod(z, k, m)` (the parts reduced mod m at each squaring).
 - `harmonic_number(m, r, s)` (lib/calculus.mc): the sum of s^k/k^r for k <= m; polylog(r, s) at m = inf; at inexact

@@ -37,4 +37,4 @@ member_of([a, b], f(_))
 # See also
 
 #% text
-# `member`, `free_of`, `cases`, `match_q`
+# `member`, `free_of`, `cases`, `is_match`

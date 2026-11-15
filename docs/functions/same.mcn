@@ -48,4 +48,4 @@ same(x, y)
 # See also
 
 #% text
-# `not_same`, `equal`, `match_q`
+# `not_same`, `equal`, `is_match`

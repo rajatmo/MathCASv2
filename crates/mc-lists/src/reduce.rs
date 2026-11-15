@@ -112,7 +112,7 @@ fn packed_sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, p: Packed<'h>) -> Res<Option<T<
             // the sort is n log n: charged like the canonicaliser's own pass
             cx.tick(v.len() as u64 / 4)?;
             // a plain sum in the canonical order, the same as the leaves' sum and compiled code (compensated summation
-            // is `total(xs, method: "CompensatedSummation")`)
+            // is `total(xs, method: compensated_summation)`)
             Ok(Some(h.real(v.iter().fold(0.0, |acc, &x| acc + x))))
         }
         // the canonical order of complex numbers is the general path's
@@ -122,7 +122,7 @@ fn packed_sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, p: Packed<'h>) -> Res<Option<T<
 
 /// `nl_total_compensated(xs)`: Neumaier's compensated sum (Neumaier 1974) of a list of machine numbers, in the order
 /// given: a running compensation collects the low bits each addition loses, so a million `0.1` add to `100000.0`.
-/// The helper of `total(xs, method: "CompensatedSummation")`; a list with anything but machine reals and integers goes
+/// The helper of `total(xs, method: compensated_summation)`; a list with anything but machine reals and integers goes
 /// to the library's `b29_total_fold`.
 pub(crate) fn total_compensated<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();

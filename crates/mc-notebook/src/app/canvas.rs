@@ -55,9 +55,10 @@ impl App {
             let tip = match self.doc.view.hover {
                 Some(Bracket::Cell(id)) if self.drag.is_none() => self.doc.nb.cell(id).map(|c| {
                     let mut t = c.style.info().name.to_string();
-                    // no In/Out labels (user decision): an output names the history entry that gives it back
-                    if let Some(n) = c.label.filter(|_| c.style == Style::Output) {
-                        t.push_str(&format!("  out({n})"));
+                    // labels are not drawn (user decision); the tooltip names them: `in 3` for an evaluated input,
+                    // `out 3` for an output (the history entry `out(3)` gives it back)
+                    if let Some(l) = c.label_text() {
+                        t.push_str(&format!("  {l}"));
                     }
                     t
                 }),
@@ -193,8 +194,8 @@ impl App {
                 Frame::menu(ui.style()).show(ui, |ui| {
                     ui.set_min_width(170.0);
                     for (label, cmd, key) in [
-                        ("Input", Command::NewCell(Style::Input), "Alt+9"),
-                        ("Text", Command::NewCell(Style::Text), "Alt+7"),
+                        (Style::Input.info().name, Command::NewCell(Style::Input), "Alt+9"),
+                        (Style::Text.info().name, Command::NewCell(Style::Text), "Alt+7"),
                         ("Other style...", Command::App(AppAction::OtherStyle), "Alt+0"),
                     ] {
                         if ui.add(egui::Button::new(label).shortcut_text(key).frame(false)).clicked() {

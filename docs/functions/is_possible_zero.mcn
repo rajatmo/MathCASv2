@@ -1,10 +1,10 @@
 #! mathcas 2 notebook
 
 #% title
-# possible_zero_q
+# is_possible_zero
 
 #% text
-# `possible_zero_q(e)` gives true when e is probably zero.
+# `is_possible_zero(e)` gives true when e is probably zero.
 
 #% section
 # Details
@@ -22,22 +22,22 @@
 # Basic examples
 
 #% cell
-possible_zero_q((e + pi)^2 - e^2 - pi^2 - 2*e*pi)
+is_possible_zero((e + pi)^2 - e^2 - pi^2 - 2*e*pi)
 #% output
 #= true
 
 #% cell
-possible_zero_q(exp(pi) - pi^e)
+is_possible_zero(exp(pi) - pi^e)
 #% output
 #= false
 
 #% cell
-possible_zero_q(1/x + 1/y - (x + y)/(x*y))
+is_possible_zero(1/x + 1/y - (x + y)/(x*y))
 #% output
 #= true
 
 #% cell
-possible_zero_q(sqrt(x^2) - x)
+is_possible_zero(sqrt(x^2) - x)
 #% output
 #= false
 

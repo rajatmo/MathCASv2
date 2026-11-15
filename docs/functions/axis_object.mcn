@@ -18,7 +18,7 @@ graphics(axis_object(line([[0, 0], [10, 10]]), [0, 10], axis_label: "t"))
 #= image("axis_object.files/axis_object-1.svgz")
 
 #% cell
-graphics([circle(), axis_object(["horizontal", 0]), axis_object(["vertical", 0])], plot_range: 1.5)
+graphics([circle(), axis_object([horizontal, 0]), axis_object([vertical, 0])], plot_range: 1.5)
 #% output
 #= image("axis_object.files/axis_object-2.svgz")
 

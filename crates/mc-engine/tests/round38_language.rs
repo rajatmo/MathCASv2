@@ -34,8 +34,8 @@ fn array_filter_blocks() {
     assert_eq!(ev("array_filter(f, range(4), 1)"), "[f([1, 1, 2]), f([1, 2, 3]), f([2, 3, 4]), f([3, 4, 4])]");
     same("array_filter(f, range(10), 2)", "map(f, partition(join([1, 1], range(10), [10, 10]), 5, 1))");
     same("array_filter(total, [1, 4, 9, 16, 25], 1, padding: 0)", "map(i => total(take(drop([0, 1, 4, 9, 16, 25, 0], i - 1), 3)), range(5))");
-    same("array_filter(f, [a, b, c, d], 1, padding: \"Periodic\")", "map(f, partition([d, a, b, c, d, a], 3, 1))");
-    same("array_filter(f, [a, b, c, d], 1, padding: \"Reflected\")", "map(f, partition([b, a, b, c, d, c], 3, 1))");
+    same("array_filter(f, [a, b, c, d], 1, padding: periodic)", "map(f, partition([d, a, b, c, d, a], 3, 1))");
+    same("array_filter(f, [a, b, c, d], 1, padding: reflected)", "map(f, partition([b, a, b, c, d, c], 3, 1))");
     // two levels: the sums of the 3 x 3 blocks are the sums over the clamped neighbourhoods
     same(
         "array_filter(x => total(flatten(x)), [[1, 2, 3], [4, 5, 6], [7, 8, 9]], 1)",
@@ -134,13 +134,13 @@ fn loop_break_continue() {
 /// verbatim matches pattern constructs literally; hold_pattern keeps its pattern unevaluated.
 #[test]
 fn literal_and_held_patterns() {
-    assert_eq!(ev("match_q(x_, verbatim(x_))"), "true");
-    assert_eq!(ev("match_q(any(expression), verbatim(x_))"), "false");
+    assert_eq!(ev("is_match(x_, verbatim(x_))"), "true");
+    assert_eq!(ev("is_match(any(expression), verbatim(x_))"), "false");
     assert_eq!(ev("rewrite([f(x), f(x_), f(y_), f(x_, y_)], f(verbatim(x_)) -> x^2)"), "[f(x), x^2, f(y_), f(x_, y_)]");
     assert_eq!(ev("free_of(f(_), verbatim(_))"), "false");
     assert_eq!(ev("free_of(f(a), verbatim(_))"), "true");
     assert_eq!(ev("cases([1, b -> automatic, c -> 3], hold_pattern(_ -> automatic))"), "[b -> automatic]");
-    assert_eq!(ev("match_q(a + b, hold_pattern(_ + _))"), "true");
+    assert_eq!(ev("is_match(a + b, hold_pattern(_ + _))"), "true");
     assert_eq!(ev("delete_cases([b, e, d, a, b, c, d], apply(alternatives, [b, c]))"), "[e, d, a, d]");
 }
 
@@ -204,7 +204,7 @@ fn interval_intersections() {
     assert_eq!(ev("interval_intersection(interval([-2, pi]), interval([e, 4]))"), "interval([e, pi])");
     assert_eq!(ev("interval_intersection(interval([-2, -1/2], [1/2, 2]), centered_interval(0, 1 + im))"), "interval([-1, -1/2], [1/2, 1])");
     let r = ev("{ let a = interval([-3, -1], [0, 2], [5, 8]); let b = interval([-2, 1], [1.5, 6]); let c = interval_intersection(a, b); \
-        all_true(range(-4, 9, 1/4), x => interval_member_q(c, x) === (interval_member_q(a, x) and interval_member_q(b, x))) }");
+        all_true(range(-4, 9, 1/4), x => is_interval_member(c, x) === (is_interval_member(a, x) and is_interval_member(b, x))) }");
     assert_eq!(r, "true");
 }
 

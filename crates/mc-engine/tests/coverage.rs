@@ -139,8 +139,8 @@ fn functional_forms() {
         ("identity([1])", "[1]"),
         ("hold_complete(1 + 1)", "hold_complete(1 + 1)"),
         ("[check(1 + 1, err), check(1/0, err)]", "[2, err]"),
-        ("vv = 3; [value_q(vv), value_q(ww)]", "[true, false]"),
-        ("[xor(true, false), xor(true, true), implies(false, x), implies(true, x), true_q(1)]", "[true, false, true, x, false]"),
+        ("vv = 3; [is_value(vv), is_value(ww)]", "[true, false]"),
+        ("[xor(true, false), xor(true, true), implies(false, x), implies(true, x), is_true(1)]", "[true, false, true, x, false]"),
     ]);
 }
 

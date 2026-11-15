@@ -53,14 +53,14 @@ fn hermite_on_a_grid() {
 fn least_rectangles_around_points() {
     let mut e = CoreEngine::new();
     ev(&mut e, "pts = [[3, 10], [6, 3], [10, 2], [2, 8], [3, 3]]");
-    assert_eq!(ev(&mut e, "bounding_region(pts, \"MinOrientedRectangle\")"), "parallelogram([738/113, -117/113], [[-7, 8], [392/113, 343/113]])");
+    assert_eq!(ev(&mut e, "bounding_region(pts, min_oriented_rectangle)"), "parallelogram([738/113, -117/113], [[-7, 8], [392/113, 343/113]])");
     // its area 49 is less than the box's 64, and it holds the points
-    assert_eq!(ev(&mut e, "[area(bounding_region(pts, \"MinOrientedRectangle\")), area(bounding_region(pts))]"), "[49, 64]");
-    assert_eq!(ev(&mut e, "region_member(bounding_region(pts, \"MinOrientedRectangle\"), pts)"), "[true, true, true, true, true]");
+    assert_eq!(ev(&mut e, "[area(bounding_region(pts, min_oriented_rectangle)), area(bounding_region(pts))]"), "[49, 64]");
+    assert_eq!(ev(&mut e, "region_member(bounding_region(pts, min_oriented_rectangle), pts)"), "[true, true, true, true, true]");
     // a tilted rectangle with corners (0, 0), (4, 3), (1, 7), (-3, 4) and points inside is itself (area 25)
-    assert_eq!(ev(&mut e, "area(bounding_region([[0, 0], [4, 3], [1, 7], [-3, 4], [1, 2], [0, 4]], \"MinOrientedRectangle\"))"), "25");
+    assert_eq!(ev(&mut e, "area(bounding_region([[0, 0], [4, 3], [1, 7], [-3, 4], [1, 2], [0, 4]], min_oriented_rectangle))"), "25");
     // a right triangle: twice its area
-    assert_eq!(ev(&mut e, "area(bounding_region([[0, 0], [4, 0], [0, 3]], \"MinOrientedRectangle\"))"), "12");
+    assert_eq!(ev(&mut e, "area(bounding_region([[0, 0], [4, 0], [0, 3]], min_oriented_rectangle))"), "12");
     // the interval of a mesh on a line
-    assert_eq!(ev(&mut e, "bounding_region(mesh_region([[1.0], [2.0], [3.0], [4.0]], [line([[1, 2], [3, 4]])]), \"MinInterval\")"), "interval([1.0, 4.0])");
+    assert_eq!(ev(&mut e, "bounding_region(mesh_region([[1.0], [2.0], [3.0], [4.0]], [line([[1, 2], [3, 4]])]), min_interval)"), "interval([1.0, 4.0])");
 }

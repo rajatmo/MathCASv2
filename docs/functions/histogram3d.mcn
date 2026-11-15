@@ -10,7 +10,7 @@
 # Details
 
 #% item
-# `histogram3d(data, n, "PDF" | "Probability")` for other heights.
+# `histogram3d(data, n, pdf | probability)` for other heights.
 
 #% section
 # Examples

@@ -316,7 +316,7 @@ pub fn term<'h>(h: &'h Heap, m: &Mesh<'h>) -> T<'h> {
             args.push(list(&grouped(h, g)));
         }
         let opts = m.opts.unwrap_or_else(|| {
-            let sep = h.call(h.sym("rule"), &[h.string("SeparateBoundaries"), h.sym_term(h.sym("false"))]);
+            let sep = h.call(h.sym("rule"), &[h.sym_term(h.sym("separate_boundaries")), h.sym_term(h.sym("false"))]);
             h.call(h.sym("options"), &[h.call(h.sym("rule"), &[h.sym_term(h.sym("method")), list(&[sep])])])
         });
         args.push(opts);

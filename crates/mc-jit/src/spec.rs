@@ -559,7 +559,7 @@ fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {
 
 /// The back end asked for by `compile(f, back_end: "...")`.
 fn backend_option<'h>(h: &'h Heap, opts: T<'h>) -> Result<Backend, String> {
-    let bad = || "the only option is back_end: \"cranelift\" or \"interpreter\"".to_string();
+    let bad = || "the only option is back_end: cranelift or interpreter".to_string();
     let View::App { head, args } = h.view(opts) else { return Err(bad()) };
     if head != h.sym_term(h.sym("options")) {
         return Err(bad());
@@ -568,8 +568,8 @@ fn backend_option<'h>(h: &'h Heap, opts: T<'h>) -> Result<Backend, String> {
     for &o in args {
         let View::App { args: [name, value], .. } = h.view(o) else { return Err(bad()) };
         match (h.view(*name), h.view(*value)) {
-            (View::Sym(n), View::Str(v)) if h.sym_name(n) == "back_end" => {
-                b = match v {
+            (View::Sym(n), View::Sym(v)) if h.sym_name(n) == "back_end" => {
+                b = match h.sym_name(v).as_str() {
                     "cranelift" => Backend::Cranelift,
                     "interpreter" => Backend::Interpreter,
                     _ => return Err(bad()),
@@ -581,7 +581,7 @@ fn backend_option<'h>(h: &'h Heap, opts: T<'h>) -> Result<Backend, String> {
     Ok(b)
 }
 
-/// `compile(f)`, `compile(f, back_end: "interpreter")`.
+/// `compile(f)`, `compile(f, back_end: interpreter)`.
 struct CompileFn(Arc<Shared>);
 
 impl Native for CompileFn {
@@ -701,7 +701,7 @@ impl Native for InfoFn {
             rule("hir_nodes", int(i.hir_nodes)),
             rule("lir_instructions", int(i.lir_instructions)),
             rule("code_bytes", int(i.code_bytes)),
-            rule("back_end", h.string(i.back_end.name())),
+            rule("back_end", sym(i.back_end.name())),
             rule("compile_microseconds", int(i.compile_micros as usize)),
             rule("inlined", cx.list(&inlined)),
             rule("state", h.string(state)),

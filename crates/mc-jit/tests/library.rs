@@ -43,7 +43,7 @@ impl Three {
             assert_eq!(eval(e, def), "null", "{def}");
         }
         assert_eq!(eval(&mut self.es[1], &format!("compile({name})")), name, "{def}");
-        assert_eq!(eval(&mut self.es[2], &format!("compile({name}, back_end: \"interpreter\")")), name, "{def}");
+        assert_eq!(eval(&mut self.es[2], &format!("compile({name}, back_end: interpreter)")), name, "{def}");
     }
 
     /// `call` prints alike in the three engines; the interpreter's value.

@@ -13,7 +13,7 @@
 # `e` is an expression in symbols with `and`, `or`, `not`, `xor`, `nand`, `nor`, `implies`, `equivalent`, or a call of `boolean_function`; at most 14 variables.
 
 #% item
-# The form is a string in any case or a symbol: `"dnf"` (the default), `"cnf"`, `"anf"` or `"esop"` (exclusive or of products), `"nand"`, `"nor"`, `"binary_nand"`, `"binary_nor"` (only those operations, two arguments), `"ite"` (nested `if` on the variables in order), `"and"`, `"or"`, `"implies"` (written with `not`) and `"bff"` (a `boolean_function` call).
+# The form is a symbol: `dnf` (the default), `cnf`, `anf` or `esop` (exclusive or of products), `nand`, `nor`, `binary_nand`, `binary_nor` (only those operations, two arguments), `ite` (nested `if` on the variables in order), `` `and` ``, `` `or` `` (in backquotes: they are keywords), `implies` (written with `not`) and `bff` (a `boolean_function` call).
 
 #% item
 # `boolean_convert(e, form, cond)` or `boolean_convert(e, cond)` need agree with `e` only where `cond` is true.
@@ -39,7 +39,7 @@ boolean_convert(equivalent(x, y, z))
 # Several forms of an exclusive or:
 
 #% cell
-map(f => boolean_convert(xor(x, y), f), ["dnf", "cnf", "nand", "nor"])
+map(f => boolean_convert(xor(x, y), f), [dnf, cnf, nand, nor])
 #% output
 #= [x and not y or not x and y, (not x or not y) and (x or y), nand(nand(x, not y), nand(not x, y)), nor(nor(not x, not y), nor(x, y))]
 
@@ -50,7 +50,7 @@ map(f => boolean_convert(xor(x, y), f), ["dnf", "cnf", "nand", "nor"])
 # Under a condition:
 
 #% cell
-boolean_convert(xor(x, y, z), "dnf", x and (y or z))
+boolean_convert(xor(x, y, z), dnf, x and (y or z))
 #% output
 #= y and z
 
@@ -58,7 +58,7 @@ boolean_convert(xor(x, y, z), "dnf", x and (y or z))
 # The algebraic normal form:
 
 #% cell
-boolean_convert(implies(a, b), "anf")
+boolean_convert(implies(a, b), anf)
 #% output
 #= xor(true, a, a and b)
 
@@ -67,7 +67,7 @@ boolean_convert(implies(a, b), "anf")
 
 #% cell
 e = boolean_counting_function([2, 3], 4)(a, b, c, d)
-is_tautology(equivalent(e, boolean_convert(e, "cnf"), boolean_convert(e, "nand")))
+is_tautology(equivalent(e, boolean_convert(e, cnf), boolean_convert(e, nand)))
 #% output
 #= true
 
@@ -78,7 +78,7 @@ is_tautology(equivalent(e, boolean_convert(e, "cnf"), boolean_convert(e, "nand")
 # The exclusive-or form and the `ite` form of an implication, which is equivalent to it:
 
 #% cell
-[boolean_convert(a and b, "esop"), boolean_convert(implies(a, b), "ite"), is_tautology(equivalent(implies(a, b), boolean_convert(implies(a, b), "ite")))]
+[boolean_convert(a and b, esop), boolean_convert(implies(a, b), ite), is_tautology(equivalent(implies(a, b), boolean_convert(implies(a, b), ite)))]
 #% output
 #= [a and b, if a then if b then true else false else true, true]
 

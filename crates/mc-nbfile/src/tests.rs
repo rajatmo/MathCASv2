@@ -59,7 +59,7 @@ fn layouts_that_print_differently() {
     assert_eq!(Notebook::parse("\u{feff}#! mathcas 2 notebook\n").unwrap(), Notebook::default());
     // `input` is `cell`; extra spaces between attributes are dropped
     let nb = Notebook::parse("#! mathcas 2 notebook\n#% input  label=2\nx\n").unwrap();
-    assert_eq!(nb.print(), "#! mathcas 2 notebook\n#% cell label=2\nx\n");
+    assert_eq!(nb.print(), "#! mathcas 2 notebook\n#% cell in=2\nx\n");
 }
 
 #[test]
@@ -86,25 +86,25 @@ const EXTENDED: &str = "#! mathcas 2 notebook grouping=manual magnification=1.25
 #% section closed
 # Model
 
-#% cell label=1 typeset
+#% cell in=1 typeset
 k = ((3)/(4))
 T(t) = T0*exp(-k t)
-#% output n=1
+#% output out=1
 #= 3/4
 
-#% cell label=3
+#% cell in=3
 print(\"a\")
 1 + 1
 2 + 2
 #% output
 #| a
-#% output n=4
+#% output out=4
 #= 2
-#% output n=5 size=360x225
+#% output out=5 size=360x225
 #= image(\"cooling.files/plot-3f2a91.png\")
 #? warning: something
 
-#% code label=6 future=thing
+#% code in=6 future=thing
 fn helper(x) = x^2
 
 #% item
@@ -128,12 +128,12 @@ fn the_extended_grammar() {
     use Kind::*;
     assert_eq!(kinds, [Title, Section, Input, Input, Code, Item, Subitem, Program]);
     assert!(nb.cells[1].attrs.has("closed"));
-    assert_eq!(nb.cells[2].attrs.number::<u32>("label"), Some(1));
+    assert_eq!(nb.cells[2].attrs.number::<u32>(IN_LABEL), Some(1));
     assert!(nb.cells[2].attrs.has("typeset"));
     let c = &nb.cells[3];
     assert_eq!(c.outputs.len(), 3);
     assert!(c.outputs[0].attrs.is_empty());
-    assert_eq!(c.outputs[1].attrs.get("n"), Some("4"));
+    assert_eq!(c.outputs[1].attrs.get(OUT_LABEL), Some("4"));
     assert_eq!(c.outputs[2].attrs.get("size"), Some("360x225"));
     assert_eq!(c.outputs[2].lines[1], line(OutputKind::Note, "warning: something"));
     // unknown attributes are kept
@@ -147,7 +147,7 @@ fn the_extended_grammar() {
 
 #[test]
 fn warnings_keep_content() {
-    let text = "#! mathcas 2 notebook\n#% cell\nx\n#% sectoin\n# Heading\n#% cell label=a!b\ny\n";
+    let text = "#! mathcas 2 notebook\n#% cell\nx\n#% sectoin\n# Heading\n#% cell in=a!b\ny\n";
     let (nb, warnings) = Notebook::read(text).unwrap();
     assert_eq!(nb.print(), text);
     assert_eq!(nb.cells.len(), 2);
@@ -155,7 +155,7 @@ fn warnings_keep_content() {
     let lines: Vec<_> = warnings.iter().map(|w| w.line).collect();
     assert_eq!(lines, [4, 6]);
     assert!(warnings[0].message.contains("did you mean `#% section`"), "{}", warnings[0]);
-    assert!(warnings[1].message.contains("malformed attribute `label=a!b`"));
+    assert!(warnings[1].message.contains("malformed attribute `in=a!b`"));
     // ordinary `#%` comments are not warned about
     let (_, w) = Notebook::read("#! mathcas 2 notebook\n#% cell\n#% not a marker\n#% TODO later\n").unwrap();
     assert!(w.is_empty(), "{w:?}");
@@ -183,7 +183,7 @@ fn attributes() {
 fn fragments() {
     let nb = Notebook::parse(EXTENDED).unwrap();
     let frag = print_cells(&nb.cells[2..4]);
-    assert!(frag.starts_with("#% cells\n#% cell label=1 typeset\n"));
+    assert!(frag.starts_with("#% cells\n#% cell in=1 typeset\n"));
     assert_eq!(parse_cells(&frag).unwrap(), nb.cells[2..4]);
     assert_eq!(parse_cells(&frag.replace('\n', "\r\n")).unwrap(), nb.cells[2..4]);
     assert_eq!(parse_cells("x = 1\n"), None);
@@ -220,7 +220,7 @@ fn generated(g: &mut Gen) -> Notebook {
         let content: Vec<String> = (0..1 + g.below(4)).map(|_| g.word()).collect();
         let mut cell = Cell::new(kind, &content.join("\n"));
         if g.below(2) == 0 {
-            cell.attrs.set("label", Some(g.below(100).to_string()));
+            cell.attrs.set(IN_LABEL, Some(g.below(100).to_string()));
         }
         if g.below(4) == 0 {
             cell.attrs.flag("closed", true);
@@ -229,7 +229,7 @@ fn generated(g: &mut Gen) -> Notebook {
             for _ in 0..g.below(3) {
                 let mut b = OutputBlock::default();
                 if g.below(2) == 0 {
-                    b.attrs.set("n", Some(g.below(50).to_string()));
+                    b.attrs.set(OUT_LABEL, Some(g.below(50).to_string()));
                 }
                 for _ in 0..1 + g.below(3) {
                     let k = [OutputKind::Print, OutputKind::Value, OutputKind::Message, OutputKind::Note][g.below(4)];
@@ -320,8 +320,8 @@ fn pictures_are_embedded_in_the_file_and_read_back() {
     std::fs::write(tmp.join("plot-11-0.scene3d"), "mathcas-scene3d 1\ngraphics3d(sphere())\n").unwrap();
     std::fs::write(tmp.join("plot-11-0.svg"), "<svg/>").unwrap();
     let text = format!(
-        "{HEADER}\n\n#% cell label=1\nplot(x)\n#% output n=1 size=300x200\n#= {}\n\n#% cell label=2\nq\n#% output n=2\n\
-         #= {}\n#% output n=3\n#= image(\"gone.png\")\n",
+        "{HEADER}\n\n#% cell in=1\nplot(x)\n#% output out=1 size=300x200\n#= {}\n\n#% cell in=2\nq\n#% output out=2\n\
+         #= {}\n#% output out=3\n#= image(\"gone.png\")\n",
         image_value(&png.to_string_lossy()),
         image_value(&png.to_string_lossy()),
     );
@@ -380,7 +380,7 @@ fn an_older_notebook_with_a_sidecar_folder_is_embedded_on_save_and_the_folder_st
     std::fs::write(side.join("plot-3f2a91c04b7e.png"), b"\x89PNG\r\n\x1a\nold").unwrap();
     std::fs::write(side.join("plot-3f2a91c04b7e.json"), "{}").unwrap();
     let text = format!(
-        "{HEADER}\n\n#% cell label=1\nplot(x)\n#% output n=1\n#= image(\"cooling.files/plot-3f2a91c04b7e.png\")\n"
+        "{HEADER}\n\n#% cell in=1\nplot(x)\n#% output out=1\n#= image(\"cooling.files/plot-3f2a91c04b7e.png\")\n"
     );
     // reading the old layout is unchanged
     let mut nb = Notebook::parse(&text).unwrap();
@@ -419,7 +419,7 @@ fn plots_are_embedded_as_their_svg_deflated_and_shared_between_outputs() {
     std::fs::write(tmp.join("plot-7-0.pdf"), b"%PDF-1.4").unwrap();
     std::fs::write(tmp.join("plot-7-0.json"), "{\"version\":1}").unwrap();
     let v = image_value(&png.to_string_lossy());
-    let text = format!("{HEADER}\n\n#% cell label=1\nplot(x)\n#% output n=1\n#= {v}\n\n#% cell label=2\nagain\n#% output n=2\n#= {v}\n");
+    let text = format!("{HEADER}\n\n#% cell in=1\nplot(x)\n#% output out=1\n#= {v}\n\n#% cell in=2\nagain\n#% output out=2\n#= {v}\n");
     let mut nb = Notebook::parse(&text).unwrap();
     let r = embed(&mut nb, None);
     assert_eq!((r.pictures, r.missing.len()), (2, 0));
@@ -480,8 +480,8 @@ fn a_plots_column_twin_travels_with_its_svg() {
     std::fs::write(tmp.join("plot-8-2.svg"), our_svg(640, 400, "<g/>")).unwrap();
     std::fs::write(tmp.join("plot-8-2.column.svg"), "<svg width=\"3\"/>").unwrap();
     let text = format!(
-        "{HEADER}\n\n#% cell label=1\nplot(x)\n#% output n=1\n#= {}\n\n#% cell label=2\nq\n#% output n=2\n#= {}\n\n\
-         #% cell label=3\nr\n#% output n=3\n#= {}\n",
+        "{HEADER}\n\n#% cell in=1\nplot(x)\n#% output out=1\n#= {}\n\n#% cell in=2\nq\n#% output out=2\n#= {}\n\n\
+         #% cell in=3\nr\n#% output out=3\n#= {}\n",
         image_value(&png.to_string_lossy()),
         image_value(&png2.to_string_lossy()),
         image_value(&png3.to_string_lossy())
@@ -533,7 +533,7 @@ fn a_dense_plot_is_embedded_as_a_high_resolution_png_shown_at_its_size() {
     let png = root.join("plot-9-0.png");
     std::fs::write(&png, b"\x89PNG\r\n\x1a\nsmall").unwrap();
     std::fs::write(root.join("plot-9-0.svg"), &svg).unwrap();
-    let text = format!("{HEADER}\n\n#% cell label=1\nlist_plot(p)\n#% output n=1\n#= {}\n", image_value(&png.to_string_lossy()));
+    let text = format!("{HEADER}\n\n#% cell in=1\nlist_plot(p)\n#% output out=1\n#= {}\n", image_value(&png.to_string_lossy()));
     let mut nb = Notebook::parse(&text).unwrap();
     embed(&mut nb, None);
     let name = image_path(&nb.cells[0].outputs[0].lines[0].text).unwrap();

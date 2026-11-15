@@ -40,8 +40,8 @@ fn curve<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<(Vec<P>, boo
 
 /// `winding_polygon(curve)` (non-zero rule) and `crossing_polygon(curve)` (even-odd rule).
 ///
-/// A second argument names the rule: "NonzeroRule", "EvenOddRule" (or "OddRule"), "PositiveRule" (the curve winds
-/// about the point anticlockwise), "NegativeRule" (clockwise). Options of the polygon (`vertex_colors: ...`) are kept
+/// A second argument names the rule: `nonzero_rule`, `even_odd_rule` (or `odd_rule`), `positive_rule` (the curve winds
+/// about the point anticlockwise), `negative_rule` (clockwise). Options of the polygon (`vertex_colors: ...`) are kept
 /// when the curve is one simple closed polygon (the region is the polygon itself, its corners those of the curve);
 /// otherwise the call stays as it is.
 pub fn enclosed<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], fill: Fill) -> Res<Reply<'h>> {
@@ -53,11 +53,11 @@ pub fn enclosed<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], fill: Fill) -> R
     let (c, fill) = match a {
         [c] => (c, fill),
         [c, r] => match h.view(*r) {
-            mc_core::View::Str(s) => match s {
-                "NonzeroRule" => (c, Fill::NonZero),
-                "EvenOddRule" | "OddRule" => (c, Fill::EvenOdd),
-                "PositiveRule" => (c, Fill::Positive),
-                "NegativeRule" => (c, Fill::Negative),
+            mc_core::View::Sym(s) => match h.sym_name(s).as_str() {
+                "nonzero_rule" => (c, Fill::NonZero),
+                "even_odd_rule" | "odd_rule" => (c, Fill::EvenOdd),
+                "positive_rule" => (c, Fill::Positive),
+                "negative_rule" => (c, Fill::Negative),
                 _ => return Ok(Reply::Decline),
             },
             _ => return Ok(Reply::Decline),
@@ -105,14 +105,14 @@ pub fn enclosed<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], fill: Fill) -> R
     Ok(Reply::Done(shapes_term(cx, &shapes, exact)))
 }
 
-/// `polygon_decomposition(region)` or `polygon_decomposition(region, "Triangle")`: the region (a polygon without
+/// `polygon_decomposition(region)` or `polygon_decomposition(region, triangle)`: the region (a polygon without
 /// holes, a rectangle, a triangle) as a list of triangles `polygon([p1, p2, p3], [1, 2, 3])`, anticlockwise.
 pub fn decomposition<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let e = E { h };
     match a {
         [_] => {}
-        [_, form] if matches!(h.view(*form), mc_core::View::Str(s) if s == "Triangle" || s == "Convex") => {}
+        [_, form] if matches!(h.view(*form), mc_core::View::Sym(s) if matches!(h.sym_name(s).as_str(), "triangle" | "convex")) => {}
         _ => return Ok(Reply::Decline),
     }
     let Some(rs) = crate::construct::rings(cx, a[0])? else { return Ok(Reply::Decline) };

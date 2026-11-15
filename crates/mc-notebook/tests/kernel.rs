@@ -17,7 +17,7 @@ fn kernel_exe() -> Option<PathBuf> {
 fn modulo_labels(text: &str) -> String {
     text.lines()
         .filter(|l| !l.starts_with("#% output"))
-        .map(|l| match l.find(" label=") {
+        .map(|l| match l.find(" in=") {
             Some(i) if l.starts_with("#% ") => l[..i].to_string(),
             _ => l.to_string(),
         })
@@ -49,7 +49,7 @@ fn the_example_notebook_evaluates_like_the_runner() {
         std::thread::sleep(Duration::from_millis(5));
     }
     let got = nb.to_text();
-    assert!(got.contains("#% cell label=1\n"), "{got}");
+    assert!(got.contains("#% cell in=1\n"), "{got}");
     assert_eq!(modulo_labels(&got), modulo_labels(&text));
     link.stop();
 }

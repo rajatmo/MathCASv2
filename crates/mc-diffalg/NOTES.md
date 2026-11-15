@@ -72,7 +72,7 @@ Olver Ex. 2.45), KdV (4, Olver Ex. 2.44). The tests substitute every generator b
 `symmetry_commutator` by [v, w]_i = sum_j v_j d_j w_i - w_j d_j v_i. `lie_commutator_table` writes each commutator in
 the basis: for rational fields from exact linear equations at r + 3 rational points; otherwise (trigonometric
 fields) by least squares at machine values of the same points, rationalised to 10^-9; in both cases the
-coordinates are then checked symbolically (`possible_zero_q` of every component). A commutator outside the span is
+coordinates are then checked symbolically (`is_possible_zero` of every component). A commutator outside the span is
 returned by its components.
 
 ## Reduction and integration (g31.5)

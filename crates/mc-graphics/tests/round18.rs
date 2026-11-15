@@ -52,7 +52,7 @@ fn exact_colour_arithmetic() {
 fn colour_models() {
     check(&[
         ("color_convert(rgb_color(1, 0, 0), \"CMYK\")", "cmyk_color(0.0, 1.0, 1.0, 0.0)"),
-        ("color_convert([0.3], \"Grayscale\")", "gray_level(0.3)"),
+        ("color_convert([0.3], gray_level)", "gray_level(0.3)"),
         ("color_convert([1.5, 1.2, 0], \"RGB\")", "rgb_color(1.0, 1.0, 0.0)"),
         ("color_convert([red, blue], \"CMYK\")", "[cmyk_color(0.0, 1.0, 1.0, 0.0), cmyk_color(1.0, 1.0, 0.0, 0.0)]"),
         ("rgb_color(\"#f00\")", "rgb_color(1.0, 0.0, 0.0)"),
@@ -90,7 +90,7 @@ fn new_primitives_render() {
         "graphics(filled_curve([line([[0, 0], [1, 0]]), bezier_curve([[1, 0], [2, 1], [1, 2], [0, 1]])]))",
         "graphics(joined_curve([line([[0, 0], [1, 0]]), b_spline_curve([[1, 0], [2, 1], [1, 2]])]))",
         "graphics(axis_object(line([[0, 0], [10, 10]]), [0, 10], axis_label: \"hello\"))",
-        "graphics(axis_object([\"horizontal\", 0]), plot_range: [[-2, 2], [-1, 1]])",
+        "graphics(axis_object([horizontal, 0]), plot_range: [[-2, 2], [-1, 1]])",
         "graphics([rotate(rectangle(), pi/6), translate(disk(), [[2, 0], [4, 0]]), scale(circle(), [2, 1])])",
         "graphics(geometric_transformation(polygon([[0, 0], [1, 0], [0, 1]]), [[1, 1/2], [0, 1]]))",
         "graphics([cmyk_color(0, 1, 1, 0.25), disk(), lch_color(0.6, 0.5, 0.3), disk([2, 0]), light_dark_switched(red, blue), disk([4, 0])])",

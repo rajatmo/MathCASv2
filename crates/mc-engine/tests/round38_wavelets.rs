@@ -34,7 +34,7 @@ fn discrete_transforms_reconstruct_the_data() {
     // documented form: four levels of a sampled signal of odd length 129
     assert_eq!(ev("{ let x = table(2 - 5*t + 5*exp(-500*(t - 0.5)^2), [t, 0., 1., 1/128]); max(abs(inverse_wavelet_transform(discrete_wavelet_transform(x, automatic, 4)) - x)) < 1e-13 }"), "true");
     // other wavelets, paddings and lengths
-    for (w, pad, len) in [("daubechies_wavelet(3)", "0", 37), ("daubechies_wavelet(5)", "\"Reflected\"", 50), ("daubechies_wavelet(2)", "\"Fixed\"", 21), ("haar_wavelet()", "\"Periodic\"", 2)] {
+    for (w, pad, len) in [("daubechies_wavelet(3)", "0", 37), ("daubechies_wavelet(5)", "reflected", 50), ("daubechies_wavelet(2)", "fixed", 21), ("haar_wavelet()", "periodic", 2)] {
         let src = format!("{{ let x = n(table(sin(k^2/11) + k/7, [k, {len}])); max(abs(inverse_wavelet_transform(discrete_wavelet_transform(x, {w}, automatic, padding: {pad})) - x)) < 1e-12 }}");
         assert_eq!(ev(&src), "true", "{w} {pad} {len}");
     }

@@ -10,7 +10,7 @@ fn optional_arguments_under_ac_heads() {
         &mut Env::new(),
         &[
             // a term that is not a product is the product with the unit factor 1
-            ("match_q(x, optional(n_, 1) * x_)", "true"),
+            ("is_match(x, optional(n_, 1) * x_)", "true"),
             ("rewrite([x, 2*x, -x], optional(n_, 1) * x :> y^n)", "[y, y^2, y^-1]"),
             ("rewrite(x, optional(c_, 1) * v_ :> [c, v])", "[1, x]"),
             // a default that is not the unit does not stand for a missing factor
@@ -43,7 +43,7 @@ fn optional_parameters_with_patterns() {
             // a missing run is the run of the one default
             ("rule h(optional(x__, 1)) := x", "null"),
             ("[h(), h(2), h(2, 3)]", "[[1], [2], [2, 3]]"),
-            ("match_q([x], [x, optional(t @ (_: Int), 2)])", "true"),
+            ("is_match([x], [x, optional(t @ (_: Int), 2)])", "true"),
         ],
     );
 }
@@ -61,7 +61,7 @@ fn typed_sequence_variables() {
             ("rewrite([u(1), u(1, u(1, 2)), u(1, u(1, 2, 3))], u(1, x___: Int) :> 1, strategy: fixed_point)", "[1, 1, 1]"),
             // under an AC head the run takes the arguments of its type
             ("rewrite(1 + 2*a + b, xs__: Int + r__ -> [xs, r])", "[1, b + 2*a]"),
-            ("match_q(a + b, xs__: Int + r__)", "false"),
+            ("is_match(a + b, xs__: Int + r__)", "false"),
         ],
     );
 }

@@ -59,7 +59,7 @@ fn map_heads_and_activate_patterns() {
         ("activate(inactive(add)(2, 2, inactive(pow)(3, 2)), add)", "4 + inactive(pow)(3, 2)"),
         ("activate(inactive(add)(2, 2, inactive(pow)(3, 2)), pow)", "inactive(add)(2, 2, 9)"),
         (
-            "activate(inactive(add)(inactive(cos)(pi), inactive(integrate)(x, x)), f_ when not match_q(f, integrate))",
+            "activate(inactive(add)(inactive(cos)(pi), inactive(integrate)(x, x)), f_ when not is_match(f, integrate))",
             "-1 + inactive(integrate)(x, x)",
         ),
         ("activate(inactive(derivative)(1)(cos)(x), heads: false)", "inactive(derivative)(1)(cos)(x)"),

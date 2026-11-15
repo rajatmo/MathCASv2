@@ -64,7 +64,7 @@ fn digits_and_expansions() {
         ("de_bruijn_sequence([0, 1], 3)", "[0, 0, 0, 1, 0, 1, 1, 1]"),
         ("de_bruijn_sequence(\"abcd\", 2)", "\"aabacadbbcbdccdd\""),
         ("mersenne_prime_exponent(range(1, 7))", "[2, 3, 5, 7, 13, 17, 19]"),
-        ("select(range(2, 130), mersenne_prime_exponent_q)", "[2, 3, 5, 7, 13, 17, 19, 31, 61, 89, 107, 127]"),
+        ("select(range(2, 130), is_mersenne_prime_exponent)", "[2, 3, 5, 7, 13, 17, 19, 31, 61, 89, 107, 127]"),
     ]);
 }
 
@@ -102,7 +102,7 @@ fn expressions() {
     check(&[
         ("apply_sides(f, a != 5)", "f(a) != f(5)"),
         ("numerator_denominator((x - 1)/(y + 2))", "[-1 + x, 2 + y]"),
-        ("[rational_expression_q((x^2 + 1)/(x - 1), x), rational_expression_q(sin(x)/x, x)]", "[true, false]"),
+        ("[is_rational_expression((x^2 + 1)/(x - 1), x), is_rational_expression(sin(x)/x, x)]", "[true, false]"),
         ("expand_all((x + 1)^2/(x + 2))", "x^2/(2 + x) + 2*x/(2 + x) + (2 + x)^-1"),
         ("expand_denominator((x - y)^2/(u - v)^2)", "(x - y)^2/(-2*u*v + u^2 + v^2)"),
         ("factor_square_free_list(x^2*(x + 1)^3*(x - 2))", "[[1, 1], [-2 + x, 1], [x, 2], [1 + x, 3]]"),

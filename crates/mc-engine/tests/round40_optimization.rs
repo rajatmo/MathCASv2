@@ -42,13 +42,13 @@ fn rational_roots_of_high_degree() {
 #[test]
 fn vector_variables_of_unknown_length() {
     // indexed(x, [2]) with no list giving the length of x: unevaluated at once
-    let sdp = "semidefinite_optimization(indexed(x, [1]) + 2*indexed(x, [2]), vector_greater_equal([[[indexed(x, [1]), 1], [1, indexed(x, [2])]], 0], [\"SemidefiniteCone\", 2]), x)";
+    let sdp = "semidefinite_optimization(indexed(x, [1]) + 2*indexed(x, [2]), vector_greater_equal([[[indexed(x, [1]), 1], [1, indexed(x, [2])]], 0], [semidefinite_cone, 2]), x)";
     assert_eq!(ev(sdp), sdp);
     let conic = sdp.replace("semidefinite_optimization", "conic_optimization");
     assert_eq!(ev(&conic), conic);
     // the length fixed by a dot product: solved (x1 x2 >= 1 with x1, x2 >= 0: x1 = sqrt(2), x2 = 1/sqrt(2))
     assert_eq!(
-        ev("semidefinite_optimization(dot([1, 2], x), vector_greater_equal([[[indexed(x, [1]), 1], [1, indexed(x, [2])]], 0], [\"SemidefiniteCone\", 2]), x)"),
+        ev("semidefinite_optimization(dot([1, 2], x), vector_greater_equal([[[indexed(x, [1]), 1], [1, indexed(x, [2])]], 0], [semidefinite_cone, 2]), x)"),
         "[x -> [2^(1/2), (1/2)*2^(1/2)]]"
     );
 }

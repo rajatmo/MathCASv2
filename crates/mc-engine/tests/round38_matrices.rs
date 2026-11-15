@@ -15,13 +15,13 @@ fn ev(src: &str) -> String {
 
 #[test]
 fn hermitian_and_diagonalizable_matrices() {
-    assert_eq!(ev("[hermitian_matrix_q(pauli_matrix(2)), hermitian_matrix_q([[1, 2], [3, 4]]), hermitian_matrix_q([[1., 0.3*im], [-0.3*im, 2.]])]"), "[true, false, true]");
+    assert_eq!(ev("[is_hermitian_matrix(pauli_matrix(2)), is_hermitian_matrix([[1, 2], [3, 4]]), is_hermitian_matrix([[1., 0.3*im], [-0.3*im, 2.]])]"), "[true, false, true]");
     // a Jordan block is not diagonalizable; distinct eigenvalues and a multiple of the identity are
-    assert_eq!(ev("[diagonalizable_matrix_q([[6, 0, 0], [0, 12, 1], [0, 0, 12]]), diagonalizable_matrix_q([[1, 2], [3, 4]]), diagonalizable_matrix_q(3*identity_matrix(3))]"), "[false, true, true]");
+    assert_eq!(ev("[is_diagonalizable_matrix([[6, 0, 0], [0, 12, 1], [0, 0, 12]]), is_diagonalizable_matrix([[1, 2], [3, 4]]), is_diagonalizable_matrix(3*identity_matrix(3))]"), "[false, true, true]");
     // a conjugate of a Jordan block by an invertible matrix keeps the defect; of a diagonal matrix stays diagonalizable
-    assert_eq!(ev("{ let p = [[1, 2, 0], [0, 1, 1], [1, 0, 1]]; [diagonalizable_matrix_q(dot(p, [[2, 1, 0], [0, 2, 0], [0, 0, 5]], inverse(p))), diagonalizable_matrix_q(dot(p, [[2, 0, 0], [0, 2, 0], [0, 0, 5]], inverse(p)))] }"), "[false, true]");
+    assert_eq!(ev("{ let p = [[1, 2, 0], [0, 1, 1], [1, 0, 1]]; [is_diagonalizable_matrix(dot(p, [[2, 1, 0], [0, 2, 0], [0, 0, 5]], inverse(p))), is_diagonalizable_matrix(dot(p, [[2, 0, 0], [0, 2, 0], [0, 0, 5]], inverse(p)))] }"), "[false, true]");
     // symbolic entries: a rotation generator over the complex numbers
-    assert_eq!(ev("diagonalizable_matrix_q([[0, -a], [a, 0]])"), "true");
+    assert_eq!(ev("is_diagonalizable_matrix([[0, -a], [a, 0]])"), "true");
 }
 
 #[test]
@@ -47,11 +47,11 @@ fn bit_operations() {
 
 #[test]
 fn perfect_numbers_and_palindromes() {
-    assert_eq!(ev("perfect_number_q(496)"), "true");
+    assert_eq!(ev("is_perfect_number(496)"), "true");
     // the even perfect numbers 2^(p-1) (2^p - 1) of the Mersenne primes 2^p - 1, and none in between
-    assert_eq!(ev("map(p => perfect_number_q(2^(p - 1)*(2^p - 1)), [2, 3, 5, 7, 13, 11])"), "[true, true, true, true, true, false]");
-    assert_eq!(ev("select(range(10000), perfect_number_q) == select(range(10000), k => total(most(divisors(k))) == k)"), "true");
-    assert_eq!(ev("[palindrome_q(12321), palindrome_q(\"abca\"), palindrome_q([1, 2, 1]), palindrome_q(10)]"), "[true, false, true, false]");
+    assert_eq!(ev("map(p => is_perfect_number(2^(p - 1)*(2^p - 1)), [2, 3, 5, 7, 13, 11])"), "[true, true, true, true, true, false]");
+    assert_eq!(ev("select(range(10000), is_perfect_number) == select(range(10000), k => total(most(divisors(k))) == k)"), "true");
+    assert_eq!(ev("[is_palindrome(12321), is_palindrome(\"abca\"), is_palindrome([1, 2, 1]), is_palindrome(10)]"), "[true, false, true, false]");
 }
 
 #[test]

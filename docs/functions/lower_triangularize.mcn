@@ -45,4 +45,4 @@ lower_triangularize([[1.25, 3.2], [7.9, -1.4]])
 # See also
 
 #% text
-# `upper_triangularize`, `lower_triangular_matrix_q`, `diagonal`
+# `upper_triangularize`, `is_lower_triangular_matrix`, `diagonal`

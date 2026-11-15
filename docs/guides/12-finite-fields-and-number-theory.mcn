@@ -94,15 +94,15 @@ F(finite_field_index(a)) == a
 #= true
 
 #% text
-# With `"Exponential"` an element shows its index as an exponent of the generator, and products add the indices: this is the representation in which the field's multiplication table is a table of sums.
+# With `exponential` an element shows its index as an exponent of the generator, and products add the indices: this is the representation in which the field's multiplication table is a table of sums.
 
 #% cell
-H = finite_field(2, 3, "Exponential")
+H = finite_field(2, 3, exponential)
 
 #% cell
 H(3) * H(5)
 #% output
-#= finite_field_element(finite_field(2, &(1 + &1 + &1^3), "Exponential"), 7)
+#= finite_field_element(finite_field(2, &(1 + &1 + &1^3), exponential), 7)
 
 #% text
 # The standard defining polynomial is the Conway polynomial, `conway_polynomial(p, n, x)`; you can give your own irreducible polynomial instead, as a pure function of `&1`.
@@ -113,12 +113,12 @@ conway_polynomial(2, 8, x)
 #= 1 + x^2 + x^3 + x^4 + x^8
 
 #% cell
-G = finite_field(7, &(2*&1^2 + 1), "Polynomial")
+G = finite_field(7, &(2*&1^2 + 1), polynomial)
 
 #% cell
 G([0, 1])^2
 #% output
-#= finite_field_element(finite_field(7, &(1 + 2*&1^2), "Polynomial"), [3])
+#= finite_field_element(finite_field(7, &(1 + 2*&1^2), polynomial), [3])
 
 #% section
 # Roots, order and discrete logarithms
@@ -132,7 +132,7 @@ K = finite_field(5, 2)
 #% cell
 finite_field_root(K([1, 1]), 2)
 #% output
-#= [finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [3, 2]), finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [2, 3])]
+#= [finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), polynomial), [3, 2]), finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), polynomial), [2, 3])]
 
 #% cell
 [is_finite_field_element_primitive(K([0, 1])), is_finite_field_element_primitive(K(1)), finite_field_primitive_element(K)("Coefficients")]
@@ -255,7 +255,7 @@ e("Projection")(e(S(5))) == S(5)
 #% cell
 finite_field_embedding(finite_field(2, 3), T)
 #% output
-#= finite_field_embedding(finite_field(2, &(1 + &1 + &1^3), "Polynomial"), finite_field(3, &(2 + 2*&1^3 + &1^4), "Polynomial"))
+#= finite_field_embedding(finite_field(2, &(1 + &1 + &1^3), polynomial), finite_field(3, &(2 + 2*&1^3 + &1^4), polynomial))
 
 #% section
 # Common mistakes
@@ -266,7 +266,7 @@ finite_field_embedding(finite_field(2, 3), T)
 #% cell
 finite_field(2, 2)(3) + finite_field(3, 1)(2)
 #% output
-#= finite_field_element(finite_field(2, &(1 + &1 + &1^2), "Polynomial"), [1, 1]) + finite_field_element(finite_field(3, &(1 + &1), "Polynomial"), [2])
+#= finite_field_element(finite_field(2, &(1 + &1 + &1^2), polynomial), [1, 1]) + finite_field_element(finite_field(3, &(1 + &1), polynomial), [2])
 
 #% item
 # `a^(1/n)` is not a root in a finite field: it stays unevaluated. Use `finite_field_root(a, n)`, which lists all the roots (an empty list when there are none).
@@ -277,10 +277,10 @@ finite_field_root(finite_field(7, 1)(3), 2)
 #= []
 
 #% item
-# The index of an element in the polynomial representation is not its logarithm. `finite_field_log(a)` is the exponent of the generator; in the `"Exponential"` representation the index of a nonzero element is one more than its logarithm.
+# The index of an element in the polynomial representation is not its logarithm. `finite_field_log(a)` is the exponent of the generator; in the `exponential` representation the index of a nonzero element is one more than its logarithm.
 
 #% cell
-E = finite_field(7, 2, "Exponential"); [finite_field_index(E(10)), finite_field_log(E(10))]
+E = finite_field(7, 2, exponential); [finite_field_index(E(10)), finite_field_log(E(10))]
 #% output
 #= [10, 9]
 

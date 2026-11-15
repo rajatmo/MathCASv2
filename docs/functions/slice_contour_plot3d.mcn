@@ -19,7 +19,7 @@
 # Basic examples
 
 #% cell
-slice_contour_plot3d(x^2 + y^2 + z^2, "CenterPlanes", [x, -1, 1], [y, -1, 1], [z, -1, 1])
+slice_contour_plot3d(x^2 + y^2 + z^2, center_planes, [x, -1, 1], [y, -1, 1], [z, -1, 1])
 #% output
 #= image("slice_contour_plot3d.files/slice_contour_plot3d-1.svgz")
 

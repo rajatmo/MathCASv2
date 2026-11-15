@@ -1,10 +1,10 @@
 #! mathcas 2 notebook
 
 #% title
-# match_q
+# is_match
 
 #% text
-# `match_q(x, p)` gives `true` when the term `x` matches the pattern `p`, else `false`.
+# `is_match(x, p)` gives `true` when the term `x` matches the pattern `p`, else `false`.
 
 #% section
 # Details
@@ -22,12 +22,12 @@
 # Basic examples
 
 #% cell
-match_q(f(1), f(_))
+is_match(f(1), f(_))
 #% output
 #= true
 
 #% cell
-match_q(2.5, _: Int)
+is_match(2.5, _: Int)
 #% output
 #= false
 
@@ -38,12 +38,12 @@ match_q(2.5, _: Int)
 # Lists of patterns and conditions:
 
 #% cell
-match_q([1, 2], [_: Int, _: Int])
+is_match([1, 2], [_: Int, _: Int])
 #% output
 #= true
 
 #% cell
-match_q(7, x_ when x > 5)
+is_match(7, x_ when x > 5)
 #% output
 #= true
 
@@ -51,11 +51,11 @@ match_q(7, x_ when x > 5)
 # Properties and relations
 
 #% text
-# `cases` keeps the elements for which `match_q` is true:
+# `cases` keeps the elements for which `is_match` is true:
 
 #% cell
 xs = [1, a, 2]
-cases(xs, _: Int) == select(xs, x => match_q(x, _: Int))
+cases(xs, _: Int) == select(xs, x => is_match(x, _: Int))
 #% output
 #= true
 

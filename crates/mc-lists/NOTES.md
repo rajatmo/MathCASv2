@@ -253,7 +253,7 @@ Packed real and integer arrays (store node, contract, evaluator hooks, payload f
   with a documentation page whose examples the doc test checks.
 - **C9B.10** `matching.rs` no longer matches by itself: it lowers the pattern term with
   `mc_eval::syntax::pattern` and compiles it with `NativeCx::compile_pattern` at the first match, so `cases`,
-  `count`, `position`, `match_q`, `free_of`, the sequence functions and the others match exactly like rules:
+  `count`, `position`, `is_match`, `free_of`, the sequence functions and the others match exactly like rules:
   modulo associativity and commutativity (the old adapter matched sums positionally, decision I.10, now replaced),
   with runs (`repeated`) and `key_value_pattern`. Bindings are read by variable number; a sequence variable that
   took arguments of an AC call substitutes as that head applied to them (semantics 6.2).
@@ -288,9 +288,9 @@ Tests: `mc-engine/tests/r17_fixes.rs` (5 tests, through the whole engine; also t
   their code-point place (`"é"` after `"z"`): no locale tables.
 - **`hash(e[, method[, format]])`** (`src/hash.rs`): MD5 (RFC 1321), SHA-1, SHA-224, SHA-256, SHA-384, SHA-512
   (FIPS 180-4), CRC-32 (ISO 3309), Adler-32 (RFC 1950), implemented from the specifications and checked against
-  their published test vectors; strings hash as UTF-8 bytes, other terms as the bytes of `to_string`; `"Expression"`
-  (the default) is the kernel's structural hash; formats `"Integer"`, `"HexString"`, `"DecimalString"`,
-  `"ByteList"`. Digests of strings are the standard digests of their UTF-8 bytes (those of other terms depend on
+  their published test vectors; strings hash as UTF-8 bytes, other terms as the bytes of `to_string`; `expression`
+  (the default) is the kernel's structural hash; formats `integer`, `hex_string`, `decimal_string`,
+  `byte_list`. Digests of strings are the standard digests of their UTF-8 bytes (those of other terms depend on
   `to_string`).
 - Forms that left calls unevaluated before: `first(xs, d)`/`last(xs, d)` (a default for an empty list;
   evaluated like every argument); `level(x, spec, heads: true)` (heads as parts, `levels::with_heads`);
@@ -302,8 +302,8 @@ Tests: `mc-engine/tests/r17_fixes.rs` (5 tests, through the whole engine; also t
   (equally spaced points), per-dimension origins and ranges, and a head `array(f, dims, r, g)`; `dimensions(x, n)`
   and `allowed_heads:`; `comap(fs, x, levels)`; spans with `all` and `up_to(k)` ends and an `all` step;
   `take_largest`/`take_smallest` leave out `none`, `indeterminate` and `missing(...)` (option `excluded_forms:`);
-  `leaf_count(x, heads: false)`; `value_q(x, method: ...)` (`"TrialEvaluation"`, `"OwnValuesPresent"`,
-  `"SymbolDefinitionsPresent"`, `automatic`).
+  `leaf_count(x, heads: false)`; `is_value(x, method: ...)` (`trial_evaluation`, `own_values_present`,
+  `symbol_definitions_present`, `automatic`).
 - **`groupings(xs, spec)`** (`src/groupings.rs`): every tree of calls over the elements in order, for arities and
   heads (`k`, `[k1, ...]`, `h -> k`, `[h1, h2] -> k`, lists of rules, `orderless`, one-argument heads as wrappers).
   The order: fewer calls first, then root head
@@ -342,7 +342,7 @@ documentation pages of every new function.
   syntax there is; another form leaves the call.
 - **P9B.5 Properties of `take_largest_by` and `take_smallest_by`:** `xs -> "Element" | "Index" | "Value"`, a
   list of them, or `all` (an association of the three).
-- **P9B.6 `array_depth(x, allowed_heads: h)`**: `list` (or `"ListLike"`) counts only levels of lists; `all`, the
+- **P9B.6 `array_depth(x, allowed_heads: h)`**: `list` counts only levels of lists; `all`, the
   default, levels of any one head.
 - **P9B.7 `inactivate(e)`, `inactivate(e, p)`** (held): every symbol used as a head (except `list`), or those
   matching `p`, replaced by `inactive(f)`; compound heads too unless `heads: false`; the result is evaluated, so the
@@ -434,8 +434,8 @@ catalogue lines are in `crates/mc-docs/src/catalogue.rs` (`PRELUDE`), the pages 
 - `bell_y(n, k, xs)` by the recurrence B(n, k) = sum binomial(n-1, i-1) x_i B(n-i, k-1) (Comtet, Advanced
   Combinatorics 3.3), then `expand`; `bell_y(n, xs)` sums over k. The matrix (multivariate) forms are a gap.
 - `cube_root` = `surd(x, 3)` for reals; `real_exponent` is a machine number (`log10` of the machine value);
-  `number_decompose`: the last entry is the remainder divided by the last unit; `integer_string`, `integer_name` (English only; "Short" style `1 million 234 thousand 567`
-  and "Words"); `find_sequence_function` (closed forms: polynomial, over n or n+1, times n!, fibonacci(n), (-1)^n or
+  `number_decompose`: the last entry is the remainder divided by the last unit; `integer_string`, `integer_name` (English only; short style `1 million 234 thousand 567`
+  and words); `find_sequence_function` (closed forms: polynomial, over n or n+1, times n!, fibonacci(n), (-1)^n or
   c^n, c = 2..5; finite differences decide polynomiality; at least two spare terms confirm); gaps: recurrences,
   hypergeometric terms, symbolic bases (`1 + a^n`).
 - `linear_optimization`, `linear_fractional_optimization`, `convex_optimization`: the constraints are joined with
@@ -451,7 +451,7 @@ catalogue lines are in `crates/mc-docs/src/catalogue.rs` (`PRELUDE`), the pages 
   `mc-numeric`.
 - Later in the round: `center_array` size rules (a lower-rank array is a row, a scalar a
   one-entry array, smaller sizes cut around the centre; it is `array_pad` with the split `floor(e/2)`, `e - floor(e/2)`
-  per level, `"ReversedNegation"` is a fifth `array_pad` mode); `cellular_automaton` takes a neighbourhood as a list of
+  per level, `reversed_negation` is a fifth `array_pad` mode); `cellular_automaton` takes a neighbourhood as a list of
   offsets `[[-1], [0], [1]]` and the two-element rule `[n, k]`; `orthogonalize` normalises with `abs(c)^2` sums (so
   `abs(a)` appears for symbols) and drops dependent vectors by a relative norm of 1e-12;
   `projection(u, vs)` onto the rows of a matrix goes through the orthonormal basis, `projection(u, v, f)` takes any
@@ -462,7 +462,7 @@ catalogue lines are in `crates/mc-docs/src/catalogue.rs` (`PRELUDE`), the pages 
   equalities of lists) and a vector variable `v`; `bell_y(matrix)`: one column the complete polynomial, rows `[a_i, x_i]`
   the sum of `a_k B(n, k, x)` (checked against the Catalan numbers and the Touchard polynomials);
   `find_sequence_function` adds sequences whose differences are geometric (`1 + a^n`, `(2/3)^n`); `integer_string(n,
-  "Roman")`.
+  roman)`.
 - `normal(numeric_array(xs, type))` is a wrapper of the `normal` native installed in `mc-linalg` (the prelude rule never
   ran: natives answer before rules unless they decline).
 - The index names of the helpers are lexical (`a28_matrix(rows, cols, f)` builds with `map` over `range`): `table(e, i, n)`
@@ -479,7 +479,7 @@ The crate's MathCAS library (now `lib/lists.mc`) is loaded last (`mc_lists::LIB_
 - Vectors: `unit_vector`, `angle_vector` (polar and spherical, theta from the z axis), `vector_angle`
   (`acos(u.v/(|u||v|))`), `manhattan_distance`, `from_polar_coordinates` (hyperspherical convention
   x1 = r cos t1, x2 = r sin t1 cos t2, ...).
-- Matrices: `symmetric_matrix_q`, `positive_definite_matrix_q` (Sylvester's criterion on the leading minors of a
+- Matrices: `is_symmetric_matrix`, `is_positive_definite_matrix` (Sylvester's criterion on the leading minors of a
   Hermitian matrix), `permanent` (Ryser 1963, `2^n` terms; rectangular matrices sum over column subsets),
   `shearing_matrix` (`I + tan(t) u w^T` with unit vectors), `scaling_matrix` (`I + (s - 1) v v^T/(v.v)`), `distance_matrix`,
   `least_squares` (pseudo-inverse), `drazin_inverse` (`m^k (m^(2k+1))^+ m^k`, k the index; checked against
@@ -497,9 +497,9 @@ The crate's MathCAS library (now `lib/lists.mc`) is loaded last (`mc_lists::LIB_
 - `sparse_array` gained `band(start, end, step)` positions (mc-linalg `more.rs`, `expand_bands`: scalar, vector, block and
   list-of-blocks values, negative steps) and the default rule `[_, ..., _] -> v`, so `sparse_array(array_rules(a))` rebuilds `a`.
 - Numbers: `mixed_fraction_parts`, `perfect_number` (Euclid-Euler with `mersenne_prime_exponent`), `rudin_shapiro`,
-  `quadratic_irrational_q` (degree of the minimal polynomial), `discrete_indicator`, `list_convolve` (valid, cyclic
+  `is_quadratic_irrational` (degree of the minimal polynomial), `discrete_indicator`, `list_convolve` (valid, cyclic
   with an integer alignment, and two-dimensional valid), `set_accuracy`, `machine_epsilon`, `min_machine_number`,
-  `interval_member_q`, `interval_union` (real pieces merge; complex centred intervals give the hull as one centred
+  `is_interval_member`, `interval_union` (real pieces merge; complex centred intervals give the hull as one centred
   interval), `quantity_form` (a display wrapper in `lib.rs`).
 - `khinchin` and `champernowne_number(b)`: `n` (mc-numeric `natives.rs`, one branch) hands them to the library
   helper `b29_n_constant`. Khinchin: `ln K = (1/ln 2) sum_k (zeta(2k) - 1)/k (1 - 1/2 + ... - 1/(2k-1))` (Khinchin;
@@ -516,8 +516,8 @@ The crate's MathCAS library (now `lib/lists.mc`) is loaded last (`mc_lists::LIB_
 - Convex optimization family (`quadratic_`, `conic_`, `second_order_cone_`, `semidefinite_`, `robust_convex_`,
   `parametric_convex_optimization`): all through the symbolic `minimize` that `convex_optimization` already used.
   `norm(v) <= t` (evaluated first to `(abs(x)^2 + ...)^(1/2) <= t`) becomes `x^2 + ... <= t^2, t >= 0`; a symmetric matrix
-  is positive semidefinite when all principal minors are non-negative; `vector_greater_equal([v, 0], ["NormCone", n])`
-  and `["SemidefiniteCone", n]` are read; the property argument ("PrimalMinimumValue", "PrimalMinimizer", rules, lists).
+  is positive semidefinite when all principal minors are non-negative; `vector_greater_equal([v, 0], [norm_cone, n])`
+  and `[semidefinite_cone, n]` are read; the property argument ("PrimalMinimumValue", "PrimalMinimizer", rules, lists).
   Robust: only box regions (corners checked) and constraints affine in the parameters (other regions stay unevaluated).
   Parametric: returns a lambda of the parameter values (up to three parameters).
 - Not reached: `schur_decomposition`, `find_shortest_tour`, `nd_eigenvalues`, `nd_eigensystem`, `when_event`,
@@ -551,8 +551,8 @@ The crate's MathCAS library (now `lib/lists.mc`) is loaded last (`mc_lists::LIB_
 - Linear algebra forms: generalized cross product of k vectors in k + 1 dimensions; `method:` of `matrix_log` and
   `permanent` (every method gives the same value); `distance_matrix(..., distance_function:)`;
   `identity_matrix(n, sparse_array, working_precision:)` (a dense machine matrix);
-  scalar-versus-vector `euclidean_distance`/`manhattan_distance`; `total(xs, method: "CompensatedSummation")` (Neumaier);
-  `flatten` with level groups `[[1, 3], [2, 4]]` (permute, then merge each group); `real_valued_numeric_q`.
+  scalar-versus-vector `euclidean_distance`/`manhattan_distance`; `total(xs, method: compensated_summation)` (Neumaier);
+  `flatten` with level groups `[[1, 3], [2, 4]]` (permute, then merge each group); `is_real_valued_numeric`.
 - Not reached or deferred: `multiplicative_order(a, n, [r1, ...])` (the native lives in `mc-fields` and threads the list
   before a rule can see it), `number_digit` over a list of positions or in base `golden_ratio` (`mc-combinat`), symbolic
   `pseudo_inverse`/`norm` under assumptions, `matrix_minimal_polynomial` with `modulus:`, `pad_left` with a margin,
@@ -565,11 +565,11 @@ The crate's MathCAS library (now `lib/lists.mc`) is loaded last (`mc_lists::LIB_
   gave `f(f(f(...)))` until memory ended); Newton-type iterations that fall into a two-cycle of
   neighbouring doubles (relative 2^-46) count as settled (`nest_while_list`).
 - `total` of a packed list of machine reals is Neumaier's compensated sum over the sorted values (a million 0.1 add to
-  100000 exactly); `total(xs, method: "CompensatedSummation")` is the same native (the prelude rule folded 10^6 steps
+  100000 exactly); `total(xs, method: compensated_summation)` is the same native (the prelude rule folded 10^6 steps
   and failed with a segment allocation).
 - `permanent` of a matrix with symbolic entries: the dynamic programme over column subsets with `expand` at every step
   (n! terms in the answer, not Ryser's n^n expansion); numeric matrices keep Ryser.
-- `array_pad` / `center_array`: `"Extrapolated"`, `"ReflectedDifferences"`, `"ReversedDifferences"` (continuation by the
+- `array_pad` / `center_array`: `extrapolated`, `reflected_differences`, `reversed_differences` (continuation by the
   last difference, the mirrored differences, the mirrored differences with a zero step at the edge; the left side is the
   right side of the reversed level; checked on symbolic examples).
 - `replace_part(x, [i_, j_] when c -> v)` (a conditioned list pattern; the from-the-end alternative applies to
@@ -592,7 +592,7 @@ The crate's MathCAS library (now `lib/lists.mc`) is loaded last (`mc_lists::LIB_
 - Also in the prelude: `cellular_automaton(rule, [cells, background], t)` is cut to the columns where some step
   differs from the background of that step (the widths 3, 11, 6, 1, ... of rules 1 to 20 from one cell);
   `find_peaks(..., interpolation_order: k)` (k >= 2) moves each peak to the maximum of the cubic spline with zero end
-  slopes through the data (Burden and Faires 3.5; the clamped end condition); `fit(..., fit_regularization: ["Tikhonov" | "L2" | "RidgeRegression", lambda])`.
+  slopes through the data (Burden and Faires 3.5; the clamped end condition); `fit(..., fit_regularization: [tikhonov | l2 | ridge_regression, lambda])`.
 
 ## Round 34
 
@@ -603,7 +603,7 @@ The crate's MathCAS library (now `lib/lists.mc`) is loaded last (`mc_lists::LIB_
 - `position`/`first_position` walk an association's values and give `key(k)` path elements (keys are no parts); `heads: false` is passed on. `map_indexed` of an association at levels gives `key(k)` positions. `entries_of`/`assoc_entries` accept `k :> v` entries and keep the kind of rule when a value changes.
 - `select(xs, f -> "Index" | "Element" | "BitVectorMask" | [props])`, `select_first` with a list of props gives an association.
 - `partition(m, [a, b], d, k, pad)`: 2-D overhang, cyclic or one padding element. `pad_left`/`pad_right` with a matrix pad tile it. `cases`/`first_case` with `heads: true`. `sequence_split` accepts a list mixing rules and plain list patterns. `fold_pair` stops at a held failure (`throw`). `map_at` applies repeated positions repeatedly; an empty list of positions edits nothing. `extract`/`rebuild_at` read an integer as a position and `key(k)` as a key.
-- Library (`lib/lists.mc`, `lib/prelude.mc`): `distance_matrix` by data type (edit distance for strings, Jaccard for booleans, Euclid with 0/1 for non-numbers, dynamic time warping for ragged numeric lists), `vector_angle` by Kahan's atan2 form for real inexact vectors, `qr(m, full)`, plane `rotation_matrix(t, [u, v])`, multi-level `rotate_left/right`, `take_list(m, rows, cols)`, `array_pad` of empty rows, `bin_lists` of rules, `coordinate_bounds` pair padding, `array_reshape(.., "Extrapolated")`, `orthogonalize(.., tolerance:)`, `cellular_automaton(.., [t, all])`, operator forms of `nest`, `nest_list`, `flatten_at`.
+- Library (`lib/lists.mc`, `lib/prelude.mc`): `distance_matrix` by data type (edit distance for strings, Jaccard for booleans, Euclid with 0/1 for non-numbers, dynamic time warping for ragged numeric lists), `vector_angle` by Kahan's atan2 form for real inexact vectors, `qr(m, full)`, plane `rotation_matrix(t, [u, v])`, multi-level `rotate_left/right`, `take_list(m, rows, cols)`, `array_pad` of empty rows, `bin_lists` of rules, `coordinate_bounds` pair padding, `array_reshape(.., extrapolated)`, `orthogonalize(.., tolerance:)`, `cellular_automaton(.., [t, all])`, operator forms of `nest`, `nest_list`, `flatten_at`.
 - Gaps: high-precision eigen/svd, quantity arrays, tensor curl.
 
 ## Round 36, later fixes
@@ -670,7 +670,7 @@ The crate's MathCAS library (now `lib/lists.mc`) is loaded last (`mc_lists::LIB_
 ## Round 38: arrays, subset counts, tours, symbols by name, cleanup
 
 - `array_filter(f, a, r)` (`arrays.rs`): blocks of radius r (a count, per-level radii, or `[before, after]` pairs)
-  around every element of the full array; padding "Fixed" (edge repeated, default), "Periodic", "Reflected" or a
+  around every element of the full array; padding fixed (edge repeated, default), periodic, reflected or a
   value. A radius list longer than the array's depth (a kernel array) is not read: the call stays unevaluated.
 - `array_reduce(f, a, n | [n1, ...])`: f of each vector (sub-array) along the levels, those levels removed.
 - `subset_count`: the number of subsets `subset_cases` gives (disjoint by default), in `subsets.rs`.
@@ -730,10 +730,10 @@ The crate's MathCAS library (now `lib/lists.mc`) is loaded last (`mc_lists::LIB_
 
 Source in `lib/lists.mc`.
 
-- `hermitian_matrix_q` as `symmetric_matrix_q` with the conjugate transpose.
-- `diagonalizable_matrix_q(m)` for exact matrices: the square-free part s = p/gcd(p, p') of the characteristic
+- `is_hermitian_matrix` as `is_symmetric_matrix` with the conjugate transpose.
+- `is_diagonalizable_matrix(m)` for exact matrices: the square-free part s = p/gcd(p, p') of the characteristic
   polynomial p annihilates m exactly when the minimal polynomial has simple roots (Horn and Johnson, Matrix analysis,
-  3.3); s(m) by Horner's scheme in exact arithmetic, zero tested with `possible_zero_q`. Inexact matrices stay
+  3.3); s(m) by Horner's scheme in exact arithmetic, zero tested with `is_possible_zero`. Inexact matrices stay
   unevaluated (a rank decision of a rounded matrix is not certain).
 - `pauli_matrix(k)` (k = 0 the identity), `fourier_matrix(n)` with the conventions of `fourier`
   (`fourier_parameters: [a, b]`), the exponent reduced mod n at integer b.
@@ -763,9 +763,9 @@ Source in `lib/lists.mc`, `src/more.rs`, `src/search.rs`.
   o, s, u; the lower case of I is ı and of İ is i) and Dutch (ĳ as y), from the Unicode Common Locale Data
   Repository. `alphabetic_sort(xs, [lang], options)` compares letters (the tailoring's first-level weights), then
   accents (the code points of the lower case) unless `ignore_diacritics: true`, then case unless `ignore_case: true`
-  (lower case first; upper case first for `case_ordering: "UpperFirst"` and by default in Danish), then the order of
+  (lower case first; upper case first for `case_ordering: upper_first` and by default in Danish), then the order of
   `xs` (a stable sort); `ignore_punctuation: true` leaves out every character that is not a letter or a digit.
-- `sequence_alignment` options: `ignore_case: true` (both strings in lower case); `method: "Local"` (Smith and
+- `sequence_alignment` options: `ignore_case: true` (both strings in lower case); `method: local` (Smith and
   Waterman, "Identification of common molecular subsequences", J. Mol. Biol. 147, 1981: the cells floored at 0, the
   traceback from the first largest cell in row order to a 0; the parts before and after are differences);
   `merge_differences: false` (differences of a alone, of b alone and of both kept apart). `gap_penalty` and
@@ -798,11 +798,11 @@ Source in `lib/lists.mc`, `src/more.rs`, `src/search.rs`.
   1 there and minus that column's entries of the pivot rows at the pivot columns, mod p), `range_space` (the nonzero
   rows of the reduced transpose). A modulus that is not a prime stays unevaluated. `range_space(m, tolerance: t)` of
   an exact matrix is `range_space(m)`.
-- `positive_definite_matrix_q` of a matrix of exact constants (pi, e, radicals): the leading minors of the Hermitian
-  part, compared numerically. `symmetric_matrix_q(m, tolerance: t)`, `diagonal_matrix_q`, `upper_triangular_matrix_q`
-  and `lower_triangular_matrix_q` with `tolerance: t`: an entry (a difference for the symmetric test) counts as 0
-  when its size is at most t, a symbolic one when `possible_zero_q` says so; `symmetric_matrix_q(m, same_test: f)`.
-- `array_pad(v, m, "Extrapolated", interpolation_order: k)` of a list of numbers: the polynomial of degree k (inf:
+- `is_positive_definite_matrix` of a matrix of exact constants (pi, e, radicals): the leading minors of the Hermitian
+  part, compared numerically. `is_symmetric_matrix(m, tolerance: t)`, `is_diagonal_matrix`, `is_upper_triangular_matrix`
+  and `is_lower_triangular_matrix` with `tolerance: t`: an entry (a difference for the symmetric test) counts as 0
+  when its size is at most t, a symbolic one when `is_possible_zero` says so; `is_symmetric_matrix(m, same_test: f)`.
+- `array_pad(v, m, extrapolated, interpolation_order: k)` of a list of numbers: the polynomial of degree k (inf:
   through all the points) through the last k + 1 entries continued by Newton's forward differences with the k-th
   difference held, likewise before the first entries.
 - The sequence functions (`sequence_cases`, `sequence_position`, `sequence_count`, ...) try at each start only the run
@@ -820,10 +820,10 @@ Source in `lib/lists.mc`, `src/more.rs`, `src/search.rs`.
 
 ## Round 40: even perfect numbers
 
-`perfect_number(k, "Even")` is `perfect_number(k)` (every even perfect number is 2^(p - 1) (2^p - 1), Euclid-Euler);
-a list of indices maps. `"Odd"` has no value (none is known).
+`perfect_number(k, even)` is `perfect_number(k)` (every even perfect number is 2^(p - 1) (2^p - 1), Euclid-Euler);
+a list of indices maps. `odd` has no value (none is known).
 `integer_string(n, "Base64")` writes the base-64 digits of |n| with the alphabet of RFC 4648 (A-Z, a-z, 0-9, +, /);
-`integer_string(n, "Arabic")` the decimal digits as the Arabic-Indic digits U+0660 to U+0669 (`lib/prelude.mc`).
+`integer_string(n, arabic)` the decimal digits as the Arabic-Indic digits U+0660 to U+0669 (`lib/prelude.mc`).
 ## Round 40: normalized vectors, knapsacks with several bounds
 
 Source in `lib/lists.mc`.
@@ -872,8 +872,8 @@ Source in `lib/lists.mc`.
   length, then one hash of the root per 64 or 32 bytes with the block index as node offset), and the compositions
   "SHA256SHA256" and "RIPEMD160SHA256" (module `digests`). Checked against the published vectors of each
   specification; BLAKE2Xs against an independent 2400-bit output.
-- A byte array is hashed by its bytes (it was its printed form). Formats "Base36String", "Base64Encoding",
-  "ByteArray" join "Integer", "HexString", "DecimalString", "ByteList".
+- A byte array is hashed by its bytes (it was its printed form). Formats base36_string, base64_encoding,
+  byte_array join integer, hex_string, decimal_string, byte_list.
 - `length(byte_array(bytes))` is the number of bytes; `normal(byte_array(bytes))` the list (mc-linalg's `normal`
   wrapper).
 - Other terms are still hashed through their printed form: digests of expressions are MathCAS's own and differ

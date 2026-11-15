@@ -7,8 +7,8 @@
 //! definitions in the bare namespace and not part of the interface.
 //!
 //! - threading: `threaded`, `elementwise`;
-//! - associations and lists: `join_across`, `key_union`, `key_intersection`, `key_member_q`, `key_free_q`,
-//!   `disjoint_q`, `intersecting_q`, `compose_list`, `longest_common_subsequence`, `longest_common_sequence`;
+//! - associations and lists: `join_across`, `key_union`, `key_intersection`, `is_key_member`, `is_key_free`,
+//!   `is_disjoint`, `is_intersecting`, `compose_list`, `longest_common_subsequence`, `longest_common_sequence`;
 //! - Boolean functions: `boolean_function`, `boolean_counting_function`, `boolean_convert`, `boolean_minimize`,
 //!   `logical_expand`;
 //! - graphs and arrays: `nest_graph`, `array_resample`;
@@ -39,10 +39,10 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("join_across", "join_across(left, right, key), (..., type), (..., key_collision_function: f): join two lists of associations (or datasets) on a key; type inner, left, right or outer"),
     ("key_union", "key_union([a1, a2, ...]), key_union(list, f): the associations with every key of any of them, absent keys missing or f(key)"),
     ("key_intersection", "key_intersection([a1, a2, ...]): the associations restricted to the keys all of them have"),
-    ("key_member_q", "key_member_q(a, k): whether the association a has the key k"),
-    ("key_free_q", "key_free_q(a, k): whether the association a lacks the key k"),
-    ("disjoint_q", "disjoint_q(xs, ys): whether two lists have no element in common"),
-    ("intersecting_q", "intersecting_q(xs, ys): whether two lists have an element in common"),
+    ("is_key_member", "is_key_member(a, k): whether the association a has the key k"),
+    ("is_key_free", "is_key_free(a, k): whether the association a lacks the key k"),
+    ("is_disjoint", "is_disjoint(xs, ys): whether two lists have no element in common"),
+    ("is_intersecting", "is_intersecting(xs, ys): whether two lists have an element in common"),
     ("compose_list", "compose_list([f1, f2, ...], x): the list x, f1(x), f2(f1(x)), ..."),
     ("longest_common_subsequence", "longest_common_subsequence(a, b): the longest run of consecutive elements (characters) that two lists (strings) share"),
     ("longest_common_sequence", "longest_common_sequence(a, b): a longest list of elements (characters) occurring in both lists (strings) in the same order"),

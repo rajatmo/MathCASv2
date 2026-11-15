@@ -8,8 +8,9 @@
 //! Layouts: `spring` (force-directed, Fruchterman-Reingold from a circle, deterministic), `circular` (the
 //! vertices in order on a circle), `layered` (longest-path layers of the edges' direction, cycles broken, the
 //! order within layers improved by barycentre sweeps; for trees and directed graphs). The option
-//! `graph_layout: "SpringEmbedding" | "CircularEmbedding" | "LayeredDigraphEmbedding" | "LayeredEmbedding" |
-//! spring | circular | layered` chooses; `vertex_labels: automatic` (or `"Name"`) writes the vertices' names.
+//! `graph_layout: spring | circular | layered` (also `spring_embedding`, `circular_embedding`,
+//! `layered_digraph_embedding`, `layered_embedding`) chooses; `vertex_labels: automatic` (or `name`) writes the
+//! vertices' names.
 use crate::more::split;
 use crate::{bad, finish_graphic};
 use mc_api::names;
@@ -319,12 +320,8 @@ fn option<'h>(h: &'h Heap, o: Option<T<'h>>, key: &str) -> Option<T<'h>> {
 
 fn layout_option(h: &Heap, o: Option<T<'_>>) -> Option<Layout> {
     let v = option(h, o, "graph_layout")?;
-    let name = match h.view(v) {
-        View::Str(s) => s.to_string(),
-        View::Sym(s) => h.sym_name(s),
-        _ => return None,
-    };
-    let n = name.to_lowercase();
+    let View::Sym(s) = h.view(v) else { return None };
+    let n = h.sym_name(s);
     Some(if n.contains("circ") {
         Layout::Circular
     } else if n.contains("layer") || n.contains("tree") {
@@ -369,7 +366,6 @@ pub(crate) fn picture<'h>(h: &'h Heap, g: &G<'h>, kind: Layout, extra: Option<T<
     prims.push(list(&[vcol, h.call(h.sym("absolute_point_size"), &[h.real(8.0)]), h.call(h.sym("point"), &[list(&dots)])]));
     let labels = option(h, g.options, "vertex_labels").or_else(|| option(h, extra, "vertex_labels"));
     let show = labels.is_some_and(|v| match h.view(v) {
-        View::Str(s) => s == "Name",
         View::Sym(s) => matches!(h.sym_name(s).as_str(), "automatic" | "true" | "name"),
         _ => false,
     });

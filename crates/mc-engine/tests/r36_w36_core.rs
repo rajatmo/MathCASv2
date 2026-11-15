@@ -148,7 +148,7 @@ fn blend_of_lab_colours_is_mixed_in_lab() {
 fn alphabetic_order_folds_ligatures_and_block_map_cuts_every_dimension() {
     assert_eq!(ev(r#"alphabetic_sort(["A", "a", "æ", "Æ", "i", "I"], "English")"#), r#"["a", "A", "æ", "Æ", "i", "I"]"#);
     assert_eq!(
-        ev(r#"alphabetic_sort(["A", "a", "æ", "Æ", "i", "I"], "English", case_ordering: "LowerFirst") === alphabetic_sort(["A", "a", "æ", "Æ", "i", "I"], "English")"#),
+        ev(r#"alphabetic_sort(["A", "a", "æ", "Æ", "i", "I"], "English", case_ordering: lower_first) === alphabetic_sort(["A", "a", "æ", "Æ", "i", "I"], "English")"#),
         "true"
     );
     assert_eq!(ev(r#"alphabetic_sort(["Encyclopædia", "Encyclopedia", "Encyclopaedia"])"#), r#"["Encyclopaedia", "Encyclopædia", "Encyclopedia"]"#);

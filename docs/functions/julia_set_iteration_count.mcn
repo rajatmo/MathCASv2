@@ -62,4 +62,4 @@ julia_set_iteration_count(z^2/(z^2 - 1), z, range(0, 7))
 # See also
 
 #% text
-# `julia_set_plot`, `mandelbrot_set_member_q`, `mandelbrot_set_plot`
+# `julia_set_plot`, `is_mandelbrot_set_member`, `mandelbrot_set_plot`

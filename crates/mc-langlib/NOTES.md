@@ -69,8 +69,8 @@ overloads that must stay inert for other arguments are written as `rule`s.
   `register_exception_type(type, parent)` keeps a parent table, `throw_exception` is `throw(exc, type)` and
   `catch_exception(body, type, f)` is `catch` with a pattern of the type and its registered descendants. No validation
   bookkeeping, property access or message templates.
-- **n24c.11 small functions**: `key_union`, `key_intersection`, `key_member_q`, `key_free_q`, `disjoint_q`,
-  `intersecting_q`, `compose_list`, `longest_common_subsequence` (consecutive elements) and
+- **n24c.11 small functions**: `key_union`, `key_intersection`, `is_key_member`, `is_key_free`, `is_disjoint`,
+  `is_intersecting`, `compose_list`, `longest_common_subsequence` (consecutive elements) and
   `longest_common_sequence`.
 
 ## Properties (evidence: tests/functions.rs, docs pages)

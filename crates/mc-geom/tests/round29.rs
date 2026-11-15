@@ -39,7 +39,7 @@ fn enclosed_polygons() {
 fn decomposition() {
     check(&[
         ("polygon_decomposition(rectangle())", "[polygon([[0, 1], [0, 0], [1, 0]], [1, 2, 3]), polygon([[1, 0], [1, 1], [0, 1]], [1, 2, 3])]"),
-        ("length(polygon_decomposition(polygon([[0, 0], [2, 0], [2, 2], [1, 1], [0, 2]]), \"Triangle\"))", "3"),
+        ("length(polygon_decomposition(polygon([[0, 0], [2, 0], [2, 2], [1, 1], [0, 2]]), triangle))", "3"),
         ("total(map(area, polygon_decomposition(polygon([[0, 0], [4, 0], [4, 1], [1, 1], [1, 3], [0, 3]]))))", "6"),
     ]);
 }

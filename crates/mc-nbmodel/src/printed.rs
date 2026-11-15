@@ -428,7 +428,7 @@ mod tests {
         let rows = wrap(&big, 100);
         assert!(rows.len() > 50_000 && rows.iter().all(|r| big[r.clone()].chars().count() <= 100));
         assert!(start.elapsed().as_secs_f64() < 5.0, "sampling and wrapping took {:?}", start.elapsed());
-        let text = format!("#! mathcas 2 notebook\n\n#% cell label=1\nrange(700000)\n#% output n=1\n#= {big}\n");
+        let text = format!("#! mathcas 2 notebook\n\n#% cell in=1\nrange(700000)\n#% output out=1\n#= {big}\n");
         let mut nb = Notebook::parse(&text).unwrap();
         let id = nb.cells()[1].id;
         let mut env = FakeEnv::default();

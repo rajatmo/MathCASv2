@@ -268,11 +268,10 @@ enum Height {
 }
 
 /// A histogram's height specification: `count`, `probability`, `pdf` (also `probability_density`), `cdf`,
-/// `cumulative_count`, as a symbol or a string (case and underscores ignored).
+/// `cumulative_count`, a symbol.
 fn height_spec<'h>(h: &'h Heap, t: T<'h>) -> Option<Height> {
     let name = match h.view(t) {
         mc_core::View::Sym(s) => h.sym_name(s).to_string(),
-        mc_core::View::Str(s) => s.to_string(),
         _ => return None,
     };
     let key: String = name.chars().filter(|c| *c != '_' && *c != ' ').flat_map(char::to_lowercase).collect();

@@ -114,9 +114,9 @@ boxes "((surd(x, 3)))"
 --- keys
 Ctrl+5 "3" Ctrl+5 "8" Shift+Enter
 --- after
-#% cell label=1 typeset
+#% cell in=1 typeset
 ((surd(8, 3)))
-#% output n=1
+#% output out=1
 #= ((surd(8, 3)))
 ‖
 

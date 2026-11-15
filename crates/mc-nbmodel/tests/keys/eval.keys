@@ -8,9 +8,9 @@ says `--- kernel old`.
 --- keys
 Shift+Enter
 --- after
-#% cell label=1
+#% cell in=1
 1+1
-#% output n=1
+#% output out=1
 #= 2
 ‖
 
@@ -28,22 +28,22 @@ a▮
 --- keys
 Shift+Enter Down Shift+Enter Down Shift+Enter
 --- after
-#% cell label=1
+#% cell in=1
 a
-#% output n=1
+#% output out=1
 #= a
 
-#% cell label=2
+#% cell in=2
 1+1
 3+3
-#% output n=2
+#% output out=2
 #= 2
-#% output n=3
+#% output out=3
 #= 6
 
-#% cell label=4
+#% cell in=4
 5
-#% output n=4
+#% output out=4
 #= 5
 ‖
 
@@ -55,10 +55,10 @@ a
 --- keys
 Shift+Enter
 --- after
-#% cell label=1
+#% cell in=1
 1;
 2
-#% output n=2
+#% output out=2
 #= 2
 ‖
 
@@ -69,9 +69,9 @@ Shift+Enter
 --- keys
 Shift+Enter Click(0,0) Shift+Enter
 --- after
-#% cell label=2
+#% cell in=2
 7
-#% output n=2
+#% output out=2
 #= 7
 ‖
 
@@ -84,11 +84,11 @@ warn("careful")
 --- keys
 Shift+Enter
 --- after
-#% cell label=1
+#% cell in=1
 print("hi")
 warn("careful")
 3
-#% output n=3
+#% output out=3
 #| hi
 #? careful
 #= 3
@@ -104,16 +104,16 @@ warn("careful")
 --- keys
 Shift+Enter Down Shift+Enter
 --- after
-#% cell label=1
+#% cell in=1
 1 +
 #% output
 #! <cell>:1:1: expected an expression
 #!   1 +
 #!   ^
 
-#% cell label=2
+#% cell in=2
 2
-#% output n=2
+#% output out=2
 #= 2
 ‖
 
@@ -124,9 +124,9 @@ Shift+Enter Down Shift+Enter
 --- keys
 Shift+Enter
 --- after
-#% cell label=1
+#% cell in=1
 1/0
-#% output n=1
+#% output out=1
 #! failure(division_by_zero)
 ‖
 
@@ -137,9 +137,9 @@ loop▮
 --- keys
 Shift+Enter Alt+.
 --- after
-#% cell label=1
+#% cell in=1
 loop
-#% output n=1
+#% output out=1
 #! aborted
 ‖
 
@@ -153,9 +153,9 @@ loop
 --- keys
 Bracket(0) Shift+Bracket(1) Shift+Enter Alt+.
 --- after
-#% cell label=1 ◆
+#% cell in=1 ◆
 loop
-#% output n=1
+#% output out=1
 #! aborted
 
 #% cell ◆
@@ -168,9 +168,9 @@ loop▮
 --- keys
 Shift+Enter Click(0,0) Shift+Enter Alt+.
 --- after
-#% cell label=1
+#% cell in=1
 loop
-#% output n=1
+#% output out=1
 #! aborted
 ‖
 
@@ -186,15 +186,15 @@ loop
 --- keys
 Shift+Enter Down Shift+Enter
 --- after
-#% cell label=1
+#% cell in=1
 1+1
 3+3
-#% output n=1
+#% output out=1
 #= 6
 
-#% cell label=2
+#% cell in=2
 4
-#% output n=2
+#% output out=2
 #= 4
 ‖
 
@@ -213,9 +213,9 @@ loop
 #% output
 #! the kernel stopped: exit code 1
 
-#% cell label=1
+#% cell in=1
 5
-#% output n=1
+#% output out=1
 #= 5
 ‖
 
@@ -229,14 +229,14 @@ loop
 --- keys
 Shift+Enter Quit Down Shift+Enter
 --- after
-#% cell label=1
+#% cell in=1
 5
-#% output n=1
+#% output out=1
 #= 5
 
-#% cell label=1
+#% cell in=1
 6
-#% output n=1
+#% output out=1
 #= 6
 ‖
 
@@ -250,12 +250,12 @@ c = 1
 --- keys
 Shift+Enter InitYes
 --- after
-#% code label=1
+#% code in=1
 c = 1
 
-#% cell label=2
+#% cell in=2
 2
-#% output n=2
+#% output out=2
 #= 2
 ‖
 
@@ -275,14 +275,14 @@ Shift+Enter InitNo Down Shift+Enter
 #% code
 c = 1
 
-#% cell label=1
+#% cell in=1
 2
-#% output n=1
+#% output out=1
 #= 2
 
-#% cell label=2
+#% cell in=2
 3
-#% output n=2
+#% output out=2
 #= 3
 ‖
 
@@ -299,17 +299,17 @@ c = 1
 --- keys
 Bracket(0) Shift+Bracket(2) Shift+Enter
 --- after
-#% cell label=1 ◆
+#% cell in=1 ◆
 1
-#% output n=1
+#% output out=1
 #= 1
 
 #% text ◆
 # t
 
-#% cell label=2 ◆
+#% cell in=2 ◆
 2
-#% output n=2
+#% output out=2
 #= 2
 
 === Shift+Keypad Enter goes on to the next input
@@ -325,9 +325,9 @@ Bracket(0) Shift+Bracket(2) Shift+Enter
 --- keys
 Shift+KeypadEnter
 --- after
-#% cell label=1
+#% cell in=1
 1
-#% output n=1
+#% output out=1
 #= 1
 
 #% text
@@ -338,9 +338,9 @@ Shift+KeypadEnter
 
 === editing an output duplicates it as a new input after the output's group
 --- before
-#% cell label=1
+#% cell in=1
 1+1
-#% output n=1
+#% output out=1
 #= 2▮
 
 #% text
@@ -348,9 +348,9 @@ Shift+KeypadEnter
 --- keys
 "0"
 --- after
-#% cell label=1
+#% cell in=1
 1+1
-#% output n=1
+#% output out=1
 #= 2
 
 #% cell
@@ -361,24 +361,24 @@ Shift+KeypadEnter
 
 === Print cells are edited in place
 --- before
-#% cell label=1
+#% cell in=1
 print(1)
 #% output
 #| 1▮
 --- keys
 "!"
 --- after
-#% cell label=1
+#% cell in=1
 print(1)
 #% output
 #| 1!▮
 
 === delete all output keeps inputs and text
 --- before
-#% cell label=1
+#% cell in=1
 print(1)
 2
-#% output n=2
+#% output out=2
 #| 1
 #= 2
 
@@ -387,7 +387,7 @@ print(1)
 --- keys
 DeleteAllOutput
 --- after
-#% cell label=1
+#% cell in=1
 print(1)
 2
 
@@ -397,16 +397,16 @@ print(1)
 
 === editing an evaluated input keeps its label
 --- before
-#% cell label=3
+#% cell in=3
 x▮
-#% output n=3
+#% output out=3
 #= x
 --- keys
 "y"
 --- after
-#% cell label=3
+#% cell in=3
 xy▮
-#% output n=3
+#% output out=3
 #= x
 
 === undo does not remove generated cells
@@ -416,9 +416,9 @@ xy▮
 --- keys
 "4" Shift+Enter Ctrl+Z
 --- after
-#% cell label=1
+#% cell in=1
 ▮
-#% output n=1
+#% output out=1
 #= 4
 
 === G91: every shown statement of a cell gets its own output, in order; ; and definitions show nothing
@@ -432,18 +432,18 @@ x▮
 --- keys
 Shift+Enter
 --- after
-#% cell label=1
+#% cell in=1
 1+2
 x = 4;
 print("p")
 2+3
 x
-#% output n=1
+#% output out=1
 #= 3
-#% output n=4
+#% output out=4
 #| p
 #= 5
-#% output n=5
+#% output out=5
 #= x
 ‖
 
@@ -452,9 +452,9 @@ x
 #% cell
 1+2
 2+3
-#% output n=1
+#% output out=1
 #= 3
-#% output n=2
+#% output out=2
 #= 5
 
 #% cell
@@ -467,9 +467,9 @@ x
 #% cell
 1+2
 2+3
-#% output n=1
+#% output out=1
 #= 3
-#% output n=2
+#% output out=2
 #= 5
 
 #% cell

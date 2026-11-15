@@ -1,10 +1,10 @@
 #! mathcas 2 notebook
 
 #% title
-# key_member_q
+# is_key_member
 
 #% text
-# `key_member_q(a, k)` is `true` when the association `a` has the key `k`.
+# `is_key_member(a, k)` is `true` when the association `a` has the key `k`.
 
 #% section
 # Details
@@ -13,7 +13,7 @@
 # `a` may also be a list of rules.
 
 #% item
-# A key is a whole key: `key_member_q(a, [x, y])` asks about the key `[x, y]`, not about a path.
+# A key is a whole key: `is_key_member(a, [x, y])` asks about the key `[x, y]`, not about a path.
 
 #% item
 # Anything else than an association or list of rules gives `false`.
@@ -25,12 +25,12 @@
 # Basic examples
 
 #% cell
-key_member_q(assoc(a -> 1, b -> 2), a)
+is_key_member(assoc(a -> 1, b -> 2), a)
 #% output
 #= true
 
 #% cell
-key_member_q(assoc(a -> 1), c)
+is_key_member(assoc(a -> 1), c)
 #% output
 #= false
 
@@ -38,7 +38,7 @@ key_member_q(assoc(a -> 1), c)
 # Scope
 
 #% cell
-key_member_q([a -> 1, b -> 2], b)
+is_key_member([a -> 1, b -> 2], b)
 #% output
 #= true
 
@@ -46,4 +46,4 @@ key_member_q([a -> 1, b -> 2], b)
 # See also
 
 #% text
-# `key_free_q`, `key_exists`, `lookup`
+# `is_key_free`, `key_exists`, `lookup`

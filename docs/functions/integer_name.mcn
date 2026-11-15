@@ -13,7 +13,7 @@
 # Numbers below 1000 are spelled out, hyphenated where it is usual; larger ones read as digits followed by the scale name (`1 million 234 thousand 567`).
 
 #% item
-# `integer_name(n, "Words")` spells every group of three digits.
+# `integer_name(n, words)` spells every group of three digits.
 
 #% item
 # A list of integers gives a list of names.
@@ -45,7 +45,7 @@ integer_name(1234567)
 #= "1 million 234 thousand 567"
 
 #% cell
-integer_name(10990089, "Words")
+integer_name(10990089, words)
 #% output
 #= "ten million, nine hundred ninety thousand, eighty‐nine"
 

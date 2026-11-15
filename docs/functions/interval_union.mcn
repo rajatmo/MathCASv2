@@ -45,4 +45,4 @@ interval_union(centered_interval(2 + 3*im, 1 + im), centered_interval(1 + im, 2 
 # See also
 
 #% text
-# `interval`, `centered_interval`, `interval_member_q`
+# `interval`, `centered_interval`, `is_interval_member`

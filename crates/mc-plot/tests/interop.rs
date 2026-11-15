@@ -119,7 +119,7 @@ fn distributions_overlay_histograms() {
     let mut e = CoreEngine::new();
     // a density histogram and the pdf on one plot
     eval(&mut e, "data = [1.2, 0.3, -0.5, 0.8, -1.1, 0.1, 0.4, -0.2, 1.6, -0.7]");
-    let j = sidecar(&mut e, "histogram(data, [-2, 2, 1], \"PDF\")");
+    let j = sidecar(&mut e, "histogram(data, [-2, 2, 1], pdf)");
     let total: f64 = series(&j)[0].1.iter().map(|p| p.1).sum();
     assert!((total - 1.0).abs() < 1e-12, "density bars of width 1 sum to 1: {total}");
     let shown = eval(&mut e, "show(histogram(data, [-2, 2, 1], pdf), plot(pdf(normal_distribution(0, 1), x), [x, -2, 2]))");

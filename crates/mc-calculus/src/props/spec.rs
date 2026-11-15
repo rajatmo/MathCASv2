@@ -66,7 +66,7 @@ pub struct Spec<'h> {
     pub facts: Vec<T<'h>>,
     /// `strict_inequalities: true`
     pub strict: bool,
-    /// `performance_goal: "speed"`
+    /// `performance_goal: speed`
     pub speed: bool,
 }
 
@@ -141,8 +141,7 @@ pub fn parse<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
                         "assumptions" => assumed.push(v),
                         "strict_inequalities" => strict = cx.is_true(v),
                         "performance_goal" => {
-                            speed = matches!(h.view(v), View::Str(s) if s.eq_ignore_ascii_case("speed"))
-                                || vs.as_deref() == Some("speed")
+                            speed = vs.as_deref() == Some("speed")
                         }
                         _ => {}
                     }

@@ -10,7 +10,7 @@
 # Details
 
 #% item
-# Surfaces: `"CenterPlanes"` (default), `"BackPlanes"`, `"XStackedPlanes"`, `"YStackedPlanes"`, `"ZStackedPlanes"`, `"DiagonalPlanes"`, `"CenterSphere"`, an equation, a region (`sphere`, `cylinder`, `infinite_plane`, `half_plane`, `implicit_region`) or a list of them.
+# Surfaces: `center_planes` (default), `back_planes`, `x_stacked_planes`, `y_stacked_planes`, `z_stacked_planes`, `diagonal_planes`, `center_sphere`, an equation, a region (`sphere`, `cylinder`, `infinite_plane`, `half_plane`, `implicit_region`) or a list of them.
 
 #% item
 # `element([x, y, z], region)` instead of the ranges takes the region's bounds.
@@ -22,7 +22,7 @@
 # Basic examples
 
 #% cell
-slice_density_plot3d(exp(-(x^2 + y^2 + z^2)), "CenterPlanes", [x, -2, 2], [y, -2, 2], [z, -2, 2])
+slice_density_plot3d(exp(-(x^2 + y^2 + z^2)), center_planes, [x, -2, 2], [y, -2, 2], [z, -2, 2])
 #% output
 #= image("slice_density_plot3d.files/slice_density_plot3d-1.svgz")
 

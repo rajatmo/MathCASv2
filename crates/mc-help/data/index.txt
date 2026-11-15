@@ -127,16 +127,16 @@ probability	core	Language	probability(c, x, d): the probability that the conditi
 hazard_function	core	Language	hazard_function(d, x): the hazard rate of the distribution d at x
 confirm	core	Language	confirm(x), confirm(x, info, tag): x, or a confirmation failure thrown to the enclosing enclose
 enclose	core	Language	enclose(e), enclose(e, f, tag): the value of e, or the failure a confirm inside it threw
-array_pad	core	Language	array_pad(a, m), array_pad(a, m, pad): a with m entries added on every side (pad, or "Fixed", "Periodic", "Reversed", "Reflected")
+array_pad	core	Language	array_pad(a, m), array_pad(a, m, pad): a with m entries added on every side (pad, or fixed, periodic, reversed, reflected)
 hankel_matrix	core	Language	hankel_matrix(n), hankel_matrix(c), hankel_matrix(c, r): the Hankel matrix with first column c and last row r
 toeplitz_matrix	core	Language	toeplitz_matrix(n), toeplitz_matrix(c), toeplitz_matrix(c, r): the Toeplitz matrix with first column c and first row r
 center_array	core	Language	center_array(a, n), center_array(a, n, x): the list a centred in n entries of padding
 diagonal	core	Language	diagonal(m), diagonal(m, k): the entries of the k-th diagonal of the matrix m
 upper_triangularize	core	Language	upper_triangularize(m), upper_triangularize(m, k): m with the entries below the k-th diagonal replaced by zero
 lower_triangularize	core	Language	lower_triangularize(m), lower_triangularize(m, k): m with the entries above the k-th diagonal replaced by zero
-upper_triangular_matrix_q	core	Language	upper_triangular_matrix_q(m), upper_triangular_matrix_q(m, k): whether every entry below the k-th diagonal is zero
-lower_triangular_matrix_q	core	Language	lower_triangular_matrix_q(m), lower_triangular_matrix_q(m, k): whether every entry above the k-th diagonal is zero
-diagonal_matrix_q	core	Language	diagonal_matrix_q(m), diagonal_matrix_q(m, k): whether every entry off the k-th diagonal is zero
+is_upper_triangular_matrix	core	Language	is_upper_triangular_matrix(m), is_upper_triangular_matrix(m, k): whether every entry below the k-th diagonal is zero
+is_lower_triangular_matrix	core	Language	is_lower_triangular_matrix(m), is_lower_triangular_matrix(m, k): whether every entry above the k-th diagonal is zero
+is_diagonal_matrix	core	Language	is_diagonal_matrix(m), is_diagonal_matrix(m, k): whether every entry off the k-th diagonal is zero
 minors	core	Language	minors(m), minors(m, k), minors(m, k, f): the matrix of the k x k minors of m
 adjugate	core	Language	adjugate(m): the transpose of the cofactor matrix of m
 array_flatten	core	Language	array_flatten(a): the matrix built from the block matrix a
@@ -152,7 +152,7 @@ real_exponent	core	Language	real_exponent(x), real_exponent(x, b): the logarithm
 number_decompose	core	Language	number_decompose(x, [u1, ..., un]): x written greedily as counts of the units u1, ..., plus a remainder
 integer_string	core	Language	integer_string(n), integer_string(n, b), integer_string(n, b, len): the digits of |n| in base b as a string
 indexed	core	Language	indexed(x, i), indexed(x, [i1, i2, ...]): the part of the list x at the index (path); unevaluated for a symbol x
-integer_name	core	Language	integer_name(n), integer_name(n, "Words"): the English name of the integer n
+integer_name	core	Language	integer_name(n), integer_name(n, words): the English name of the integer n
 find_sequence_function	core	Language	find_sequence_function(xs, n): a closed form in n (polynomial, rational, factorial, Fibonacci or geometric factor) that gives the terms xs
 linear_optimization	core	Language	linear_optimization(f, cons, vars): the point [x -> ..] minimizing the linear f under the constraints
 linear_fractional_optimization	core	Language	linear_fractional_optimization(f, cons, vars): the point minimizing a ratio of linear functions under the constraints
@@ -164,9 +164,9 @@ angle_vector	core	Language	angle_vector(phi), angle_vector([r, phi]), angle_vect
 vector_angle	core	Language	vector_angle(u, v): the angle acos(u . v/(|u| |v|)) between two real vectors
 manhattan_distance	core	Language	manhattan_distance(u, v): the sum of the absolute differences of the entries of u and v
 from_polar_coordinates	core	Language	from_polar_coordinates([r, t1, ..., tk]): the Cartesian point of hyperspherical coordinates; a list of points maps
-symmetric_matrix_q	core	Language	symmetric_matrix_q(m): whether the square matrix m equals its transpose (inexact entries up to rounding)
-hermitian_matrix_q	core	Language	hermitian_matrix_q(m): whether the square matrix m equals its conjugate transpose (inexact entries up to rounding)
-diagonalizable_matrix_q	core	Language	diagonalizable_matrix_q(m): whether the exact square matrix m is diagonalizable over the complex numbers
+is_symmetric_matrix	core	Language	is_symmetric_matrix(m): whether the square matrix m equals its transpose (inexact entries up to rounding)
+is_hermitian_matrix	core	Language	is_hermitian_matrix(m): whether the square matrix m equals its conjugate transpose (inexact entries up to rounding)
+is_diagonalizable_matrix	core	Language	is_diagonalizable_matrix(m): whether the exact square matrix m is diagonalizable over the complex numbers
 pauli_matrix	core	Language	pauli_matrix(k): the Pauli matrix sigma_k (k = 1, 2, 3), the identity for k = 0
 fourier_matrix	core	Language	fourier_matrix(n): the n x n matrix of the discrete Fourier transform (fourier_parameters: [a, b])
 permute	core	Language	permute(xs, p): xs with element i moved to position p[i] (a permutation list or cycles)
@@ -174,8 +174,8 @@ to_polar_coordinates	core	Language	to_polar_coordinates([x1, ..., xn]): the hype
 edit_distance	core	Language	edit_distance(a, b): the Levenshtein distance of two strings or lists
 chessboard_distance	core	Language	chessboard_distance(u, v): the Chebyshev distance max |u_i - v_i|
 squared_euclidean_distance	core	Language	squared_euclidean_distance(u, v): the sum of |u_i - v_i|^2
-palindrome_q	core	Language	palindrome_q(x): whether the list, string or digits of the integer x read the same backwards
-positive_definite_matrix_q	core	Language	positive_definite_matrix_q(m): whether the Hermitian matrix m is positive definite (Sylvester's criterion)
+is_palindrome	core	Language	is_palindrome(x): whether the list, string or digits of the integer x read the same backwards
+is_positive_definite_matrix	core	Language	is_positive_definite_matrix(m): whether the Hermitian matrix m is positive definite (Sylvester's criterion)
 permanent	core	Language	permanent(m): the permanent of the matrix m (Ryser's formula)
 shearing_matrix	core	Language	shearing_matrix(theta, v, w): the matrix of the shear by the angle theta along the direction v normal to w
 scaling_matrix	core	Language	scaling_matrix([s1, ..., sn]), scaling_matrix(s, v): the diagonal scaling matrix, or the scaling by s along the direction v
@@ -190,7 +190,7 @@ gaussian_matrix	core	Language	gaussian_matrix(r), gaussian_matrix([r, s]): the (
 mixed_fraction_parts	core	Language	mixed_fraction_parts(x): [ip, fp], the integer and fractional parts of x with the sign of x (real and imaginary parts apart for complex x)
 perfect_number	core	Language	perfect_number(k): the k-th perfect number 2^(p - 1) (2^p - 1), p the k-th Mersenne prime exponent (k up to 51)
 rudin_shapiro	core	Language	rudin_shapiro(n): (-1) to the number of occurrences of the binary digits 11 in n; maps over lists
-quadratic_irrational_q	core	Language	quadratic_irrational_q(x): whether x is an irrational root of a quadratic polynomial with integer coefficients
+is_quadratic_irrational	core	Language	is_quadratic_irrational(x): whether x is an irrational root of a quadratic polynomial with integer coefficients
 discrete_indicator	core	Language	discrete_indicator(x, x0, domain): 1 for x = x0, 0 for another element of the finite domain
 list_convolve	core	Language	list_convolve(ker, list), list_convolve(ker, list, q): the convolution of the list with the kernel (valid part, or cyclic with the kernel entry q on the first entry)
 cumulant	core	Language	cumulant(data, r): the r-th cumulant of the data from its raw moments
@@ -201,7 +201,7 @@ pfaffian_det	core	Language	pfaffian_det(m): the Pfaffian of the antisymmetric ma
 principal_components	core	Language	principal_components(data): the rows of the data matrix in the coordinates of its principal axes (mean subtracted)
 karhunen_loeve_decomposition	core	Language	karhunen_loeve_decomposition(data): [transformed, basis] of the Karhunen-Loeve transform of the rows of the data matrix
 set_accuracy	core	Language	set_accuracy(x, a): x with its precision set so that its accuracy is a digits
-interval_member_q	core	Language	interval_member_q(i, x), interval_member_q(i)(x): whether the number (interval) x lies in the interval i
+is_interval_member	core	Language	is_interval_member(i, x), is_interval_member(i)(x): whether the number (interval) x lies in the interval i
 interval_union	core	Language	interval_union(i1, i2, ...): the union of the intervals as one interval
 knapsack_solve	core	Language	knapsack_solve(items, cap), knapsack_solve(items, [max payoff, max cost, max count]): the counts of each item (a cost, [payoff, cost] or [payoff, cost, max count]) that maximize the payoff within the bounds
 quadratic_optimization	core	Language	quadratic_optimization(f, cons, vars), quadratic_optimization([q, c], [a, b]): the point minimizing the convex quadratic f under the constraints
@@ -261,7 +261,7 @@ sort_by	core	Lists	sort_by(xs, f): the elements ordered by the canonical order o
 ordering	core	Lists	ordering(xs): the positions of the elements in sorted order; ordering(xs, n): the first n (last -n)
 max_by	core	Lists	max_by(xs, f): the first element with the largest f(x) in the canonical order
 min_by	core	Lists	min_by(xs, f): the first element with the smallest f(x) in the canonical order
-match_q	core	Lists	match_q(x, p): whether x matches the pattern p
+is_match	core	Lists	is_match(x, p): whether x matches the pattern p
 head	core	Lists	head(x): the head of a compound term; for an atom the name of its type (Int, Rat, Float, Complex, Str, Sym)
 dimensions	core	Lists	dimensions(x): the lengths of the levels of x that form a full array ([2, 3] for a 2 by 3 matrix)
 array_depth	core	Lists	array_depth(x): the number of levels of x that form a full array
@@ -364,14 +364,14 @@ power_range	core	Lists	power_range(b), power_range(a, b), power_range(a, b, r): 
 first_position	core	Lists	first_position(x, p), first_position(x, p, d): the position of the first part of x matching p
 count_distinct	core	Lists	count_distinct(xs): the number of distinct elements of xs; count_distinct(xs, f): of the classes f(a, b) puts together
 groupings	core	Lists	groupings(xs, spec): every tree grouping the elements of xs in order with the heads and arities of spec (k, [k1, ...], h -> k, [h1, h2] -> k, [h -> k, ...])
-hash	core	Lists	hash(e), hash(e, method), hash(e, method, format): a digest of e ("MD5", "SHA", "SHA256", "SHA512", "CRC32", ...) as an integer, "HexString", "DecimalString" or "ByteList"
+hash	core	Lists	hash(e), hash(e, method), hash(e, method, format): a digest of e ("MD5", "SHA", "SHA256", "SHA512", "CRC32", ...) as an integer, hex_string, decimal_string or byte_list
 delete_elements	core	Lists	delete_elements(xs, es): xs without the elements of es
 position_largest	core	Lists	position_largest(xs): the positions of the largest elements of xs; position_largest(xs, n): of the n largest values, grouped
 position_smallest	core	Lists	position_smallest(xs): the positions of the smallest elements of xs; position_smallest(xs, n): of the n smallest values, grouped
 symmetric_difference	core	Lists	symmetric_difference(xs, ys, ...): the sorted elements in an odd number of the lists
 xor	core	Lists	xor(a, b, ...): true when an odd number of the arguments are true
 implies	core	Lists	implies(p, q): the logical implication p => q
-true_q	core	Lists	true_q(x): whether x is true (anything else gives false)
+is_true	core	Lists	is_true(x): whether x is true (anything else gives false)
 construct	core	Lists	construct(f, a, b, ...): f(a, b, ...)
 identity	core	Lists	identity(x): x itself
 quote	core	Lists	quote(x): x kept unevaluated (unquote releases it; eval(e) as the argument is evaluated first)
@@ -380,7 +380,7 @@ inactivate	core	Lists	inactivate(e), inactivate(e, p): e with every head symbol 
 sequence_alignment	core	Lists	sequence_alignment(a, b): the runs the strings or lists a and b share, with [piece of a, piece of b] where they differ (a global alignment)
 hold_complete	core	Lists	hold_complete(x, ...): x kept unevaluated
 check	core	Lists	check(x, y): the value of x, or of y when x gives a failure
-value_q	core	Lists	value_q(x): whether x has a value
+is_value	core	Lists	is_value(x): whether x has a value
 to_character_code	core	Lists	to_character_code(s): the code points of the characters of s; to_character_code(s, "UTF8"): its UTF-8 bytes ("ASCII", "ISO8859-1": the codes that fit, none for the others)
 character_range	core	Lists	character_range(a, b): the characters from a to b
 up_to	core	Lists	up_to(n): at most n (in take, drop, partition, take_largest, ...)
@@ -391,7 +391,7 @@ subset_cases	core	Lists	subset_cases(xs, p), subset_cases(xs, p, n): the sublist
 subset_position	core	Lists	subset_position(xs, p), subset_position(xs, p, n): the positions of the elements of each subset of xs matching the list pattern p, in the pattern's order (overlaps: false for disjoint ones)
 subset_replace	core	Lists	subset_replace(xs, p -> r), subset_replace(xs, rules, n): each subset of xs matching a list pattern (disjoint, at most n) replaced by r, at the place of its first element
 split	core	Lists	split(s), split(s, sep): the words of s, or the pieces between occurrences of sep; split(xs), split(xs, test): the runs of identical neighbours (or neighbours passing test(a, b)) of a list
-array_filter	core	Lists	array_filter(f, a, r): f applied to the block of radius r (a count, [r1, r2, ...] per level, or [[before, after], ...]) around every element of the array a; padding: "Fixed" (the edge repeated), "Periodic", "Reflected" or a value
+array_filter	core	Lists	array_filter(f, a, r): f applied to the block of radius r (a count, [r1, r2, ...] per level, or [[before, after], ...]) around every element of the array a; padding: fixed (the edge repeated), periodic, reflected or a value
 array_reduce	core	Lists	array_reduce(f, a, n): f applied to each vector of the array a along level n, that level removed; array_reduce(f, a, [n1, n2, ...]): to each sub-array along those levels
 subset_count	core	Lists	subset_count(xs, p), subset_count(xs, p, n): the number of disjoint subsets of xs (elements in any order) matching the list pattern p (overlaps: true counts every subset)
 find_shortest_tour	core	Lists	find_shortest_tour(xs): [length, tour], the shortest closed tour through the points, numbers or strings xs (positions from 1 back to 1); find_shortest_tour(xs, j, k): the shortest path from xs[j] to xs[k] through all the others; distance_function: f; exact, up to 20 elements
@@ -442,10 +442,10 @@ elementwise	core	Language library	elementwise(f)(a, b, ...): f applied to the co
 join_across	core	Language library	join_across(left, right, key), (..., type), (..., key_collision_function: f): join two lists of associations (or datasets) on a key; type inner, left, right or outer
 key_union	core	Language library	key_union([a1, a2, ...]), key_union(list, f): the associations with every key of any of them, absent keys missing or f(key)
 key_intersection	core	Language library	key_intersection([a1, a2, ...]): the associations restricted to the keys all of them have
-key_member_q	core	Language library	key_member_q(a, k): whether the association a has the key k
-key_free_q	core	Language library	key_free_q(a, k): whether the association a lacks the key k
-disjoint_q	core	Language library	disjoint_q(xs, ys): whether two lists have no element in common
-intersecting_q	core	Language library	intersecting_q(xs, ys): whether two lists have an element in common
+is_key_member	core	Language library	is_key_member(a, k): whether the association a has the key k
+is_key_free	core	Language library	is_key_free(a, k): whether the association a lacks the key k
+is_disjoint	core	Language library	is_disjoint(xs, ys): whether two lists have no element in common
+is_intersecting	core	Language library	is_intersecting(xs, ys): whether two lists have an element in common
 compose_list	core	Language library	compose_list([f1, f2, ...], x): the list x, f1(x), f2(f1(x)), ...
 longest_common_subsequence	core	Language library	longest_common_subsequence(a, b): the longest run of consecutive elements (characters) that two lists (strings) share
 longest_common_sequence	core	Language library	longest_common_sequence(a, b): a longest list of elements (characters) occurring in both lists (strings) in the same order
@@ -493,7 +493,7 @@ chinese_remainder	symbolic	Number sequences	chinese_remainder(rs, ms), (rs, ms, 
 bit_set	symbolic	Number sequences	bit_set(k, i): k with bit i set to 1
 bit_clear	symbolic	Number sequences	bit_clear(k, i): k with bit i set to 0
 bit_shift_left	symbolic	Number sequences	bit_shift_left(k, s), (k): k shifted left by s bits (one bit), k 2^s
-perfect_number_q	symbolic	Number sequences	perfect_number_q(k): whether the integer k is a perfect number
+is_perfect_number	symbolic	Number sequences	is_perfect_number(k): whether the integer k is a perfect number
 find_linear_recurrence	symbolic	Number sequences	find_linear_recurrence(xs), (xs, d): the coefficients of the shortest linear recurrence with constant coefficients that the list satisfies
 farey_sequence	symbolic	Number sequences	farey_sequence(k), farey_sequence(k, j): the Farey sequence of order k (its j-th term)
 convergents	symbolic	Number sequences	convergents(x), convergents(x, k), convergents(terms): the convergents of a continued fraction
@@ -503,7 +503,7 @@ number_expand	symbolic	Number sequences	number_expand(x), (x, b), (x, b, len): t
 number_compose	symbolic	Number sequences	number_compose(digits, bases): the sum of digit times base
 de_bruijn_sequence	symbolic	Number sequences	de_bruijn_sequence(alphabet, m): the lexicographically least de Bruijn sequence
 mersenne_prime_exponent	symbolic	Number sequences	mersenne_prime_exponent(k): the k-th known Mersenne prime exponent
-mersenne_prime_exponent_q	symbolic	Number sequences	mersenne_prime_exponent_q(p): whether p is the exponent of a known Mersenne prime
+is_mersenne_prime_exponent	symbolic	Number sequences	is_mersenne_prime_exponent(p): whether p is the exponent of a known Mersenne prime
 finite_abelian_group_count	symbolic	Number sequences	finite_abelian_group_count(k): the number of abelian groups of order k
 finite_group_count	symbolic	Number sequences	finite_group_count(k): the number of groups of order k (k <= 64 or squarefree)
 frobenius_solve	symbolic	Number sequences	frobenius_solve(coins, k), (coins, k, m): the non-negative integer solutions of coins.x = k
@@ -517,7 +517,7 @@ six_j_symbol	symbolic	Number sequences	six_j_symbol([j1, j2, j3], [j4, j5, j6]):
 wigner_d	symbolic	Number sequences	wigner_d([j, m1, m2], theta), (.., theta, phi), (.., psi, theta, phi): Wigner's d and D functions
 apply_sides	symbolic	Number sequences	apply_sides(f, r): the relation r with f applied to both sides
 numerator_denominator	symbolic	Number sequences	numerator_denominator(e): [numerator(e), denominator(e)]
-rational_expression_q	symbolic	Number sequences	rational_expression_q(e, x): whether e is a quotient of polynomials in x
+is_rational_expression	symbolic	Number sequences	is_rational_expression(e, x): whether e is a quotient of polynomials in x
 expand_numerator	symbolic	Number sequences	expand_numerator(e): the numerators of all fractions in e expanded
 expand_denominator	symbolic	Number sequences	expand_denominator(e): the denominators of all fractions in e expanded
 expand_all	symbolic	Number sequences	expand_all(e): e expanded everywhere, inside function arguments and denominators too
@@ -567,8 +567,8 @@ string_replace	core	Strings	string_replace(s, p -> r), (s, [rules][, n]), (s, a,
 string_cases	core	Strings	string_cases(s, p): the substrings of s matching the string pattern p; (s, p -> r): r for each match; (s, spec, n): at most n; overlaps:, ignore_case:
 string_position	core	Strings	string_position(s, p): the [start, end] positions of the matches of p in s (overlapping by default); (s, p, n): at most n
 string_count	core	Strings	string_count(s, p): the number of matches of the string pattern p in s, without overlaps
-string_match_q	core	Strings	string_match_q(s, p): whether the whole of s matches the string pattern p (in a literal string, * and @ are wildcards)
-string_free_q	core	Strings	string_free_q(s, p): whether no substring of s matches the string pattern p
+is_string_match	core	Strings	is_string_match(s, p): whether the whole of s matches the string pattern p (in a literal string, * and @ are wildcards)
+is_string_free	core	Strings	is_string_free(s, p): whether no substring of s matches the string pattern p
 string_delete	core	Strings	string_delete(s, p): s without the substrings matching the string pattern p
 string_take	core	Strings	string_take(s, k): the first k characters (last -k); string_take(s, [i, j]): characters i to j; [i]: one
 string_drop	core	Strings	string_drop(s, k), string_drop(s, [i, j]): s without the characters string_take selects
@@ -735,7 +735,7 @@ plot_label	visualisation	Graphics	option of graphics: plot_label: label, a title
 aspect_ratio	visualisation	Graphics	option of graphics: aspect_ratio: r (height over width of the plot area), automatic (equal units), full (fills image_size)
 image_size	visualisation	Graphics	option of graphics: image_size: w or [w, h], in points (pixels at scale 1); default width 360
 background	visualisation	Graphics	option of graphics: background: color, or none for transparent (default white)
-plot_theme	visualisation	Graphics	option of graphics and plots: plot_theme: "dark" | "light", the chrome written in that theme's colours into every file (data keeps its colours)
+plot_theme	visualisation	Graphics	option of graphics and plots: plot_theme: dark | light, the chrome written in that theme's colours into every file (data keeps its colours)
 ticks	visualisation	Graphics	option of graphics: ticks: automatic | none | [x_ticks, y_ticks], each automatic, none or a list of positions or [position, label]
 grid_lines	visualisation	Graphics	option of graphics: grid_lines: none | automatic | [x_lines, y_lines], each automatic, none or a list of positions or [position, directives]
 legend	visualisation	Graphics	option of graphics and plots: legend: [entry, ...]; in graphics an entry is a label, [directives, label] (a line sample) or [directives, label, line | point | swatch | none]; in plots a list of strings, one per curve
@@ -1050,9 +1050,9 @@ ternary_list_plot	visualisation	Plots	ternary_list_plot([[a, b, c], ...]): compo
 stacked_list_plot	visualisation	Plots	stacked_list_plot([data1, data2, ...]): the data sets stacked on one another, the bands between them filled
 list_fit_plot	visualisation	Plots	list_fit_plot(data) or list_fit_plot(data, n): the points with their least-squares line (or polynomial of degree n); data -> [xname, yname] labels the axes
 point_value_plot	visualisation	Plots	point_value_plot([p1 -> v1, ...]) (also [p1, ...] -> [v1, ...] or an association): points coloured by their values, with a colour bar
-paired_histogram	visualisation	Plots	paired_histogram(d1, d2) or paired_histogram(d1, d2, bins, form): histograms of two data sets back to back (form "PDF", "CDF", "SF", "HF", "CHF", "Probability")
+paired_histogram	visualisation	Plots	paired_histogram(d1, d2) or paired_histogram(d1, d2, bins, form): histograms of two data sets back to back (form pdf, cdf, sf, hf, chf, probability)
 paired_smooth_histogram	visualisation	Plots	paired_smooth_histogram(d1, d2): kernel density estimates of two data sets back to back
-smooth_density_histogram	visualisation	Plots	smooth_density_histogram([[x, y], ...]): a kernel density estimate of points of the plane as colours (smooth_density_histogram(data, automatic, "CDF") the distribution function)
+smooth_density_histogram	visualisation	Plots	smooth_density_histogram([[x, y], ...]): a kernel density estimate of points of the plane as colours (smooth_density_histogram(data, automatic, cdf) the distribution function)
 distribution_chart	visualisation	Plots	distribution_chart(data) or distribution_chart([d1, d2, ...]): violins: each data set's density estimate mirrored, with the quartile range and median
 candlestick_chart	visualisation	Plots	candlestick_chart([[date, [open, high, low, close]], ...]): a candle per day (dates as [y, m, d] lists or numbers), rising days green and falling days red
 renko_chart	visualisation	Plots	renko_chart([[date, price], ...]) or renko_chart(prices, size): bricks of a fixed size drawn each time the price moves that far
@@ -1062,14 +1062,14 @@ feature_space_plot	visualisation	Plots	feature_space_plot(data): numeric vectors
 list_curve_path_plot	visualisation	Plots	list_curve_path_plot([[x, y], ...]): a curve through the points in nearest-neighbour order
 chromaticity_plot	visualisation	Plots	chromaticity_plot(space) or chromaticity_plot([s1, s2, ...]): the CIE 1931 chromaticity diagram with the gamut triangles of RGB colour spaces ("sRGB", "AdobeRGB", "WideGamutRGB", "ProPhotoRGB", "DisplayP3", "Rec2020", ...) or colours as points
 chromaticity_plot3d	visualisation	Plots	chromaticity_plot3d(space) or chromaticity_plot3d(space, "XYZ" | "xyY" | "LAB" | "LUV"): the gamut of an RGB colour space as a solid in a colour space
-slice_density_plot3d	visualisation	Plots	slice_density_plot3d(f, surface, [x, a, b], [y, c, d], [z, e, f]): the values of f as colours on surfaces in the box: "CenterPlanes" (default), "BackPlanes", "XStackedPlanes", ..., an equation, or a region (sphere, cylinder, infinite_plane, implicit_region, ...)
+slice_density_plot3d	visualisation	Plots	slice_density_plot3d(f, surface, [x, a, b], [y, c, d], [z, e, f]): the values of f as colours on surfaces in the box: center_planes (default), back_planes, x_stacked_planes, ..., an equation, or a region (sphere, cylinder, infinite_plane, implicit_region, ...)
 slice_contour_plot3d	visualisation	Plots	slice_contour_plot3d(f, surface, [x, ...], [y, ...], [z, ...]): the values of f in ten bands of colour on surfaces in the box
 slice_vector_plot3d	visualisation	Plots	slice_vector_plot3d([vx, vy, vz], surface, [x, ...], [y, ...], [z, ...]): arrows of a vector field on surfaces in the box
 list_slice_density_plot3d	visualisation	Plots	list_slice_density_plot3d(array, surface): a 3D array of values (layers along z, rows along y; option data_range) as colours on surfaces
 list_slice_contour_plot3d	visualisation	Plots	list_slice_contour_plot3d(array, surface): a 3D array of values in bands of colour on surfaces
 list_slice_vector_plot3d	visualisation	Plots	list_slice_vector_plot3d(array, surface): a 3D array of vectors as arrows on surfaces
 list_density_plot3d	visualisation	Plots	list_density_plot3d(array): a 3D array of values as coloured, translucent points (more opaque for larger values; option data_range)
-histogram3d	visualisation	Plots	histogram3d([[x, y], ...]): counts of points in the cells of a grid as boxes (histogram3d(data, n, "PDF" | "Probability") other heights)
+histogram3d	visualisation	Plots	histogram3d([[x, y], ...]): counts of points in the cells of a grid as boxes (histogram3d(data, n, pdf | probability) other heights)
 smooth_histogram3d	visualisation	Plots	smooth_histogram3d([[x, y], ...]): a kernel density estimate of points of the plane as a surface
 rectangle_chart3d	visualisation	Plots	rectangle_chart3d([[w, d, h], ...]): boxes of width w, depth d and height h side by side
 sector_chart3d	visualisation	Plots	sector_chart3d([[a, r, h], ...]): sectors with angles in proportion to a, radii to r and heights to h
@@ -1180,7 +1180,7 @@ partial_fraction_elements	symbolic	Calculus	partial_fraction_elements(r, x), (r,
 polynomial_reduction	symbolic	Calculus	polynomial_reduction(p, [g1, ...], xs): the remainder of p on division by the gi
 symmetric_reduction	symbolic	Calculus	symmetric_reduction(f, xs), (f, xs, ss): [p, q] with f = p + q, p a polynomial in the elementary symmetric polynomials (or the names ss), q the remainder
 find_generating_function	symbolic	Calculus	find_generating_function(a, x): a rational generating function of the list a, from the shortest linear recurrence with constant coefficients
-polynomial_q	symbolic	Calculus	polynomial_q(e, x), (e, [x1, ...]), (e): whether e is a polynomial in the variables, with coefficients free of their symbols
+is_polynomial	symbolic	Calculus	is_polynomial(e, x), (e, [x1, ...]), (e): whether e is a polynomial in the variables, with coefficients free of their symbols
 solve_always	symbolic	Calculus	solve_always(eqs, vars): the values of the other symbols for which the polynomial equations hold for every value of vars
 compose_series	symbolic	Calculus	compose_series(f, g), (f, g, h, ...): the power series f(g(x)) of the series f and g (g at the expansion point of f)
 inverse_series	symbolic	Calculus	inverse_series(s), (s, y): the series x(y) with s(x(y)) = y, a Puiseux series when s starts at a power above 1
@@ -1238,8 +1238,8 @@ cyclotomic	symbolic	Polynomials	cyclotomic(k, x): the k-th cyclotomic polynomial
 polynomial_reduce	symbolic	Polynomials	polynomial_reduce(p, [g1, ...], [x1, ...]): [[q1, ...], r] with p = q1 g1 + ... + r, by multivariate division in lexicographic order
 polynomial_mod	symbolic	Polynomials	polynomial_mod(p, m): p with coefficients reduced modulo the integer m, or its remainder modulo the polynomial m; a list of moduli in turn
 partial_fractions	symbolic	Polynomials	partial_fractions(f, x): the partial fraction decomposition of f over the complex numbers; extension: reals for real factors
-polynomial_expression_q	symbolic	Polynomials	polynomial_expression_q(e, xs), (e, xs, test): whether e is a polynomial expression in the variables xs (coefficients passing test)
-possible_zero_q	symbolic	Polynomials	possible_zero_q(e): whether e is probably zero (by simplification, then by high-precision values at sample points)
+is_polynomial_expression	symbolic	Polynomials	is_polynomial_expression(e, xs), (e, xs, test): whether e is a polynomial expression in the variables xs (coefficients passing test)
+is_possible_zero	symbolic	Polynomials	is_possible_zero(e): whether e is probably zero (by simplification, then by high-precision values at sample points)
 minimal_polynomial	symbolic	Algebraic numbers	minimal_polynomial(a, x): the minimal polynomial of the algebraic number a in x (primitive, integer coefficients)
 to_number_field	symbolic	Algebraic numbers	to_number_field(a, theta): the coefficients [c0, c1, ...] with a = c0 + c1 theta + ...; to_number_field(a) with a as generator; to_number_field([a, b, ...]) a primitive element and every number in it
 root_sum	symbolic	Algebraic numbers	root_sum(x => p(x), x => g(x)): the sum of g over the roots of the polynomial p, with multiplicity; roots of linear and quadratic factors become radicals
@@ -1388,14 +1388,14 @@ n_arg_min	symbolic	Root finding	n_arg_min(f, vars): the position of the global m
 n_arg_max	symbolic	Root finding	n_arg_max(f, vars): the position of the global maximum (the arguments of n_minimize)
 find_integer_null_vector	symbolic	Root finding	find_integer_null_vector([x1, ..., xn]): integers c with c . x = 0 to the precision of x (PSLQ), or a failure with the norm bound; [xs, d] with |c| <= d
 root_approximant	symbolic	Root finding	root_approximant(x), root_approximant(x, n): the algebraic number of degree at most n (8) and small height closest to x (PSLQ on its powers)
-vector_greater_equal	symbolic	Root finding	vector_greater_equal([a, b]): a >= b componentwise (a constraint of n_minimize; [a, b], "NormCone" for |a - b| in the norm cone)
+vector_greater_equal	symbolic	Root finding	vector_greater_equal([a, b]): a >= b componentwise (a constraint of n_minimize; [a, b], norm_cone for |a - b| in the norm cone)
 vector_greater	symbolic	Root finding	vector_greater([a, b]): a > b componentwise
 vector_less_equal	symbolic	Root finding	vector_less_equal([a, b]): a <= b componentwise
 vector_less	symbolic	Root finding	vector_less([a, b]): a < b componentwise
 n_integrate	symbolic	Numerical integration	n_integrate(f, [x, a, b]): the integral of f from a to b (a, b may be -inf, inf); [x, a, s1, ..., b] splits at s1, ...; more ranges [y, c(x), d(x)] for multiple integrals (adaptive cubature for 2 to 7 variables, lattice quasi-Monte Carlo or VEGAS above); method: gauss_kronrod | double_exponential | nested | cubature | vegas | lattice | sobol | monte_carlo; precision_goal, accuracy_goal, max_points, points, iterations, seed; sampling methods give around(value, error); digits: d for a ball whose radius is an error estimate; rigorous: true for a ball guaranteed to contain the integral
 haar_wavelet	symbolic	Wavelets	haar_wavelet(): the Haar wavelet, the orthonormal filter [1, 1]/sqrt(2)
 daubechies_wavelet	symbolic	Wavelets	daubechies_wavelet(n): the orthonormal Daubechies wavelet with n vanishing moments (2 n taps); daubechies_wavelet() is n = 2
-discrete_wavelet_transform	symbolic	Wavelets	discrete_wavelet_transform(data), (data, w), (data, w, r): the r-level discrete wavelet transform of a list or matrix (padding: "Periodic", a number, "Fixed", "Reflected")
+discrete_wavelet_transform	symbolic	Wavelets	discrete_wavelet_transform(data), (data, w), (data, w, r): the r-level discrete wavelet transform of a list or matrix (padding: periodic, a number, fixed, reflected)
 discrete_wavelet_packet_transform	symbolic	Wavelets	discrete_wavelet_packet_transform(data), (data, w), (data, w, r): the wavelet packet transform, every node split
 stationary_wavelet_transform	symbolic	Wavelets	stationary_wavelet_transform(data), (data, w), (data, w, r): the undecimated (stationary) wavelet transform of a list or matrix
 inverse_wavelet_transform	symbolic	Wavelets	inverse_wavelet_transform(d): the data reconstructed from the discrete wavelet data d
@@ -1414,10 +1414,10 @@ wavelet_matrix_plot	symbolic	Wavelets	wavelet_matrix_plot(d), (d, r), (d, sel, f
 wavelet_scalogram	symbolic	Wavelets	wavelet_scalogram(d), (d, sel), (d, sel, f): the magnitude of wavelet coefficients against time and scale
 ratios	symbolic	Numerics library	ratios(xs): the successive ratios xs[i + 1]/xs[i]; ratios(xs, k): k times; ratios(xs, [k1, k2, ...]): k1 times at level 1, k2 at level 2, ...
 linear_recurrence	symbolic	Numerics library	linear_recurrence(ker, init, n): the first n terms of a[k] = ker[1] a[k - 1] + ... + ker[d] a[k - d] from init; (ker, init, [m]), (ker, init, [m1, m2]): term m, terms m1 to m2 (m1 <= 0 runs backwards)
-threshold	symbolic	Numerics library	threshold(data), (data, delta), (data, ["Hard" | "Soft" | "Firm" | "PiecewiseGarrote" | "SmoothGarrote" | "Hyperbola", delta, ...]), (data, ["LargestValues", k]): data with the small values set to zero
+threshold	symbolic	Numerics library	threshold(data), (data, delta), (data, [hard | soft | firm | piecewise_garrote | smooth_garrote | hyperbola, delta, ...]), (data, [largest_values, k]): data with the small values set to zero
 cantor_staircase	symbolic	Numerics library	cantor_staircase(x): the Cantor function, exact at rational x, numeric at inexact x; 0 for x <= 0 and 1 for x >= 1
 dirac_comb	symbolic	Numerics library	dirac_comb(x1, ..., xk): the Dirac comb, a sum of delta functions at the integers (a product over the arguments): 0 at numbers that are not integers
-mandelbrot_set_member_q	symbolic	Numerics library	mandelbrot_set_member_q(c): whether the orbit of 0 under z^2 + c stays bounded for max_iterations steps (default 1000); lists elementwise
+is_mandelbrot_set_member	symbolic	Numerics library	is_mandelbrot_set_member(c): whether the orbit of 0 under z^2 + c stays bounded for max_iterations steps (default 1000); lists elementwise
 interpolating_polynomial	symbolic	Numerics library	interpolating_polynomial(data, x): the polynomial of least degree through values [f1, ...] at 1, 2, ..., points [[x1, f1], ...] or Hermite data [[x1, f1, d1, ...], ...], in Newton form
 fourier	symbolic	Numerics library	fourier(list), fourier(array): the discrete Fourier transform 1/n^((1 - a)/2) sum u[r] exp(2 pi i b (r - 1)(s - 1)/n) along every level, fourier_parameters [a, b] (default [0, 1]), at the precision of the data
 inverse_fourier	symbolic	Numerics library	inverse_fourier(list), inverse_fourier(array): the inverse discrete Fourier transform, with the same fourier_parameters as fourier
@@ -1437,7 +1437,7 @@ mellin_convolve	symbolic	Numerics library	mellin_convolve(f, g, x, y): the Melli
 list_interpolation	symbolic	Numerics library	list_interpolation(array), (array, [[xmin, xmax], ...]), (array, [[x1, x2, ...], ...]): a function interpolating the values on a grid by piecewise Lagrange polynomials of interpolation_order (default 3)
 function_interpolation	symbolic	Numerics library	function_interpolation(f, [x, a, b], ...): a function interpolating the expression f sampled on a grid over the ranges, as list_interpolation
 mean_around	symbolic	Numerics library	mean_around(xs): the mean of numbers with its standard error as around(m, s/sqrt(n)); of around values the weighted mean; of vectors vector_around(mean, covariance/n)
-random_polygon	symbolic	Numerics library	random_polygon(), (k), (type), ([type, k]), ([type, dist, k]), (spec, m), (spec, [m1, ...]), (d -> spec): a random polygon in the unit square ("Simple", "Convex", "StarShaped", "ConvexHull"), m of them, or one in a random plane of dimension d
+random_polygon	symbolic	Numerics library	random_polygon(), (k), (type), ([type, k]), ([type, dist, k]), (spec, m), (spec, [m1, ...]), (d -> spec): a random polygon in the unit square (simple, convex, star_shaped, convex_hull), m of them, or one in a random plane of dimension d
 find_peaks	symbolic	Numerics library	find_peaks(data), (data, sigma), (data, sigma, s), (data, sigma, s, t): the peaks [position, value] of a list: local maxima (plateaus at their middle) after Gaussian blurring by sigma, sharpness above s, value above t
 n_dsolve	symbolic	Differential equations	n_dsolve(eqs, y, [t, t0, t1]): the numerical solution of ordinary differential equations with initial conditions as [y -> interpolating_function(...)]; [y, z] for systems; method: auto | rk45 | stiff | taylor, accuracy_goal, precision_goal, max_steps, max_step_size, max_step_fraction, events: [g == 0], event_action: stop | record, compile: auto | true | false; digits: d for balls (Taylor series; error estimated, not guaranteed)
 n_dsolve_value	symbolic	Differential equations	n_dsolve_value(eqs, expr, [t, t0, t1]): expr (in y(t), y'(t), ...) along the numerical solution: a closure of t, or a number for expr = y(t1); the options of n_dsolve
@@ -1812,7 +1812,7 @@ dot	higher	Linear algebra	dot(a, b, ...): the product of vectors and matrices (s
 cross	higher	Linear algebra	cross(u, v): the cross product of two vectors of length 3
 kronecker_product	higher	Linear algebra	kronecker_product(a, b, ...): the Kronecker product of matrices (or of vectors)
 trace	higher	Linear algebra	trace(m): the sum of the diagonal of a square matrix
-norm	higher	Linear algebra	norm(v), norm(v, p), norm(m), norm(m, 1 | inf | "frobenius"): vector p-norms (p a positive integer or inf) and matrix norms (default the 2-norm)
+norm	higher	Linear algebra	norm(v), norm(v, p), norm(m), norm(m, 1 | inf | frobenius): vector p-norms (p a positive integer or inf) and matrix norms (default the 2-norm)
 lu	higher	Linear algebra	lu(m): [l, u, p] with l unit lower triangular, u upper triangular and m[p] == dot(l, u)
 qr	higher	Linear algebra	qr(m): [q, r] with m == dot(q, r), q with orthonormal columns, r upper triangular
 cholesky	higher	Linear algebra	cholesky(m): the upper triangular u with m == dot(conjugate_transpose(u), u) for a positive definite m
@@ -1888,7 +1888,7 @@ is_convex_polygon	higher	Regions	is_convex_polygon(p): whether a plane polygon i
 canonicalize_polygon	higher	Regions	canonicalize_polygon(p): the polygon with its distinct corners sorted and the boundary as indices, anticlockwise
 outer_polygon	higher	Regions	outer_polygon(p): the outer boundary of a polygon (its holes filled), indexed
 inner_polygon	higher	Regions	inner_polygon(p): the holes of a polygon as a polygon (empty_region(2) when there are none)
-bounding_region	higher	Regions	bounding_region(points, form): a region holding the points: "MinRectangle" (default; also "MinCuboid", "MinInterval"), "MinDisk" or "MinBall" (the smallest ball), "MinConvexPolygon" (the convex hull)
+bounding_region	higher	Regions	bounding_region(points, form): a region holding the points: min_rectangle (default; also min_cuboid, min_interval), min_disk or min_ball (the smallest ball), min_convex_polygon (the convex hull)
 winding_count	higher	Regions	winding_count(curve, p): how many times a closed curve (points, a line or a polygon) turns about the point p, anticlockwise positive
 crossing_count	higher	Regions	crossing_count(curve, p): the least number of crossings of a ray from p with a closed curve (plus 1 when p is on it)
 region_equal	higher	Regions	region_equal(r1, r2, ...): whether the regions are the same set of points (regions of the line and plane polygons)

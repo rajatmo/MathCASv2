@@ -157,7 +157,7 @@ subset lacks `\left...\right`, accents, matrices and `\over`; serif text only.
   with the Bradford transform, Lam 1985, matrices as tabulated by Lindbloom); L*a*b* and L*u*v* (CIE 1976) with L
   from 0 to 1 and the chromatic axes divided by 100, so components are of order one
   (`color_convert(red, "LAB")` gives 0.5429, 0.8081, 0.6988). `color_convert` takes
-  model names as strings (`"RGB"`, `"HSB"`, `"Grayscale"`, `"CMYK"`, `"LAB"`, `"XYZ"`, `"LUV"`, `"LCH"`) or heads,
+  model names as strings (`"RGB"`, `"HSB"`, `gray_level`, `"CMYK"`, `"LAB"`, `"XYZ"`, `"LUV"`, `"LCH"`) or heads,
   colours as component lists (`[g]`, `[r, g, b]`, `[c, m, y, k]`) and lists of colours. `rgb_color("#f00")`
   (three hex digits). `is_color`, `color_negate` (in the model the colour is written in), `color_distance` (CIE 1976
   difference). Named colours: `dark_*` (10), `standard_*` (11, softer hues chosen to read on light and dark pages),

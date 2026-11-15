@@ -32,7 +32,7 @@ fn cases() -> usize {
 }
 
 const NOTEBOOKS: &[&str] = &[
-    "#! mathcas 2 notebook\n\n#% title\n# T\n\n#% section\n# S\n\n#% cell label=1\nx/2 + sqrt(y)\n#% output n=1\n#= (1/2)*x + y^(1/2)\n\n#% cell typeset\n((a)/(b))+((sqrt(c)))\n\n#% text\n# words here\n\n#% cell\n[[1, 2], [3, 4]]\n#% output n=2\n#= [[1, 2], [3, 4]]\n",
+    "#! mathcas 2 notebook\n\n#% title\n# T\n\n#% section\n# S\n\n#% cell in=1\nx/2 + sqrt(y)\n#% output out=1\n#= (1/2)*x + y^(1/2)\n\n#% cell typeset\n((a)/(b))+((sqrt(c)))\n\n#% text\n# words here\n\n#% cell\n[[1, 2], [3, 4]]\n#% output out=2\n#= [[1, 2], [3, 4]]\n",
     "#! mathcas 2 notebook\n\n#% section closed\n# Closed\n\n#% cell\n1 + 1\n#% output\n#= 2\n#| printed\n#! failure(x)\n",
     "#! mathcas 2 notebook\n\n#% cell typeset\n(([[a, □], [□, d]]))\n\n#% output\n#= sum(k^2, [k, 1, n]) + integrate(f(x), x) + limit(sin(x)/x, x -> 0)\n",
     "",

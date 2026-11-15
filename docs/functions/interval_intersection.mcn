@@ -50,4 +50,4 @@ interval_intersection(centered_interval(2 + 3*im, 1 + im), centered_interval(1 +
 # See also
 
 #% text
-# `interval`, `interval_union`, `interval_member_q`
+# `interval`, `interval_union`, `is_interval_member`

@@ -1795,9 +1795,9 @@ impl View {
                 let value = if c.props.typeset { mc_boxes::linear_text(&mc_boxes::from_text(&c.text)) } else { c.text.clone() };
                 (Role::MultilineTextInput, format!("{} cell", c.style.info().name), Some(value))
             } else if c.style == Style::Output {
-                let name = match c.label {
-                    Some(n) => format!("Output out({n})"),
-                    None => "Output".to_string(),
+                let name = match c.label_text() {
+                    Some(l) => format!("{} {l}", c.style.info().name),
+                    None => c.style.info().name.to_string(),
                 };
                 (Role::Status, name, Some(c.text.clone()))
             } else if c.generated() {
@@ -2588,7 +2588,7 @@ mod tests {
     #[test]
     fn accessibility_tree_of_a_notebook() {
         let text = "#! mathcas 2 notebook\n\n#% title\n# Heat\n\n#% section\n# Model\n\n#% text\n# A sentence.\n\n\
-                    #% cell label=1 typeset\n((a)/(b))+((sqrt(c)))\n#% output n=1\n#= a/b + c^(1/2)\n";
+                    #% cell in=1 typeset\n((a)/(b))+((sqrt(c)))\n#% output out=1\n#= a/b + c^(1/2)\n";
         let nb = Notebook::parse(text).unwrap();
         let ctx = egui::Context::default();
         ctx.enable_accesskit();
@@ -2629,9 +2629,9 @@ mod tests {
             [
                 "Heading \"Heat\" \"\" level Some(1)",
                 "Heading \"Model\" \"\" level Some(2)",
-                "MultilineTextInput \"Input cell\" \"a/b+sqrt(c)\" level None",
+                "MultilineTextInput \"input cell\" \"a/b+sqrt(c)\" level None",
                 "Paragraph \"A sentence.\" \"\" level None",
-                "Status \"Output out(1)\" \"a/b + c^(1/2)\" level None",
+                "Status \"output out 1\" \"a/b + c^(1/2)\" level None",
             ]
         );
     }
@@ -2640,8 +2640,8 @@ mod tests {
     /// the caret, hits and clicks in boxes follow; switching to Right and back lays them out again.
     #[test]
     fn outputs_start_at_the_left_edge_by_default_and_switch() {
-        let text = "#! mathcas 2 notebook\n\n#% cell label=1\nx/2\n#% output n=1\n#= x/2 + 1\n\n\
-                    #% cell label=2\nsqrt(y)\n#% output n=2\n#| a print\n#! failure(division_by_zero)\n";
+        let text = "#! mathcas 2 notebook\n\n#% cell in=1\nx/2\n#% output out=1\n#= x/2 + 1\n\n\
+                    #% cell in=2\nsqrt(y)\n#% output out=2\n#| a print\n#! failure(division_by_zero)\n";
         let nb = Notebook::parse(text).unwrap();
         let ctx = egui::Context::default();
         ctx.set_fonts(mc_ui::fonts::definitions(mc_ui::fonts::Source::Bundled));
@@ -2681,8 +2681,8 @@ mod tests {
     /// content's right edge, and the caret, hit-testing and clicks in boxes follow; inputs stay on the left edge.
     #[test]
     fn outputs_end_at_the_right_edge_and_geometry_follows() {
-        let text = "#! mathcas 2 notebook\n\n#% cell label=1\nx/2\n#% output n=1\n#= x/2 + 1\n\n\
-                    #% cell label=2\nsqrt(y)\n#% output n=2\n#| a print\n#! failure(division_by_zero)\n";
+        let text = "#! mathcas 2 notebook\n\n#% cell in=1\nx/2\n#% output out=1\n#= x/2 + 1\n\n\
+                    #% cell in=2\nsqrt(y)\n#% output out=2\n#| a print\n#! failure(division_by_zero)\n";
         let nb = Notebook::parse(text).unwrap();
         let ctx = egui::Context::default();
         ctx.set_fonts(mc_ui::fonts::definitions(mc_ui::fonts::Source::Bundled));
@@ -2727,8 +2727,8 @@ mod tests {
     /// drawn in the label colour and a legend's swatches in theirs; a click on the value lands in the value.
     #[test]
     fn labeled_outputs_draw_their_labels_at_the_right_edge() {
-        let text = "#! mathcas 2 notebook\n\n#% cell label=1\nl\n#% output n=1\n#= labeled(x^2 + 1, \"energy\")\n\n\
-                    #% cell label=2\nm\n#% output n=2\n#= legended(sin(x), line_legend([red, blue], [\"a\", \"b\"]))\n";
+        let text = "#! mathcas 2 notebook\n\n#% cell in=1\nl\n#% output out=1\n#= labeled(x^2 + 1, \"energy\")\n\n\
+                    #% cell in=2\nm\n#% output out=2\n#= legended(sin(x), line_legend([red, blue], [\"a\", \"b\"]))\n";
         let nb = Notebook::parse(text).unwrap();
         let ctx = egui::Context::default();
         ctx.set_fonts(mc_ui::fonts::definitions(mc_ui::fonts::Source::Bundled));

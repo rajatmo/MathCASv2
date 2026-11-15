@@ -50,7 +50,7 @@ activate(inactive(add)(2, 2, inactive(pow)(3, 2)), add)
 # Activate everything except integration:
 
 #% cell
-activate(inactive(add)(inactive(cos)(pi), inactive(integrate)(x, x)), f_ when not match_q(f, integrate))
+activate(inactive(add)(inactive(cos)(pi), inactive(integrate)(x, x)), f_ when not is_match(f, integrate))
 #% output
 #= -1 + inactive(integrate)(x, x)
 

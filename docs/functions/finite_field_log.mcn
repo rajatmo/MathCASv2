@@ -69,7 +69,7 @@ finite_field_log(G([0, 1])^123456789012)
 #% cell
 Q = finite_field(7, 2)
 k = finite_field_log(Q([3, 5]))
-[Q([0, 1])^k == Q([3, 5]), finite_field_log(finite_field(7, 2, "Exponential")(10)), finite_field_log(Q(6))]
+[Q([0, 1])^k == Q([3, 5]), finite_field_log(finite_field(7, 2, exponential)(10)), finite_field_log(Q(6))]
 #% output
 #= [true, 9, 24]
 
@@ -91,7 +91,7 @@ big([0, 1])^finite_field_log(big([5, 7])) == big([5, 7])
 #% cell
 [finite_field_log(Q(0)), finite_field_log(Q(1), Q([0, 1])^2), finite_field_log(Q([0, 1]), Q([0, 1])^2)]
 #% output
-#= [finite_field_log(finite_field_element(finite_field(7, &(3 + 6*&1 + &1^2), "Polynomial"), [])), 0, finite_field_log(finite_field_element(finite_field(7, &(3 + 6*&1 + &1^2), "Polynomial"), [0, 1]), finite_field_element(finite_field(7, &(3 + 6*&1 + &1^2), "Polynomial"), [4, 1]))]
+#= [finite_field_log(finite_field_element(finite_field(7, &(3 + 6*&1 + &1^2), polynomial), [])), 0, finite_field_log(finite_field_element(finite_field(7, &(3 + 6*&1 + &1^2), polynomial), [0, 1]), finite_field_element(finite_field(7, &(3 + 6*&1 + &1^2), polynomial), [4, 1]))]
 
 #% text
 # The logarithm is the least one: the base `3` has the order 6 in `F_49`, so `3^7 = 3`:

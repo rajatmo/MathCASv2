@@ -22,7 +22,7 @@ fn vector_constraints() {
     assert_eq!(ev("n_min_value([x1 + x2, x1 + 2 * x2 + 3 >= 0, x1 - 1 >= 0], [x1, x2])"), "-1.0");
     assert_eq!(ev(&format!("n_maximize([dot([-1, -1], x), {p}], x)")), "[1.0, [x -> [1.0, -2.0]]]");
     // a constraint named by a symbol
-    assert_eq!(ev("c = vector_greater_equal([dot([[1, 2], [1, 0]], v), [3, -1]], [\"NonNegativeCone\", 2]); n_min_value([dot([1, 1], v), c], v)"), "1.0");
+    assert_eq!(ev("c = vector_greater_equal([dot([[1, 2], [1, 0]], v), [3, -1]], [nonnegative_cone, 2]); n_min_value([dot([1, 1], v), c], v)"), "1.0");
     // an integer variable among real ones
     assert_eq!(ev("n_arg_max([x + y, x + 2 * y <= 3, x <= 1], [x, element(y, integers)])"), "[1.0, 1]");
     assert_eq!(ev("n_arg_min([x + y, x + 2 * y >= 3, x >= -2], [x, element(y, integers)])"), "[-2.0, 3]");
@@ -32,22 +32,22 @@ fn vector_constraints() {
 #[test]
 fn vector_calculus_in_coordinates() {
     // documented: the polar curl of [r sin t, -r cos t]
-    assert_eq!(ev("curl([r * sin(t), -r * cos(t)], [r, t], \"Polar\")"), "-3*cos(t)");
+    assert_eq!(ev("curl([r * sin(t), -r * cos(t)], [r, t], polar)"), "-3*cos(t)");
     // the same field in Cartesian form is [y, -x] at (x, y) = r (cos t, sin t) rotated: its curl -2 ... plus the
     // radial part; independent route: the divergence of r e_r is 2 in the plane and 3 in space
-    assert_eq!(ev("div([r, 0], [r, t], \"Polar\")"), "2");
-    assert_eq!(ev("div([r, 0, 0], [r, t, p], \"Spherical\")"), "3");
+    assert_eq!(ev("div([r, 0], [r, t], polar)"), "2");
+    assert_eq!(ev("div([r, 0, 0], [r, t, p], spherical)"), "3");
     assert_eq!(ev("div([x, y, z], [x, y, z])"), "3");
-    assert_eq!(ev("div([0, 0, 1 / r], [r, t, z], \"Cylindrical\")"), "0");
-    assert_eq!(ev("curl([f(r), 0, 0], [r, t, p], \"Spherical\")"), "[0, 0, 0]");
+    assert_eq!(ev("div([0, 0, 1 / r], [r, t, z], cylindrical)"), "0");
+    assert_eq!(ev("curl([f(r), 0, 0], [r, t, p], spherical)"), "[0, 0, 0]");
     // a rigid rotation v_t = r has curl 2 along z, as [-y, x, 0] has in Cartesian coordinates
-    assert_eq!(ev("curl([0, r, 0], [r, t, z], \"Cylindrical\")"), "[0, 0, 2]");
+    assert_eq!(ev("curl([0, r, 0], [r, t, z], cylindrical)"), "[0, 0, 2]");
     assert_eq!(ev("curl([-y, x, 0], [x, y, z])"), "[0, 0, 2]");
     // harmonic functions: 1/r in space, log r in the plane
-    assert_eq!(ev("laplacian(1 / r, [r, t, p], \"Spherical\")"), "0");
-    assert_eq!(ev("laplacian(log(r), [r, t], \"Polar\")"), "0");
-    assert_eq!(ev("laplacian(r^2, [r, t, z], \"Cylindrical\")"), "4");
-    assert_eq!(ev("grad(r^2 * sin(t), [r, t], \"Polar\")"), "[2*r*sin(t), r*cos(t)]");
+    assert_eq!(ev("laplacian(1 / r, [r, t, p], spherical)"), "0");
+    assert_eq!(ev("laplacian(log(r), [r, t], polar)"), "0");
+    assert_eq!(ev("laplacian(r^2, [r, t, z], cylindrical)"), "4");
+    assert_eq!(ev("grad(r^2 * sin(t), [r, t], polar)"), "[2*r*sin(t), r*cos(t)]");
     // an unknown system stays as it is
     assert_eq!(ev("grad(r, [r, t], \"Elliptic\")"), "grad(r, [r, t], \"Elliptic\")");
 }

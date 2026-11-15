@@ -29,7 +29,7 @@ delete_cases([b, e, d, a, b, c, d], apply(alternatives, [b, c]))
 #= [e, d, a, d]
 
 #% cell
-match_q(2, alternatives(1, 2, 3))
+is_match(2, alternatives(1, 2, 3))
 #% output
 #= true
 
@@ -37,4 +37,4 @@ match_q(2, alternatives(1, 2, 3))
 # See also
 
 #% text
-# `cases`, `delete_cases`, `match_q`
+# `cases`, `delete_cases`, `is_match`

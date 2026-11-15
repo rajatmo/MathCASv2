@@ -9,7 +9,7 @@
 //! | `n_minimize(f, element([x, y], disk()))` | the variables and a region at once |
 //! | `vars` items `element(x, integers)`, `[x, a, b]` | integer variables; a search range |
 //! | a vector variable `v` with `dot(a, v)` | its length found from the expressions; `[v -> [...]]` |
-//! | `vector_greater_equal([a, b])` | a ≥ b componentwise (also `vector_less_equal`, and the `"NormCone"`) |
+//! | `vector_greater_equal([a, b])` | a ≥ b componentwise (also `vector_less_equal`, and the `norm_cone`) |
 //!
 //! The method follows the problem (decision R.20): an affine objective with affine constraints is a linear
 //! program (the simplex method, with branch and bound for integers), and its answer is the exact vertex; anything
@@ -246,13 +246,13 @@ impl<'h> Reader<'h> {
         let h = cx.heap();
         let bad = || Ok(Err(format!("{} is not a constraint", printed(h, t))));
         let Some(&[a, b]) = args.first().and_then(|&p| cx.as_list(p)) else { return bad() };
-        // the cone: none or "NonNegativeCone" componentwise; "NormCone": |first ones| <= last
+        // the cone: none or `nonnegative_cone` componentwise; `norm_cone`: |first ones| <= last
         let cone = match args.get(1).map(|&c| h.view(c)) {
             None => None,
-            Some(View::Str(s)) => Some(s.to_string()),
+            Some(View::Sym(s)) => Some(h.sym_name(s)),
             Some(_) => match args.get(1).and_then(|&c| cx.as_list(c)) {
                 Some(&[c, _]) => match h.view(c) {
-                    View::Str(s) => Some(s.to_string()),
+                    View::Sym(s) => Some(h.sym_name(s)),
                     _ => return bad(),
                 },
                 _ => return bad(),
@@ -264,8 +264,8 @@ impl<'h> Reader<'h> {
             None => vec![d],
         };
         match cone.as_deref() {
-            None | Some("NonNegativeCone") => Ok(Ok(vec![items.into_iter().map(Atom::Ge).collect()])),
-            Some("NormCone") if items.len() >= 2 => {
+            None | Some("nonnegative_cone") => Ok(Ok(vec![items.into_iter().map(Atom::Ge).collect()])),
+            Some("norm_cone") if items.len() >= 2 => {
                 // last - sqrt(sum of squares of the others) >= 0, written as last^2 - sum >= 0 and last >= 0
                 let (last, rest) = items.split_last().expect("two items");
                 let mut sum = h.int(0);
@@ -608,7 +608,6 @@ pub(crate) fn drop_ignored<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], ke
                             _ => v,
                         };
                         let known = match h.view(m) {
-                            View::Str(x) => KNOWN_METHODS.contains(&x.to_ascii_lowercase().replace(['_', ' '], "").as_str()),
                             View::Sym(x) => KNOWN_METHODS.contains(&h.sym_name(x).to_ascii_lowercase().replace('_', "").as_str()),
                             _ => false,
                         };
@@ -993,7 +992,9 @@ fn solve<'h>(
                     if matches!(h.view(head), View::App { .. }) {
                         stack.push(head);
                     }
-                    stack.extend_from_slice(args);
+                    // the cone of a vector constraint (`nonnegative_cone`, `[norm_cone, n]`) names a kind, no parameter
+                    let cone = matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "vector_greater_equal" | "vector_less_equal"));
+                    stack.extend_from_slice(if cone && !args.is_empty() { &args[..1] } else { args });
                 }
                 View::Sym(s) if !slots.contains(&s) && !vars.iter().any(|v| v.sym == s) => {
                     // the head of a call is not a parameter; a constant (pi, e) has a numeric value
@@ -1916,7 +1917,7 @@ impl Native for VectorCompare {
         }
         // only the componentwise cone is decided here
         if let Some(&c) = args.get(1) {
-            if !matches!(h.view(c), View::Str(s) if s == "NonNegativeCone") {
+            if !matches!(h.view(c), View::Sym(s) if h.sym_name(s) == "nonnegative_cone") {
                 return Ok(Reply::Decline);
             }
         }

@@ -61,7 +61,7 @@ fn ordering_functions_and_properties() {
             ("take_largest_by([-5, 2] -> all, x => x * x, 1)", "[assoc(\"Element\" -> -5, \"Index\" -> 1, \"Value\" -> 25)]"),
             ("array_depth(f(f(1, 2, 3), f(4, 5, 6)), allowed_heads: list)", "0"),
             ("array_depth(f(g(1, 2), g(3, 4)), allowed_heads: all)", "2"),
-            ("array_depth([[1, 2], [3, 4]], allowed_heads: \"ListLike\")", "2"),
+            ("array_depth([[1, 2], [3, 4]], allowed_heads: list)", "2"),
         ],
     );
 }

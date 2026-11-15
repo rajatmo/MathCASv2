@@ -10,7 +10,7 @@
 # Details
 
 #% item
-# `boolean_minimize(e, form)` uses the named form as `boolean_convert` does (`"cnf"` gives a small product of sums); `boolean_minimize(e, form, cond)` and `boolean_minimize(e, cond)` need agree with `e` only where `cond` is true.
+# `boolean_minimize(e, form)` uses the named form as `boolean_convert` does (`cnf` gives a small product of sums); `boolean_minimize(e, form, cond)` and `boolean_minimize(e, cond)` need agree with `e` only where `cond` is true.
 
 #% item
 # The terms are in order of their literals, a variable before its negation. The cover is greedy: small, not always the smallest.
@@ -27,7 +27,7 @@ boolean_minimize((a and b) or (a and not b))
 #= a
 
 #% cell
-boolean_minimize(xor(a, b, c), "cnf")
+boolean_minimize(xor(a, b, c), cnf)
 #% output
 #= (not a or not b or c) and (not a or b or not c) and (a or not b or not c) and (a or b or c)
 
@@ -46,7 +46,7 @@ boolean_minimize((a and b) or c, a)
 # In nand only:
 
 #% cell
-boolean_minimize(implies(a, b), "nand")
+boolean_minimize(implies(a, b), nand)
 #% output
 #= nand(a, not b)
 

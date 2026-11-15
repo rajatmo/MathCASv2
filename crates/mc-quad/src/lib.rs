@@ -61,10 +61,10 @@ pub const LIBRARY_ORIGIN: &str = "lib/numerics.mc";
 pub const LIBRARY_FUNCTIONS: &[(&str, &str)] = &[
     ("ratios", "ratios(xs): the successive ratios xs[i + 1]/xs[i]; ratios(xs, k): k times; ratios(xs, [k1, k2, ...]): k1 times at level 1, k2 at level 2, ..."),
     ("linear_recurrence", "linear_recurrence(ker, init, n): the first n terms of a[k] = ker[1] a[k - 1] + ... + ker[d] a[k - d] from init; (ker, init, [m]), (ker, init, [m1, m2]): term m, terms m1 to m2 (m1 <= 0 runs backwards)"),
-    ("threshold", "threshold(data), (data, delta), (data, [\"Hard\" | \"Soft\" | \"Firm\" | \"PiecewiseGarrote\" | \"SmoothGarrote\" | \"Hyperbola\", delta, ...]), (data, [\"LargestValues\", k]): data with the small values set to zero"),
+    ("threshold", "threshold(data), (data, delta), (data, [hard | soft | firm | piecewise_garrote | smooth_garrote | hyperbola, delta, ...]), (data, [largest_values, k]): data with the small values set to zero"),
     ("cantor_staircase", "cantor_staircase(x): the Cantor function, exact at rational x, numeric at inexact x; 0 for x <= 0 and 1 for x >= 1"),
     ("dirac_comb", "dirac_comb(x1, ..., xk): the Dirac comb, a sum of delta functions at the integers (a product over the arguments): 0 at numbers that are not integers"),
-    ("mandelbrot_set_member_q", "mandelbrot_set_member_q(c): whether the orbit of 0 under z^2 + c stays bounded for max_iterations steps (default 1000); lists elementwise"),
+    ("is_mandelbrot_set_member", "is_mandelbrot_set_member(c): whether the orbit of 0 under z^2 + c stays bounded for max_iterations steps (default 1000); lists elementwise"),
     ("interpolating_polynomial", "interpolating_polynomial(data, x): the polynomial of least degree through values [f1, ...] at 1, 2, ..., points [[x1, f1], ...] or Hermite data [[x1, f1, d1, ...], ...], in Newton form"),
     ("fourier", "fourier(list), fourier(array): the discrete Fourier transform 1/n^((1 - a)/2) sum u[r] exp(2 pi i b (r - 1)(s - 1)/n) along every level, fourier_parameters [a, b] (default [0, 1]), at the precision of the data"),
     ("inverse_fourier", "inverse_fourier(list), inverse_fourier(array): the inverse discrete Fourier transform, with the same fourier_parameters as fourier"),
@@ -84,7 +84,7 @@ pub const LIBRARY_FUNCTIONS: &[(&str, &str)] = &[
     ("list_interpolation", "list_interpolation(array), (array, [[xmin, xmax], ...]), (array, [[x1, x2, ...], ...]): a function interpolating the values on a grid by piecewise Lagrange polynomials of interpolation_order (default 3)"),
     ("function_interpolation", "function_interpolation(f, [x, a, b], ...): a function interpolating the expression f sampled on a grid over the ranges, as list_interpolation"),
     ("mean_around", "mean_around(xs): the mean of numbers with its standard error as around(m, s/sqrt(n)); of around values the weighted mean; of vectors vector_around(mean, covariance/n)"),
-    ("random_polygon", "random_polygon(), (k), (type), ([type, k]), ([type, dist, k]), (spec, m), (spec, [m1, ...]), (d -> spec): a random polygon in the unit square (\"Simple\", \"Convex\", \"StarShaped\", \"ConvexHull\"), m of them, or one in a random plane of dimension d"),
+    ("random_polygon", "random_polygon(), (k), (type), ([type, k]), ([type, dist, k]), (spec, m), (spec, [m1, ...]), (d -> spec): a random polygon in the unit square (simple, convex, star_shaped, convex_hull), m of them, or one in a random plane of dimension d"),
     ("find_peaks", "find_peaks(data), (data, sigma), (data, sigma, s), (data, sigma, s, t): the peaks [position, value] of a list: local maxima (plateaus at their middle) after Gaussian blurring by sigma, sharpness above s, value above t"),
 ];
 

@@ -154,14 +154,14 @@ fn finite_field<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: &Syms, t: T<'h>, args: &[T
     let (spec, repr) = match args {
         [a] => (vec![*a], Repr::Polynomial),
         [a, b] => match h.view(*b) {
-            View::Str(r) => match repr_of(r) {
+            View::Sym(r) => match repr_of(&h.sym_name(r)) {
                 Some(r) => (vec![*a], r),
-                None => return decline(),
+                None => (vec![*a, *b], Repr::Polynomial),
             },
             _ => (vec![*a, *b], Repr::Polynomial),
         },
         [a, b, r] => match h.view(*r) {
-            View::Str(r) => match repr_of(r) {
+            View::Sym(r) => match repr_of(&h.sym_name(r)) {
                 Some(r) => (vec![*a, *b], r),
                 None => return decline(),
             },
@@ -210,8 +210,8 @@ fn finite_field<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: &Syms, t: T<'h>, args: &[T
 
 fn repr_of(r: &str) -> Option<Repr> {
     match r {
-        "Polynomial" => Some(Repr::Polynomial),
-        "Exponential" => Some(Repr::Exponential),
+        "polynomial" => Some(Repr::Polynomial),
+        "exponential" => Some(Repr::Exponential),
         _ => None,
     }
 }
@@ -266,7 +266,7 @@ fn properties<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: &Syms, f: &Arc<Field>, ft: T
         ("ExtensionDegree", _) => h.int(f.n as i64),
         ("FieldSize", _) => nat_term(h, &f.q),
         ("FieldIrreducible", _) => defining_function(h, s, f),
-        ("ElementRepresentation", _) => h.string(f.repr.name()),
+        ("ElementRepresentation", _) => h.sym_term(h.sym(f.repr.name())),
         ("Field", Some(_)) => ft,
         ("Coefficients", Some(a)) => coeff_list(h, s, a),
         ("Index", Some(a)) => match index_of(f, a, cx)? {

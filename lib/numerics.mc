@@ -64,17 +64,17 @@ fn nl_lr_before(ker, init, lo) = {
 # --- thresholding ---
 
 # threshold(data), (data, delta), (data, spec): the elements of data with small values set to zero, at every level.
-# spec: delta or ["Hard", delta] (x when |x| > delta), ["Soft", delta] (shrunk by delta), ["Firm", delta, r, p],
-# ["PiecewiseGarrote", delta], ["SmoothGarrote", delta, k], ["Hyperbola", delta], ["LargestValues", k] (the k
+# spec: delta or [hard, delta] (x when |x| > delta), [soft, delta] (shrunk by delta), [firm, delta, r, p],
+# [piecewise_garrote, delta], [smooth_garrote, delta, k], [hyperbola, delta], [largest_values, k] (the k
 # largest in absolute value kept). The default delta is 10^-10.
 rule threshold(data_) := threshold(data, 1/10^10)
 rule threshold(data_, spec_) := {
-  if is_list(spec) and length(spec) == 2 and spec[1] === "LargestValues" then nl_th_largest(data, spec[2])
+  if is_list(spec) and length(spec) == 2 and spec[1] === largest_values then nl_th_largest(data, spec[2])
   else {
-    let s = if is_list(spec) then spec else ["Hard", spec]
+    let s = if is_list(spec) then spec else [hard, spec]
     nl_th_map(x => nl_th_one(x, s), data)
   }
-} when not match_q(spec, _ -> _)
+} when not is_match(spec, _ -> _)
 fn nl_th_map(f, d) = if is_list(d) then map(e => nl_th_map(f, e), d) else f(d)
 fn nl_th_zero(x) = if not is_inexact(x) then 0 else if is_real(x) === true then 0*abs(x) else complex(0*abs(re(x)), 0*abs(im_part(x)))
 fn nl_th_one(x, s) = {
@@ -82,12 +82,12 @@ fn nl_th_one(x, s) = {
   let dl = s[2]
   let ax = abs(x)
   if not is_number(x) then x
-  else if kind === "Hard" then (if ax > dl then x else nl_th_zero(x))
-  else if kind === "Soft" then (if ax > dl then x - dl*x/ax else nl_th_zero(x))
-  else if kind === "PiecewiseGarrote" then (if ax > dl then x - dl^2/x else nl_th_zero(x))
-  else if kind === "Hyperbola" then (if ax > dl then x/ax*sqrt(x*conjugate(x) - dl^2) else nl_th_zero(x))
-  else if kind === "SmoothGarrote" then { let k = if length(s) > 2 then s[3] else 1; x^(2*k + 1)/(dl^(2*k) + x^(2*k)) }
-  else if kind === "Firm" then {
+  else if kind === hard then (if ax > dl then x else nl_th_zero(x))
+  else if kind === soft then (if ax > dl then x - dl*x/ax else nl_th_zero(x))
+  else if kind === piecewise_garrote then (if ax > dl then x - dl^2/x else nl_th_zero(x))
+  else if kind === hyperbola then (if ax > dl then x/ax*sqrt(x*conjugate(x) - dl^2) else nl_th_zero(x))
+  else if kind === smooth_garrote then { let k = if length(s) > 2 then s[3] else 1; x^(2*k + 1)/(dl^(2*k) + x^(2*k)) }
+  else if kind === firm then {
     let r = if length(s) > 2 then s[3] else 1
     let p = if length(s) > 3 then s[4] else 1/2
     let lo = dl - p*r*dl
@@ -164,13 +164,13 @@ rule dirac_comb(xs__) := apply(dirac_comb, map(nl_comb_sign, xs)) when some(xs, 
 rule dirac_comb(l_) := map(dirac_comb, l) when is_list(l)
 fn nl_comb_sign(x) = if is_number(x) and is_real(x) and x < 0 then -x else if not is_atom(x) and head(x) === mul and is_number(x[1]) and x[1] < 0 then -x else x
 
-# --- mandelbrot_set_member_q ---
+# --- is_mandelbrot_set_member ---
 
-# mandelbrot_set_member_q(c): whether the orbit of 0 under z^2 + c stays bounded (|z| <= 2) for max_iterations
+# is_mandelbrot_set_member(c): whether the orbit of 0 under z^2 + c stays bounded (|z| <= 2) for max_iterations
 # steps; the main cardioid and the period-2 disk are recognised directly
-fn mandelbrot_set_member_q(c; max_iterations = 1000, working_precision = machine_precision) =
-  if is_list(c) then map(z => mandelbrot_set_member_q(z, max_iterations: max_iterations, working_precision: working_precision), c)
-  else if not is_numeric(c) then failure(argument, mandelbrot_set_member_q, 1)
+fn is_mandelbrot_set_member(c; max_iterations = 1000, working_precision = machine_precision) =
+  if is_list(c) then map(z => is_mandelbrot_set_member(z, max_iterations: max_iterations, working_precision: working_precision), c)
+  else if not is_numeric(c) then failure(argument, is_mandelbrot_set_member, 1)
   else {
     let w = if working_precision === machine_precision then n(c) else n(c, working_precision)
     let q = (re(w) - 1/4)^2 + im_part(w)^2
@@ -454,11 +454,11 @@ fn nl_spline_top(x, y, mm, p) = {
 # are reported at the nearest peak of the data itself
 # (no `when` clause: with defaults and options it shifts the arguments, see NOTES.md)
 fn find_peaks(data, sigma = automatic, s = automatic, t = automatic; interpolation_order = automatic) = if not is_list(data) or length(data) == 0 then failure(argument, find_peaks, 1)
-else if every(data, q => match_q(q, quantity(_, _))) then {
+else if every(data, q => is_match(q, quantity(_, _))) then {
   # quantities (of any compatible units): their magnitudes in the unit of the first, the peaks with that unit
   let u = data[1][2]
   let mags = map(q => quantity_magnitude(q, u), data)
-  let tq = if match_q(t, quantity(_, _)) then quantity_magnitude(t, u) else t
+  let tq = if is_match(t, quantity(_, _)) then quantity_magnitude(t, u) else t
   let r = find_peaks(mags, sigma, s, tq, interpolation_order: interpolation_order)
   if is_list(r) then map(p => [p[1], quantity(p[2], u)], r) else r
 } else {
@@ -735,13 +735,13 @@ fn nl_mc(f, g, x, y, asm, gc) = {
 # whether generate_conditions: true is among trailing options
 fn nl_gc(opts) = {
   let rs = flatten(map(o => if not is_atom(o) and head(o) === options then apply(list, o) else [o], opts))
-  some(rs, r => match_q(r, generate_conditions -> true))
+  some(rs, r => is_match(r, generate_conditions -> true))
 }
 
 # the assumptions among trailing options (true without them)
 fn nl_asm(opts) = {
   let rs = flatten(map(o => if not is_atom(o) and head(o) === options then apply(list, o) else [o], opts))
-  let hit = select(rs, r => match_q(r, assumptions -> _))
+  let hit = select(rs, r => is_match(r, assumptions -> _))
   if length(hit) == 0 then true else hit[1][2]
 }
 rule unilateral_convolve(f_, g_, tau_, t_, opts___) := nl_uc(f, g, tau, t, nl_asm(opts)) when nl_uc(f, g, tau, t, nl_asm(opts)) !== null
@@ -899,9 +899,9 @@ fn nl_star(k) = {
 fn nl_rand_points(dist, k) = if dist === automatic then map(i => [random_real(), random_real()], range(k)) else { let v = random_variate(dist, k); if is_list(v) and length(v) > 0 and is_list(v[1]) then v else partition(random_variate(dist, 2*k), 2) }
 # the vertices of one random polygon of a type with k vertices
 fn nl_rpoly(kind, dist, k) =
-  if kind === "Convex" then nl_convex(k)
-  else if kind === "StarShaped" then nl_star(k)
-  else if kind === "ConvexHull" then nl_hull(nl_rand_points(dist, k))
+  if kind === convex then nl_convex(k)
+  else if kind === star_shaped then nl_star(k)
+  else if kind === convex_hull then nl_hull(nl_rand_points(dist, k))
   else nl_by_angle(nl_rand_points(dist, k))
 # the planar vertices placed in a random plane through the unit cube of dimension d
 fn nl_embed(ps, d) =
@@ -917,8 +917,8 @@ fn nl_embed(ps, d) =
   }
 # the spec [type, dist, k] of a random_polygon argument
 fn nl_rp_spec(s) =
-  if is_integer(s) then ["Simple", automatic, s]
-  else if is_string(s) then [s, automatic, automatic]
+  if is_integer(s) then [simple, automatic, s]
+  else if is_symbol(s) then [s, automatic, automatic]
   else if is_list(s) and length(s) == 2 then [s[1], automatic, s[2]]
   else if is_list(s) and length(s) == 3 then s
   else s
@@ -930,13 +930,13 @@ fn nl_rp_one(spec, d) = {
 fn nl_rp_many(spec, d, shape) = if length(shape) == 0 then nl_rp_one(spec, d) else map(i => nl_rp_many(spec, d, drop(shape, 1)), range(shape[1]))
 
 # random_polygon(), random_polygon(k), random_polygon(spec), random_polygon(spec, m), random_polygon(spec, [m1, ...]):
-# a random polygon in the unit square, or m of them, or an array; spec k (vertices), a type "Simple" (the default),
-# "Convex", "StarShaped" or "ConvexHull", [type, k], [type, dist, k] (vertices from a distribution, for
-# "ConvexHull" and "Simple"); d -> spec for a planar polygon in a random plane of dimension d
+# a random polygon in the unit square, or m of them, or an array; spec k (vertices), a type simple (the default),
+# convex, star_shaped or convex_hull, [type, k], [type, dist, k] (vertices from a distribution, for
+# convex_hull and simple); d -> spec for a planar polygon in a random plane of dimension d
 fn random_polygon(spec = automatic, shape = automatic) = {
-  let d = if match_q(spec, _ -> _) then spec[1] else 2
-  let s0 = if match_q(spec, _ -> _) then spec[2] else spec
-  let s = if s0 === automatic then "Simple" else s0
+  let d = if is_match(spec, _ -> _) then spec[1] else 2
+  let s0 = if is_match(spec, _ -> _) then spec[2] else spec
+  let s = if s0 === automatic then simple else s0
   if shape === automatic then nl_rp_one(s, d) else nl_rp_many(s, d, if is_list(shape) then shape else [shape])
 }
 

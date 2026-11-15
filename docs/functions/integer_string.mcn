@@ -16,11 +16,11 @@
 # A shorter result is padded with zeros on the left, a longer one cut to its last `len` characters.
 
 #% item
-# `integer_string(n, "Roman")` gives a Roman numeral for 0 < n < 4000.
+# `integer_string(n, roman)` gives a Roman numeral for 0 < n < 4000.
 
 #% item
 # `integer_string(n, "Base64")` writes the base-64 digits with the alphabet `A`-`Z`, `a`-`z`, `0`-`9`, `+`, `/`;
-# `integer_string(n, "Arabic")` writes the decimal digits in Arabic-Indic digits.
+# `integer_string(n, arabic)` writes the decimal digits in Arabic-Indic digits.
 
 #% section
 # Examples
@@ -29,7 +29,7 @@
 # Basic examples
 
 #% cell
-integer_string(1988, "Roman")
+integer_string(1988, roman)
 #% output
 #= "MCMLXXXVIII"
 

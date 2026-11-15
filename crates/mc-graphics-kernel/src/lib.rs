@@ -84,7 +84,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("aspect_ratio", "option of graphics: aspect_ratio: r (height over width of the plot area), automatic (equal units), full (fills image_size)"),
     ("image_size", "option of graphics: image_size: w or [w, h], in points (pixels at scale 1); default width 360"),
     ("background", "option of graphics: background: color, or none for transparent (default white)"),
-    ("plot_theme", "option of graphics and plots: plot_theme: \"dark\" | \"light\", the chrome written in that theme's colours into every file (data keeps its colours)"),
+    ("plot_theme", "option of graphics and plots: plot_theme: dark | light, the chrome written in that theme's colours into every file (data keeps its colours)"),
     ("ticks", "option of graphics: ticks: automatic | none | [x_ticks, y_ticks], each automatic, none or a list of positions or [position, label]"),
     ("grid_lines", "option of graphics: grid_lines: none | automatic | [x_lines, y_lines], each automatic, none or a list of positions or [position, directives]"),
     (

@@ -16,7 +16,7 @@
 # A negative count removes entries from that side.
 
 #% item
-# The rules `"Fixed"`, `"Periodic"`, `"Reversed"` and `"Reflected"` take the new entries from the array itself: the nearest edge entry, the cyclic repetition, the cyclic repetition with every other copy reversed, and the mirror image that does not repeat the edge entry.
+# The rules `fixed`, `periodic`, `reversed` and `reflected` take the new entries from the array itself: the nearest edge entry, the cyclic repetition, the cyclic repetition with every other copy reversed, and the mirror image that does not repeat the edge entry.
 
 #% item
 # `array_pad` is defined in the prelude.
@@ -56,22 +56,22 @@ array_pad(range(10), -2)
 # The edge rules:
 
 #% cell
-array_pad([a, b, c], 4, "Periodic")
+array_pad([a, b, c], 4, periodic)
 #% output
 #= [c, a, b, c, a, b, c, a, b, c, a]
 
 #% cell
-array_pad([1, 2, 3], 2, "Fixed")
+array_pad([1, 2, 3], 2, fixed)
 #% output
 #= [1, 1, 1, 2, 3, 3, 3]
 
 #% cell
-array_pad([a, b, c], 4, "Reversed")
+array_pad([a, b, c], 4, reversed)
 #% output
 #= [c, c, b, a, a, b, c, c, b, a, a]
 
 #% cell
-array_pad([a, b, c], 4, "Reflected")
+array_pad([a, b, c], 4, reflected)
 #% output
 #= [a, b, c, b, a, b, c, b, a, b, c]
 

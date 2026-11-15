@@ -44,6 +44,25 @@ pub const TEXT: &str = "#% text";
 pub const OUTPUT: &str = "#% output";
 /// The first line of a cell fragment ([`print_cells`]), as put on the clipboard.
 pub const FRAGMENT: &str = "#% cells";
+/// The attribute of an evaluated input cell's marker holding its label number: `#% cell in=3` is the cell `in 3`.
+pub const IN_LABEL: &str = "in";
+/// The attribute of an output block holding its label number: `#% output out=3` is the output `out 3`.
+pub const OUT_LABEL: &str = "out";
+
+/// The names the labels had in notebooks saved before version 1.0 (`label=3` on a cell, `n=3` on an output block);
+/// reading converts them.
+const OLD_IN_LABEL: &str = "label";
+const OLD_OUT_LABEL: &str = "n";
+
+/// `attrs` with the attribute `old` renamed to `new` in place (dropped when `new` is present as well).
+fn renamed(mut attrs: Attrs, old: &str, new: &str) -> Attrs {
+    if attrs.has(new) {
+        attrs.remove(old);
+    } else if let Some(a) = attrs.0.iter_mut().find(|a| a.name == old) {
+        a.name = new.to_string();
+    }
+    attrs
+}
 
 /// The kind of a cell, written after `#% `. The kinds are the cell styles of the notebook; the file only fixes how
 /// the body is written: source lines for the code kinds ([`Kind::is_code`]), comment lines for the rest.
@@ -73,21 +92,21 @@ pub enum Kind {
     Subsubsection,
     /// `item`
     Item,
-    /// `itemparagraph`
+    /// `item_paragraph`
     ItemParagraph,
     /// `subitem`
     Subitem,
-    /// `subitemparagraph`
+    /// `subitem_paragraph`
     SubitemParagraph,
     /// `subsubitem`
     Subsubitem,
-    /// `itemnumbered`
+    /// `item_numbered`
     ItemNumbered,
-    /// `subitemnumbered`
+    /// `subitem_numbered`
     SubitemNumbered,
-    /// `subsubitemnumbered`
+    /// `subsubitem_numbered`
     SubsubitemNumbered,
-    /// `displayformula`
+    /// `display_formula`
     DisplayFormula,
     /// `program`
     Program,
@@ -134,24 +153,26 @@ impl Kind {
             Kind::Subsection => "subsection",
             Kind::Subsubsection => "subsubsection",
             Kind::Item => "item",
-            Kind::ItemParagraph => "itemparagraph",
+            Kind::ItemParagraph => "item_paragraph",
             Kind::Subitem => "subitem",
-            Kind::SubitemParagraph => "subitemparagraph",
+            Kind::SubitemParagraph => "subitem_paragraph",
             Kind::Subsubitem => "subsubitem",
-            Kind::ItemNumbered => "itemnumbered",
-            Kind::SubitemNumbered => "subitemnumbered",
-            Kind::SubsubitemNumbered => "subsubitemnumbered",
-            Kind::DisplayFormula => "displayformula",
+            Kind::ItemNumbered => "item_numbered",
+            Kind::SubitemNumbered => "subitem_numbered",
+            Kind::SubsubitemNumbered => "subsubitem_numbered",
+            Kind::DisplayFormula => "display_formula",
             Kind::Program => "program",
         }
     }
 
-    /// The kind written as `word` in a marker line (`input` is another spelling of `cell`).
+    /// The kind written as `word` in a marker line (`input` is another spelling of `cell`). The names that notebooks
+    /// saved before version 1.0 wrote without the underscore (`itemnumbered`, `displayformula`) are read as the
+    /// same kinds, so an old notebook opens; it is written back with the current names.
     pub fn from_name(word: &str) -> Option<Kind> {
         if word == "input" {
             return Some(Kind::Input);
         }
-        Kind::ALL.into_iter().find(|k| k.name() == word)
+        Kind::ALL.into_iter().find(|k| k.name() == word || (k.name().contains('_') && k.name().replace('_', "") == word))
     }
 
     /// Whether the body is source (evaluated when the file runs as a script) rather than comment lines.
@@ -160,7 +181,7 @@ impl Kind {
     }
 }
 
-/// One attribute of a marker or header line: a flag (`closed`) or a name with a value (`label=3`).
+/// One attribute of a marker or header line: a flag (`closed`) or a name with a value (`in=3`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Attr {
     /// the name
@@ -308,7 +329,7 @@ impl OutputKind {
     }
 }
 
-/// An output block: `#% output` with its attributes (`n=N` the output's number, `size=WxH` a graphic's display
+/// An output block: `#% output` with its attributes (`out=N` the output's number, `size=WxH` a graphic's display
 /// size) and its lines.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct OutputBlock {
@@ -592,7 +613,7 @@ fn read_cells(lines: &[&str], first: usize) -> Result<CellsRead, ParseError> {
     while let Some(Block { marker, at, lines }) = blocks.next() {
         let cell = match marker {
             Line::Cell(kind, attrs) => {
-                let attrs = attrs_of(&attrs, at);
+                let attrs = renamed(attrs_of(&attrs, at), OLD_IN_LABEL, IN_LABEL);
                 let mut outputs = vec![];
                 let mut gap;
                 let mut body = lines;
@@ -617,7 +638,8 @@ fn read_cells(lines: &[&str], first: usize) -> Result<CellsRead, ParseError> {
                                 }),
                             })
                             .collect::<Result<_, _>>()?;
-                        outputs.push(OutputBlock { attrs: attrs_of(&oattrs, out_at), lines });
+                        let attrs = renamed(attrs_of(&oattrs, out_at), OLD_OUT_LABEL, OUT_LABEL);
+                        outputs.push(OutputBlock { attrs, lines });
                     }
                 } else {
                     (body, gap) = if kind.is_code() { split_code_gap(body) } else { split_gap(body) };

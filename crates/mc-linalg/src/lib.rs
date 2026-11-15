@@ -64,7 +64,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("cross", "cross(u, v): the cross product of two vectors of length 3"),
     ("kronecker_product", "kronecker_product(a, b, ...): the Kronecker product of matrices (or of vectors)"),
     ("trace", "trace(m): the sum of the diagonal of a square matrix"),
-    ("norm", "norm(v), norm(v, p), norm(m), norm(m, 1 | inf | \"frobenius\"): vector p-norms (p a positive integer or inf) and matrix norms (default the 2-norm)"),
+    ("norm", "norm(v), norm(v, p), norm(m), norm(m, 1 | inf | frobenius): vector p-norms (p a positive integer or inf) and matrix norms (default the 2-norm)"),
     ("lu", "lu(m): [l, u, p] with l unit lower triangular, u upper triangular and m[p] == dot(l, u)"),
     ("qr", "qr(m): [q, r] with m == dot(q, r), q with orthonormal columns, r upper triangular"),
     ("cholesky", "cholesky(m): the upper triangular u with m == dot(conjugate_transpose(u), u) for a positive definite m"),

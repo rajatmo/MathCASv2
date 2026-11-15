@@ -589,7 +589,7 @@ fn in_model<'h>(h: &'h Heap, c: Rgba, model: &str) -> Option<T<'h>> {
     let head = match model {
         "rgb_color" | "RGB" => "rgb_color",
         "hue" | "HSB" => "hue",
-        "gray_level" | "Grayscale" | "GrayLevel" => "gray_level",
+        "gray_level" => "gray_level",
         "cmyk_color" | "CMYK" => "cmyk_color",
         "lab_color" | "LAB" | "CIELab" => "lab_color",
         "xyz_color" | "XYZ" => "xyz_color",

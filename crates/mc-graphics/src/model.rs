@@ -304,7 +304,7 @@ pub struct Opts {
     pub background: Option<Rgba>,
     /// the background is the default one (no `background` option): chrome a front end may theme
     pub themed_background: bool,
-    /// `plot_theme: "dark"` or `"light"`: the chrome written in that theme's colours, fixed (no front end
+    /// `plot_theme: dark` or `light`: the chrome written in that theme's colours, fixed (no front end
     /// re-themes it); `None`: the light look, chrome marked for front ends
     pub theme: Option<crate::theme::Theme>,
     /// x and y ticks
@@ -1410,7 +1410,6 @@ fn axis_spec<S: Store + ?Sized>(h: &S, args: &[T<'_>], style: usize) -> Option<A
     let path = *args.first()?;
     let word = |t: T<'_>| -> Option<String> {
         match h.view(t) {
-            View::Str(s) => Some(s.to_lowercase()),
             View::Sym(s) => Some(h.sym_name(s)),
             _ => None,
         }
@@ -2472,7 +2471,6 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
         "legend_layout" => {
             let name = match h.view(v) {
                 View::Sym(s) => h.sym_name(s),
-                View::Str(s) => s.to_lowercase(),
                 _ => return None,
             };
             o.legend_row = match name.as_str() {
@@ -2563,12 +2561,8 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
         }
         "plot_theme" => {
             // a named theme other than dark or light is accepted and ignored
-            let name = match h.view(v) {
-                View::Str(s) => s.to_string(),
-                View::Sym(s) => h.sym_name(s).to_string(),
-                _ => return None,
-            };
-            match name.as_str() {
+            let View::Sym(name) = h.view(v) else { return None };
+            match h.sym_name(name).as_str() {
                 "dark" => o.theme = Some(crate::theme::Theme::DARK),
                 "light" => o.theme = Some(crate::theme::Theme::LIGHT),
                 _ => {}

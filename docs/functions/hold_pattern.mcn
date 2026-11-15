@@ -27,12 +27,12 @@ cases([1, b -> automatic, c -> 3], hold_pattern(_ -> automatic))
 #= [b -> automatic]
 
 #% cell
-match_q(a + b, hold_pattern(_ + _))
+is_match(a + b, hold_pattern(_ + _))
 #% output
 #= true
 
 #% cell
-match_q(a + b, _ + _)
+is_match(a + b, _ + _)
 #% output
 #= false
 

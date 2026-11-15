@@ -13,7 +13,7 @@
 # Basic examples
 
 #% cell
-match_q(assoc(a -> 1, b -> 2, c -> 3), key_value_pattern(b -> 2))
+is_match(assoc(a -> 1, b -> 2, c -> 3), key_value_pattern(b -> 2))
 #% output
 #= true
 
@@ -28,12 +28,12 @@ cases([assoc("n" -> 1, "ok" -> true), assoc("n" -> 2)], key_value_pattern("ok" -
 #= [assoc("n" -> 1, "ok" -> true)]
 
 #% cell
-match_q([a -> 1], key_value_pattern([]))
+is_match([a -> 1], key_value_pattern([]))
 #% output
 #= true
 
 #% cell
-match_q(assoc(a -> 1), key_value_pattern(b -> _))
+is_match(assoc(a -> 1), key_value_pattern(b -> _))
 #% output
 #= false
 
@@ -41,4 +41,4 @@ match_q(assoc(a -> 1), key_value_pattern(b -> _))
 # See also
 
 #% text
-# `assoc`, `match_q`, `cases`, `repeated`
+# `assoc`, `is_match`, `cases`, `repeated`

@@ -13,7 +13,7 @@
 # Basic examples
 
 #% cell
-match_q([a, a, a], [repeated(a)])
+is_match([a, a, a], [repeated(a)])
 #% output
 #= true
 
@@ -28,12 +28,12 @@ cases([f(1, 2), f(), f(1, x)], f(repeated(_: Int, [0, inf])))
 #= [f(1, 2), f()]
 
 #% cell
-match_q([3, 3, 3], [repeated(x_ when is_integer(x/3))])
+is_match([3, 3, 3], [repeated(x_ when is_integer(x/3))])
 #% output
 #= true
 
 #% cell
-match_q([3, 6, 9], [repeated(x_)])
+is_match([3, 6, 9], [repeated(x_)])
 #% output
 #= false
 
@@ -41,4 +41,4 @@ match_q([3, 6, 9], [repeated(x_)])
 # See also
 
 #% text
-# `cases`, `match_q`, `rewrite`
+# `cases`, `is_match`, `rewrite`

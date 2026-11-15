@@ -398,7 +398,7 @@ library"). Helpers are prefixed `nl_`. Tests: `tests/library.rs`.
   values. Inexact zeros stay inexact (complex ones complex).
 - `cantor_staircase`: exact at rationals by the eventually periodic ternary expansion summed as a geometric series;
   at inexact x digit by digit to the precision of x.
-- `dirac_comb`, `mandelbrot_set_member_q` (escape time with the cardioid and period-2 disk tests; comparisons that
+- `dirac_comb`, `is_mandelbrot_set_member` (escape time with the cardioid and period-2 disk tests; comparisons that
   low precision cannot decide count as bounded).
 - `interpolating_polynomial`: Newton form by (confluent) divided differences (Hermite data); `automatic` values by a
   linear solve. Not done: several variables, `modulus`.
@@ -425,7 +425,7 @@ library"). Helpers are prefixed `nl_`. Tests: `tests/library.rs`.
 - `random_polygon`: simple (points by angle about their centroid), convex (Valtr 1995), star-shaped, convex hull
   (monotone chain, Andrew 1979), embedded in a random plane for d -> spec.
 
-Checks: `mandelbrot_set_member_q(im)` is true (im is a Misiurewicz point, orbit 0, i, -1 + i, -i, -1 + i, ...);
+Checks: `is_mandelbrot_set_member(im)` is true (im is a Misiurewicz point, orbit 0, i, -1 + i, -i, -1 + i, ...);
 the parametric solutions are close to the exact values (y(10) = e^10: 22026.46613944; e^10 = 22026.46579).
 
 Gaps: `nd_eigenvalues`, `nd_eigensystem` (not reached), `when_event` (needs restartable

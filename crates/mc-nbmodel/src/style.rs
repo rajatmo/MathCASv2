@@ -177,83 +177,88 @@ impl Style {
         };
         match self {
             Style::Title => {
-                StyleInfo { bold: true, ..s("Title", Some(1), G::Title(0), 45.0, Prose, [27., 10., 30., 10.], NewLine) }
+                StyleInfo { bold: true, ..s("title", Some(1), G::Title(0), 45.0, Prose, [27., 10., 30., 10.], NewLine) }
             }
-            Style::Subtitle => s("Subtitle", Some(2), G::Title(10), 24.0, Prose, [27., 10., 2., 20.], NewLine),
-            Style::Subsubtitle => s("Subsubtitle", None, G::Title(20), 16.0, Prose, [27., 10., 2., 8.], NewLine),
+            Style::Subtitle => s("subtitle", Some(2), G::Title(10), 24.0, Prose, [27., 10., 2., 20.], NewLine),
+            Style::Subsubtitle => s("subsubtitle", None, G::Title(20), 16.0, Prose, [27., 10., 2., 8.], NewLine),
             Style::Chapter => StyleInfo {
                 bold: true,
-                ..s("Chapter", Some(3), G::Section(10), 34.0, Prose, [27., 10., 15., 10.], NewLine)
+                ..s("chapter", Some(3), G::Section(10), 34.0, Prose, [27., 10., 15., 10.], NewLine)
             },
-            Style::Subchapter => s("Subchapter", None, G::Section(20), 28.0, Prose, [63., 10., 20., 8.], NewLine),
+            Style::Subchapter => s("subchapter", None, G::Section(20), 28.0, Prose, [63., 10., 20., 8.], NewLine),
             Style::Section => StyleInfo {
                 bold: true,
                 rule: true,
-                ..s("Section", Some(4), G::Section(30), 28.0, Prose, [27., 10., 18., 8.], NewLine)
+                ..s("section", Some(4), G::Section(30), 28.0, Prose, [27., 10., 18., 8.], NewLine)
             },
             Style::Subsection => StyleInfo {
                 bold: true,
-                ..s("Subsection", Some(5), G::Section(40), 20.0, Prose, [50., 3., 20., 8.], NewLine)
+                ..s("subsection", Some(5), G::Section(40), 20.0, Prose, [50., 3., 20., 8.], NewLine)
             },
             Style::Subsubsection => StyleInfo {
                 bold: true,
-                ..s("Subsubsection", Some(6), G::Section(50), 19.0, Prose, [66., 10., 12., 8.], NewLine)
+                ..s("subsubsection", Some(6), G::Section(50), 19.0, Prose, [66., 10., 12., 8.], NewLine)
             },
-            Style::Text => s("Text", Some(7), G::Normal, 15.0, Prose, [66., 10., 8., 7.], NewLine),
+            Style::Text => s("text", Some(7), G::Normal, 15.0, Prose, [66., 10., 8., 7.], NewLine),
             // code is drawn in the regular weight: syntax colours, small exponents and indices read better in it
             // than in bold (the design's semibold is not a face of the code fonts)
             Style::Code => StyleInfo {
                 evaluatable: true,
                 label: true,
-                ..s("Code", Some(8), G::Input, 13.0, Code, [66., 10., 10., 10.], NewLine)
+                ..s("code", Some(8), G::Input, 13.0, Code, [66., 10., 10., 10.], NewLine)
             },
             Style::Input => StyleInfo {
                 evaluatable: true,
                 label: true,
-                ..s("Input", Some(9), G::Input, 13.0, Code, [66., 10., 10., 5.], NewLine)
+                ..s("input", Some(9), G::Input, 13.0, Code, [66., 10., 10., 5.], NewLine)
             },
             Style::Item => {
-                StyleInfo { bullet: true, ..s("Item", None, G::Item(70), 15.0, Prose, [81., 10., 8., 4.], NewCell) }
+                StyleInfo { bullet: true, ..s("item", None, G::Item(70), 15.0, Prose, [81., 10., 8., 4.], NewCell) }
             }
-            Style::ItemParagraph => s("ItemParagraph", None, G::Item(80), 15.0, Prose, [81., 10., 1., 4.], NewCell),
+            Style::ItemParagraph => s("item_paragraph", None, G::Item(80), 15.0, Prose, [81., 10., 1., 4.], NewCell),
             Style::Subitem => {
-                StyleInfo { bullet: true, ..s("Subitem", None, G::Item(80), 14.0, Prose, [105., 12., 4., 4.], NewCell) }
+                StyleInfo { bullet: true, ..s("subitem", None, G::Item(80), 14.0, Prose, [105., 12., 4., 4.], NewCell) }
             }
             Style::SubitemParagraph => {
-                s("SubitemParagraph", None, G::Item(90), 14.0, Prose, [105., 12., 1., 4.], NewCell)
+                s("subitem_paragraph", None, G::Item(90), 14.0, Prose, [105., 12., 1., 4.], NewCell)
             }
             Style::Subsubitem => StyleInfo {
                 bullet: true,
-                ..s("Subsubitem", None, G::Item(90), 13.0, Prose, [129., 12., 4., 4.], NewCell)
+                ..s("subsubitem", None, G::Item(90), 13.0, Prose, [129., 12., 4., 4.], NewCell)
             },
-            Style::ItemNumbered => s("ItemNumbered", None, G::Item(70), 15.0, Prose, [81., 10., 8., 4.], NewCell),
+            Style::ItemNumbered => s("item_numbered", None, G::Item(70), 15.0, Prose, [81., 10., 8., 4.], NewCell),
             Style::SubitemNumbered => {
-                s("SubitemNumbered", None, G::Item(80), 14.0, Prose, [105., 12., 4., 4.], NewCell)
+                s("subitem_numbered", None, G::Item(80), 14.0, Prose, [105., 12., 4., 4.], NewCell)
             }
             Style::SubsubitemNumbered => {
-                s("SubsubitemNumbered", None, G::Item(90), 13.0, Prose, [129., 12., 4., 4.], NewCell)
+                s("subsubitem_numbered", None, G::Item(90), 13.0, Prose, [129., 12., 4., 4.], NewCell)
             }
-            Style::DisplayFormula => s("DisplayFormula", None, G::Normal, 14.0, Prose, [66., 10., 6., 6.], NewLine),
+            Style::DisplayFormula => s("display_formula", None, G::Normal, 14.0, Prose, [66., 10., 6., 6.], NewLine),
             Style::Program => {
-                StyleInfo { rule: true, ..s("Program", None, G::Normal, 13.0, Code, [66., 10., 8., 8.], NewLine) }
+                StyleInfo { rule: true, ..s("program", None, G::Normal, 13.0, Code, [66., 10., 8., 8.], NewLine) }
             }
             Style::Output => StyleInfo {
                 generated: true,
                 label: true,
-                ..s("Output", None, G::Output, 13.0, Code, [66., 10., 5., 10.], Duplicate)
+                ..s("output", None, G::Output, 13.0, Code, [66., 10., 5., 10.], Duplicate)
             },
             Style::Print => {
-                StyleInfo { generated: true, ..s("Print", None, G::Output, 13.0, Code, [66., 10., 3., 3.], NewLine) }
+                StyleInfo { generated: true, ..s("print", None, G::Output, 13.0, Code, [66., 10., 3., 3.], NewLine) }
             }
             Style::Message => {
-                StyleInfo { generated: true, ..s("Message", None, G::Output, 11.0, Ui, [66., 10., 3., 3.], ReadOnly) }
+                StyleInfo { generated: true, ..s("message", None, G::Output, 11.0, Ui, [66., 10., 3., 3.], ReadOnly) }
             }
         }
     }
 
-    /// The style named `name` (the display name, any case).
+    /// The style named `name`: the name (`item_numbered`), in any case, or the spelling of names before version 1.0
+    /// (`ItemNumbered`, without the underscore).
     pub fn from_name(name: &str) -> Option<Style> {
-        Style::ALL.into_iter().find(|s| s.info().name.eq_ignore_ascii_case(name))
+        let plain = |n: &str| n.replace('_', "").to_ascii_lowercase();
+        Style::ALL
+            .into_iter()
+            .find(|s| s.info().name.eq_ignore_ascii_case(name))
+            .or_else(|| Style::ALL.into_iter().find(|s| plain(s.info().name) == plain(name)))
     }
 
     /// The style of `Alt+digit`.
@@ -340,7 +345,11 @@ mod tests {
             } else {
                 assert!(s.generated());
             }
-            assert_eq!(Style::from_name(&s.info().name.to_lowercase()), Some(s));
+            assert_eq!(Style::from_name(s.info().name), Some(s));
+            assert!(s.info().name.chars().all(|c| c.is_ascii_lowercase() || c == '_'), "{}", s.info().name);
+            // the spelling before version 1.0: CamelCase without underscores
+            let old: String = s.info().name.split('_').map(|w| w[..1].to_uppercase() + &w[1..]).collect();
+            assert_eq!(Style::from_name(&old), Some(s), "{old}");
         }
         assert_eq!(Style::of_key(0), None);
     }

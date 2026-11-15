@@ -20,7 +20,7 @@ fn outside(e: &mut CoreEngine, f: &str, a: &str, b: &str) -> String {
         e,
         &format!(
             "vs = table(n({fx}, 30), [k, 1, 40]); \
-             select(vs, v => if is_number(v) === true and is_real(v) === true then not(interval_member_q(ri, v)) else false)"
+             select(vs, v => if is_number(v) === true and is_real(v) === true then not(is_interval_member(ri, v)) else false)"
         ),
     )
 }

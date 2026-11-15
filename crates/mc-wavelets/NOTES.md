@@ -17,10 +17,10 @@ Everything is MathCAS source (`lib/wavelets.mc`), in machine numbers (exact data
 ### Discrete, packet and stationary transforms
 
 - One level of the discrete transform of a list x (Mallat, A wavelet tour of signal processing, 7.5): x is extended
-  on the right by L - 2 entries of the padding (none for "Periodic") and to an even length m, and filtered with
+  on the right by L - 2 entries of the padding (none for periodic) and to an even length m, and filtered with
   periodization, a_i = sum_j h_j x_((2i + j) mod m), d_i likewise with g. Orthonormal filters make the periodized
   level orthogonal, so the inverse is the adjoint followed by truncation to the stored length: the reconstruction is
-  exact for every padding. Decision: padding "Periodic" (default), a number, "Fixed" (the last value) or "Reflected"
+  exact for every padding. Decision: padding periodic (default), a number, fixed (the last value) or reflected
   (mirrored without repeating the end).
 - Matrices: one level on every row, then on every column of the row approximations and details. Indices 0 (low in
   both directions), 1 (high along the columns), 2 (high along the rows), 3 (high in both).
@@ -50,14 +50,14 @@ Everything is MathCAS source (`lib/wavelets.mc`), in machine numbers (exact data
   the conjugates of the positive ones. With a selection only the selected scales enter, without the kept remainder
   (the band-pass part of the data).
 - `continuous_wavelet_data([[j, v] -> list, ...])` builds data from coefficient lists (missing indices zero, the
-  wavelet `morlet_wavelet()` unless given). The option `method: "LeastSquares"` names the one inversion method.
+  wavelet `morlet_wavelet()` unless given). The option `method: least_squares` names the one inversion method.
 - Gaps: inversion with another wavelet than the one of the transform and other inversion methods stay
   unevaluated; Symlets, Coiflets, biorthogonal and Meyer wavelets are not provided (their filters need a nonlinear
   design or tables).
 
 ### Plots
 
-`wavelet_list_plot` (stem plots of the leaves; plot_layout "CommonXAxis" a column, "CommonYAxis" a row; a list of
+`wavelet_list_plot` (stem plots of the leaves; plot_layout common_x_axis a column, common_y_axis a row; a list of
 data objects drawn together), `wavelet_matrix_plot` (the tiling of a matrix transform, levels up to r; a grid of the
 leaves for the other transforms), `wavelet_scalogram` (array plots of |c| against time and scale). Other options go
 to the plotting functions.

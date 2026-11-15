@@ -10,7 +10,7 @@
 # Details
 
 #% item
-# `vector_greater_equal([m, 0], ["SemidefiniteCone", n])` asks the matrix `m` to be positive semidefinite, that is all its principal minors to be non-negative.
+# `vector_greater_equal([m, 0], [semidefinite_cone, n])` asks the matrix `m` to be positive semidefinite, that is all its principal minors to be non-negative.
 
 #% item
 # `semidefinite_optimization(c, [a0, a1, ..., an])` minimizes `c . x` such that `a0 + x1 a1 + ... + xn an` is positive semidefinite and returns the vector `x`.
@@ -25,7 +25,7 @@
 # Basic examples
 
 #% cell
-semidefinite_optimization(x + y, vector_greater_equal([[[x, 1], [1, y]], 0], ["SemidefiniteCone", 2]), [x, y])
+semidefinite_optimization(x + y, vector_greater_equal([[[x, 1], [1, y]], 0], [semidefinite_cone, 2]), [x, y])
 #% output
 #= [x -> 1, y -> 1]
 
@@ -43,4 +43,4 @@ semidefinite_optimization(x + 2*y, [x^2 + 2*y^2 <= 3, x + y == 2, x >= 1], [x, y
 # See also
 
 #% text
-# `conic_optimization`, `positive_definite_matrix_q`, `minimize`
+# `conic_optimization`, `is_positive_definite_matrix`, `minimize`

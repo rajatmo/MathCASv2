@@ -98,7 +98,7 @@ b
 
 === movement skips Message cells
 --- before
-#% cell label=1
+#% cell in=1
 1 +
 #% output
 #! error
@@ -109,7 +109,7 @@ x
 --- keys
 Up
 --- after
-#% cell label=1
+#% cell in=1
 1 +
 #% output
 #! error
@@ -228,15 +228,15 @@ b
 
 === Up from an insertion point goes into the output above
 --- before
-#% cell label=1
+#% cell in=1
 1
-#% output n=1
+#% output out=1
 #= 1
 ‖
 --- keys
 Up
 --- after
-#% cell label=1
+#% cell in=1
 1
-#% output n=1
+#% output out=1
 #= ▮1

@@ -1,0 +1,66 @@
+#! mathcas 2 notebook grouping=manual
+
+#% title
+# Cooling of a sphere
+
+#% subtitle
+# A worked example
+
+#% chapter
+# Models
+
+#% section
+# Newton's law
+
+#% text
+# The coefficient is constant.
+
+#% cell label=1 typeset
+k = ((3)/(4))
+#% output n=1
+#= 3/4
+
+#% cell label=2
+print("a")
+1 + 1
+plot(x, [x, 0, 1])
+#% output
+#| a
+#% output n=3
+#= 2
+#% output n=4 size=360x225
+#= image("cooling.files/plot-3f2a91.png")
+#? warning: something
+
+#% code label=5
+fn helper(x) = x^2
+
+#% item
+# first
+#% itemparagraph
+# more about the first
+#% subitem
+# second
+#% subitemparagraph
+# more about the second
+#% subsubitem
+# third
+
+#% itemnumbered
+# one
+#% subitemnumbered
+# one point one
+#% subsubitemnumbered
+# one point one point one
+
+#% displayformula
+# x^2 + y^2 == 1
+
+#% program
+# while true
+#   x
+
+#% input label=7 closed
+y
+#% output n=7
+#= y

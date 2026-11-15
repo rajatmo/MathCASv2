@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# is_hermitian_matrix
+
+#% text
+# `is_hermitian_matrix(m)` gives true when the square matrix m equals its conjugate transpose.
+
+#% section
+# Details
+
+#% item
+# Inexact entries compare up to rounding relative to the largest entry.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_hermitian_matrix([[1, 2 + im], [2 - im, 3]])
+#% output
+#= true
+
+#% cell
+is_hermitian_matrix([[1, 2], [3, 4]])
+#% output
+#= false
+
+#% cell
+is_hermitian_matrix(pauli_matrix(2))
+#% output
+#= true
+
+#% cell
+is_hermitian_matrix([[1., 0.3*im], [-0.3*im, 2.]])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `is_symmetric_matrix`, `is_positive_definite_matrix`

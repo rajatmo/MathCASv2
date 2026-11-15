@@ -480,7 +480,7 @@ fn conjugate_transpose_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> 
 
 /// The arguments of a matrix constructor without its trailing `options(...)`, and the digits asked by
 /// `working_precision` (`machine_precision` is a number near 15.95: machine numbers). `target_structure` may be
-/// `"Dense"`, `"Sparse"` or `automatic` (all give the dense form); any other option or value gives `None`.
+/// `dense`, `sparse` or `automatic` (all give the dense form); any other option or value gives `None`.
 fn ctor_options<'h>(fx: &Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Option<(Vec<T<'h>>, Option<T<'h>>)> {
     let Some((&last, rest)) = a.split_last() else { return Some((a.to_vec(), None)) };
     let Some(rules) = fx.call_of(last, "options") else { return Some((a.to_vec(), None)) };
@@ -490,8 +490,7 @@ fn ctor_options<'h>(fx: &Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Option<(Vec<T<'h>>,
         let View::Sym(name) = fx.h.view(k) else { return None };
         match fx.h.sym_name(name).as_str() {
             "target_structure" => match fx.h.view(v) {
-                View::Str("Dense" | "Sparse") => {}
-                View::Sym(s) if matches!(fx.h.sym_name(s).as_str(), "automatic" | "auto") => {}
+                View::Sym(s) if matches!(fx.h.sym_name(s).as_str(), "dense" | "sparse" | "automatic" | "auto") => {}
                 _ => return None,
             },
             "working_precision" => digits = Some(v),
@@ -1078,14 +1077,14 @@ fn sparse_array_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
                                 (true, Some(c)) => match quick_condition(fx, c, &env) {
                                     Some(Cv::B(b)) => b,
                                     _ => {
-                                        let m = fx.eval(fx.call("match_q", &[pt, lhs[k]]))?;
+                                        let m = fx.eval(fx.call("is_match", &[pt, lhs[k]]))?;
                                         m == fx.bool(true)
                                     }
                                 },
                             }
                         }
                         None => {
-                            let m = fx.eval(fx.call("match_q", &[pt, lhs[k]]))?;
+                            let m = fx.eval(fx.call("is_match", &[pt, lhs[k]]))?;
                             m == fx.bool(true)
                         }
                     },

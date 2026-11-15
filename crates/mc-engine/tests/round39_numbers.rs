@@ -92,11 +92,11 @@ fn parity_and_rational_expressions() {
     assert_eq!(ev(&mut e, "is_odd(x)"), "false");
     assert_eq!(ev(&mut e, "is_even(2*(golden_ratio - golden_ratio^-1))"), "false");
     assert_eq!(ev(&mut e, "[is_even(4), is_odd(7), is_even(7)]"), "[true, true, false]");
-    assert_eq!(ev(&mut e, "rational_expression_q((x^2 - 2 * x * y + y) / (3 * x + 4 * (y / x)), [x, y], is_numeric)"), "true");
-    assert_eq!(ev(&mut e, "rational_expression_q((x^2 - a * x * y + y) / (b * x + 4 * (y / x)), [x, y], is_numeric)"), "false");
-    assert_eq!(ev(&mut e, "rational_expression_q(sin(x)^2/(1 + cos(x)), [sin(x), cos(x)], is_numeric)"), "true");
-    assert_eq!(ev(&mut e, "rational_expression_q(sin(x)^2/(1 + cos(x)), [sin(x), cos(x)], is_integer)"), "true");
-    assert_eq!(ev(&mut e, "rational_expression_q(sin(x)^(1/2), [sin(x), cos(x)], is_numeric)"), "false");
+    assert_eq!(ev(&mut e, "is_rational_expression((x^2 - 2 * x * y + y) / (3 * x + 4 * (y / x)), [x, y], is_numeric)"), "true");
+    assert_eq!(ev(&mut e, "is_rational_expression((x^2 - a * x * y + y) / (b * x + 4 * (y / x)), [x, y], is_numeric)"), "false");
+    assert_eq!(ev(&mut e, "is_rational_expression(sin(x)^2/(1 + cos(x)), [sin(x), cos(x)], is_numeric)"), "true");
+    assert_eq!(ev(&mut e, "is_rational_expression(sin(x)^2/(1 + cos(x)), [sin(x), cos(x)], is_integer)"), "true");
+    assert_eq!(ev(&mut e, "is_rational_expression(sin(x)^(1/2), [sin(x), cos(x)], is_numeric)"), "false");
 }
 
 #[test]

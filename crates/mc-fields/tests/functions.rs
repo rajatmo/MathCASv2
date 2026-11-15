@@ -2,9 +2,9 @@
 //! abbreviated by `F17`, ... in the expectations).
 use mc_api::{Engine, StopFlag};
 
-const F17: &str = r#"finite_field(17, &(14 + &1 + &1^3), "Polynomial")"#;
-const F17_6: &str = r#"finite_field(17, &(3 + 3*&1 + 10*&1^2 + 2*&1^4 + &1^6), "Polynomial")"#;
-const F7E: &str = r#"finite_field(7, &(4 + 6*&1^2 + &1^3), "Exponential")"#;
+const F17: &str = r#"finite_field(17, &(14 + &1 + &1^3), polynomial)"#;
+const F17_6: &str = r#"finite_field(17, &(3 + 3*&1 + 10*&1^2 + 2*&1^4 + &1^6), polynomial)"#;
+const F7E: &str = r#"finite_field(7, &(4 + 6*&1^2 + &1^3), exponential)"#;
 
 fn run(cases: &[(&str, &str)]) {
     let mut e = mc_engine::CoreEngine::new();
@@ -25,7 +25,7 @@ fn fields_and_elements() {
     run(&[
         ("F = finite_field(17, 3)", "null"),
         // any spelling of the same field is the same term, and the printed form reads back
-        (r#"finite_field(17, &(&1^3 + &1 + 31), "Polynomial") === F"#, "true"),
+        (r#"finite_field(17, &(&1^3 + &1 + 31), polynomial) === F"#, "true"),
         ("finite_field(4913) === F", "true"),
         ("a = F([1, 2, 3]); a", "finite_field_element(F17, [1, 2, 3])"),
         ("b = finite_field_element(F, 123); b", "finite_field_element(F17, [4, 7])"),
@@ -39,9 +39,9 @@ fn fields_and_elements() {
         ("F(4913 + 5) == F(5) + F([0, 0, 0, 1])", "true"),
         ("sqrt(a) === a^(1/2)", "true"),
         ("length(finite_field_root(a^2, 2))", "2"),
-        ("finite_field(7, 3, \"Exponential\")(2)^77", "finite_field_element(F7E, 78)"),
-        ("(finite_field(7, 3, \"Exponential\")(2)^77)(\"Coefficients\")", "[4, 2, 1]"),
-        ("dot([4, 2, 1], [1, finite_field(7, 3, \"Exponential\")(2), finite_field(7, 3, \"Exponential\")(3)])", "finite_field_element(F7E, 78)"),
+        ("finite_field(7, 3, exponential)(2)^77", "finite_field_element(F7E, 78)"),
+        ("(finite_field(7, 3, exponential)(2)^77)(\"Coefficients\")", "[4, 2, 1]"),
+        ("dot([4, 2, 1], [1, finite_field(7, 3, exponential)(2), finite_field(7, 3, exponential)(3)])", "finite_field_element(F7E, 78)"),
         ("finite_field(10, 2)", "finite_field(10, 2)"),
         ("finite_field_element_trace(F([0, 1]))", "0"),
         ("finite_field_element_norm(F([0, 1]))", "3"),

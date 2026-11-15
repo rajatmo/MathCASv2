@@ -178,8 +178,8 @@ fn every_shown_statement_gets_its_own_output_block() {
     let values: Vec<&CellEvent> = events.iter().filter(|e| matches!(e, CellEvent::Value(_))).collect();
     let expected: Vec<CellEvent> = ["3", "5", "4", "42"].map(|v| CellEvent::Value(v.into())).into();
     assert_eq!(values, expected.iter().collect::<Vec<_>>());
-    let written = "#! mathcas 2 notebook\n\n#% cell\n1 + 2\nx = 4;\nprint(\"p\")\n2 + 3\nx\n#% output n=1\n#= 3\n\
-                   #% output n=4\n#| p\n#= 5\n#% output n=5\n#= 4\n\n#% cell\n6 * 7\n#% output\n#= 42\n";
+    let written = "#! mathcas 2 notebook\n\n#% cell\n1 + 2\nx = 4;\nprint(\"p\")\n2 + 3\nx\n#% output out=1\n#= 3\n\
+                   #% output out=4\n#| p\n#= 5\n#% output out=5\n#= 4\n\n#% cell\n6 * 7\n#% output\n#= 42\n";
     assert_eq!(nb.print(), written, "one numbered block per value; a single value keeps the old block");
     // the file reads back with the same blocks, and a second run writes the same text
     let mut again = Notebook::parse(written).unwrap();

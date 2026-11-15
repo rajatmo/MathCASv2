@@ -34,7 +34,7 @@ fn sample(dir: &Path) -> Notebook {
         #% section\n# First steps\n\n\
         #% text\n# Some prose with `code` in it.\n\n\
         #% item\n# an item\n\n\
-        #% itemnumbered\n# a numbered item\n\n\
+        #% item_numbered\n# a numbered item\n\n\
         #% cell\nlet s = \"text\" # comment\nf(x_) := x^2\n#% output\n#| printed line\n#= x^2 + 1/3 + sqrt(y)\n\n\
         #% cell typeset\n((a)/(b)) + ((sqrt(c)))\n#% output\n#! failure(division_by_zero)\n#? a message\n\n\
         #% cell\nplot(x)\n#% output size=120x90\n#= image(\"plot.png\")\n\n\

@@ -270,7 +270,7 @@ fn calc_branch(e, t) =
 
 fn calc_real_rational(b, t) = {
   let tb = together(b)
-  polynomial_expression_q(numerator(tb), [t]) and polynomial_expression_q(denominator(tb), [t]) and every(coefficient_list(expand(numerator(tb)), t), c => is_numeric(c) and is_real(c)) and every(coefficient_list(expand(denominator(tb)), t), c => is_numeric(c) and is_real(c))
+  is_polynomial_expression(numerator(tb), [t]) and is_polynomial_expression(denominator(tb), [t]) and every(coefficient_list(expand(numerator(tb)), t), c => is_numeric(c) and is_real(c)) and every(coefficient_list(expand(denominator(tb)), t), c => is_numeric(c) and is_real(c))
 }
 
 # calc_order(kind, f, g, spec, dir, assm): at a finite point a two-sided (or reals) relation holds when it holds from
@@ -377,17 +377,17 @@ fn calc_relation_split(kind, f, g, spec, dir, assm) = {
   }
 }
 
-fn asymptotic_less_equal(f, g, spec; direction = automatic, assumptions = automatic) when match_q(spec, _ -> _) =
+fn asymptotic_less_equal(f, g, spec; direction = automatic, assumptions = automatic) when is_match(spec, _ -> _) =
   calc_relation(asymptotic_less_equal, o_big, f, g, spec, direction, assumptions)
-fn asymptotic_greater_equal(f, g, spec; direction = automatic, assumptions = automatic) when match_q(spec, _ -> _) =
+fn asymptotic_greater_equal(f, g, spec; direction = automatic, assumptions = automatic) when is_match(spec, _ -> _) =
   calc_relation(asymptotic_greater_equal, o_big, g, f, spec, direction, assumptions)
-fn asymptotic_less(f, g, spec; direction = automatic, assumptions = automatic) when match_q(spec, _ -> _) =
+fn asymptotic_less(f, g, spec; direction = automatic, assumptions = automatic) when is_match(spec, _ -> _) =
   calc_relation(asymptotic_less, o_small, f, g, spec, direction, assumptions)
-fn asymptotic_greater(f, g, spec; direction = automatic, assumptions = automatic) when match_q(spec, _ -> _) =
+fn asymptotic_greater(f, g, spec; direction = automatic, assumptions = automatic) when is_match(spec, _ -> _) =
   calc_relation(asymptotic_greater, o_small, g, f, spec, direction, assumptions)
-fn asymptotic_equal(f, g, spec; direction = automatic, assumptions = automatic) when match_q(spec, _ -> _) =
+fn asymptotic_equal(f, g, spec; direction = automatic, assumptions = automatic) when is_match(spec, _ -> _) =
   calc_relation(asymptotic_equal, theta, f, g, spec, direction, assumptions)
-fn asymptotic_equivalent(f, g, spec; direction = automatic, assumptions = automatic) when match_q(spec, _ -> _) =
+fn asymptotic_equivalent(f, g, spec; direction = automatic, assumptions = automatic) when is_match(spec, _ -> _) =
   calc_relation(asymptotic_equivalent, equivalent, f, g, spec, direction, assumptions)
 
 # --- difference quotients, Wronskians and Casoratians, implicit derivatives ---
@@ -592,7 +592,7 @@ fn calc_sc_rat(f, x, n) = {
 }
 fn calc_sc_sym(f, x, n) = {
   let r = together(f)
-  if polynomial_expression_q(numerator(r), x) and polynomial_expression_q(denominator(r), x) and not free_of(denominator(r), x) then calc_sc_rat(f, x, n)
+  if is_polynomial_expression(numerator(r), x) and is_polynomial_expression(denominator(r), x) and not free_of(denominator(r), x) then calc_sc_rat(f, x, n)
   else {
     let ts = calc_terms(expand(f))
     let rs = map(t => calc_sc_term(t, x, n), ts)
@@ -603,7 +603,7 @@ rule series_coefficient(f_, [x_, x0_, n_], options(assumptions -> a_)) := simpli
 rule series_coefficient(f_, [x_, x0_, n_]) := simplify(calc_sc_sym(if x0 === 0 then f else rewrite(f, x -> x + x0), x, n), element(n, integers)) when is_symbol(x) and is_symbol(n) and is_numeric(x0) and not (x0 === inf) and not (calc_sc_sym(if x0 === 0 then f else rewrite(f, x -> x + x0), x, n) === null)
 
 # --- polynomial structure: factor_list, factor_terms, exponent, collect, cyclotomic, polynomial_reduce,
-# polynomial_mod, partial_fractions, polynomial_expression_q, possible_zero_q ---
+# polynomial_mod, partial_fractions, is_polynomial_expression, is_possible_zero ---
 
 # calc_terms(e), calc_factors(e): the summands of e, the factors of e (a one-element list when e is not a sum, a
 # product)
@@ -831,7 +831,7 @@ fn calc_preduce(p, gs, xs, o, over_z) = {
   [qs, r]
 }
 
-# polynomial_expression_q(e, x), (e, [x1, ...]), (e, xs, test): whether e is built from the variables and from
+# is_polynomial_expression(e, x), (e, [x1, ...]), (e, xs, test): whether e is built from the variables and from
 # expressions free of them (each passing test) by sums, products and non-negative integer powers
 fn calc_poly_expr(e, xs, test) = {
   if some(xs, x => e === x) then true
@@ -840,31 +840,31 @@ fn calc_poly_expr(e, xs, test) = {
   else if head(e) === pow and is_integer(e[2]) and e[2] >= 0 then calc_poly_expr(e[1], xs, test)
   else false
 }
-fn polynomial_expression_q(e, x) = calc_poly_expr(e, if is_list(x) then x else [x], automatic)
-fn polynomial_expression_q(e, x, test) = calc_poly_expr(e, if is_list(x) then x else [x], test)
+fn is_polynomial_expression(e, x) = calc_poly_expr(e, if is_list(x) then x else [x], automatic)
+fn is_polynomial_expression(e, x, test) = calc_poly_expr(e, if is_list(x) then x else [x], test)
 
-# polynomial_q(e, x), (e, [x1, ...]): whether e is a polynomial in the variables: built by sums, products and
+# is_polynomial(e, x), (e, [x1, ...]): whether e is a polynomial in the variables: built by sums, products and
 # non-negative integer powers from the variables and from coefficients that contain no symbol of the variables
 # (so sec(x) is no coefficient of cos(x)); a power b^p is the power (b^q)^(p/q) of a variable b^q when p/q is a
-# non-negative integer (x^(3/2) is the cube of sqrt(x)); polynomial_q(e) takes the variables of e
+# non-negative integer (x^(3/2) is the cube of sqrt(x)); is_polynomial(e) takes the variables of e
 fn r38_poly_power(e, xs) = {
   let b = if head(e) === pow then e[1] else e
   let p = if head(e) === pow then e[2] else 1
   some(xs, x => not is_atom(x) and head(x) === pow and x[1] === b and is_rational(x[2]) and is_rational(p) and is_integer(p/x[2]) and p/x[2] >= 0)
 }
-fn r38_poly_q(e, xs, syms) = {
+fn r38_is_poly(e, xs, syms) = {
   if some(xs, x => e === x) then true
   else if every(syms, s => free_of(e, s)) then true
   else if r38_poly_power(e, xs) then true
-  else if head(e) === add or head(e) === mul then every(apply(list, e), t => r38_poly_q(t, xs, syms))
-  else if head(e) === pow and is_integer(e[2]) and e[2] >= 0 then r38_poly_q(e[1], xs, syms)
+  else if head(e) === add or head(e) === mul then every(apply(list, e), t => r38_is_poly(t, xs, syms))
+  else if head(e) === pow and is_integer(e[2]) and e[2] >= 0 then r38_is_poly(e[1], xs, syms)
   else false
 }
-fn polynomial_q(e, x) = {
+fn is_polynomial(e, x) = {
   let xs = if is_list(x) then x else [x]
-  r38_poly_q(e, xs, unique(flat_map(calc_syms, xs)))
+  r38_is_poly(e, xs, unique(flat_map(calc_syms, xs)))
 }
-fn polynomial_q(e) = polynomial_q(e, variables(e))
+fn is_polynomial(e) = is_polynomial(e, variables(e))
 
 # solve_always(eqs, vars): the values of the other symbols for which the polynomial (or rational) equations hold
 # for every value of the variables: every coefficient of the numerator of lhs - rhs, as a polynomial in the
@@ -873,7 +873,7 @@ fn polynomial_q(e) = polynomial_q(e, variables(e))
 fn r38_always_parts(eq, xs) = {
   let ex = if not is_atom(eq) and head(eq) === equal then eq[1] - eq[2] else eq
   let num = numerator(together(ex))
-  if polynomial_expression_q(num, xs) then map(r => r[2], coefficient_rules(expand(num), xs)) else null
+  if is_polynomial_expression(num, xs) then map(r => r[2], coefficient_rules(expand(num), xs)) else null
 }
 fn r38_solve_always(eqs, x) = {
   let xs = if is_list(x) then x else [x]
@@ -888,7 +888,7 @@ fn r38_solve_always(eqs, x) = {
     # the others, when that system has solutions
     let first = if length(unknowns) > length(cs) then solve(eqs2, take(unknowns, length(cs))) else []
     if length(cs) == 0 then [[]]
-    else if length(unknowns) == 0 then (if every(cs, c => possible_zero_q(c)) then [[]] else [])
+    else if length(unknowns) == 0 then (if every(cs, c => is_possible_zero(c)) then [[]] else [])
     else if is_list(first) and length(first) >= 1 then first
     else solve(eqs2, unknowns)
   }
@@ -943,7 +943,7 @@ fn r38_series(s) =
 fn r38_coef(s, k) = if k >= s[4] and k - s[4] < length(s[3]) then s[3][k - s[4] + 1] else 0
 # r38_valuation(s, from): the least k >= from below the order with a non-zero coefficient, or null
 fn r38_valuation(s, from) = {
-  let ks = select(range(max(from, s[4]), s[5] - 1), k => not possible_zero_q(r38_coef(s, k)))
+  let ks = select(range(max(from, s[4]), s[5] - 1), k => not is_possible_zero(r38_coef(s, k)))
   if length(ks) == 0 then null else ks[1]
 }
 fn r38_compose(f, g) = {
@@ -951,7 +951,7 @@ fn r38_compose(f, g) = {
   let h = g - x0
   let hs = r38_series(h)
   let v = if hs === null then null else r38_valuation(hs, 0)
-  if hs === null or v === null or v < 1 or not possible_zero_q(r38_coef(hs, 0)) then null
+  if hs === null or v === null or v < 1 or not is_possible_zero(r38_coef(hs, 0)) then null
   else {
     let terms = map(k => r38_coef(f, k)*h^k, range(f[4], f[5] - 1))
     total(terms) + O((g[1] - g[2])^(v*f[5]))
@@ -1033,7 +1033,7 @@ fn r38_inverse_series(s, y) = {
 }
 fn inverse_series(s, y) when is_symbol(y) and r38_inverse_series(s, y) !== null = r38_inverse_series(s, y)
 
-# possible_zero_q(e): whether e is probably zero: true when simplify gives 0; otherwise e is evaluated to 40 digits
+# is_possible_zero(e): whether e is probably zero: true when simplify gives 0; otherwise e is evaluated to 40 digits
 # at its symbols set to three complex sample points, a value that cannot be told from 0 counting as zero
 fn calc_syms(e) = if is_symbol(e) then (if is_numeric(e) then [] else [e]) else if is_atom(e) then [] else unique(flat_map(calc_syms, apply(list, e)))
 fn calc_zero_at(e) =
@@ -1041,7 +1041,7 @@ fn calc_zero_at(e) =
   else if abs(n(e)) > 10^-8 then false
   else if is_failure(n(e, 40)) then true
   else abs(n(e, 40)) < 10^-30
-fn possible_zero_q(e; assumptions = automatic) = {
+fn is_possible_zero(e; assumptions = automatic) = {
   let s = if assumptions === automatic then simplify(e) else simplify(e, assumptions)
   if s === 0 then true else {
     let vs = calc_syms(s)
@@ -1220,7 +1220,7 @@ fn calc_root_series(f, k, a, a0, n) = {
   let p = f(calc_rs_y)
   let p0 = rewrite(p, a -> a0)
   # (a root free of a is a constant: the series engine takes it so, and this rule would call itself on it)
-  let ok = not free_of(p, a) and polynomial_expression_q(p, [calc_rs_y, a]) and exponent(p0, calc_rs_y) >= 1 and not (discriminant(p0, calc_rs_y) === 0) and is_numeric(discriminant(p0, calc_rs_y))
+  let ok = not free_of(p, a) and is_polynomial_expression(p, [calc_rs_y, a]) and exponent(p0, calc_rs_y) >= 1 and not (discriminant(p0, calc_rs_y) === 0) and is_numeric(discriminant(p0, calc_rs_y))
   if not ok then null else {
     # the root at a0 in radicals (a root object in the arithmetic of the series is not simplified)
     let y0 = to_radicals(root(apply(`fn`, [[`&1`], rewrite(p0, calc_rs_y -> `&1`)]), k))
@@ -1255,7 +1255,7 @@ fn calc_rs_with(r, pr, v) = replace_part(r, [[2, 2] -> rewrite(v, pr[3] -> calc_
 fn calc_rs_finite(v, pr) =
   every(calc_factors(denominator(together(v))), u =>
     free_of(u, pr[3]) or (not is_atom(u) and head(u) === pow and u[1] === e)
-    or (polynomial_q(u, pr[3]) and not (expand(resultant(pr[2], rewrite(u, pr[3] -> pr[1]), pr[1])) === 0)))
+    or (is_polynomial(u, pr[3]) and not (expand(resultant(pr[2], rewrite(u, pr[3] -> pr[1]), pr[1])) === 0)))
 fn calc_rs_int(r, s) = {
   let a = if is_list(s) then s[1] else s
   let pr = calc_rs_parts(r, a)
@@ -1272,7 +1272,7 @@ fn calc_rs_series(r, a, a0, n) = {
   else {
     let s = normal(series(pr[4], a, a0, n))
     let t = expand(rewrite(s, a -> calc_rs_d + a0))
-    if free_of(t, series) and polynomial_q(t, calc_rs_d) and exponent(t, calc_rs_d) <= n then
+    if free_of(t, series) and is_polynomial(t, calc_rs_d) and exponent(t, calc_rs_d) <= n then
       series(calc_total(map(k => calc_rs_with(r, pr, coefficient(t, calc_rs_d, k))*(a - a0)^k, range(0, n))), a, a0, n)
     else null
   }
@@ -1461,7 +1461,7 @@ fn cv_pieces(f, x) = {
     if some(ps, p => p === null) or not (f[2] === 0) then null
     else {
       let live = select(ps, p => p[3] > p[2])
-      if every(live, p => is_rational(p[2]) and is_rational(p[3]) and polynomial_expression_q(p[1], x)) and length(live) > 0 then live else null
+      if every(live, p => is_rational(p[2]) and is_rational(p[3]) and is_polynomial_expression(p[1], x)) and length(live) > 0 then live else null
     }
   } else null
 }
@@ -1658,8 +1658,8 @@ fn calc_mb_weight(g, w) =
   else if head(g) === gamma then (if calc_mb_slope(g[1], w) === null then null else [abs(calc_mb_slope(g[1], w)), calc_mb_slope(g[1], w)])
   else if head(g) === pow and free_of(g[1], w) then [0, 0]
   else if head(g) === pow and head(g[1]) === gamma and is_integer(g[2]) then (if calc_mb_slope(g[1][1], w) === null then null else [g[2]*abs(calc_mb_slope(g[1][1], w)), g[2]*calc_mb_slope(g[1][1], w)])
-  else if head(g) === pow and is_integer(g[2]) and polynomial_expression_q(g[1], [w]) then [0, 0]
-  else if polynomial_expression_q(g, [w]) then [0, 0]
+  else if head(g) === pow and is_integer(g[2]) and is_polynomial_expression(g[1], [w]) then [0, 0]
+  else if is_polynomial_expression(g, [w]) then [0, 0]
   else null
 fn calc_mb_closes_left(g, w) = {
   let ws = map(f => calc_mb_weight(f, w), calc_factors(g))
@@ -1839,7 +1839,7 @@ fn calc_hilbert_term(f, t, s) = {
 }
 fn calc_is_proper_rational(f, t) = {
   let r = together(f)
-  polynomial_expression_q(numerator(r), t) and polynomial_expression_q(denominator(r), t) and degree(numerator(r), t) < degree(denominator(r), t)
+  is_polynomial_expression(numerator(r), t) and is_polynomial_expression(denominator(r), t) and degree(numerator(r), t) < degree(denominator(r), t)
 }
 fn calc_hilbert_rational(f, t, s) = {
   let vs = map(term => {
@@ -1916,7 +1916,7 @@ fn calc_hb_pf(r, t) = {
   let rr = together(r)
   let num = expand(numerator(rr))
   let den = expand(denominator(rr))
-  if not polynomial_expression_q(num, t) or not polynomial_expression_q(den, t) then null
+  if not is_polynomial_expression(num, t) or not is_polynomial_expression(den, t) then null
   else if free_of(den, t) then [simplify(num/den), []]
   else {
     let fl = select(factor_list(den), pm => not free_of(pm[1], t))
@@ -2040,7 +2040,7 @@ fn calc_hb_steps(f) = rewrite(f, [unit_box(u_) :> piecewise([[1, abs(u) < 1/2], 
   unit_step(u_) :> piecewise([[1, u >= 0]], 0), heaviside_theta(u_) :> piecewise([[1, u > 0]], 0)])
 fn calc_hb_piece(f, t, lo, hi) = {
   let v = simplify(assuming(lo < t and t < hi, refine(calc_hb_steps(f))))
-  if polynomial_expression_q(v, t) then expand(v) else null
+  if is_polynomial_expression(v, t) then expand(v) else null
 }
 fn calc_hilbert_box(f, t, s) = {
   let bs = calc_hb_breaks(f, t)
@@ -2129,7 +2129,7 @@ fn calc_fst_exp(f, k, w, asm) = {
   else {
     let vs = map(p => {
       let ri = calc_hb_reim(p[1])
-      if not (calc_hb_sign(ri[2], asm) === 0) or not polynomial_expression_q(p[3], k) or not free_of(p[3], k) then null
+      if not (calc_hb_sign(ri[2], asm) === 0) or not is_polynomial_expression(p[3], k) or not free_of(p[3], k) then null
       else p[3]*exp(p[2])*dirac_comb((w - p[1])/(2*pi))
     }, parts)
     if some(vs, v => v === null) then null else calc_total(vs)
@@ -2285,12 +2285,12 @@ fn calc_dir_extreme(f, xy, ab, kind) = {
     if not ok or length(real) == 0 then null else (if kind === max then apply(max, real) else apply(min, real))
   }
 }
-rule max_limit(f_, spec_) := calc_dir_extreme(f, spec[1], spec[2], max) when match_q(spec, _ -> _) and calc_two_syms(spec[1]) and is_list(spec[2]) and length(spec[2]) == 2 and every(spec[2], u => is_numeric(u)) and not (calc_dir_extreme(f, spec[1], spec[2], max) === null)
-rule min_limit(f_, spec_) := calc_dir_extreme(f, spec[1], spec[2], min) when match_q(spec, _ -> _) and calc_two_syms(spec[1]) and is_list(spec[2]) and length(spec[2]) == 2 and every(spec[2], u => is_numeric(u)) and not (calc_dir_extreme(f, spec[1], spec[2], min) === null)
+rule max_limit(f_, spec_) := calc_dir_extreme(f, spec[1], spec[2], max) when is_match(spec, _ -> _) and calc_two_syms(spec[1]) and is_list(spec[2]) and length(spec[2]) == 2 and every(spec[2], u => is_numeric(u)) and not (calc_dir_extreme(f, spec[1], spec[2], max) === null)
+rule min_limit(f_, spec_) := calc_dir_extreme(f, spec[1], spec[2], min) when is_match(spec, _ -> _) and calc_two_syms(spec[1]) and is_list(spec[2]) and length(spec[2]) == 2 and every(spec[2], u => is_numeric(u)) and not (calc_dir_extreme(f, spec[1], spec[2], min) === null)
 rule discrete_max_limit(f_, spec_) := map(g => discrete_max_limit(g, spec), f) when is_list(f)
-rule discrete_max_limit(f_, spec_) := calc_dlim(f, spec, max) when match_q(spec, _ -> _) and is_symbol(spec[1]) and (spec[2] === inf or spec[2] === -inf) and not (calc_dlim(f, spec, max) === null)
+rule discrete_max_limit(f_, spec_) := calc_dlim(f, spec, max) when is_match(spec, _ -> _) and is_symbol(spec[1]) and (spec[2] === inf or spec[2] === -inf) and not (calc_dlim(f, spec, max) === null)
 rule discrete_min_limit(f_, spec_) := map(g => discrete_min_limit(g, spec), f) when is_list(f)
-rule discrete_min_limit(f_, spec_) := calc_dlim(f, spec, min) when match_q(spec, _ -> _) and is_symbol(spec[1]) and (spec[2] === inf or spec[2] === -inf) and not (calc_dlim(f, spec, min) === null)
+rule discrete_min_limit(f_, spec_) := calc_dlim(f, spec, min) when is_match(spec, _ -> _) and is_symbol(spec[1]) and (spec[2] === inf or spec[2] === -inf) and not (calc_dlim(f, spec, min) === null)
 
 # Stirling expansion of the gamma-type factors of f(x), x -> inf: factorial, gamma, pochhammer and binomial are written
 # with a private head stg(z) = gamma(z); for z = c x + d, log gamma(z) = (z - 1/2) log(c x) - c x + log(2 pi)/2
@@ -2350,7 +2350,7 @@ fn calc_stirling(f) = rewrite(f, [
   factorial(m_) :> calc_stirling_f(m),
   gamma(m_) :> calc_stirling_f(m)/m])
 fn calc_stirling_f(m) = sqrt(2*pi)*m^(m + 1/2)*exp(-m)
-fn discrete_asymptotic(f, spec; series_term_goal = 1) when match_q(spec, _ -> _) and spec[2] === inf = {
+fn discrete_asymptotic(f, spec; series_term_goal = 1) when is_match(spec, _ -> _) and spec[2] === inf = {
   let f1 = calc_st_roots(f)
   let r = calc_st_value(f1, spec[1], series_term_goal, "terms", 0)
   if not (r === null) then r else {
@@ -2460,7 +2460,7 @@ fn cb_and(cs) = if length(cs) == 0 then true else if length(cs) == 1 then cs[1] 
 fn cb_total(xs) = fold((p, q) => p + q, 0, xs)
 
 # cb_poly(p, xs): whether p is a polynomial in the variables xs
-fn cb_poly(p, xs) = polynomial_expression_q(expand(p), xs) === true
+fn cb_poly(p, xs) = is_polynomial_expression(expand(p), xs) === true
 
 # --- between ---
 
@@ -2501,7 +2501,7 @@ rule o(x_, x0_) := series_data(x, x0, list(), 1, 1) when is_symbol(x) and not (x
 # cb_nr_goal(opts): the value of the option precision_goal: among the options, null without it
 fn cb_nr_goal(opts) = {
   let rs = flatten(map(o => if not is_atom(o) and head(o) === options then apply(list, o) else [o], opts))
-  let hit = select(rs, r => match_q(r, precision_goal -> _))
+  let hit = select(rs, r => is_match(r, precision_goal -> _))
   if length(hit) == 0 then null else hit[1][2]
 }
 
@@ -2853,7 +2853,7 @@ rule find_generating_function(a_, x_) := {
 # 8|m| (the Kronecker symbol (n/2) has period 8, (n/m') period m' for odd m'), |m| and 2), so sum_n c_j(n) x^n =
 # U_j(x)/(1 - x^P) with U_j = sum_(r < P) c_j(r) x^r and the factor n^j is (x d/dx)^j (Stanley, Enumerative
 # Combinatorics I, 4.4, quasi-polynomials). null when f has another dependence on n.
-fn calc_qp_lin(a, n) = polynomial_q(a, n) and exponent(a, n) <= 1 and is_integer(coefficient(a, n, 1)) and is_integer(coefficient(a, n, 0))
+fn calc_qp_lin(a, n) = is_polynomial(a, n) and exponent(a, n) <= 1 and is_integer(coefficient(a, n, 1)) and is_integer(coefficient(a, n, 0))
 fn calc_qp_period(e, n) =
   if is_atom(e) then null
   else if head(e) === mod and length(e) == 2 and is_integer(e[2]) and e[2] > 0 and calc_qp_lin(e[1], n) and not free_of(e[1], n) then e[2]
@@ -2866,7 +2866,7 @@ fn calc_qp_pre(e, n) =
   else {
     let e2 = apply(head(e), map(u => calc_qp_pre(u, n), apply(list, e)))
     if not is_atom(e2) and head(e2) === quotient and length(e2) == 2 and is_integer(e2[2]) and e2[2] > 0 and calc_qp_lin(e2[1], n) then (e2[1] - mod(e2[1], e2[2]))/e2[2]
-    else if not is_atom(e2) and head(e2) === floor and length(e2) == 1 and polynomial_q(e2[1], n) and exponent(e2[1], n) == 1 and is_rational(coefficient(e2[1], n, 1)) and is_rational(coefficient(e2[1], n, 0)) then {
+    else if not is_atom(e2) and head(e2) === floor and length(e2) == 1 and is_polynomial(e2[1], n) and exponent(e2[1], n) == 1 and is_rational(coefficient(e2[1], n, 1)) and is_rational(coefficient(e2[1], n, 0)) then {
       let v = lcm(denominator(coefficient(e2[1], n, 1)), denominator(coefficient(e2[1], n, 0)))
       let a = expand(v*e2[1])
       (a - mod(a, v))/v
@@ -2885,7 +2885,7 @@ fn calc_qp_gf(f, n, x) = {
     let p = apply(lcm, map(a => calc_qp_period(a, n), atoms))
     let ks = map(i => calc_qp_k(i), range(length(atoms)))
     let g = expand(rewrite(g0, map(i => atoms[i] -> ks[i], range(length(atoms)))))
-    if not polynomial_q(g, join([n], ks)) then null
+    if not is_polynomial(g, join([n], ks)) then null
     else {
       var acc = 0
       for j in range(0, exponent(g, n)) {
@@ -3005,7 +3005,7 @@ fn calc_kron(f, x, kind) = {
     if length(groups) != 2 or some(groups, gr => not is_numeric(gr[2]) or head(gr[2]) === function_period) then null else {
       let r = simplify(groups[1][2]/groups[2][2])
       let mp = minimal_polynomial(r, calc_kron_t)
-      let irrational = is_numeric(r) and polynomial_expression_q(mp, [calc_kron_t]) and exponent(mp, calc_kron_t) >= 2
+      let irrational = is_numeric(r) and is_polynomial_expression(mp, [calc_kron_t]) and exponent(mp, calc_kron_t) >= 2
       let cont = every(groups, gr => function_continuous(gr[1], x) === true)
       let ext = map(gr => kind(gr[1], x), groups)
       if not irrational or not cont or some(ext, v => not is_numeric(v) or not free_of(v, kind)) then null else simplify(c + calc_total(ext))
@@ -3060,7 +3060,7 @@ rule arg_max(fc_, v_) := calc_vopt(arg_max, fc, v) when calc_vopt_ok(arg_max, fc
 # when a = b = 0, and unbounded (inf, the point indeterminate) otherwise; the minimum likewise with a > 0. Used when
 # a coefficient is not a number.
 fn calc_pq_parts(f, x) =
-  if not is_symbol(x) or is_list(f) or not polynomial_expression_q(f, [x]) or exponent(f, x) > 2 or exponent(f, x) < 1 then null
+  if not is_symbol(x) or is_list(f) or not is_polynomial_expression(f, [x]) or exponent(f, x) > 2 or exponent(f, x) < 1 then null
   else {
     let a2 = coefficient(f, x, 2)
     let a1 = coefficient(f, x, 1)
@@ -3164,7 +3164,7 @@ fn cb_rad_step(g, t, p, asm) = {
   let st = if s1 === null or not free_of(rest0, unit_step) or not (expand(g - rest0*s1) === 0) then [] else [s1]
   if length(st) != 1 then null else {
     let q = expand(st[1][1])
-    let ok = polynomial_expression_q(q, [t]) and exponent(q, t) == 2
+    let ok = is_polynomial_expression(q, [t]) and exponent(q, t) == 2
     let a2 = if ok then coefficient(q, t, 2) else 0
     if not ok or not is_number(a2) or not (a2 < 0) then null else {
       let a1 = coefficient(q, t, 1)
@@ -3172,7 +3172,7 @@ fn cb_rad_step(g, t, p, asm) = {
       let dd = simplify(a1^2 - 4*a2*a0)
       let rest = rest0
       let v = integrate(rest, [t, (-a1 + sqrt(dd))/(2*a2), (-a1 - sqrt(dd))/(2*a2)])
-      let c = if polynomial_expression_q(dd, [p], is_rational) then reduce(dd > 0, p, reals) else dd > 0
+      let c = if is_polynomial_expression(dd, [p], is_rational) then reduce(dd > 0, p, reals) else dd > 0
       if not free_of(v, integrate) or head(v) === failure then null else {
         let pw = piecewise([[simplify(v), if head(c) === reduce or head(c) === failure then dd > 0 else c]], 0)
         if asm === true then pw else simplify(pw, assumptions: asm)
@@ -3571,9 +3571,9 @@ rule asymptotic_solve(eqs_, yspec_, xspec_, opts___) := {
   # every branch or none: a start where the Jacobian is singular (y^5 - x y + x^2 at y = 0), or branches that leave
   # to infinity (x y^4 - (x + 1) y^2 + x == 1: the degree in y drops at x = 0) need Puiseux expansions in fractional
   # powers, which are not implemented; leaving them out would give an incomplete list
-  let lost = length(ys) == 1 and length(fs) == 1 and polynomial_expression_q(fs[1], [ys[1]]) and exponent(rewrite(fs[1], x -> x0), ys[1]) < exponent(fs[1], ys[1])
+  let lost = length(ys) == 1 and length(fs) == 1 and is_polynomial_expression(fs[1], [ys[1]]) and exponent(rewrite(fs[1], x -> x0), ys[1]) < exponent(fs[1], ys[1])
   # one polynomial equation in x and y: every branch by Newton's polygon
-  let single = length(ys) == 1 and length(fs) == 1 and polynomial_expression_q(fs[1], [ys[1], x]) and every(flatten([opts]), o => o === reals)
+  let single = length(ys) == 1 and length(fs) == 1 and is_polynomial_expression(fs[1], [ys[1], x]) and every(flatten([opts]), o => o === reals)
   let pu = if single and (not is_list(starts1) or length(starts) == 0 or length(good) < length(starts1) or lost) then cb_puiseux(fs[1], ys[1], x, k, if length(yspec) == 2 then (if several then yspec[2][1] else yspec[2]) else null, realq) else null
   if not (pu === null) then map(r => [ys[1] -> rewrite(r, x -> xspec[1] - xspec[2])], pu)
   else if not is_list(starts1) or length(starts) == 0 or length(good) < length(starts1) or lost then
@@ -3852,7 +3852,7 @@ fn calc_to_radicals(e) =
 # the assumptions (k past the real roots, or a comparison left open, keeps root(p, k))
 fn calc_trad_opts(opts) = {
   let rs = flatten(map(o => if not is_atom(o) and head(o) === options then apply(list, o) else [o], opts))
-  let known = every(rs, r => match_q(r, cubics -> _) or match_q(r, quartics -> _) or match_q(r, assumptions -> _))
+  let known = every(rs, r => is_match(r, cubics -> _) or is_match(r, quartics -> _) or is_match(r, assumptions -> _))
   let get = (nm, dflt) => {
     let hit = select(rs, r => r[1] === nm)
     if length(hit) == 0 then dflt else hit[1][2]
@@ -3910,7 +3910,7 @@ rule to_radicals(e_, opts___) := calc_to_radicals_o(e, calc_trad_opts(opts)) whe
 # with radicals
 fn calc_eig_rad(opts) = {
   let rs = flatten(map(o => if not is_atom(o) and head(o) === options then apply(list, o) else [o], opts))
-  if length(rs) > 0 and every(rs, r => match_q(r, cubics -> true) or match_q(r, quartics -> true)) then [some(rs, r => r[1] === cubics), some(rs, r => r[1] === quartics), true] else null
+  if length(rs) > 0 and every(rs, r => is_match(r, cubics -> true) or is_match(r, quartics -> true)) then [some(rs, r => r[1] === cubics), some(rs, r => r[1] === quartics), true] else null
 }
 rule eigenvalues(m_, opts___) := calc_to_radicals_o(eigenvalues(m), calc_eig_rad(opts)) when is_list(m) and calc_eig_rad(opts) !== null
 rule eigenvalues(m_, k_, opts___) := calc_to_radicals_o(eigenvalues(m, k), calc_eig_rad(opts)) when is_list(m) and is_integer(k) and calc_eig_rad(opts) !== null
@@ -3938,18 +3938,18 @@ fn calc_is_weierstrass(f, n) = {
 }
 
 # --- vector calculus in orthogonal coordinates: grad, div, curl, laplacian with a coordinate system ---
-# grad(f, q, sys), div(v, q, sys), curl(v, q, sys), laplacian(f, q, sys) for sys "Cartesian", "Polar" (r, t),
-# "Cylindrical" (r, t, z) and "Spherical" (r, t, p: t the angle from the z axis, p the azimuth), from the scale
+# grad(f, q, sys), div(v, q, sys), curl(v, q, sys), laplacian(f, q, sys) for sys cartesian, polar (r, t),
+# cylindrical (r, t, z) and spherical (r, t, p: t the angle from the z axis, p the azimuth), from the scale
 # factors h_i of the coordinates (Morse and Feshbach, Methods of Theoretical Physics, 1953, section 1.4): the
 # gradient (1/h_i) df/dq_i; the divergence (1/H) sum d(H v_i/h_i)/dq_i with H = h_1 h_2 h_3; the curl
 # (1/(h_j h_k)) (d(h_k v_k)/dq_j - d(h_j v_j)/dq_k) for (i, j, k) cyclic (in the plane the scalar
 # (1/(h_1 h_2)) (d(h_2 v_2)/dq_1 - d(h_1 v_1)/dq_2)); the Laplacian (1/H) sum d((H/h_i^2) df/dq_i)/dq_i
 fn vc_scale(sys, q) =
-  if not (is_string(sys) and is_list(q)) then null
-  else if sys == "Cartesian" then constant_array(1, length(q))
-  else if sys == "Polar" and length(q) == 2 then [1, q[1]]
-  else if sys == "Cylindrical" and length(q) == 3 then [1, q[1], 1]
-  else if sys == "Spherical" and length(q) == 3 then [1, q[1], q[1]*sin(q[2])]
+  if not (is_symbol(sys) and is_list(q)) then null
+  else if sys === cartesian then constant_array(1, length(q))
+  else if sys === polar and length(q) == 2 then [1, q[1]]
+  else if sys === cylindrical and length(q) == 3 then [1, q[1], 1]
+  else if sys === spherical and length(q) == 3 then [1, q[1], q[1]*sin(q[2])]
   else null
 fn vc_ok(sys, q) = not (vc_scale(sys, q) === null) and every(q, x => is_symbol(x))
 rule grad(f_, q_, sys_) := { let hs = vc_scale(sys, q); map(i => simplify(d(f, q[i])/hs[i]), range(length(q))) } when vc_ok(sys, q) and not is_list(f)

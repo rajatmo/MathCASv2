@@ -108,7 +108,7 @@ of 220x220 30-digit det/inverse and a 40x40 symbolic det within 3 s, 500x500 tim
 ## Round 18
 
 `identity_matrix([m, n])` and `working_precision: d`; `diagonal_matrix(v, k, n | [m, n])`; `target_structure`
-`"Dense"`, `"Sparse"`, `automatic` accepted (the dense form). Decision la-9d.1: exact eigenvectors with rational
+`dense`, `sparse`, `automatic` accepted (the dense form). Decision la-9d.1: exact eigenvectors with rational
 entries are scaled to coprime integers. Kept: `characteristic_polynomial` is det(x I - m), monic (det(m - x I)
 differs by a sign for odd n).
 
@@ -146,11 +146,11 @@ so `sparse_array(array_rules(a))` is `a`.
 - **Sparse arrays**: negative positions count from the end (`[-1] -> v`); `band(start, end) -> list` repeats the values
   (and a block or list of blocks) cyclically along a band with an explicit end, a band without an end runs once; a negative
   start or end counts from the end of its dimension.
-- Gaps: `interpolation_order` of `find_peaks` (spline peaks), `svd` with `"Thin"`.
+- Gaps: `interpolation_order` of `find_peaks` (spline peaks), `svd` with `thin`.
 
 ## Round 33
 
-- `svd(m, spec)`: `"Thin"` (the default, kept: decision above), `"Compact"` (nonzero singular values), `"Full"`
+- `svd(m, spec)`: `thin` (the default, kept: decision above), `compact` (nonzero singular values), `full`
   (unitary u and v, s of the size of m; the columns beyond the rank by Gram-Schmidt against the standard basis), a
   positive integer or `up_to(q)` (the q largest) and a negative integer (the smallest).
 - `eigenvalues`, `eigenvectors`, `eigensystem` of ball matrices (numbers of a given precision, `n(x, 20)` entries)
@@ -158,12 +158,12 @@ so `sparse_array(array_rules(a))` is `a`.
   count.
 - `trace(a, f, n)`: `f` (default `add`) of the entries a[i][i]..[i] down the first n levels; vectors and non-square
   matrices are allowed (`trace([[1, 2]])` is 1 now, it was `failure(not_square)`).
-- `hilbert_matrix`, `rotation_matrix`, `cholesky` accept `target_structure: "Dense"`/`"Sparse"`; `hilbert_matrix`
+- `hilbert_matrix`, `rotation_matrix`, `cholesky` accept `target_structure: dense`/`sparse`; `hilbert_matrix`
   `working_precision:` (a number of digits or `machine_precision`).
 - `sparse_array` with pattern positions: the conditions `when abs(i - j) == 1` over integer positions are evaluated by
   a small integer evaluator (add, mul, abs, mod, power, comparisons, and/or/not) and only other conditions go to the
   evaluator: 999 x 999 in 1 s (12 s before).
-- Not done: `"Cauchy"`/`"Hankel"`/`"Structured"` target structures, exact `svd`, `eigensystem` of a symbolic pencil
+- Not done: `"Cauchy"`/`"Hankel"`/`structured` target structures, exact `svd`, `eigensystem` of a symbolic pencil
   `[a, b]`.
 
 ## Round 36
@@ -219,7 +219,7 @@ No Rust change. Conventions recorded with property tests (`mc-engine/tests/r36_w
   values of a machine matrix above t times the largest; `row_reduce(m, tolerance: t)`: pivots at most t times the
   largest entry are zero; exact matrices ignore the tolerance.
 - `hankel_matrix`, `toeplitz_matrix`, `upper_triangularize`, `lower_triangularize` take `target_structure:
-  "Dense" | "Sparse" | automatic` (the dense list form, as the constructors' options here); other structures stay.
+  dense | sparse | automatic` (the dense list form, as the constructors' options here); other structures stay.
 
 ## Round 39: curls of scalars and of inactive operators
 

@@ -1,10 +1,10 @@
 #! mathcas 2 notebook
 
 #% title
-# perfect_number_q
+# is_perfect_number
 
 #% text
-# `perfect_number_q(k)` gives true when the integer k is a perfect number, the sum of its proper divisors: sigma_1(k) = 2 k.
+# `is_perfect_number(k)` gives true when the integer k is a perfect number, the sum of its proper divisors: sigma_1(k) = 2 k.
 
 #% section
 # Details
@@ -19,22 +19,22 @@
 # Basic examples
 
 #% cell
-perfect_number_q(496)
+is_perfect_number(496)
 #% output
 #= true
 
 #% cell
-select(range(10000), perfect_number_q)
+select(range(10000), is_perfect_number)
 #% output
 #= [6, 28, 496, 8128]
 
 #% cell
-perfect_number_q(2^(7 - 1)*(2^7 - 1))
+is_perfect_number(2^(7 - 1)*(2^7 - 1))
 #% output
 #= true
 
 #% cell
-perfect_number_q(x)
+is_perfect_number(x)
 #% output
 #= false
 

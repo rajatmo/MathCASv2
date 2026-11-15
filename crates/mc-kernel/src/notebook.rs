@@ -20,7 +20,7 @@ enum Line {
 
 /// The output blocks of a run (gap G91): one per shown statement value. A cell that shows at most one value gets
 /// one block without attributes, its lines in order (the format before G91, so such notebooks are written as
-/// before); with several values each value's block carries its statement's number (`n=N`) and holds the print
+/// before); with several values each value's block carries its statement's number (`out=N`) and holds the print
 /// output and warnings since the previous value; what follows the last value (and the stop line) goes in a block
 /// of its own. Reading keeps both layouts.
 fn output_blocks(lines: &[Line], status: Status) -> Vec<OutputBlock> {
@@ -36,7 +36,7 @@ fn output_blocks(lines: &[Line], status: Status) -> Vec<OutputBlock> {
             Line::Value(n, text) => {
                 push(&mut block, OutputKind::Value, text);
                 if values > 1 {
-                    block.attrs.set("n", n.map(|n| n.to_string()));
+                    block.attrs.set(mc_nbfile::OUT_LABEL, n.map(|n| n.to_string()));
                     blocks.push(std::mem::take(&mut block));
                 }
             }

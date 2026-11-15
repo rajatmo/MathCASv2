@@ -13,7 +13,7 @@
 # Basic examples
 
 #% cell
-list_slice_contour_plot3d(table(x^2 + y^2 + z^2, z, range(-1, 1, 0.2), y, range(-1, 1, 0.2), x, range(-1, 1, 0.2)), "CenterPlanes")
+list_slice_contour_plot3d(table(x^2 + y^2 + z^2, z, range(-1, 1, 0.2), y, range(-1, 1, 0.2), x, range(-1, 1, 0.2)), center_planes)
 #% output
 #= image("list_slice_contour_plot3d.files/list_slice_contour_plot3d-1.svgz")
 

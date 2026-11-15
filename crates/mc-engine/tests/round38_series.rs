@@ -74,9 +74,9 @@ fn linear_recurrences_are_found_and_checked() {
 
 #[test]
 fn polynomial_tests_respect_the_symbols_of_the_variables() {
-    assert_eq!(ev("[polynomial_q(x^(3/2) + 1, sqrt(x)), polynomial_q(x^(3/5) + 1, sqrt(x)), polynomial_q(sec(x) + 1, cos(x))]"), "[true, false, false]");
-    assert_eq!(ev("[polynomial_q(cos(x)^2 + a*cos(x), cos(x)), polynomial_q(x^2*y - y/2, [x, y]), polynomial_q(x^2 + exp(x), x)]"), "[true, true, false]");
-    assert_eq!(ev("[polynomial_q(x^2 + y), polynomial_q(sqrt(x) + 1)]"), "[true, false]");
+    assert_eq!(ev("[is_polynomial(x^(3/2) + 1, sqrt(x)), is_polynomial(x^(3/5) + 1, sqrt(x)), is_polynomial(sec(x) + 1, cos(x))]"), "[true, false, false]");
+    assert_eq!(ev("[is_polynomial(cos(x)^2 + a*cos(x), cos(x)), is_polynomial(x^2*y - y/2, [x, y]), is_polynomial(x^2 + exp(x), x)]"), "[true, true, false]");
+    assert_eq!(ev("[is_polynomial(x^2 + y), is_polynomial(sqrt(x) + 1)]"), "[true, false]");
 }
 
 #[test]

@@ -51,7 +51,7 @@ b = finite_field_element(F, 42)
 #% cell
 (a^2 + b) / (a - 3*b)
 #% output
-#= finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [4, 3, 2])
+#= finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), polynomial), [4, 3, 2])
 
 #% subsection
 # Scope
@@ -75,18 +75,18 @@ a("Field") == F
 #% cell
 a^-1 * a
 #% output
-#= finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [1])
+#= finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), polynomial), [1])
 
 #% text
 # In a field with the exponential representation, products add the indices:
 
 #% cell
-E = finite_field(5, 2, "Exponential")
+E = finite_field(5, 2, exponential)
 
 #% cell
 [E(4) * E(7), (E(4) * E(7))("Coefficients")]
 #% output
-#= [finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Exponential"), 10), [1, 3]]
+#= [finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), exponential), 10), [1, 3]]
 
 #% text
 # Elements of different fields stay apart:
@@ -94,7 +94,7 @@ E = finite_field(5, 2, "Exponential")
 #% cell
 finite_field(2, 2)(3) + finite_field(3, 1)(2)
 #% output
-#= finite_field_element(finite_field(2, &(1 + &1 + &1^2), "Polynomial"), [1, 1]) + finite_field_element(finite_field(3, &(1 + &1), "Polynomial"), [2])
+#= finite_field_element(finite_field(2, &(1 + &1 + &1^2), polynomial), [1, 1]) + finite_field_element(finite_field(3, &(1 + &1), polynomial), [2])
 
 #% text
 # Membership:
@@ -113,7 +113,7 @@ finite_field(2, 2)(3) + finite_field(3, 1)(2)
 #% cell
 polynomial_remainder(x^4 + a*x + 1, b*x^2 + 1, x)
 #% output
-#= finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [0, 4, 1]) + x*finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [1, 2, 3])
+#= finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), polynomial), [0, 4, 1]) + x*finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), polynomial), [1, 2, 3])
 
 #% subsection
 # Properties and relations
@@ -143,7 +143,7 @@ finite_field_index(b)
 #% cell
 [a^(1/2), a("Foo"), finite_field_root(a^2, 2) ]
 #% output
-#= [finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [1, 2, 3])^(1/2), finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [1, 2, 3])("Foo"), [finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [4, 3, 2]), finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [1, 2, 3])]]
+#= [finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), polynomial), [1, 2, 3])^(1/2), finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), polynomial), [1, 2, 3])("Foo"), [finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), polynomial), [4, 3, 2]), finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), polynomial), [1, 2, 3])]]
 
 #% text
 # A rational whose denominator is divisible by `p` is not an element:
@@ -151,7 +151,7 @@ finite_field_index(b)
 #% cell
 F([1/5, 1])
 #% output
-#= finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial")([1/5, 1])
+#= finite_field(5, &(3 + 3*&1 + &1^3), polynomial)([1/5, 1])
 
 #% section
 # See also

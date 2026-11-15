@@ -4,8 +4,8 @@
 //! - slice plots: `slice_density_plot3d(f, surface, [x, ...], [y, ...], [z, ...])`, `slice_contour_plot3d` (the
 //!   values in bands) and `slice_vector_plot3d([vx, vy, vz], ...)` (arrows on the surface), and their `list_` forms
 //!   for a 3D array of values or vectors (layers along z, rows along y; `data_range`). The surface is a name
-//!   (`"CenterPlanes"`, the default; `"BackPlanes"`, `"XStackedPlanes"`, `"YStackedPlanes"`, `"ZStackedPlanes"`,
-//!   `"DiagonalPlanes"`, `"CenterSphere"`), an equation in x, y, z, a region (`sphere`, `ball`, `cylinder`,
+//!   (`center_planes`, the default; `back_planes`, `x_stacked_planes`, `y_stacked_planes`, `z_stacked_planes`,
+//!   `diagonal_planes`, `center_sphere`), an equation in x, y, z, a region (`sphere`, `ball`, `cylinder`,
 //!   `infinite_plane`, `half_plane`, `implicit_region`), or a list of them. Surfaces that are not planes along
 //!   the axes are level sets, triangulated by marching tetrahedra on a 36-point grid;
 //! - `list_density_plot3d` (a 3D array as translucent coloured points);
@@ -335,20 +335,31 @@ fn surfaces<'h>(cx: &mut NativeCx<'_, '_, 'h>, spec: Option<T<'h>>, vars: Option
         return Ok(out);
     }
     for s in specs {
+        // a named surface: a symbol of the list below
+        const NAMED: [&str; 8] = [
+            "center_planes",
+            "center_cut_box",
+            "back_planes",
+            "x_stacked_planes",
+            "y_stacked_planes",
+            "z_stacked_planes",
+            "diagonal_planes",
+            "center_sphere",
+        ];
         let name = match h.view(s) {
-            View::Str(t) => Some(t.to_string()),
+            View::Sym(t) if NAMED.contains(&h.sym_name(t).as_str()) => Some(h.sym_name(t)),
             _ => None,
         };
         match name.as_deref() {
-            Some("CenterPlanes") | Some("CenterCutBox") => (0..3).for_each(|d| out.extend(axis_plane(d, mid(d), lo, hi, n))),
-            Some("BackPlanes") => {
+            Some("center_planes") | Some("center_cut_box") => (0..3).for_each(|d| out.extend(axis_plane(d, mid(d), lo, hi, n))),
+            Some("back_planes") => {
                 out.extend(axis_plane(0, lo[0], lo, hi, n));
                 out.extend(axis_plane(1, hi[1], lo, hi, n));
                 out.extend(axis_plane(2, lo[2], lo, hi, n));
             }
-            Some("XStackedPlanes") => stacked(0, &mut out),
-            Some("YStackedPlanes") => stacked(1, &mut out),
-            Some("ZStackedPlanes") => stacked(2, &mut out),
+            Some("x_stacked_planes") => stacked(0, &mut out),
+            Some("y_stacked_planes") => stacked(1, &mut out),
+            Some("z_stacked_planes") => stacked(2, &mut out),
             Some(_) | None => {
                 let g = match (vars, name.as_deref()) {
                     (Some(v), None) => level(cx, s, v),
@@ -356,12 +367,12 @@ fn surfaces<'h>(cx: &mut NativeCx<'_, '_, 'h>, spec: Option<T<'h>>, vars: Option
                 };
                 let g = match (g, name.as_deref(), vars) {
                     (Some(g), _, _) => Some(g),
-                    (None, Some("DiagonalPlanes"), Some(v)) => {
+                    (None, Some("diagonal_planes"), Some(v)) => {
                         let (x, y) = (h.sym_term(v[0]), h.sym_term(v[1]));
                         let e = mc_geom::ex::E { h };
                         Some(e.sub(mul2(&e, e.sub(x, h.real(mid(0))), e.sub(y, h.real(mid(1)))), h.int(0)))
                     }
-                    (None, Some(nm), Some(v)) if nm.contains("Sphere") => {
+                    (None, Some("center_sphere"), Some(v)) => {
                         let e = mc_geom::ex::E { h };
                         let r = (0..3).map(|d| hi[d] - lo[d]).fold(f64::INFINITY, f64::min) * 0.4;
                         let sq: Vec<T<'h>> = (0..3).map(|d| {
@@ -611,7 +622,7 @@ fn histogram3d<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], o: Option<T<'h>>)
         Some(k) if k >= 1.0 => (k as usize).min(60),
         _ => ((all.len() as f64).sqrt().ceil() as usize).clamp(4, 20),
     };
-    let kind = a.get(2).and_then(|&k| if let View::Str(s) = h.view(k) { Some(s.to_uppercase()) } else { None }).unwrap_or_default();
+    let kind = a.get(2).and_then(|&k| if let View::Sym(s) = h.view(k) { Some(h.sym_name(s).to_uppercase()) } else { None }).unwrap_or_default();
     let mut prims = vec![h.call(h.sym("edge_form"), &[h.call(h.sym("gray_level"), &[h.real(0.35)])])];
     let mut top = 0.0f64;
     let (wx, wy) = ((rx.1 - rx.0) / nb as f64, (ry.1 - ry.0) / nb as f64);

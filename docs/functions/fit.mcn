@@ -10,7 +10,7 @@
 # Details
 
 #% item
-# `fit_regularization: ["L2", lambda]` (also `"Tikhonov"`, `"RidgeRegression"`) minimises the sum of the squared residuals plus `lambda` times the sum of the squared coefficients; `fit_regularization: ["L1", lambda]` (also `"LASSO"`) the sum of the squared residuals plus `lambda` times the sum of the absolute values of all the coefficients, the constant one included.
+# `fit_regularization: [l2, lambda]` (also `tikhonov`, `ridge_regression`) minimises the sum of the squared residuals plus `lambda` times the sum of the squared coefficients; `fit_regularization: [l1, lambda]` (also `lasso`) the sum of the squared residuals plus `lambda` times the sum of the absolute values of all the coefficients, the constant one included.
 
 #% section
 # Examples

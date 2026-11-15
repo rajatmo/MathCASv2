@@ -1,16 +1,16 @@
 #! mathcas 2 notebook
 
 #% title
-# value_q
+# is_true
 
 #% text
-# `value_q(x)` tests whether `x` has a value: whether it evaluates to something other than itself.
+# `is_true(x)` gives `true` when `x` is `true` and `false` for anything else.
 
 #% section
 # Details
 
 #% item
-# The argument is held.
+# Unlike a condition, it never stays unevaluated.
 
 #% section
 # Examples
@@ -19,36 +19,35 @@
 # Basic examples
 
 #% cell
-v = 3; value_q(v)
+is_true(true)
 #% output
 #= true
 
 #% cell
-value_q(undefined_symbol)
+is_true(false)
 #% output
 #= false
 
 #% cell
-value_q(1 + 1)
+is_true(x)
 #% output
-#= true
+#= false
 
 #% subsection
 # Scope
 
 #% cell
-fn f(n) = n^2
-value_q(f(2))
+is_true(1 < 2)
 #% output
 #= true
 
 #% cell
-value_q(f)
+map(is_true, [true, 1, "true"])
 #% output
-#= false
+#= [true, false, false]
 
 #% section
 # See also
 
 #% text
-# `attributes`, `is_symbol`
+# `same`, `xor`

@@ -13,7 +13,7 @@
 # `norm(m)` gives the 2-norm of the matrix `m`, its largest singular value.
 
 #% text
-# `norm(m, p)` gives the 1-norm, the infinity norm or the Frobenius norm of `m` for `p` equal to 1, `inf` or `"frobenius"`.
+# `norm(m, p)` gives the 1-norm, the infinity norm or the Frobenius norm of `m` for `p` equal to 1, `inf` or `frobenius`.
 
 #% section
 # Details
@@ -121,7 +121,7 @@ norm([[1, 2], [3, 4]], inf)
 #= 7
 
 #% cell
-norm([[1, 2], [3, 4]], "frobenius")
+norm([[1, 2], [3, 4]], frobenius)
 #% output
 #= 30^(1/2)
 

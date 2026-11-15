@@ -54,7 +54,7 @@ matrix_function(exp, [[1.0, 2.0], [3.0, 4.0]])
 # The method option is accepted; the result is the same function of the matrix:
 
 #% cell
-matrix_function(exp, [[0, 1], [0, 0]], method: "Jordan")
+matrix_function(exp, [[0, 1], [0, 0]], method: jordan)
 #% output
 #= [[1, 1], [0, 1]]
 

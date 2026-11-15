@@ -405,7 +405,7 @@ Covers `simplify`, `full_simplify`, `refine`,
   stays with it.
 - **n12.6 Options.** `transformation_functions: [automatic, f, ...]`: the user functions are extra moves (not
   spot-checked: the user's identities); without `automatic` they are the only moves. `excluded_forms: [p, ...]`:
-  subterms matching a pattern (`match_q`, outermost first) are replaced by fresh symbols `excluded$k` for the
+  subterms matching a pattern (`is_match`, outermost first) are replaced by fresh symbols `excluded$k` for the
   search and put back after. `time_constraint: s` (or `inf`, capped at a day).
 - **n12.7 Equational axioms** (`logic`): an axiom is oriented from the larger side to the smaller (as written on
   equal sizes), reversed when its right side has extra variables, dropped when a variable alone would be a left
@@ -419,7 +419,7 @@ Covers `simplify`, `full_simplify`, `refine`,
   `csc` written by an identity (the `K_nu(-x)` form) stays.
 - **n12.10 Coprimality.** The evaluator's `gcd(a, m)` of two symbols is 1 (the polynomial gcd), so the fact `gcd(a,
   m) == 1` is `true` before it reaches the context and the decision service would prove it for every `a`, `m`.
-  Euler's theorem therefore asks for the fact `coprime_q(a, m)` (or a literal `gcd(...) == 1` that stayed
+  Euler's theorem therefore asks for the fact `coprime(a, m)` (or a literal `gcd(...) == 1` that stayed
   unevaluated). Writing `assumptions: gcd(a, m) == 1` stays open (it needs `gcd` of
   symbols to stay unevaluated: `mc-numtheory`/`mc-poly`).
 - **n12.11 Decision service** (`mc-decide/src/facts.rs`): a numeric bound `c` of `u` bounds `exp(u)` by `exp(c)`,
@@ -533,7 +533,7 @@ keep the value at random points (11 inputs x 3 points, 30 digits), user transfor
   `(1 + sqrt(5))/2`; an integer or rational result replaces it (`1 + 1/golden_ratio - golden_ratio` is 0,
   `golden_ratio^2 - golden_ratio - 1` is 0). Anything else keeps the symbolic form.
 - `refine`/`simplify` under `re(x) > 0`: `(x^a)^c = x^(a c)` for real `a` in [-2, 2] (the argument of `x^a` lies in
-  (-pi, pi), DLMF 4.2), so `sqrt(x^2)` is `x` and `possible_zero_q(sqrt(x^2) - x, assumptions: re(x) > 0)` is true.
+  (-pi, pi), DLMF 4.2), so `sqrt(x^2)` is `x` and `is_possible_zero(sqrt(x^2) - x, assumptions: re(x) > 0)` is true.
   Exponents beyond 2 are left (`(x^3)^(1/3)`).
 - Not reached: `refine(sqrt((x + y - 2)^2), element([x, y], disk()))` (needs disk bounds in the decision
   service).

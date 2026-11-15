@@ -1,4 +1,4 @@
-//! Matching a pattern term against subjects, for `cases`, `count`, `match_q` and the other pattern functions.
+//! Matching a pattern term against subjects, for `cases`, `count`, `is_match` and the other pattern functions.
 //!
 //! The pattern term (`mc-syntax`'s pattern shapes) is checked and lowered by `mc_eval::syntax::pattern` and
 //! compiled by the evaluator ([`NativeCx::compile_pattern`]) on first use, so these functions match exactly like

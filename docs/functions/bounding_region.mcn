@@ -4,7 +4,7 @@
 # bounding_region
 
 #% text
-# `bounding_region(points, form)`: a region holding the points: "MinRectangle" (default; also "MinCuboid", "MinInterval"), "MinDisk" or "MinBall" (the smallest ball), "MinConvexPolygon" (the convex hull)
+# `bounding_region(points, form)`: a region holding the points: min_rectangle (default; also min_cuboid, min_interval), min_disk or min_ball (the smallest ball), min_convex_polygon (the convex hull)
 
 #% section
 # Examples
@@ -16,12 +16,12 @@
 pts = [[3, 10], [6, 3], [10, 2], [2, 8], [3, 3]]
 
 #% cell
-bounding_region(pts, "MinDisk")
+bounding_region(pts, min_disk)
 #% output
 #= disk([13/2, 6], (1/2)*113^(1/2))
 
 #% cell
-bounding_region(pts, "MinConvexPolygon")
+bounding_region(pts, min_convex_polygon)
 #% output
 #= polygon([[3, 10], [2, 8], [3, 3], [10, 2]], [1, 2, 3, 4])
 

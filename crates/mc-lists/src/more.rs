@@ -2,8 +2,8 @@
 //! Further list and functional operations (round 14): `map_apply`, `comap`, `comap_apply`,
 //! `map_all`, `is_array`, `fold_pair_list`, `fold_pair`, `subsequences`, the `contains_*` tests, `nearest`, `pick`,
 //! `min_max`, `take_drop`, `power_range`, `first_position`, `count_distinct`, `delete_elements`,
-//! `position_largest`, `position_smallest`, `symmetric_difference`, `xor`, `implies`, `true_q`, `construct`,
-//! `identity`, `hold_complete`, `check`, `value_q`, `to_character_code`, `character_range`, `up_to`.
+//! `position_largest`, `position_smallest`, `symmetric_difference`, `xor`, `implies`, `is_true`, `construct`,
+//! `identity`, `hold_complete`, `check`, `is_value`, `to_character_code`, `character_range`, `up_to`.
 use crate::assocs::entries;
 use crate::ctx::{apply, take, Lib, Meter};
 use mc_core::{Heap, Store, View, T};
@@ -208,7 +208,7 @@ pub(crate) fn is_array<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, 
         let ok = match h.view(d) {
             View::Int(k) => k == dims.len() as i64,
             _ => {
-                let v = cx.eval(h.call(h.sym("match_q"), &[n, d]))?;
+                let v = cx.eval(h.call(h.sym("is_match"), &[n, d]))?;
                 cx.is_true(v)
             }
         };
@@ -1161,8 +1161,8 @@ pub(crate) fn implies<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, 
     Ok(Reply::Decline)
 }
 
-/// `true_q(x)`: whether `x` is `true` (anything else is `false`).
-pub(crate) fn true_q<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+/// `is_true(x)`: whether `x` is `true` (anything else is `false`).
+pub(crate) fn is_true<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let [x] = *args else { return Ok(Reply::Decline) };
     Ok(Reply::Done(cx.bool(cx.is_true(x))))
 }
@@ -1324,8 +1324,8 @@ pub(crate) fn inactivate<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>
 /// ends preferring a match, so among equal-scoring alignments the gaps come as early as possible. At most 10^7 cells
 /// (P9B.9).
 ///
-/// Options: `ignore_case: true` (strings compared and given in lower case); `method: "Global"` (the default) or
-/// `"Local"` (Smith and Waterman 1981: the best-scoring pair of segments with the same scores, cells floored at 0; the
+/// Options: `ignore_case: true` (strings compared and given in lower case); `method: global` (the default) or
+/// `local` (Smith and Waterman 1981: the best-scoring pair of segments with the same scores, cells floored at 0; the
 /// parts before and after it are differences, the first maximal cell in row order taken); `merge_differences: false`
 /// (adjacent differences of different kinds, elements of `a` alone, of `b` alone, or of both, kept apart). Other
 /// options leave the call unevaluated.
@@ -1356,8 +1356,8 @@ pub(crate) fn sequence_alignment<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t
                     Some(x) => merge = x,
                     None => return Ok(Reply::Decline),
                 },
-                ("method", View::Str(m)) if m == "Global" => local = false,
-                ("method", View::Str(m)) if m == "Local" => local = true,
+                ("method", View::Sym(m)) if h.sym_name(m) == "global" => local = false,
+                ("method", View::Sym(m)) if h.sym_name(m) == "local" => local = true,
                 _ => return Ok(Reply::Decline),
             }
         }
@@ -1490,18 +1490,17 @@ pub(crate) fn check<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, arg
     Ok(Reply::Done(v))
 }
 
-/// `value_q(x)` (held): whether `x` has a value (evaluates to something other than itself). `method:`
-/// `"TrialEvaluation"` is that; `"OwnValuesPresent"` whether the symbol `x` has an own value;
-/// `"SymbolDefinitionsPresent"` whether the symbol `x`, or the head of the call `x`, has any definition (for a
+/// `is_value(x)` (held): whether `x` has a value (evaluates to something other than itself). `method:`
+/// `trial_evaluation` is that; `own_values_present` whether the symbol `x` has an own value;
+/// `symbol_definitions_present` whether the symbol `x`, or the head of the call `x`, has any definition (for a
 /// list, any element); `automatic` (the default) the own value for a symbol, the trial evaluation otherwise.
-pub(crate) fn value_q<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+pub(crate) fn is_value<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let (args, method) = crate::ctx::option(h, args, 1, "method");
     let [x] = *args else { return Ok(Reply::Decline) };
     let method = match method.map(|m| h.view(m)) {
-        None => "Automatic".to_string(),
-        Some(View::Sym(s)) if h.sym_name(s) == "automatic" => "Automatic".to_string(),
-        Some(View::Str(m)) => m.to_string(),
+        None => "automatic".to_string(),
+        Some(View::Sym(s)) => h.sym_name(s),
         Some(_) => return Ok(Reply::Decline),
     };
     let own = |cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>| match h.view(x) {
@@ -1523,11 +1522,11 @@ pub(crate) fn value_q<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, 
         }
     }
     let r = match method.as_str() {
-        "OwnValuesPresent" => own(cx, x),
-        "SymbolDefinitionsPresent" => defined(cx, x),
-        "TrialEvaluation" => cx.eval(x)? != x,
-        "Automatic" if matches!(h.view(x), View::Sym(_)) => own(cx, x) || cx.eval(x)? != x,
-        "Automatic" => cx.eval(x)? != x,
+        "own_values_present" => own(cx, x),
+        "symbol_definitions_present" => defined(cx, x),
+        "trial_evaluation" => cx.eval(x)? != x,
+        "automatic" if matches!(h.view(x), View::Sym(_)) => own(cx, x) || cx.eval(x)? != x,
+        "automatic" => cx.eval(x)? != x,
         _ => return Ok(Reply::Decline),
     };
     Ok(Reply::Done(cx.bool(r)))

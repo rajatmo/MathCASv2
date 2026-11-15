@@ -42,23 +42,23 @@ t0 {S {SS {SSS a}} {SS2 b}} S2
 --- before
 #% cell
 i
-#% output n=1
+#% output out=1
 #= o
 #% text
 # t
 #% cell
 i2
-#% output n=2
+#% output out=2
 #| p
 #? m
 #= o2
-#% output n=3
+#% output out=3
 #= o3
 #% cell
 i3
 #% cell
 i4
-#% output n=4
+#% output out=4
 #= o4
 --- groups
 {i o} t {i2 p m o2 o3} i3 {i4 o4}
@@ -67,7 +67,7 @@ i4
 --- before
 #% code
 c
-#% output n=1
+#% output out=1
 #= o
 #% cell
 i
@@ -80,7 +80,7 @@ i
 --- before
 #% item
 # i
-#% itemparagraph
+#% item_paragraph
 # ip
 #% subitem
 # s
@@ -92,9 +92,9 @@ i
 # i2
 #% text
 # t
-#% itemnumbered
+#% item_numbered
 # n
-#% subitemnumbered
+#% subitem_numbered
 # sn
 --- groups
 {i ip {s ss} s2} i2 t {n sn}
@@ -109,7 +109,7 @@ i
 # s
 #% cell
 c
-#% output n=1
+#% output out=1
 #= o
 #% subsection
 # SS
@@ -126,7 +126,7 @@ c
 # t
 #% cell
 In
-#% output n=1
+#% output out=1
 #= Out
 #% cell
 x
@@ -144,7 +144,7 @@ x
 # S2
 #% code
 c
-#% output n=2
+#% output out=2
 #? m
 #| pr
 #= o
@@ -215,48 +215,48 @@ DoubleBracket(0,1)
 
 === Ctrl+' in an output closes the input group showing the output
 --- before
-#% cell label=1
+#% cell in=1
 print(1)
 2
-#% output n=2
+#% output out=2
 #| 1
 #= 2▮
 --- keys
 Ctrl+'
 --- after
-#% cell label=1 shown=3
+#% cell in=1 shown=3
 print(1)
 2
-#% output n=2
+#% output out=2
 #| 1
 #= 2▮
 
 === Ctrl+' in the input closes the group showing the input; again opens it
 --- before
-#% cell label=1
+#% cell in=1
 2▮
-#% output n=1
+#% output out=1
 #= 2
 --- keys
 Ctrl+'
 --- after
-#% cell label=1 closed
+#% cell in=1 closed
 2▮
-#% output n=1
+#% output out=1
 #= 2
 
 === Ctrl+' twice opens the group again
 --- before
-#% cell label=1
+#% cell in=1
 2▮
-#% output n=1
+#% output out=1
 #= 2
 --- keys
 Ctrl+' Ctrl+'
 --- after
-#% cell label=1
+#% cell in=1
 2▮
-#% output n=1
+#% output out=1
 #= 2
 
 === Ctrl+A then Ctrl+} closes every group, nested ones too; Ctrl+{ opens them
@@ -269,7 +269,7 @@ Ctrl+' Ctrl+'
 # a
 #% cell
 x
-#% output n=1
+#% output out=1
 #= 1
 ‖
 --- keys
@@ -286,7 +286,7 @@ Ctrl+A Ctrl+}
 
 #% cell closed ◆
 x
-#% output n=1
+#% output out=1
 #= 1 ◆
 
 === Ctrl+{ opens every group of the selection

@@ -866,7 +866,7 @@ fn from_digits<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> 
     // the [digits, exponent] form of real_digits
     let helper = |name: &str| h.call(h.sym(name), args);
     if matches!(h.view(args[0]), View::Str(_)) {
-        let roman = args.get(1).is_some_and(|&b| matches!(h.view(b), View::Str(s) if s == "Roman"));
+        let roman = args.get(1).is_some_and(|&b| matches!(h.view(b), View::Sym(s) if h.sym_name(s) == "roman"));
         return Ok(Reply::Again(helper(if roman { "from_roman" } else { "from_digit_string" })));
     }
     if let Some(&[ds, e]) = cx.as_list(args[0]) {

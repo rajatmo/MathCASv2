@@ -30,31 +30,31 @@ fn matrices_modulo_a_prime() {
 #[test]
 fn definiteness_and_shape_tests() {
     // a diagonal entry -3: e_2 . m . e_2 < 0
-    assert_eq!(ev("positive_definite_matrix_q([[pi, -5, 2], [e, -3, -3], [5, sqrt(2), 5]])"), "false");
-    assert_eq!(ev("positive_definite_matrix_q([[pi, 1], [1, e]])"), "true");
+    assert_eq!(ev("is_positive_definite_matrix([[pi, -5, 2], [e, -3, -3], [5, sqrt(2), 5]])"), "false");
+    assert_eq!(ev("is_positive_definite_matrix([[pi, 1], [1, e]])"), "true");
     // pi e - 9 < 0: not definite, as the eigenvalues of the matrix say
-    assert_eq!(ev("[positive_definite_matrix_q([[pi, 3], [3, e]]), min(n(eigenvalues([[pi, 3], [3, e]]))) > 0]"), "[false, false]");
+    assert_eq!(ev("[is_positive_definite_matrix([[pi, 3], [3, e]]), min(n(eigenvalues([[pi, 3], [3, e]]))) > 0]"), "[false, false]");
     let m2 = "m2 = [[1, log(x^2)], [2*log(x), 2]]; ";
-    assert_eq!(ev(&format!("{m2}symmetric_matrix_q(m2, same_test: &(simplify(&1 - &2, x > 0) == 0))")), "true");
+    assert_eq!(ev(&format!("{m2}is_symmetric_matrix(m2, same_test: &(simplify(&1 - &2, x > 0) == 0))")), "true");
     // log(x^2) - 2 log(x) is not 0 for negative x
-    assert_eq!(ev(&format!("{m2}symmetric_matrix_q(m2, tolerance: 10^(-12))")), "false");
-    assert_eq!(ev("symmetric_matrix_q([[1, 2.], [2. + 10^(-13), 1]], tolerance: 10^(-12))"), "true");
-    assert_eq!(ev("symmetric_matrix_q([[1, 2.], [2. + 10^(-10), 1]], tolerance: 10^(-12))"), "false");
-    assert_eq!(ev("diagonal_matrix_q([[1., 10^(-12), 0], [0, 2., 10^(-13)], [0, 0, 3.]], tolerance: 10^(-12))"), "true");
-    assert_eq!(ev("diagonal_matrix_q([[1., 10^(-11), 0], [0, 2., 0], [0, 0, 3.]], tolerance: 10^(-12))"), "false");
-    assert_eq!(ev("upper_triangular_matrix_q([[1., 2., 3.], [10^(-12), 4., 5.], [0, 10^(-13), 6.]], tolerance: 10^(-12))"), "true");
-    assert_eq!(ev("lower_triangular_matrix_q([[1., 10^(-13)], [3., 4.]], tolerance: 10^(-12))"), "true");
+    assert_eq!(ev(&format!("{m2}is_symmetric_matrix(m2, tolerance: 10^(-12))")), "false");
+    assert_eq!(ev("is_symmetric_matrix([[1, 2.], [2. + 10^(-13), 1]], tolerance: 10^(-12))"), "true");
+    assert_eq!(ev("is_symmetric_matrix([[1, 2.], [2. + 10^(-10), 1]], tolerance: 10^(-12))"), "false");
+    assert_eq!(ev("is_diagonal_matrix([[1., 10^(-12), 0], [0, 2., 10^(-13)], [0, 0, 3.]], tolerance: 10^(-12))"), "true");
+    assert_eq!(ev("is_diagonal_matrix([[1., 10^(-11), 0], [0, 2., 0], [0, 0, 3.]], tolerance: 10^(-12))"), "false");
+    assert_eq!(ev("is_upper_triangular_matrix([[1., 2., 3.], [10^(-12), 4., 5.], [0, 10^(-13), 6.]], tolerance: 10^(-12))"), "true");
+    assert_eq!(ev("is_lower_triangular_matrix([[1., 10^(-13)], [3., 4.]], tolerance: 10^(-12))"), "true");
 }
 
 #[test]
 fn polynomial_extrapolation() {
-    assert_eq!(ev("array_pad([1, 5, 7, 8], [0, 3], \"Extrapolated\", interpolation_order: 2)"), "[1, 5, 7, 8, 8, 7, 5]");
-    assert_eq!(ev("array_pad([1, 5, 7, 8], [0, 3], \"Extrapolated\", interpolation_order: inf)"), "[1, 5, 7, 8, 9, 11, 15]");
+    assert_eq!(ev("array_pad([1, 5, 7, 8], [0, 3], extrapolated, interpolation_order: 2)"), "[1, 5, 7, 8, 8, 7, 5]");
+    assert_eq!(ev("array_pad([1, 5, 7, 8], [0, 3], extrapolated, interpolation_order: inf)"), "[1, 5, 7, 8, 9, 11, 15]");
     // the cubic through the four points, at the new places
-    assert_eq!(ev("p = interpolating_polynomial([1, 5, 7, 8], t); array_pad([1, 5, 7, 8], [2, 3], \"Extrapolated\", interpolation_order: inf) == map(k => rewrite(p, t -> k), range(-1, 7))"), "true");
+    assert_eq!(ev("p = interpolating_polynomial([1, 5, 7, 8], t); array_pad([1, 5, 7, 8], [2, 3], extrapolated, interpolation_order: inf) == map(k => rewrite(p, t -> k), range(-1, 7))"), "true");
     // a quadratic is continued exactly by the order 2
-    assert_eq!(ev("v = table(k^2 - 3*k, k, 5); array_pad(v, 3, \"Extrapolated\", interpolation_order: 2) == table(k^2 - 3*k, [k, -2, 8])"), "true");
-    assert_eq!(ev("v = n(exp(range(0, 5))); w = array_pad(v, 5, \"Extrapolated\", interpolation_order: inf); p = interpolating_polynomial(v, t); max(abs(w - map(k => rewrite(p, t -> k), range(-4, 11)))) < 10^-9"), "true");
+    assert_eq!(ev("v = table(k^2 - 3*k, k, 5); array_pad(v, 3, extrapolated, interpolation_order: 2) == table(k^2 - 3*k, [k, -2, 8])"), "true");
+    assert_eq!(ev("v = n(exp(range(0, 5))); w = array_pad(v, 5, extrapolated, interpolation_order: inf); p = interpolating_polynomial(v, t); max(abs(w - map(k => rewrite(p, t -> k), range(-4, 11)))) < 10^-9"), "true");
 }
 
 #[test]
@@ -124,7 +124,7 @@ fn arrays_of_blocks_and_other_forms() {
     assert_eq!(ev("identity_matrix(3, working_precision: machine_precision)"), "[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]");
     assert_eq!(ev("x = identity_matrix(2, working_precision: 30); [is_inexact(x[1, 1]), x == identity_matrix(2)]"), "[true, true]");
     // the measure of a map with a list of ranges: a volume in cylindrical coordinates, an area of a plane map
-    assert_eq!(ev("region_measure([r, t, z], [[r, 0, R], [t, 0, 2*pi], [z, 0, Z]], \"Cylindrical\") == pi*R^2*Z"), "true");
+    assert_eq!(ev("region_measure([r, t, z], [[r, 0, R], [t, 0, 2*pi], [z, 0, Z]], cylindrical) == pi*R^2*Z"), "true");
     assert_eq!(ev("region_measure([r*cos(x), r*sin(x)], [[x, 0, 2*pi], [r, 0, 2]])"), "4*pi");
 }
 

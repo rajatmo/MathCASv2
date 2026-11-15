@@ -25,9 +25,9 @@ fn array_pad_sides_levels_and_modes() {
     assert_eq!(ev("array_pad([1, 2, 3], [2, 4])"), "[0, 0, 1, 2, 3, 0, 0, 0, 0]");
     assert_eq!(ev("array_pad(range(10), -2)"), "[3, 4, 5, 6, 7, 8]");
     assert_eq!(ev("array_pad([[1, 2], [3, 4]], [[1], [0]])"), "[[0, 0], [1, 2], [3, 4], [0, 0]]");
-    assert_eq!(ev("array_pad([1, 2, 3], 2, \"Fixed\")"), "[1, 1, 1, 2, 3, 3, 3]");
-    assert_eq!(ev("array_pad([a, b, c], 4, \"Periodic\")"), "[c, a, b, c, a, b, c, a, b, c, a]");
-    assert_eq!(ev("array_pad([a, b, c], 4, \"Reflected\")"), "[a, b, c, b, a, b, c, b, a, b, c]");
+    assert_eq!(ev("array_pad([1, 2, 3], 2, fixed)"), "[1, 1, 1, 2, 3, 3, 3]");
+    assert_eq!(ev("array_pad([a, b, c], 4, periodic)"), "[c, a, b, c, a, b, c, a, b, c, a]");
+    assert_eq!(ev("array_pad([a, b, c], 4, reflected)"), "[a, b, c, b, a, b, c, b, a, b, c]");
 }
 
 #[test]
@@ -53,9 +53,9 @@ fn diagonals_and_triangular_parts() {
     assert_eq!(ev("diagonal([[a, b, c], [d, e, f], [g, h, i]], -1)"), "[d, h]");
     assert_eq!(ev("upper_triangularize([[1, 2, 3], [4, 5, 6], [7, 8, 9]], 1)"), "[[0, 2, 3], [0, 0, 6], [0, 0, 0]]");
     assert_eq!(ev("lower_triangularize([[1.25, 3.2], [7.9, -1.4]])"), "[[1.25, 0.0], [7.9, -1.4]]");
-    assert_eq!(ev("upper_triangular_matrix_q([[1, 2], [0, 3]])"), "true");
-    assert_eq!(ev("lower_triangular_matrix_q([[1, 2], [0, 3]])"), "false");
-    assert_eq!(ev("diagonal_matrix_q([[0, 1], [0, 0]], 1)"), "true");
+    assert_eq!(ev("is_upper_triangular_matrix([[1, 2], [0, 3]])"), "true");
+    assert_eq!(ev("is_lower_triangular_matrix([[1, 2], [0, 3]])"), "false");
+    assert_eq!(ev("is_diagonal_matrix([[0, 1], [0, 0]], 1)"), "true");
     assert_eq!(ev("diagonal(x)"), "diagonal(x)");
 }
 
@@ -109,7 +109,7 @@ fn numbers_names_and_strings() {
     assert_eq!(ev("integer_string(12345, 10, 3)"), "\"345\"");
     assert_eq!(ev("integer_name(1234567)"), "\"1 million 234 thousand 567\"");
     assert_eq!(ev("integer_name(-544)"), "\"negative five hundred forty\u{2010}four\"");
-    assert_eq!(ev("integer_name(10990089, \"Words\")"), "\"ten million, nine hundred ninety thousand, eighty\u{2010}nine\"");
+    assert_eq!(ev("integer_name(10990089, words)"), "\"ten million, nine hundred ninety thousand, eighty\u{2010}nine\"");
     assert_eq!(ev("indexed([[a, b, c], [d, e, f]], [1, 2])"), "b");
     assert_eq!(ev("indexed(x, 1)"), "indexed(x, 1)");
 }
@@ -138,8 +138,8 @@ fn display_wrappers_stay_and_numeric_arrays_normalize() {
     assert_eq!(ev("base_form(33, 2)"), "base_form(33, 2)");
     assert_eq!(ev("matrix_form([[1, 2], [3, 4]])"), "matrix_form([[1, 2], [3, 4]])");
     assert_eq!(ev("normal(numeric_array([0, 1, 2], \"UnsignedInteger8\"))"), "[0, 1, 2]");
-    assert_eq!(ev("normal(numeric_array([0, 1000, 2000], \"UnsignedInteger8\", \"ClipAndCoerce\"))"), "[0, 255, 255]");
-    assert_eq!(ev("normal(numeric_array([0.1, 1.1, 2.1], \"UnsignedInteger8\", \"Round\"))"), "[0, 1, 2]");
+    assert_eq!(ev("normal(numeric_array([0, 1000, 2000], \"UnsignedInteger8\", clip_and_coerce))"), "[0, 255, 255]");
+    assert_eq!(ev("normal(numeric_array([0.1, 1.1, 2.1], \"UnsignedInteger8\", round))"), "[0, 1, 2]");
 }
 
 #[test]
@@ -149,12 +149,12 @@ fn later_forms() {
     assert_eq!(ev("cube_root([0, 8, inf])"), "[0, 2, inf]");
     assert_eq!(ev("center_array([1, 2, 3], [5, 5])"), "[[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 1, 2, 3, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]]");
     assert_eq!(ev("center_array([1, 2, 3, 4, 5, 6, 7, 8, 9], 3)"), "[4, 5, 6]");
-    assert_eq!(ev("array_pad([a, b, c], 4, \"ReversedNegation\")"), "[c, -c, -b, -a, a, b, c, -c, -b, -a, a]");
+    assert_eq!(ev("array_pad([a, b, c], 4, reversed_negation)"), "[c, -c, -b, -a, a, b, c, -c, -b, -a, a]");
     assert_eq!(ev("euclidean_distance([a, b], [a, c])"), "abs(b - c)");
     assert_eq!(ev("projection([1, 2, 3], [[1, 1, 0], [0, 1, 0]])"), "[1, 2, 0]");
     assert_eq!(ev("linear_optimization([1, 1], [[[1, 0], [0, 1]], [0, 0]], [[[1, 2]], [-3]])"), "[0, 3/2]");
     assert_eq!(ev("linear_optimization(dot([3, 4], v), [dot([1, -2], v) <= 3, dot([-1, 1], v) <= 2], v)"), "[v -> [-7, -5]]");
     assert_eq!(ev("map(n => bell_y(transpose([map(i => 1/factorial(n - i + 1), range(n)), map(i => factorial(i), range(n))])), range(1, 7))"), "[1, 2, 5, 14, 42, 132, 429]");
-    assert_eq!(ev("integer_string(1988, \"Roman\")"), "\"MCMLXXXVIII\"");
+    assert_eq!(ev("integer_string(1988, roman)"), "\"MCMLXXXVIII\"");
     assert_eq!(ev("find_sequence_function([1 + a, 1 + a^2, 1 + a^3, 1 + a^4, 1 + a^5], n)"), "1 + a^n");
 }

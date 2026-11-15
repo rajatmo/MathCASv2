@@ -91,7 +91,7 @@ fn rationalize_with_a_tolerance_takes_the_nearest_of_the_simplest() {
 #[test]
 fn lasso_fit_is_the_minimiser_of_the_penalised_residual() {
     // |y - c0 - c4 x^4|^2 + |c0| + |c4| is smallest at c0 = 1/2, c4 = 0 (objective 7/4); checked on a grid around it
-    let out = ev("data = [[0., 0.], [0.001, 1], [0.01, 1], [0.1, 0], [1, 1]]; f = fit(data, [1, x, x^2, x^3, x^4], x, fit_regularization: [\"LASSO\", 1]); f == 0.5");
+    let out = ev("data = [[0., 0.], [0.001, 1], [0.01, 1], [0.1, 0], [1, 1]]; f = fit(data, [1, x, x^2, x^3, x^4], x, fit_regularization: [lasso, 1]); f == 0.5");
     assert_eq!(out, "true");
     let out = ev("ys = [0, 1, 1, 0, 1]; xs = [0., 0.001, 0.01, 0.1, 1]; obj = (a, b) => total(map(k => (ys[k] - a - b*xs[k]^4)^2, range(5))) + abs(a) + abs(b); [obj(0.5, 0) <= obj(0.4999389948918362, 0.0002293846183425472), obj(0.5, 0) == 1.75]");
     assert_eq!(out, "[true, true]");

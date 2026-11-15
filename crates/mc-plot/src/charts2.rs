@@ -498,7 +498,6 @@ fn list_step_plot<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], o: Option<T<'h
     // where the step sits: left (default: the value holds from its point to the next), right, center
     let side = rest.first().and_then(|&s| match h.view(s) {
         View::Sym(s) => Some(h.sym_name(s)),
-        View::Str(s) => Some(s.to_lowercase()),
         _ => None,
     });
     // one data set as points: `[y1, ...]` (x = 1, 2, ...), `[[x1, y1], ...]`, an association (numeric keys give the

@@ -52,16 +52,16 @@ fn digits_and_tau() {
 #[test]
 fn linear_algebra_forms() {
     assert_eq!(ev("cross([1, 2, 3, 4], [1, 4, 9, 16], [1, 8, 27, 81])"), "[-150, 174, -82, 12]");
-    assert_eq!(ev("permanent([[1, 2], [3, 4]], method: \"Glynn\")"), "10");
+    assert_eq!(ev("permanent([[1, 2], [3, 4]], method: glynn)"), "10");
     assert_eq!(ev("euclidean_distance(v, [0, 0, 0])"), "abs(v)*3^(1/2)");
     assert_eq!(ev("manhattan_distance([a, b], v)"), "abs(a - v) + abs(b - v)");
     assert_eq!(ev("distance_matrix([[0, 0], [3, 4]], distance_function: euclidean_distance)"), "[[0, 5], [5, 0]]");
-    assert_eq!(ev("total(table(0.1, 100000), method: \"CompensatedSummation\") - 10^4"), "0.0");
+    assert_eq!(ev("total(table(0.1, 100000), method: compensated_summation) - 10^4"), "0.0");
 }
 
 #[test]
 fn flatten_level_groups() {
     assert_eq!(ev("flatten([[[[a, b], [c, d]], [[0, 0], [0, 0]]], [[[0, 0], [0, 0]], [[a, b], [c, d]]]], [[1, 3], [2, 4]])"), "[[a, b, 0, 0], [c, d, 0, 0], [0, 0, a, b], [0, 0, c, d]]");
     assert_eq!(ev("flatten([[1, 2], [3, 4]], [[2], [1]])"), "[[1, 3], [2, 4]]");
-    assert_eq!(ev("real_valued_numeric_q(pi)"), "true");
+    assert_eq!(ev("is_real_valued_numeric(pi)"), "true");
 }

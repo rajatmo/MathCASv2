@@ -33,7 +33,7 @@ fn mesh_regions_are_canonical() {
         ("mesh_primitives(s, 1)[1]", "line([[0.0, 0.0], [1.0, 0.0]])"),
         ("[area(s), region_member(s, [1/2, 1/2]), is_mesh_region(s), is_mesh_region(disk())]", "[1.0, true, true, false]"),
         ("b = boundary_mesh_region([[0, 0], [3, 0], [3, 3], [0, 3], [1, 1], [2, 1], [2, 2], [1, 2]], line([1, 2, 3, 4, 1]), line([5, 6, 7, 8, 5]))", "null"),
-        ("b", "boundary_mesh_region([[0.0, 0.0], [3.0, 0.0], [3.0, 3.0], [0.0, 3.0], [1.0, 1.0], [2.0, 1.0], [2.0, 2.0], [1.0, 2.0]], [line([[1, 2], [2, 3], [3, 4], [4, 1]])], [line([[5, 8], [8, 7], [7, 6], [6, 5]])], method: [\"SeparateBoundaries\" -> false])"),
+        ("b", "boundary_mesh_region([[0.0, 0.0], [3.0, 0.0], [3.0, 3.0], [0.0, 3.0], [1.0, 1.0], [2.0, 1.0], [2.0, 2.0], [1.0, 2.0]], [line([[1, 2], [2, 3], [3, 4], [4, 1]])], [line([[5, 8], [8, 7], [7, 6], [6, 5]])], method: [separate_boundaries -> false])"),
         ("[mesh_cell_count(b), area(b)]", "[[8, 8], 8.0]"),
     ]);
 }
@@ -74,7 +74,7 @@ fn triangles_polygons_relations() {
         ("canonicalize_polygon(rectangle())", "polygon([[0, 0], [0, 1], [1, 0], [1, 1]], [1, 3, 4, 2])"),
         ("[is_simple_polygon(polygon([[0, 0], [1, 1], [1, 0], [0, 1]])), is_convex_polygon(rectangle())]", "[false, true]"),
         ("[region_disjoint(line([[0], [1]]), interval([2, 4])), region_equal(point([2]), interval([2, 2])), region_within(interval([-3, 1]), line([[0], [1]]))]", "[true, true, true]"),
-        ("bounding_region([[3, 10], [6, 3], [10, 2], [2, 8], [3, 3]], \"MinDisk\")", "disk([13/2, 6], (1/2)*113^(1/2))"),
-        ("bounding_region([[3, 10], [6, 3], [10, 2], [2, 8], [3, 3]], \"MinConvexPolygon\")", "polygon([[3, 10], [2, 8], [3, 3], [10, 2]], [1, 2, 3, 4])"),
+        ("bounding_region([[3, 10], [6, 3], [10, 2], [2, 8], [3, 3]], min_disk)", "disk([13/2, 6], (1/2)*113^(1/2))"),
+        ("bounding_region([[3, 10], [6, 3], [10, 2], [2, 8], [3, 3]], min_convex_polygon)", "polygon([[3, 10], [2, 8], [3, 3], [10, 2]], [1, 2, 3, 4])"),
     ]);
 }

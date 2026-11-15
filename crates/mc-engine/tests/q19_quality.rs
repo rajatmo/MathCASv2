@@ -408,7 +408,7 @@ fn q19_30_spherical_bessel_y_negative() {
 
 #[test]
 fn q19_31_flat_matching() {
-    check(&[("{ set_attributes(ff, flat); match_q(ff(1, 2), ff(_)) }", "true")]);
+    check(&[("{ set_attributes(ff, flat); is_match(ff(1, 2), ff(_)) }", "true")]);
 }
 
 #[test]
@@ -417,7 +417,7 @@ fn r22_13_flat_only_matching() {
         ("{ set_attributes(ff, flat); replace(ff(1, 2, 3), ff(x_, y_) -> [x, y]) }", "[1, ff(2, 3)]"),
         ("{ set_attributes(fg, flat); fg(1, fg(2, 3), 4) }", "fg(1, 2, 3, 4)"),
         ("{ set_attributes(fh, flat); fh(3, 1, 2) }", "fh(3, 1, 2)"),
-        ("{ set_attributes(fi, flat); match_q(fi(1), fi(_, _)) }", "false"),
+        ("{ set_attributes(fi, flat); is_match(fi(1), fi(_, _)) }", "false"),
         ("{ set_attributes(fj, flat); replace(fj(1, 2, 3), fj(x_, ___) -> x) }", "1"),
         ("attributes(add)", "[flat, listable, orderless]"),
     ]);

@@ -112,7 +112,7 @@ pub fn limit_with<'h>(
         let (num, den) = (apply(cx, b, "numerator", &[r])?, apply(cx, b, "denominator", &[r])?);
         let xs = h.call(h.sym(names::LIST), &[x]);
         for p in [num, den] {
-            let q = apply(cx, b, "polynomial_expression_q", &[p, xs])?;
+            let q = apply(cx, b, "is_polynomial_expression", &[p, xs])?;
             if q != h.sym_term(h.sym(names::TRUE)) {
                 return Ok(Outcome::Unknown);
             }
@@ -873,7 +873,7 @@ fn plane_rays<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, spec: 
             let diff = cx.eval(b.sub(v, w))?;
             let numeric = cx.eval(b.call("is_numeric", &[diff]))? == h.sym_term(h.sym(names::TRUE));
             if numeric && !b.is_zero(diff) {
-                let z = cx.eval(b.call("possible_zero_q", &[diff]))?;
+                let z = cx.eval(b.call("is_possible_zero", &[diff]))?;
                 if z == h.sym_term(h.sym(names::FALSE)) {
                     let why = "the limits along two directions differ";
                     return Ok(Some(failure(b, "no_limit", &[h.sym_term(h.sym("limit")), f, h.string(why)])));

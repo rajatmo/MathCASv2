@@ -4,7 +4,7 @@ use mc_nbmodel::{Command, FakeEnv, FakeKernel, KernelRequest, Notebook};
 
 #[test]
 fn stale_positions_are_dropped_and_letting_go_interrupts() {
-    let text = "#! mathcas 2 notebook\n\n#% cell label=1\nm\n#% output n=1\n#= manipulate(a + 1, [a, 0, 10, 1])\n";
+    let text = "#! mathcas 2 notebook\n\n#% cell in=1\nm\n#% output out=1\n#= manipulate(a + 1, [a, 0, 10, 1])\n";
     let mut nb = Notebook::parse(text).unwrap();
     let mut env = FakeEnv::default();
     let mut k = FakeKernel::new(true);
@@ -27,7 +27,7 @@ fn stale_positions_are_dropped_and_letting_go_interrupts() {
     k.release();
     nb.pump(&mut k);
     let printed = nb.to_text();
-    assert!(printed.contains("#% output n=1 controls=4\n"), "{printed}");
+    assert!(printed.contains("#% output out=1 controls=4\n"), "{printed}");
     assert!(printed.contains("#% output manipulated\n#= { let a = 4; a + 1 }\n"), "{printed}");
     // the interrupted evaluation showed nothing; nothing is running now
     assert!(!printed.contains("let a = 1;"));

@@ -40,7 +40,7 @@ pdf(wishart_matrix_distribution(3, [[1, 0], [0, 1]]), [[1, 0], [0, 1]])
 #= 1/(4*e*pi)
 
 #% cell
-let w = random_variate(wishart_matrix_distribution(10, [[1, 1/3], [1/3, 1]])); [symmetric_matrix_q(w), positive_definite_matrix_q(w)]
+let w = random_variate(wishart_matrix_distribution(10, [[1, 1/3], [1/3, 1]])); [is_symmetric_matrix(w), is_positive_definite_matrix(w)]
 #% output
 #= [true, true]
 
@@ -48,4 +48,4 @@ let w = random_variate(wishart_matrix_distribution(10, [[1, 1/3], [1/3, 1]])); [
 # See also
 
 #% text
-# `multivariate_poisson_distribution`, `positive_definite_matrix_q`, `normal_distribution`
+# `multivariate_poisson_distribution`, `is_positive_definite_matrix`, `normal_distribution`

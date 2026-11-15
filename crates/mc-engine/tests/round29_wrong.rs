@@ -51,7 +51,7 @@ fn simplify_reduces_golden_ratio_expressions_to_numbers() {
 #[test]
 fn sqrt_of_a_square_is_the_base_for_positive_real_part() {
     assert_eq!(ev("simplify(sqrt(x^2), assumptions: re(x) > 0)"), "x");
-    assert_eq!(ev("possible_zero_q(sqrt(x^2) - x, assumptions: re(x) > 0)"), "true");
+    assert_eq!(ev("is_possible_zero(sqrt(x^2) - x, assumptions: re(x) > 0)"), "true");
     // not for exponents beyond 2, nor without the assumption
     assert_eq!(ev("refine((x^3)^(1/3), re(x) > 0)"), "(x^3)^(1/3)");
     assert_eq!(ev("simplify(sqrt(x^2))"), "(x^2)^(1/2)");

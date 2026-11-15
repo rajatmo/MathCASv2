@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# is_string_free
+
+#% text
+# `is_string_free(s, p)` gives `true` when no substring of `s` matches the string pattern `p`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_string_free("bcde", string_expression("c", __, "t"))
+#% output
+#= true
+
+#% cell
+is_string_free("abc1", digit_character)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `is_string_match`, `string_contains`

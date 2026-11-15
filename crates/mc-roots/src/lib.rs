@@ -75,7 +75,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "root_approximant",
         "root_approximant(x), root_approximant(x, n): the algebraic number of degree at most n (8) and small height closest to x (PSLQ on its powers)",
     ),
-    ("vector_greater_equal", "vector_greater_equal([a, b]): a >= b componentwise (a constraint of n_minimize; [a, b], \"NormCone\" for |a - b| in the norm cone)"),
+    ("vector_greater_equal", "vector_greater_equal([a, b]): a >= b componentwise (a constraint of n_minimize; [a, b], norm_cone for |a - b| in the norm cone)"),
     ("vector_greater", "vector_greater([a, b]): a > b componentwise"),
     ("vector_less_equal", "vector_less_equal([a, b]): a <= b componentwise"),
     ("vector_less", "vector_less([a, b]): a < b componentwise"),

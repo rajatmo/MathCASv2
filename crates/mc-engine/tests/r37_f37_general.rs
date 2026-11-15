@@ -259,7 +259,7 @@ fn p_norms_for_any_order() {
     assert_eq!(ev("abs(norm([1, 2, 3], 2.0) - sqrt(14.)) < 10^-14"), "true");
     assert_eq!(ev("abs(norm([1, -7, 3], 200.) - 7) < 10^-2"), "true");
     // the Frobenius norm by its capitalized name, of a symbolic matrix; an order below 1 is not a norm
-    assert_eq!(ev("norm([[a, b], [c, d]], \"Frobenius\") === norm(flatten([[a, b], [c, d]]))"), "true");
+    assert_eq!(ev("norm([[a, b], [c, d]], frobenius) === norm(flatten([[a, b], [c, d]]))"), "true");
     assert_eq!(ev("norm([1, 2, 3], 1/2)"), "failure(argument, norm, 2)");
 }
 
@@ -373,11 +373,12 @@ fn elimination_modulo_a_prime_and_with_a_tolerance() {
 
 #[test]
 fn dense_target_structures() {
-    assert_eq!(ev("hankel_matrix(3, target_structure: \"Dense\") === hankel_matrix(3)"), "true");
+    assert_eq!(ev("hankel_matrix(3, target_structure: dense) === hankel_matrix(3)"), "true");
     assert_eq!(ev("toeplitz_matrix(5, target_structure: automatic) === toeplitz_matrix(5)"), "true");
-    assert_eq!(ev("lower_triangularize([[1, 2, 3], [4, 5, 6], [7, 8, 9]], target_structure: \"Dense\")"), "[[1, 0, 0], [4, 5, 0], [7, 8, 9]]");
-    assert_eq!(ev("upper_triangularize([[1, 2], [3, 4]], 1, target_structure: \"Sparse\") === upper_triangularize([[1, 2], [3, 4]], 1)"), "true");
-    // a structure no clause takes: the call is ground (option names are not free symbols), so it fails
+    assert_eq!(ev("lower_triangularize([[1, 2, 3], [4, 5, 6], [7, 8, 9]], target_structure: dense)"), "[[1, 0, 0], [4, 5, 0], [7, 8, 9]]");
+    assert_eq!(ev("upper_triangularize([[1, 2], [3, 4]], 1, target_structure: sparse) === upper_triangularize([[1, 2], [3, 4]], 1)"), "true");
+    // a structure no clause takes: a name is a symbol, so the call is not ground and stays; a string is ground and fails
+    assert_eq!(ev("head(hankel_matrix(3, target_structure: symmetric))"), "hankel_matrix");
     assert!(ev("hankel_matrix(3, target_structure: \"Symmetric\")").starts_with("failure(no_match, hankel_matrix"));
 }
 

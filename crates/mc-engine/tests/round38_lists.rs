@@ -97,7 +97,7 @@ fn array_heads_missing_and_sparse() {
     assert_eq!(ev(&format!("dimensions([[1, 2, 3], {na}], allowed_heads: [list, numeric_array])")), "[2]");
     assert_eq!(ev(&format!("dimensions([[1, 2, 3], {na}], allowed_heads: list | numeric_array)")), "[2, 3]");
     assert_eq!(ev(&format!("array_depth([[1, 2, 3], {na}], allowed_heads: [list, numeric_array])")), "1");
-    assert_eq!(ev("array_depth([byte_array([1, 2, 3]), numeric_array([1.0, 2.0, 3.0], \"Real64\")], allowed_heads: \"ListLike\" | byte_array | numeric_array)"), "2");
+    assert_eq!(ev("array_depth([byte_array([1, 2, 3]), numeric_array([1.0, 2.0, 3.0], \"Real64\")], allowed_heads: list | byte_array | numeric_array)"), "2");
     assert_eq!(ev("dimensions([[1, 2], [3, 4]], allowed_heads: [list]) == dimensions([[1, 2], [3, 4]])"), "true");
     assert_eq!(ev("delete_missing([[a, 1], [b, 2], [c, missing()], [d, [missing()]]], 1, inf)"), "[[a, 1], [b, 2]]");
     assert_eq!(ev("delete_missing([[a, 1], [d, [missing()]]], 1, 1)"), "[[a, 1], [d, [missing()]]]");

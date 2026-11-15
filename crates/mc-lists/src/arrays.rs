@@ -125,17 +125,21 @@ fn advance(idx: &mut [usize], ds: &[usize]) -> bool {
 
 /// `array_filter(f, a, r)`: `f` applied to the block of radius `r` around every element of the full array `a`; `r` a
 /// count (every level), `[r1, r2, ...]` (level i, the levels after the last one's elements taken whole) or
-/// `[[b1, a1], ...]` (before and after); `padding:` "Fixed" (default: the edge repeated), "Periodic", "Reflected" or
+/// `[[b1, a1], ...]` (before and after); `padding:` `fixed` (default: the edge repeated), `periodic`, `reflected` or
 /// a value.
 pub(crate) fn array_filter<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let (args, pad) = crate::ctx::option(h, args, 3, "padding");
     let &[f, a, r] = args else { return Ok(Reply::Decline) };
-    let padding = match pad.map(|p| (p, h.view(p))) {
+    let word = |p: T<'h>| match h.view(p) {
+        View::Sym(s) => h.sym_name(s),
+        _ => String::new(),
+    };
+    let padding = match pad.map(|p| (p, word(p))) {
         None => Padding::Fixed,
-        Some((_, View::Str("Fixed"))) => Padding::Fixed,
-        Some((_, View::Str("Periodic"))) => Padding::Periodic,
-        Some((_, View::Str("Reflected"))) => Padding::Reflected,
+        Some((_, w)) if w == "fixed" => Padding::Fixed,
+        Some((_, w)) if w == "periodic" => Padding::Periodic,
+        Some((_, w)) if w == "reflected" => Padding::Reflected,
         Some((p, _)) => Padding::Value(p),
     };
     let all = full_dims(cx, a, usize::MAX);

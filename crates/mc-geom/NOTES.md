@@ -11,7 +11,7 @@ centroids, bounds, membership, distances, Boolean operations on plane polygons, 
 |---|---|
 | `shapes` | `pyramid`, `prism`, `hexahedron` (convex polyhedra with the usual corner orders), `parallelepiped` and `parallelogram` (polygon, polyhedron or segment by the number of vectors), `torus`, `filled_torus`, `infinite_line`, `half_line`, `infinite_plane`, `half_plane`, `conic_hull_region`, `cylinder` and `cone` as solids, indexed `polygon(points, indices)` |
 | `flat` | distances for tori (the tube around the centre circle), flats and cones (active sets of the non-negative directions, exact projection), unions; cylinders and cones through their meridian section (a rectangle or triangle in the (axial, radial) half-plane); ellipses and ellipsoids (Eberly's root of the secular equation, with the degenerate case in a symmetry plane, exact when the multiplier is rational); linear relations in normal form for symbolic membership |
-| `mesh` | `mesh_region` and `boundary_mesh_region` (cells held, evaluated below the cell heads; canonical form: real coordinates, cells by kind in decreasing dimension, segments, unused vertices dropped, tetrahedra turned positively, plane boundary loops anticlockwise with clockwise holes, `method: ["SeparateBoundaries" -> false]` on boundary meshes), `mesh_cells`, `mesh_primitives`, `mesh_cell_count`, `mesh_coordinates`, `is_mesh_region`, `is_boundary_mesh_region`, `dimensional_mesh_components`, `connected_mesh_components`; a mesh as a region is the union of its cells (a boundary mesh the solid it bounds) |
+| `mesh` | `mesh_region` and `boundary_mesh_region` (cells held, evaluated below the cell heads; canonical form: real coordinates, cells by kind in decreasing dimension, segments, unused vertices dropped, tetrahedra turned positively, plane boundary loops anticlockwise with clockwise holes, `method: [separate_boundaries -> false]` on boundary meshes), `mesh_cells`, `mesh_primitives`, `mesh_cell_count`, `mesh_coordinates`, `is_mesh_region`, `is_boundary_mesh_region`, `dimensional_mesh_components`, `connected_mesh_components`; a mesh as a region is the union of its cells (a boundary mesh the solid it bounds) |
 | `construct` | `sss_triangle`, `sas_triangle`, `asa_triangle`, `aas_triangle`, `perimeter`, `circumsphere`, `region_moment` (through `region_integrate`), `is_constant_region`, `canonicalize_polygon`, `polygon_coordinates`, `outer_polygon`, `inner_polygon`, `is_simple_polygon`, `is_convex_polygon`, `region_equal`, `region_within`, `region_disjoint` (line regions as interval unions, plane polygons through the clipper), `bounding_region` (boxes, the smallest disk or ball, the convex hull), `winding_count`, `crossing_count` |
 
 ### Decisions
@@ -93,7 +93,7 @@ functions); `boolean_region`, `polygon_decomposition`, `winding_polygon`, `regio
 ## Round 33
 
 - `coords.rs`: `arc_length(map, [t, a, b])`, `area(map, [u, a, b], [v, c, d])`, `volume(map, ranges...)` with an optional
-  coordinate system (`"Polar"`, `"Cylindrical"`, `"Spherical"`; the map is converted to cartesian first) are the measures of
+  coordinate system (`polar`, `cylindrical`, `spherical`; the map is converted to cartesian first) are the measures of
   the parametric region of the map; `perimeter(map, ranges...)` and `perimeter(parametric_region(...))` of a rectangle of
   two parameters in the plane sum the lengths of the four edges, an edge that coincides with the opposite one (the seam of
   a full turn) not counted: the annulus `[r sin t, r cos t]`, `r` in 1..2, `t` in 0..2 pi has perimeter 6 pi (checked: two
@@ -140,8 +140,8 @@ functions); `boolean_region`, `polygon_decomposition`, `winding_polygon`, `regio
   the same way and translated back, each coordinate the first vertex's plus a quotient in lowest terms.
 ## Round 39: fill rules and options of closed curves
 
-- `winding_polygon(curve, rule)`: "NonzeroRule", "EvenOddRule" (also "OddRule"), "PositiveRule" (winding number
-  above 0) and "NegativeRule" (below 0), by the winding number of the arrangement's faces (`clip::Fill`). Other
+- `winding_polygon(curve, rule)`: nonzero_rule, even_odd_rule (also odd_rule), positive_rule (winding number
+  above 0) and negative_rule (below 0), by the winding number of the arrangement's faces (`clip::Fill`). Other
   names stay unevaluated (no definition is fixed for them).
 - Options of the polygon (`vertex_colors: ...`) are kept when the curve is one simple closed polygon (the region is
   the polygon itself, with the curve's corners); a crossing curve makes new corners that the options have nothing to
@@ -157,13 +157,13 @@ functions); `boolean_region`, `polygon_decomposition`, `winding_polygon`, `regio
 
 ## Round 41: least rectangles, boxes of regions
 
-- `bounding_region(pts, "MinOrientedRectangle")` for plane points: the rectangle of least area, flush with an edge
+- `bounding_region(pts, min_oriented_rectangle)` for plane points: the rectangle of least area, flush with an edge
   of the convex hull (Freeman and Shapira 1975; every edge tried, as the rotating calipers of Toussaint 1983 do),
   as `parallelogram(corner, [a, b])` with `a` along the anticlockwise hull edge and `b` along its outward normal,
   the corner at the least projection on both. The extremes are found numerically, the rectangle built from the
   exact coordinates (exact points give rationals or radicals). Ties go to the first edge from the hull's first point
   in input order. Collinear points stay unevaluated.
-- `bounding_region(region, "MinRectangle" | "MinCuboid" | "MinInterval")` of a region other than points (meshes,
+- `bounding_region(region, min_rectangle | min_cuboid | min_interval)` of a region other than points (meshes,
   primitives): the box of `region_bounds`; unbounded regions stay unevaluated.
 - Gap: `"MinOrientedCuboid"` (O'Rourke's algorithm for the least box in space) is not done.
 

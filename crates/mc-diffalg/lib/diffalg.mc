@@ -216,7 +216,7 @@ fn dg_step_const(st, e, vars) =
   else {
     let vs = select(vars, v => not free_of(e, v))
     if length(vs) > 0 then {
-      if polynomial_expression_q(e, vs) then replace_part(st, [1] -> join(select(st[1], q => q !== e), map(rl => rl[2], coefficient_rules(e, vs))))
+      if is_polynomial_expression(e, vs) then replace_part(st, [1] -> join(select(st[1], q => q !== e), map(rl => rl[2], coefficient_rules(e, vs))))
       else none
     } else {
       let c = last(dg_const_terms(e, st[3]))
@@ -273,7 +273,7 @@ fn dg_free_var(e, unk, z) = every(dg_unknown_terms(e, unk), r => not member(r[2]
 
 # step 3: split e by the powers of a variable no unknown in it depends on
 fn dg_step_split(st, e, vars) = {
-  let vs = select(vars, z => not free_of(e, z) and dg_free_var(e, st[2], z) and polynomial_expression_q(e, z))
+  let vs = select(vars, z => not free_of(e, z) and dg_free_var(e, st[2], z) and is_polynomial_expression(e, z))
   if length(vs) == 0 then none
   else {
     let cl = select(coefficient_list(e, vs[1]), q => q !== 0)
@@ -475,7 +475,7 @@ fn symmetry_commutator(v, w, vars) =
   table(expand(sum(v[j]*d(w[i], vars[j]) - w[j]*d(v[i], vars[j]), [j, 1, length(vars)])), [i, 1, length(vars)])
 
 # the coordinates of the field w in the basis gs, or none (g31.3): rational fields by exact equations at
-# rational points; others by least squares at machine points, rationalised and checked with possible_zero_q
+# rational points; others by least squares at machine points, rationalised and checked with is_possible_zero
 fn dg_coords(w, gs, vars) = {
   let r = length(gs)
   if every(w, q => q === 0) then table(0, [k, 1, r])
@@ -483,7 +483,7 @@ fn dg_coords(w, gs, vars) = {
     let cs = table(to_expression(string_join(["dg_k_", to_string(k)])), [k, 1, r])
     let comb = table(w[i] - sum(cs[k]*gs[k][i], [k, 1, r]), [i, 1, length(vars)])
     let pts = table(map(v => v -> (37*j + 11*dg_index(vars, v))/(13 + j + 3*dg_index(vars, v)), vars), [j, 1, r + 3])
-    let exact = every(join(w, flatten(gs, 1)), q => rational_expression_q(q, vars))
+    let exact = every(join(w, flatten(gs, 1)), q => is_rational_expression(q, vars))
     var k = none
     if exact then {
       let s = dg_try(solve(flatten(map(pt => map(q => together(rewrite(q, pt)) == 0, comb), pts), 1), cs))
@@ -496,7 +496,7 @@ fn dg_coords(w, gs, vars) = {
       if dg_ok(ks) then k = map(q => rationalize(q, 1/10^9), ks)
     }
     if k === none then none
-    else if every(comb, q => possible_zero_q(rewrite(q, map(i => cs[i] -> k[i], range(1, r))))) then k else none
+    else if every(comb, q => is_possible_zero(rewrite(q, map(i => cs[i] -> k[i], range(1, r))))) then k else none
   }
 }
 
@@ -523,7 +523,7 @@ fn dg_ansatz(eqs, us, xs, deg) = {
   let names = join(table(dg_xi(i), [i, 1, length(xs)]), table(dg_phi(k), [k, 1, length(us)]))
   let rl = table(names[i] -> dg_lambda(zs, polys[i]), [i, 1, nf])
   let conds = map(e => expand(numerator(together(rewrite(e, rl)))), dt[1])
-  let lin = flatten(map(q => if q === 0 then [] else if polynomial_expression_q(q, zs) then map(r => r[2], coefficient_rules(q, zs)) else [none], conds), 1)
+  let lin = flatten(map(q => if q === 0 then [] else if is_polynomial_expression(q, zs) then map(r => r[2], coefficient_rules(q, zs)) else [none], conds), 1)
   if member(lin, none) then none
   else {
     let unk = flatten(ks, 1)

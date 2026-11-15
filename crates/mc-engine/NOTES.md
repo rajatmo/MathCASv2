@@ -209,7 +209,7 @@ Two language features block most cases and are evaluator work, not library: lamb
   code, `mc-rules` tables and a `fn`'s catch-all are not listed. Not done: assigning to them (`down_values(f) =
   rules` to reorder rules): by design (rules are ordered by specificity,
   semantics 6.3, not by a user list).
-- `string_match_q`, `string_free_q`, `string_count`, `string_position` have operator forms (data first).
+- `is_string_match`, `is_string_free`, `string_count`, `string_position` have operator forms (data first).
 - `quantity_array(v, unit)`, `quantity_array(v, [u1, ..., uk])` (library `lib/language.mc`, loaded last):
   the list of quantities, one unit for all entries or one per position of the innermost lists. Decision r30.2:
   arrays are lists in this language, so a quantity array is a plain list of `quantity(...)` terms (no structured
@@ -240,15 +240,24 @@ Operator forms added: `merge` (data first), `linear_solve`, `nearest` (data last
 
 ## Round 38: vector calculus in orthogonal coordinates, logarithms to a base
 
-- `grad`, `div`, `curl`, `laplacian` with a third argument "Cartesian", "Polar" (r, t), "Cylindrical" (r, t, z) or
-  "Spherical" (r, t, p; t from the z axis) are library rules (`lib/calculus.mc`) from the scale factors (Morse and
+- `grad`, `div`, `curl`, `laplacian` with a third argument cartesian, polar (r, t), cylindrical (r, t, z) or
+  spherical (r, t, p; t from the z axis) are library rules (`lib/calculus.mc`) from the scale factors (Morse and
   Feshbach, Methods of Theoretical Physics, 1953, section 1.4); results simplified. Other systems stay unevaluated.
 - `log(b, x)` is `log_base(b, x)` (a rule, so other two-argument calls are left as they are); before, two machine
   arguments stayed unevaluated. Tests: `tests/round38_vectors.rs`, `tests/round38_lists.rs`.
 ## Round 38: distances and palindromes in the lists library
 
 `edit_distance` (Levenshtein; the row-by-row dynamic programme of Wagner and Fischer, J. ACM 21, 1974),
-`chessboard_distance`, `squared_euclidean_distance` and `palindrome_q` (lists, strings, decimal digits of
+`chessboard_distance`, `squared_euclidean_distance` and `is_palindrome` (lists, strings, decimal digits of
 integers) in `lib/lists.mc`, beside `hamming_distance`. The prelude stays small: the list functions that grew this
 round (`reverse_sort_by`, `ordering_by`, `commonest`, `delete_missing`, the distances) moved to `lib/lists.mc`,
 and `prime_zeta_p` to `lib/special.mc`.
+
+## Round 43: one way to name things
+
+- Predicates are `is_*`: the 27 functions named `*_q` were renamed (`is_possible_zero`, `is_match`, ...), without
+  aliases; the assumption `coprime_q(a, m)` of `simplify`/`refine` is written `coprime(a, m)`.
+- Option values and mode arguments are lower-case symbols (`method: compensated_summation`,
+  `perfect_number(k, even)`); strings stay only where an outside standard fixes the spelling (hashes, formats,
+  units, colour spaces, languages) and for property names and keys. The rule and both tables (converted, kept with
+  the reason) are in design 04-syntax, section 10.1.

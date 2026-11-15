@@ -13,7 +13,7 @@
 # With numbers it gives `true` or `false`; with symbols it stays as it is, a constraint for `n_minimize` and its relatives.
 
 #% item
-# A second argument `"NonNegativeCone"` is the componentwise order; in a constraint, `["NormCone", n]` states that the Euclidean norm of the first n - 1 components of a - b is at most its last.
+# A second argument `nonnegative_cone` is the componentwise order; in a constraint, `[norm_cone, n]` states that the Euclidean norm of the first n - 1 components of a - b is at most its last.
 
 #% section
 # Examples

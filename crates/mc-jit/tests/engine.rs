@@ -98,7 +98,7 @@ fn engines(threads: usize) -> [CoreEngine; 3] {
             assert_eq!(eval(e, def), "null", "{def}");
         }
         assert_eq!(eval(&mut es[1], &format!("compile({name})")), *name);
-        assert_eq!(eval(&mut es[2], &format!("compile({name}, back_end: \"interpreter\")")), *name);
+        assert_eq!(eval(&mut es[2], &format!("compile({name}, back_end: interpreter)")), *name);
     }
     es
 }
@@ -119,8 +119,8 @@ fn compiled_results_are_the_interpreters() {
             assert!(runs > 0, "{name} never ran compiled");
             compiled_runs += runs;
         }
-        assert_eq!(info(&mut es[1], name, "back_end"), "\"cranelift\"");
-        assert_eq!(info(&mut es[2], name, "back_end"), "\"interpreter\"");
+        assert_eq!(info(&mut es[1], name, "back_end"), "cranelift");
+        assert_eq!(info(&mut es[2], name, "back_end"), "interpreter");
     }
     assert!(compiled_runs > 100);
 }

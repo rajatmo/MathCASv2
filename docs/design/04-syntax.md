@@ -294,7 +294,8 @@ Named arguments may appear in any order after the positional ones; unknown names
 signature is known statically, and `failure(unknown_option, name)` otherwise. A positional argument may also stand
 among the named ones, for a stored option list: `plot(f, [x, 0, 1], plot_style: red, opts, frame: true)` reads as
 `plot(f, [x, 0, 1], options(plot_style -> red), opts, options(frame -> true))`, and the evaluator merges trailing
-option lists into one (a later value of a name wins).
+option lists into one (a later value of a name wins). Option values that name a behaviour are symbols, not strings
+(`method: least_squares`; section 10.1).
 
 ## 8. Calculus notation
 
@@ -328,6 +329,121 @@ T ::= Any
   scope; `import M.{f, g}` selected ones; `import M except h`.
 - Names resolve when source is read (semantics 1.2). A local binding shadows an import; an import shadows `core`.
 - There is no run-time context path.
+
+### 10.1 How things are named (decided before 1.0)
+
+Names are lower case with underscores. Two rules settle the forms that had more than one spelling:
+
+- **Predicates are `is_*`.** A function that answers true or false about its argument is named `is_<what>`
+  (`is_prime`, `is_possible_zero`, `is_interval_member`), never `<what>_q`. The `*_q` spellings were removed
+  without aliases: an old name is an unknown function like any other and stays unevaluated. Names that end in `_q`
+  because `q` is part of the mathematics (`legendre_q`, `gamma_q`, `elliptic_nome_q`, `partitions_q`) are not
+  predicates and keep their names. The renamed functions:
+
+| Old name | New name |
+|---|---|
+| `diagonal_matrix_q` | `is_diagonal_matrix` |
+| `diagonalizable_matrix_q` | `is_diagonalizable_matrix` |
+| `disjoint_q` | `is_disjoint` |
+| `hermitian_matrix_q` | `is_hermitian_matrix` |
+| `intersecting_q` | `is_intersecting` |
+| `interval_member_q` | `is_interval_member` |
+| `key_free_q` | `is_key_free` |
+| `key_member_q` | `is_key_member` |
+| `lower_triangular_matrix_q` | `is_lower_triangular_matrix` |
+| `mandelbrot_set_member_q` | `is_mandelbrot_set_member` |
+| `match_q` | `is_match` |
+| `mersenne_prime_exponent_q` | `is_mersenne_prime_exponent` |
+| `palindrome_q` | `is_palindrome` |
+| `perfect_number_q` | `is_perfect_number` |
+| `polynomial_expression_q` | `is_polynomial_expression` |
+| `polynomial_q` | `is_polynomial` |
+| `positive_definite_matrix_q` | `is_positive_definite_matrix` |
+| `possible_zero_q` | `is_possible_zero` |
+| `quadratic_irrational_q` | `is_quadratic_irrational` |
+| `rational_expression_q` | `is_rational_expression` |
+| `real_valued_numeric_q` | `is_real_valued_numeric` |
+| `string_free_q` | `is_string_free` |
+| `string_match_q` | `is_string_match` |
+| `symmetric_matrix_q` | `is_symmetric_matrix` |
+| `true_q` | `is_true` |
+| `upper_triangular_matrix_q` | `is_upper_triangular_matrix` |
+| `value_q` | `is_value` |
+
+  The fact `coprime_q(a, m)` that `simplify` and `refine` read among their assumptions is now written
+  `coprime(a, m)`, a statement like `element(x, integers)`: the predicate `is_coprime` evaluates to `false` on
+  symbols, so it cannot stand for an assumption.
+
+- **Option values and mode arguments are symbols.** A word that chooses among the behaviours a MathCAS function
+  defines (a method, a rule, a structure, a form, a coordinate system, a padding, a layout) is a lower-case symbol
+  with underscores: `total(xs, method: compensated_summation)`, `perfect_number(k, even)`,
+  `bounding_region(pts, min_disk)`, `array_pad(a, 2, periodic)`. The string spellings of earlier versions
+  (`"CompensatedSummation"`, `"Even"`) are not accepted: the call stays unevaluated or gives the function's failure
+  for a bad argument, as for any other unknown value. Printed forms of objects that held such a word print the
+  symbol (`finite_field(17, &(14 + &1 + &1^3), polynomial)`). Words that are keywords are written in backquotes
+  (`` boolean_convert(e, `and`) ``). A value that is itself a symbol of the problem cannot be told from a mode word of
+  the same name: `array_pad(a, 2, x)` pads with `x`, `array_pad(a, 2, periodic)` repeats the array.
+
+  **Strings stay** where the outside world fixes the spelling, and for data:
+
+  | Kind | Examples | Reason |
+  |---|---|---|
+  | names of hash functions and digests | `"SHA256"`, `"MD5"`, `"CRC32"`, `["BLAKE2b", 256]` | the names of the standards |
+  | file and image formats, encodings | `"PNG"`, `"CSV"`, `"UTF8"`, `"ASCII"`, `"ISO8859-1"`, `"Base64"` (`integer_string`) | fixed by the formats |
+  | units and their abbreviations | `quantity(3, "Meters")`, `"km"`, `"DegreesCelsius"` | the unit names |
+  | calendar steps and date patterns | `"Month"`, `"Week"`, `"Day"`, `"Year"` of date ranges | units of time |
+  | machine data types | `numeric_array(xs, "UnsignedInteger8")`, `"Real32"`, `"Byte"` of binary I/O | the types of the bytes in a file |
+  | colour spaces and colour formulas of standards | `"RGB"`, `"CMYK"`, `"LAB"`, `"XYZ"`, `"AdobeRGB"`, `"CIE76"`, `"CIE2000"` | named by the standards (the heads `rgb_color`, `gray_level`, ... are the symbol forms) |
+  | colour schemes | `color_data("Accent1")`, `"VisibleSpectrum"` | names of palettes, a catalogue of data |
+  | natural languages | `alphabetic_sort(xs, "Danish")`, `alphabet("English")` | names of languages, as language tags are |
+  | property names | `ts("Values")`, `F("FieldSize")`, `rasterize(g, "Regions")`, `select(xs, f -> "Index")`, `partial_fraction_elements(r, x, "PolynomialPart")`, `parametric_convex_optimization(..., "PrimalMinimizer")` | keys of data: an object applied to a symbol means its value there, and the same names are the keys of the association the function gives with `all` |
+  | association and record keys | knapsack items `"Payoff"`, `"Cost"`; the keys of wavelet data | data |
+  | line caps and joins of graphics directives | `cap_form("Round")` | the names of the drawing standards |
+
+  **Converted** (old string -> symbol), by function family:
+
+  | Functions | Old | New |
+  |---|---|---|
+  | `finite_field` (representation; printed forms, `F("ElementRepresentation")`) | `"Polynomial"`, `"Exponential"` | `polynomial`, `exponential` |
+  | `bounding_region` | `"MinRectangle"`, `"MinCuboid"`, `"MinInterval"`, `"MinDisk"`, `"MinBall"`, `"MinOrientedRectangle"`, `"MinConvexPolygon"` | `min_rectangle`, `min_cuboid`, `min_interval`, `min_disk`, `min_ball`, `min_oriented_rectangle`, `min_convex_polygon` |
+  | `grad`, `div`, `curl`, `laplacian`, `arc_length`, `area`, `volume`, `perimeter`, `region_measure` (coordinate system) | `"Cartesian"`, `"Polar"`, `"Cylindrical"`, `"Spherical"` | `cartesian`, `polar`, `cylindrical`, `spherical` |
+  | `winding_polygon` (fill rule) | `"NonzeroRule"`, `"EvenOddRule"`, `"OddRule"`, `"PositiveRule"`, `"NegativeRule"` | `nonzero_rule`, `even_odd_rule`, `odd_rule`, `positive_rule`, `negative_rule` |
+  | `polygon_decomposition` | `"Triangle"`, `"Convex"` | `triangle`, `convex` |
+  | `piecewise_expand` (`method:` suboptions) | `"OrderlessConditions"`, `"BooleanResult"`, `"ConditionSimplifier"` | `orderless_conditions`, `boolean_result`, `condition_simplifier` |
+  | `boundary_mesh_region` (printed `method:`) | `"SeparateBoundaries"` | `separate_boundaries` |
+  | matrix constructors, `cholesky`, triangularize (`target_structure:`) | `"Dense"`, `"Sparse"`, `"Structured"` | `dense`, `sparse`, `structured` |
+  | `svd`, `qr` (shape) | `"Thin"`, `"Compact"`, `"Full"` | `thin`, `compact`, `full` |
+  | `norm` | `"frobenius"` | `frobenius` |
+  | `array_pad`, `center_array`, `array_reshape`, `array_filter` (`padding:`), wavelet transforms (`padding:`) | `"Fixed"`, `"Periodic"`, `"Reflected"`, `"Reversed"`, `"ReversedNegation"`, `"Extrapolated"`, `"ReflectedDifferences"`, `"ReversedDifferences"` | `fixed`, `periodic`, `reflected`, `reversed`, `reversed_negation`, `extrapolated`, `reflected_differences`, `reversed_differences` |
+  | `dimensions`, `array_depth` (`allowed_heads:`) | `"ListLike"` | `list` (the head itself) |
+  | `hash` (method; format) | `"Expression"`; `"Integer"`, `"HexString"`, `"DecimalString"`, `"Base36String"`, `"Base64Encoding"`, `"ByteList"`, `"ByteArray"` | `expression`; `integer`, `hex_string`, `decimal_string`, `base36_string`, `base64_encoding`, `byte_list`, `byte_array` |
+  | `sequence_alignment` (`method:`) | `"Global"`, `"Local"` | `global`, `local` |
+  | `is_value` (`method:`) | `"TrialEvaluation"`, `"OwnValuesPresent"`, `"SymbolDefinitionsPresent"` | `trial_evaluation`, `own_values_present`, `symbol_definitions_present` |
+  | `total` (`method:`) | `"CompensatedSummation"`, `"Pairwise"`, `"Ordinary"` | `compensated_summation`, `pairwise`, `ordinary` |
+  | `integer_string`, `from_digits`, `from_roman_numeral`; `integer_name` | `"Roman"`, `"Arabic"`; `"Words"`, `"Short"` | `roman`, `arabic`; `words`, `short` |
+  | `perfect_number` | `"Even"`, `"Odd"` | `even`, `odd` |
+  | `numeric_array` (mode) | `"Coerce"`, `"ClipAndCoerce"`, `"Round"` | `coerce`, `clip_and_coerce`, `round` |
+  | `fit` (`fit_regularization:`) | `"Tikhonov"`, `"L2"`, `"RidgeRegression"`, `"LASSO"`, `"L1"` | `tikhonov`, `l2`, `ridge_regression`, `lasso`, `l1` |
+  | `alphabetic_sort` (`case_ordering:`) | `"LowerFirst"`, `"UpperFirst"` | `lower_first`, `upper_first` |
+  | `vector_greater_equal`, `conic_optimization`, `semidefinite_optimization` (cones) | `"NonNegativeCone"`, `"NormCone"`, `"SemidefiniteCone"` | `nonnegative_cone`, `norm_cone`, `semidefinite_cone` |
+  | `threshold` | `"Hard"`, `"Soft"`, `"Firm"`, `"PiecewiseGarrote"`, `"SmoothGarrote"`, `"Hyperbola"`, `"LargestValues"` | `hard`, `soft`, `firm`, `piecewise_garrote`, `smooth_garrote`, `hyperbola`, `largest_values` |
+  | `random_polygon` | `"Simple"`, `"Convex"`, `"StarShaped"`, `"ConvexHull"` | `simple`, `convex`, `star_shaped`, `convex_hull` |
+  | `inverse_continuous_wavelet_transform` (`method:`); wavelet plots (`plot_layout:`) | `"LeastSquares"`; `"CommonXAxis"`, `"CommonYAxis"`, `"Grid"` | `least_squares`; `common_x_axis`, `common_y_axis`, `grid` |
+  | `array_resample` (mode, `resampling:`, `padding:`) | `"point"`, `"bin"`; `"linear"`, `"nearest"`, `"nearest_left"`, `"nearest_right"`, `"quadratic"`, `"cubic"`; `"fixed"`, `"periodic"`, `"reflected"` | the same words as symbols |
+  | `join_across` (type) | `"inner"`, `"left"`, `"right"`, `"outer"` | `inner`, `left`, `right`, `outer` |
+  | `boolean_convert`, `boolean_minimize` (form) | `"dnf"`, `"cnf"`, `"anf"`, `"esop"`, `"nand"`, `"nor"`, `"binary_nand"`, `"binary_nor"`, `"and"`, `"or"`, `"implies"`, `"ite"`, `"bff"` (any case) | `dnf`, `cnf`, `anf`, `esop`, `nand`, `nor`, `binary_nand`, `binary_nor`, `` `and` ``, `` `or` ``, `implies`, `ite`, `bff` |
+  | `arguments_options` (`options_mode:`) | `"shortest"`, `"none"` | `shortest`, `none` |
+  | `graph`, graph plots (`graph_layout:`, `vertex_labels:`) | `"SpringEmbedding"`, `"CircularEmbedding"`, `"LayeredDigraphEmbedding"`, `"LayeredEmbedding"`; `"Name"` | `spring_embedding`, `circular_embedding`, `layered_digraph_embedding`, `layered_embedding` (or `spring`, `circular`, `layered`); `name` |
+  | plots (`plot_legends:`, `plot_labels:`, `scaling_functions:`, `plot_theme:`, `legend_layout:`) | `"Expressions"`; `"Log"`, `"Log10"`, `"Log2"`; `"dark"`, `"light"`; `"row"`, `"column"` | `expressions`; `log`, `log10`, `log2`; `dark`, `light`; `row`, `column` |
+  | `box_whisker_chart`, `list_fit_plot`, `list_step_plot` (forms) | `"Notched"`, `"Basic"`; `"Quadratic"`, `"Cubic"`; `"left"`, `"right"`, `"center"` | `notched`, `basic`; `quadratic`, `cubic`; `left`, `right`, `center` |
+  | histograms (`histogram3d`, `paired_histogram`, `smooth_density_histogram`, smooth kernel charts: height) | `"PDF"`, `"CDF"`, `"SF"`, `"HF"`, `"CHF"`, `"Probability"` | `pdf`, `cdf`, `sf`, `hf`, `chf`, `probability` |
+  | slice plots (surface) | `"CenterPlanes"`, `"CenterCutBox"`, `"BackPlanes"`, `"XStackedPlanes"`, `"YStackedPlanes"`, `"ZStackedPlanes"`, `"DiagonalPlanes"`, `"CenterSphere"` | `center_planes`, `center_cut_box`, `back_planes`, `x_stacked_planes`, `y_stacked_planes`, `z_stacked_planes`, `diagonal_planes`, `center_sphere` |
+  | `color_convert` and the colour models | `"GrayLevel"`, `"Grayscale"` | `gray_level` (the head) |
+  | `find_root`, `find_minimum` and the other root finders and optimisers, `n_sum` (`method:`) | `"Newton"`, `"Brent"`, `"EulerMaclaurin"`, ... (any case) | `newton`, `brent`, `euler_maclaurin`, ... |
+  | `compile` (`back_end:`; also what `compiled_info` reports) | `"cranelift"`, `"interpreter"` | `cranelift`, `interpreter` |
+  | `function_sign` and the other property functions (`performance_goal:`) | `"speed"` | `speed` |
+  | `matrix_function`, `permanent`, `matrix_log`, `prime_pi` (`method:`, read but every method gives the same value) | `"Jordan"`, `"Glynn"`, `"Lehmer"` | `jordan`, `glynn`, `lehmer` |
+
 
 ## 11. Statements and files
 

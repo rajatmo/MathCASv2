@@ -13,7 +13,7 @@
 # Each level filters the data with the low-pass and high-pass filters of w and keeps every second value (periodized filtering, Mallat, A Wavelet Tour of Signal Processing, 7.5). The coefficients have the indices [0] (approximation) and [1] (detail) at the first level, [0, 0] and [0, 1] for the split of [0], and so on; for a matrix the indices 0 to 3 stand for low-low, high along the columns, high along the rows and high-high.
 
 #% item
-# The option `padding` sets how the data are extended at the right end before filtering: "Periodic" (default), a number, "Fixed" (the last value) or "Reflected". The transform is orthogonal for every padding, so `inverse_wavelet_transform` gives the data back.
+# The option `padding` sets how the data are extended at the right end before filtering: periodic (default), a number, fixed (the last value) or reflected. The transform is orthogonal for every padding, so `inverse_wavelet_transform` gives the data back.
 
 #% item
 # By default there are floor(log2(n/(L - 1))) levels (at least 1) for data of shortest side n and a filter of L taps. The computation is in machine numbers.

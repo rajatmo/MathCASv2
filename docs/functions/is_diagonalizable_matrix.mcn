@@ -1,10 +1,10 @@
 #! mathcas 2 notebook
 
 #% title
-# diagonalizable_matrix_q
+# is_diagonalizable_matrix
 
 #% text
-# `diagonalizable_matrix_q(m)` gives true when the exact square matrix m is diagonalizable over the complex numbers.
+# `is_diagonalizable_matrix(m)` gives true when the exact square matrix m is diagonalizable over the complex numbers.
 
 #% section
 # Details
@@ -19,27 +19,27 @@
 # Basic examples
 
 #% cell
-diagonalizable_matrix_q([[1, 1], [0, 1]])
+is_diagonalizable_matrix([[1, 1], [0, 1]])
 #% output
 #= false
 
 #% cell
-diagonalizable_matrix_q([[1, 2], [3, 4]])
+is_diagonalizable_matrix([[1, 2], [3, 4]])
 #% output
 #= true
 
 #% cell
-diagonalizable_matrix_q([[2, 0], [0, 2]])
+is_diagonalizable_matrix([[2, 0], [0, 2]])
 #% output
 #= true
 
 #% cell
-diagonalizable_matrix_q([[0, -1], [1, 0]])
+is_diagonalizable_matrix([[0, -1], [1, 0]])
 #% output
 #= true
 
 #% cell
-diagonalizable_matrix_q([[6, 0, 0], [0, 12, 1], [0, 0, 12]])
+is_diagonalizable_matrix([[6, 0, 0], [0, 12, 1], [0, 0, 12]])
 #% output
 #= false
 

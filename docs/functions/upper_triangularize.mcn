@@ -45,4 +45,4 @@ upper_triangularize([[a, b, c, d], [e, f, g, h]])
 # See also
 
 #% text
-# `lower_triangularize`, `upper_triangular_matrix_q`, `diagonal`
+# `lower_triangularize`, `is_upper_triangular_matrix`, `diagonal`

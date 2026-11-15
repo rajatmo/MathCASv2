@@ -17,13 +17,13 @@ fn picture(src: &str) {
 fn fill_rules_of_a_closed_curve() {
     let star = "[[0.35, 0.2], [0.9, 0.75], [0.1, 0.55], [0.9, 0.35], [0.42, 0.9]]";
     // the even-odd rule named is the crossing polygon
-    assert_eq!(ev(&format!("winding_polygon({star}, \"EvenOddRule\") == crossing_polygon({star})")), "true");
-    assert_eq!(ev(&format!("winding_polygon({star}, \"NonzeroRule\") == winding_polygon({star})")), "true");
+    assert_eq!(ev(&format!("winding_polygon({star}, even_odd_rule) == crossing_polygon({star})")), "true");
+    assert_eq!(ev(&format!("winding_polygon({star}, nonzero_rule) == winding_polygon({star})")), "true");
     // the curve turns anticlockwise: every enclosed point has a positive winding number, none a negative one
-    assert_eq!(ev(&format!("abs(area(winding_polygon({star}, \"PositiveRule\")) - area(winding_polygon({star}))) < 10^-12")), "true");
-    assert_eq!(ev(&format!("winding_polygon({star}, \"NegativeRule\")")), "empty_region(2)");
+    assert_eq!(ev(&format!("abs(area(winding_polygon({star}, positive_rule)) - area(winding_polygon({star}))) < 10^-12")), "true");
+    assert_eq!(ev(&format!("winding_polygon({star}, negative_rule)")), "empty_region(2)");
     // the same curve run clockwise: the negative rule gives the region, of the same area
-    assert_eq!(ev(&format!("abs(area(winding_polygon(reverse({star}), \"NegativeRule\")) - area(winding_polygon({star}))) < 10^-12")), "true");
+    assert_eq!(ev(&format!("abs(area(winding_polygon(reverse({star}), negative_rule)) - area(winding_polygon({star}))) < 10^-12")), "true");
     // an unknown rule name stays unevaluated
     assert!(ev(&format!("winding_polygon({star}, \"NoRule\")")).starts_with("winding_polygon("));
 }
@@ -99,7 +99,7 @@ fn images_of_typed_data() {
     assert_eq!(ev(&format!("{rgb}max(abs(variance(i) - [variance([240, 241, 100, 0]), variance([232, 233, 50, 255]), variance([230, 233, 25, 10])]/255.^2)) < 10^-15")), "true");
     assert_eq!(ev(&format!("{rgb}max(abs(std_dev(i)^2 - variance(i))) < 10^-15")), "true");
     // a gray image gives one number
-    let gray = "j = image(numeric_array([[234, 235, 237], [235, 236, 240]], \"UnsignedInteger8\"), \"Byte\", color_space: \"Grayscale\", interleaving: none); ";
+    let gray = "j = image(numeric_array([[234, 235, 237], [235, 236, 240]], \"UnsignedInteger8\"), \"Byte\", color_space: gray_level, interleaving: none); ";
     assert_eq!(ev(&format!("{gray}abs(mean(j) - 1417/(6*255)) < 10^-15")), "true");
     assert_eq!(ev(&format!("{gray}abs(median(j) - 235.5/255) < 10^-15")), "true");
     // bits are 0 and 1; channels first are read as channels last

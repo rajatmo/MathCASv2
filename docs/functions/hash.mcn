@@ -13,13 +13,13 @@
 # Details
 
 #% item
-# Methods: `"MD5"`, `"SHA"` (SHA-1), `"SHA224"`, `"SHA256"`, `"SHA384"`, `"SHA512"`, `"CRC32"`, `"Adler32"`, also written `["SHA", 256]`; `"Expression"` is the default 64-bit hash.
+# Methods: `"MD5"`, `"SHA"` (SHA-1), `"SHA224"`, `"SHA256"`, `"SHA384"`, `"SHA512"`, `"CRC32"`, `"Adler32"`, also written `["SHA", 256]`; `expression` is the default 64-bit hash.
 
 #% item
 # A string is hashed as its UTF-8 bytes; another term as the UTF-8 bytes of `to_string(e)`, so equal terms have equal digests.
 
 #% item
-# Formats: `"Integer"` (the default, the digest as an unsigned integer), `"HexString"`, `"DecimalString"`, `"ByteList"` (the digest's bytes).
+# Formats: `integer` (the default, the digest as an unsigned integer), `hex_string`, `decimal_string`, `byte_list` (the digest's bytes).
 
 #% section
 # Examples
@@ -28,7 +28,7 @@
 # Basic examples
 
 #% cell
-hash("The quick brown fox jumps over the lazy dog", "SHA256", "HexString")
+hash("The quick brown fox jumps over the lazy dog", "SHA256", hex_string)
 #% output
 #= "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592"
 
@@ -41,12 +41,12 @@ hash("abc", "MD5")
 # Scope
 
 #% cell
-hash("abc", "CRC32", "HexString")
+hash("abc", "CRC32", hex_string)
 #% output
 #= "352441c2"
 
 #% cell
-hash("abc", "MD5", "ByteList")
+hash("abc", "MD5", byte_list)
 #% output
 #= [144, 1, 80, 152, 60, 210, 79, 176, 214, 150, 63, 125, 40, 225, 127, 114]
 

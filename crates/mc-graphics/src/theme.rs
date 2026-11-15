@@ -5,7 +5,7 @@
 //! attributes, so every other reader sees the light look; a front end rasterising the SVG injects [`Theme::css`]
 //! (CSS overrides presentation attributes). The raster surface recolours chrome itself when it is given a theme
 //! (3D pictures turned in the notebook). Files written for export (PNG, SVG, PDF) keep [`Theme::LIGHT`], unless
-//! the graphic asks for a theme (`plot_theme: "dark"`): then [`Themed`] writes its chrome in that theme's colours.
+//! the graphic asks for a theme (`plot_theme: dark`): then [`Themed`] writes its chrome in that theme's colours.
 use crate::color::Rgba;
 use crate::surface::{Path, Pen, Role, Surface, Text};
 use std::fmt::Write as _;

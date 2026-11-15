@@ -51,4 +51,4 @@ polynomial_sum_of_squares_list(x^2 - y^2, [x, y])
 # See also
 
 #% text
-# `positive_definite_matrix_q`, `cholesky`, `find_instance`
+# `is_positive_definite_matrix`, `cholesky`, `find_instance`

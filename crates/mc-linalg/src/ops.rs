@@ -64,8 +64,8 @@ pub fn identity_matrix<'h>(env: &Env<'h>, args: &[T<'h>]) -> WorkResult<Out<'h>>
     Ok(Out::Done(env.h().int_array(&[r, c], &a)))
 }
 
-/// The options of the matrix constructors: `target_structure: "Dense" | "Sparse" | automatic` (all give the
-/// dense list form; `"Structured"` and other values are declined) and `working_precision: d`.
+/// The options of the matrix constructors: `target_structure: dense | sparse | automatic` (all give the
+/// dense list form; `structured` and other values are declined) and `working_precision: d`.
 pub(crate) struct CtorOptions {
     pub(crate) precision_bits: Option<u64>,
 }
@@ -85,8 +85,7 @@ pub(crate) fn options<'a, 'h>(env: &Env<'h>, args: &'a [T<'h>]) -> (&'a [T<'h>],
         match h.sym_name(name).as_str() {
             "target_structure" => {
                 let ok = match h.view(v) {
-                    View::Str(s) => matches!(s, "Dense" | "Sparse"),
-                    View::Sym(s) => matches!(h.sym_name(s).as_str(), "automatic" | "auto"),
+                    View::Sym(s) => matches!(h.sym_name(s).as_str(), "dense" | "sparse" | "automatic" | "auto"),
                     _ => false,
                 };
                 if !ok {
@@ -389,7 +388,7 @@ pub fn norm<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<
         let general = match env.h().view(*p) {
             View::Real(x) => x.is_finite() && x >= 1.0,
             View::Rational { .. } => env.ar.num(*p).is_some_and(|q| q.as_real().is_some_and(|r| r.to_f64() >= 1.0)),
-            View::Sym(s) => env.h().sym_name(s) != "inf",
+            View::Sym(s) => !matches!(env.h().sym_name(s).as_str(), "inf" | "frobenius"),
             View::App { .. } => true,
             _ => false,
         };
@@ -409,8 +408,8 @@ pub fn norm<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<
         [_, p] => match env.h().view(*p) {
             View::Int(k) if k >= 1 => Order::P(k),
             View::Sym(s) if env.h().sym_name(s) == "inf" => Order::Inf,
-            // the Frobenius norm, by its name in any letter case
-            View::Str(s) if s.eq_ignore_ascii_case("frobenius") => Order::Frobenius,
+            // the Frobenius norm, by its name
+            View::Sym(s) if env.h().sym_name(s) == "frobenius" => Order::Frobenius,
             _ => return Ok(Out::Done(env.bad_argument(2))),
         },
         _ => return Ok(Out::Decline),

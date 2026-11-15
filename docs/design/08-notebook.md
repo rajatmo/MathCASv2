@@ -38,30 +38,35 @@ Each style has a grouping rule (2.3), a set of default attributes (2.2) and a lo
 styles without a key are reached through the style menu (`Alt+0` opens "Other style...", a list with type-ahead).
 Margins are left/right/top/bottom in points at 100 % magnification; fonts are in 4.10.
 
+Style names are lower case with underscores (`item_numbered`, `display_formula`) *(user decision before 1.0)*: in
+the style menu, the tooltips, the status bar and the file. The CamelCase names of earlier versions (`ItemNumbered`)
+are still understood where a style is named (`Style::from_name`), and notebooks that wrote them without the underscore
+(`#% itemnumbered`) are converted when they are opened (7.4).
+
 | Style | Key | Grouping rule | Evaluatable | Generated | Label shown | Size | Margins (l, r, t, b) | Return key |
 |---|---|---|---|---|---|---|---|---|
-| Title | Alt+1 | title 0 | no | no | no | 45 | 27, -, 30, 10 | new line in the cell |
-| Subtitle | Alt+2 | title 10 | no | no | no | 24 | 27, -, 2, 20 | new line |
-| Subsubtitle | | title 20 | no | no | no | 16 | 27, -, 2, 8 | new line |
-| Chapter | Alt+3 | section 10 | no | no | no | 34 | 27, -, 15, 10 | new line |
-| Subchapter | | section 20 | no | no | no | 28 | 63, -, 20, 8 | new line |
-| Section | Alt+4 | section 30 | no | no | no | 28, rule above | 27, -, 18, 8 | new line |
-| Subsection | Alt+5 | section 40 | no | no | no | 20 | 50, 3, 20, 8 | new line |
-| Subsubsection | Alt+6 | section 50 | no | no | no | 19 | 66, -, 12, 8 | new line |
-| Text | Alt+7 | normal | no | no | no | 15 | 66, 10, 8, 7 | new line |
-| Code | Alt+8 | input | yes, initialization | no | yes | 13, regular, code font, tinted background | 66, 10, 10, 10 | new line |
-| Input | Alt+9 | input | yes | no | yes | 13, regular, code font | 66, 10, 10, 5 | new line |
-| Item | | item 70 | no | no | no | 15, bullet `▪` | 81, 10, 8, 4 | **new Item cell** |
-| ItemParagraph | | item 80 | no | no | no | 15 | 81, 10, 1, 4 | new cell of the same style |
-| Subitem | | item 80 | no | no | no | 14, bullet | 105, 12, 4, 4 | new Subitem |
-| SubitemParagraph | | item 90 | no | no | no | 14 | 105, 12, 1, 4 | new cell, same style |
-| Subsubitem | | item 90 | no | no | no | 13, bullet | 129, 12, 4, 4 | new Subsubitem |
-| ItemNumbered, SubitemNumbered, SubsubitemNumbered | | item 70/80/90 | no | no | no | as Item, with `1.` / `1.1.` numbering | as Item | new cell, same style |
-| DisplayFormula | | normal | no | no | no | 14, typeset | 66, -, -, - | new line |
-| Program | | normal | no | no | no | code font, rules above and below | 66, 10, 8, 8 | new line |
-| Output | | output | no | yes | yes | 13, code font, typeset | 66, 10, 5, 10 | (edit duplicates, 2.8) |
-| Print | | output | no | yes | no | 13, code font | 60, -, -, - | (edit allowed) |
-| Message | | output | no | yes | no | 11, UI font, message colour | 66, -, -, - | not editable |
+| title | Alt+1 | title 0 | no | no | no | 45 | 27, -, 30, 10 | new line in the cell |
+| subtitle | Alt+2 | title 10 | no | no | no | 24 | 27, -, 2, 20 | new line |
+| subsubtitle | | title 20 | no | no | no | 16 | 27, -, 2, 8 | new line |
+| chapter | Alt+3 | section 10 | no | no | no | 34 | 27, -, 15, 10 | new line |
+| subchapter | | section 20 | no | no | no | 28 | 63, -, 20, 8 | new line |
+| section | Alt+4 | section 30 | no | no | no | 28, rule above | 27, -, 18, 8 | new line |
+| subsection | Alt+5 | section 40 | no | no | no | 20 | 50, 3, 20, 8 | new line |
+| subsubsection | Alt+6 | section 50 | no | no | no | 19 | 66, -, 12, 8 | new line |
+| text | Alt+7 | normal | no | no | no | 15 | 66, 10, 8, 7 | new line |
+| code | Alt+8 | input | yes, initialization | no | yes | 13, regular, code font, tinted background | 66, 10, 10, 10 | new line |
+| input | Alt+9 | input | yes | no | yes | 13, regular, code font | 66, 10, 10, 5 | new line |
+| item | | item 70 | no | no | no | 15, bullet `▪` | 81, 10, 8, 4 | **new item cell** |
+| item_paragraph | | item 80 | no | no | no | 15 | 81, 10, 1, 4 | new cell of the same style |
+| subitem | | item 80 | no | no | no | 14, bullet | 105, 12, 4, 4 | new subitem |
+| subitem_paragraph | | item 90 | no | no | no | 14 | 105, 12, 1, 4 | new cell, same style |
+| subsubitem | | item 90 | no | no | no | 13, bullet | 129, 12, 4, 4 | new subsubitem |
+| item_numbered, subitem_numbered, subsubitem_numbered | | item 70/80/90 | no | no | no | as Item, with `1.` / `1.1.` numbering | as Item | new cell, same style |
+| display_formula | | normal | no | no | no | 14, typeset | 66, -, -, - | new line |
+| program | | normal | no | no | no | code font, rules above and below | 66, 10, 8, 8 | new line |
+| output | | output | no | yes | yes | 13, code font, typeset | 66, 10, 5, 10 | (edit duplicates, 2.8) |
+| print | | output | no | yes | no | 13, code font | 60, -, -, - | (edit allowed) |
+| message | | output | no | yes | no | 11, UI font, message colour | 66, -, -, - | not editable |
 
 Notes:
 
@@ -82,7 +87,7 @@ Notes:
 | `open` | the cell's content is shown (a closed cell shows a thin bar) | true |
 | `generated` | made by evaluation; deleted when its input is evaluated again ("auto-overwrite") | per style |
 | `initialization` | evaluated automatically before the first evaluation in a fresh kernel (5.7) | true for Code |
-| `label` | `In[n]:=` for an evaluated input, `Out[n]=` for an output; Print and Message carry a hidden label linking them to their input | none |
+| `label` | `in n` for an evaluated input, `out n` for an output; Print and Message carry a hidden label linking them to their input | none |
 | `typeset` | the content is a box tree (section 4), not plain text | false |
 | `grouping` | `together` for cells grouped by hand (2.3) | automatic |
 
@@ -190,15 +195,18 @@ input's bracket after a read error), closed group. Section 8 gives the colours.
 ### 2.6 Labels and the line counter
 
 - The kernel owns a **line counter** *n*, starting at 1 in a fresh kernel. Every top-level statement that is
-  evaluated consumes one number: a cell `1+1 ⏎ 3+3` evaluated as the second input is labelled `In[2]:=` and
-  produces `Out[2]= 2` and `Out[3]= 6`; the next cell is `In[4]:=`; a statement ending in `;` consumes a number and
+  evaluated consumes one number: a cell `1+1 ⏎ 3+3` evaluated as the second input is labelled `in 2` and
+  produces `out 2` (`2`) and `out 3` (`6`); the next cell is `in 4`; a statement ending in `;` consumes a number and
   shows no output.
-- An evaluated input cell is labelled `In[n]:=` with the number of its **first** statement. Each value shown gets an
-  Output cell labelled `Out[k]=` with its statement's number. Print and Message cells carry a hidden label naming the
-  input they came from (shown in their tooltip as "during evaluation of In[n]").
-- Labels are **not drawn** *(user decision, round 11)*: the numbers stay in the model and the file (`label=`), so
+- An evaluated input cell is labelled `in n` with the number of its **first** statement. Each value shown gets an
+  Output cell labelled `out k` with its statement's number. Print and Message cells carry a hidden label naming the
+  input they came from (shown in their tooltip as "during evaluation of in n").
+- Labels are **not drawn** *(user decision, round 11)*: the numbers stay in the model and the file (`in=`, `out=`), so
   `out(n)` and the history work; an Output cell's bracket tooltip and the status bar name it as `out(n)`. (Before
   round 11 they sat in the left margin, right-aligned against the content, on the first baseline.)
+- Labels are written `in 3` and `out 3` *(user decision before 1.0, replacing a bracketed `In`/`Out` form)*: in
+  the tooltips, the status bar and the screen reader's names (`output out 3`), and in the file as the attributes
+  `in=3` (cell marker) and `out=3` (output block). The history function keeps its call form `out(3)`.
 - Editing an input after evaluation keeps its label until the next evaluation *(provisional for typing,
   section 13)*. Re-evaluating replaces the label with the new number.
 - Labels are saved (7.2) and shown again when the notebook is reopened; the counter of the new kernel starts at 1
@@ -873,7 +881,7 @@ either way.
   is the cell's stable id; `origin` is the notebook path; `line` is the cell's first line in the file, so error
   positions point into the notebook (decision 2.8 of `mc-kernel`).
 - A queued cell's bracket shows the queued state; the running cell's bracket shows the evaluating state, and its label
-  shows `In[*]:=` until the first response arrives *(provisional)*.
+  shows `in *` until the first response arrives *(provisional)*.
 - Deleting a queued cell removes it from the queue. Deleting the running cell lets the evaluation finish and discards
   its results.
 - Evaluating a cell that is already queued does not queue it twice.
@@ -888,13 +896,13 @@ When a cell's evaluation starts, its old generated cells are deleted (2.8). Then
 |---|---|
 | `output` | a Print cell after the input's generated cells so far |
 | `message` | a Message cell |
-| `value` | an Output cell `Out[n]=` with the printed text, typeset (4.5) |
-| `display` (image) | an Output cell `Out[n]=` holding the graphic |
-| `failure` | an Output cell `Out[n]=` showing `failure(...)` in the message colour (in MathCAS a failure is the statement's value; `out(n)` returns it) |
+| `value` | an Output cell `out n` with the printed text, typeset (4.5) |
+| `display` (image) | an Output cell `out n` holding the graphic |
+| `failure` | an Output cell `out n` showing `failure(...)` in the message colour (in MathCAS a failure is the statement's value; `out(n)` returns it) |
 | `error` (read error, nothing ran) | the input's bracket turns to the error colour; a Message cell with the rendered error (source line and caret) |
 | `error` (limit) | a Message cell `limit: ...` |
-| `done` `interrupted` | an Output cell `Out[n]= aborted` for the running statement |
-| `done` | the input gets `In[first]:=`; the bracket returns to normal; the status bar shows `millis` |
+| `done` `interrupted` | an Output cell `out n` (`aborted`) for the running statement |
+| `done` | the input gets `in first`; the bracket returns to normal; the status bar shows `millis` |
 
 Generated cells appear while the evaluation runs (streaming per statement), so long computations show their prints.
 
@@ -986,8 +994,8 @@ header      = "#! mathcas 2 notebook" [ attrs ] NL
 cell        = marker NL body { output-block }
 marker      = "#% " kind [ attrs ]
 kind        = "cell" | "input" | "code" | "text" | "title" | "subtitle" | "subsubtitle" | "chapter" | "subchapter"
-            | "section" | "subsection" | "subsubsection" | "item" | "itemparagraph" | "subitem" | "subitemparagraph"
-            | "subsubitem" | "itemnumbered" | "subitemnumbered" | "subsubitemnumbered" | "displayformula" | "program"
+            | "section" | "subsection" | "subsubsection" | "item" | "item_paragraph" | "subitem" | "subitem_paragraph"
+            | "subsubitem" | "item_numbered" | "subitem_numbered" | "subsubitem_numbered" | "display_formula" | "program"
 attrs       = { " " attr }
 attr        = name | name "=" value          (value: no spaces; `[0-9A-Za-z_.:x-]+`)
 body        = source lines (code kinds) | "# " text lines and "#" empty lines (prose kinds)
@@ -996,11 +1004,11 @@ out-line    = "#| " print | "#= " value | "#! " failure/error | "#? " message | 
 ```
 
 - `cell` and `input` are the same kind (`cell` stays the canonical spelling, so existing files are unchanged).
-- Cell attributes: `label=N` (In number), `typeset`, `traditional`, `closed` (the group headed by this cell is closed,
+- Cell attributes: `in=N` (the input label `in N`), `typeset`, `traditional`, `closed` (the group headed by this cell is closed,
   showing its first cell), `shown=K` (the group headed by this cell is closed showing its K-th cell, 2.4), `noeval`,
   `readonly`, `nodelete`, `init` / `noinit` (initialization, against the style default), `together` (manual group
   member), `hidden` (the cell itself closed).
-- Output-block attributes: `n=N` (Out number), `size=WxH` (graphic display size in points). One output block per
+- Output-block attributes: `out=N` (the output label `out N`), `size=WxH` (graphic display size in points). One output block per
   shown statement value; Print and Message lines of a statement go in the block of that statement's value (or in a
   block without `n` if the statement shows no value). Consecutive lines with the same prefix form one generated cell
   (as today); a multi-line value is consecutive `#=` lines.
@@ -1022,21 +1030,21 @@ out-line    = "#| " print | "#= " value | "#! " failure/error | "#? " message | 
 #% text
 # Newton's law with a temperature-dependent coefficient.
 
-#% cell label=1 typeset
+#% cell in=1 typeset
 k = ((3)/(4))
 T(t) = T0*exp(-k t)
-#% output n=1
+#% output out=1
 #= 3/4
 
-#% cell label=3
+#% cell in=3
 plot(T(t) /. T0 -> 90, [t, 0, 10])
-#% output n=3 size=360x225
+#% output out=3 size=360x225
 #= image("cooling.files/plot-3f2a91.png")
 
 #% section closed
 # Appendix
 
-#% code label=4
+#% code in=4
 fn helper(x) = x^2
 ```
 
@@ -1044,6 +1052,12 @@ fn helper(x) = x^2
 
 - **Reading old files:** every file valid today reads with the same meaning: `#% cell`/`#% text`/`#% output` without
   attributes are Input, Text and an output block; unlabelled; automatic grouping.
+- **Names before 1.0:** notebooks saved before version 1.0 wrote the labels as `label=N` (cell) and `n=N` (output
+  block) and six kinds without the underscore (`itemparagraph`, `subitemparagraph`, `itemnumbered`,
+  `subitemnumbered`, `subsubitemnumbered`, `displayformula`). Reading converts them (`mc_nbfile`, so every reader
+  sees the current names: the notebook, `mc-repl`, the exporters); the next save writes `in=N`, `out=N` and the
+  names with underscores. When a marker carries both spellings the current one wins. Tested on fixtures in the old
+  and the new format (`crates/mc-nbfile/tests/old_names.rs`).
 - **Writing:** a notebook that uses only Input and Text cells, no labels and at most one value per cell is written in
   exactly today's format, so old readers (`mc-repl`, the Jupyter wrapper's converter) read it. Otherwise old readers see
   new markers as comments: the file still runs as a script (decision 2.6 holds: every new line is a comment), though an
@@ -1051,7 +1065,7 @@ fn helper(x) = x^2
 - **Canonical layout:** one blank line after each cell; attributes in a fixed order (`label`, style marks, state
   marks); printing a parsed notebook gives back the same text (round-trip test over all example notebooks and
   generated ones).
-- **Diffability:** evaluation changes only output blocks and `label=` attributes; a preference "Save without outputs"
+- **Diffability:** evaluation changes only output blocks and `in=` attributes; a preference "Save without outputs"
   writes no output blocks and no labels (clean diffs for version control).
 - **Script view:** headings, text and outputs are comments, so `mc-repl notebook.mcn` keeps working; `--update` writes
   outputs in the new format (the runner moves to the shared format crate, P1).
@@ -1067,7 +1081,7 @@ only, and no saved notebook names a file in it. On save every picture an output 
 block** under a content-hash name, with the files that make it interactive:
 
 ```
-#% output n=3 size=360x225
+#% output out=3 size=360x225
 #= image("plot-3f2a91c04b7e.svg")
 #~ @plot-3f2a91c04b7e.svg deflate
 #~ eJzVvWuTHMeRJPj3+5...          (base64, 100 characters a line)
@@ -1422,11 +1436,11 @@ Scope: `mc-nbfile` extracted (today's format); `mc-nbmodel` with Input and Text 
 Text-like), caret and text selection, insertion point and new cells, single-level brackets, cell selection by click
 and shift-click, undo/redo, plain-text clipboard; `mc-notebook` window with virtualised painting, Consolas/Segoe UI,
 One Light/One Dark/System; kernel process with the protocol additions `values: "each"`, `numbered`, `n`, `first`/`next`
-(P2 part 1); queue, labels `In[n]:=`/`Out[n]=`, Print/Output/Message cells (linear text), abort, quit/restart; open,
+(P2 part 1); queue, labels `in n`/`out n`, Print/Output/Message cells (linear text), abort, quit/restart; open,
 save, save as.
 
 Exit tests: key scripts for typing, new cell at insertion point, Shift+Enter flow with a fake kernel (labels and
-generated cells replaced on re-evaluation, numbering `In[2]`/`Out[2]`/`Out[3]`/`In[4]`), undo of typing and of cell
+generated cells replaced on re-evaluation, numbering `in 2`/`out 2`/`out 3`/`in 4`), undo of typing and of cell
 creation; integration test: open `examples/notebook.mcn`, evaluate all, save, compare with `mc-repl --update` output
 modulo labels; manual: both themes, system switch followed live.
 
@@ -1512,7 +1526,7 @@ Each is what this spec implements until use shows a better choice.
 
 1. **History syntax.** Whether a short syntax for previous outputs is added to MathCAS as sugar for `out()`; until
    decided, only `out(n)` exists.
-2. **Label after editing.** Typing into an evaluated input keeps its `In[n]:=` label until re-evaluation.
+2. **Label after editing.** Typing into an evaluated input keeps its `in n` label until re-evaluation.
 3. **Where an edited output's duplicate goes.** A new Input cell right after the output's group, caret in it.
 4. **Typing with cells selected by bracket.** Ignored (only cell-level keys act). Alternative: replaces the cells or
    creates a new cell after them.
@@ -1527,7 +1541,7 @@ Each is what this spec implements until use shows a better choice.
     characters.
 11. **Unknown alias.** Stays as marked text in the error colour until edited.
 12. **Bracket marks.** Only the closed-group triangle (8.2); no marks for non-editable or generated cells.
-13. **Queued and running indication.** Queued brackets tinted, running bracket emphasised, running label `In[*]:=`
+13. **Queued and running indication.** Queued brackets tinted, running bracket emphasised, running label `in *`
     until the first response.
 14. **Text sent for a queued cell.** The content when its evaluation starts, not when it was queued.
 15. **Abort and the queue.** Abort also clears the queue.

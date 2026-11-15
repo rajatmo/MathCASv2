@@ -239,8 +239,8 @@ functions! {
         "max_by(xs, f): the first element with the largest f(x) in the canonical order";
     "min_by" => sort::min_by,
         "min_by(xs, f): the first element with the smallest f(x) in the canonical order";
-    "match_q" => structure::match_q,
-        "match_q(x, p): whether x matches the pattern p";
+    "is_match" => structure::is_match,
+        "is_match(x, p): whether x matches the pattern p";
     "head" => structure::head,
         "head(x): the head of a compound term; for an atom the name of its type (Int, Rat, Float, Complex, Str, Sym)";
     "dimensions" => structure::dimensions,
@@ -446,7 +446,7 @@ functions! {
     "groupings" => groupings::groupings,
         "groupings(xs, spec): every tree grouping the elements of xs in order with the heads and arities of spec (k, [k1, ...], h -> k, [h1, h2] -> k, [h -> k, ...])";
     "hash" => hash::hash,
-        "hash(e), hash(e, method), hash(e, method, format): a digest of e (\"MD5\", \"SHA\", \"SHA256\", \"SHA512\", \"CRC32\", ...) as an integer, \"HexString\", \"DecimalString\" or \"ByteList\"";
+        "hash(e), hash(e, method), hash(e, method, format): a digest of e (\"MD5\", \"SHA\", \"SHA256\", \"SHA512\", \"CRC32\", ...) as an integer, hex_string, decimal_string or byte_list";
     "delete_elements" => more::delete_elements,
         "delete_elements(xs, es): xs without the elements of es";
     "position_largest" => more::position_largest,
@@ -459,8 +459,8 @@ functions! {
         "xor(a, b, ...): true when an odd number of the arguments are true";
     "implies" => more::implies,
         "implies(p, q): the logical implication p => q";
-    "true_q" => more::true_q,
-        "true_q(x): whether x is true (anything else gives false)";
+    "is_true" => more::is_true,
+        "is_true(x): whether x is true (anything else gives false)";
     "construct" => more::construct,
         "construct(f, a, b, ...): f(a, b, ...)";
     "identity" => more::identity,
@@ -477,8 +477,8 @@ functions! {
         "hold_complete(x, ...): x kept unevaluated";
     "check" => more::check,
         "check(x, y): the value of x, or of y when x gives a failure";
-    "value_q" => more::value_q,
-        "value_q(x): whether x has a value";
+    "is_value" => more::is_value,
+        "is_value(x): whether x has a value";
     "to_character_code" => more::to_character_code,
         "to_character_code(s): the code points of the characters of s; to_character_code(s, \"UTF8\"): its UTF-8 bytes (\"ASCII\", \"ISO8859-1\": the codes that fit, none for the others)";
     "character_range" => more::character_range,
@@ -501,7 +501,7 @@ functions! {
         "split(s), split(s, sep): the words of s, or the pieces between occurrences of sep; split(xs), split(xs, test): the runs of identical neighbours (or neighbours passing test(a, b)) of a list";
     // --- blocks and slices of arrays, subset counts, tours, symbols by name, cleanup (round 38) ---
     "array_filter" => arrays::array_filter,
-        "array_filter(f, a, r): f applied to the block of radius r (a count, [r1, r2, ...] per level, or [[before, after], ...]) around every element of the array a; padding: \"Fixed\" (the edge repeated), \"Periodic\", \"Reflected\" or a value";
+        "array_filter(f, a, r): f applied to the block of radius r (a count, [r1, r2, ...] per level, or [[before, after], ...]) around every element of the array a; padding: fixed (the edge repeated), periodic, reflected or a value";
     "array_reduce" => arrays::array_reduce,
         "array_reduce(f, a, n): f applied to each vector of the array a along level n, that level removed; array_reduce(f, a, [n1, n2, ...]): to each sub-array along those levels";
     "subset_count" => subsets::subset_count,
@@ -517,7 +517,7 @@ functions! {
 }
 
 /// The functions whose arguments are all held; every other one is strict.
-const HELD: &[&str] = &["quote", "inactivate", "table", "piecewise", "parallel_table", "parallel_sum", "hold_complete", "check", "value_q", "with_cleanup"];
+const HELD: &[&str] = &["quote", "inactivate", "table", "piecewise", "parallel_table", "parallel_sum", "hold_complete", "check", "is_value", "with_cleanup"];
 
 /// The functions whose first argument is held and the others strict: the body of an iterated `sum` or `product` is
 /// evaluated for each term (a `sow` or `print` in it runs per term), not once before the terms exist.
@@ -558,12 +558,12 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
             Hold::None
         };
         let rows_of_datasets = DATASET_ROWS.contains(&name);
-        let patterns = PATTERNS.contains(&name) || name == "match_q";
+        let patterns = PATTERNS.contains(&name) || name == "is_match";
         let assoc = assocs::mode(name);
-        let f = Fun { lib: lib.clone(), body, rows_of_datasets, patterns: patterns && name != "match_q", assoc };
+        let f = Fun { lib: lib.clone(), body, rows_of_datasets, patterns: patterns && name != "is_match", assoc };
         k.register(h.sym(name), Attributes { hold, handles_failures: patterns, ..Attributes::default() }, Box::new(f));
     }
-    // a helper of the library (`total(xs, method: "CompensatedSummation")`): no usage line, not in the help index
+    // a helper of the library (`total(xs, method: compensated_summation)`): no usage line, not in the help index
     let helper = "nl_total_compensated";
     let f = Fun { lib: lib.clone(), body: reduce::total_compensated, rows_of_datasets: false, patterns: false, assoc: assocs::mode(helper) };
     k.register(h.sym(helper), Attributes::default(), Box::new(f));

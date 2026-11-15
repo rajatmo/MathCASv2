@@ -35,9 +35,9 @@ fn threshold_and_staircase() {
     run(&[
         ("threshold([1, 1/10, 1/100, 1/10^8, 1/10^11])", "[1, 1/10, 1/100, 1/100000000, 0]"),
         ("threshold([-3, 1, -2, 0, 2, -1, 0, 1, -3, 3, 2], 3/2)", "[-3, 0, -2, 0, 2, 0, 0, 0, -3, 3, 2]"),
-        ("threshold([-3, 1, -2, 0, 2, -1, 0, 1, -3, 3, 2], [\"LargestValues\", 3])", "[-3, 0, 0, 0, 0, 0, 0, 0, -3, 3, 0]"),
+        ("threshold([-3, 1, -2, 0, 2, -1, 0, 1, -3, 3, 2], [largest_values, 3])", "[-3, 0, 0, 0, 0, 0, 0, 0, -3, 3, 0]"),
         ("threshold([[0, 0.2, 0.4], [0.6, 0.8, 1]], 0.5)", "[[0, 0.0, 0.0], [0.6, 0.8, 1]]"),
-        ("threshold([-1.0, -0.2, 0.5], [\"Soft\", 0.3])", "[-0.7, 0.0, 0.2]"),
+        ("threshold([-1.0, -0.2, 0.5], [soft, 0.3])", "[-0.7, 0.0, 0.2]"),
         ("map(cantor_staircase, [1/3, 0.76, 0, 15/17, 1/4, 2])", "[1/2, 0.6875, 0, 3/4, 1/3, 1]"),
         ("cantor_staircase(x)", "cantor_staircase(x)"),
         ("[dirac_comb(1/2), dirac_comb(0), dirac_comb(4, 8, 1/3), dirac_comb(-x), dirac_comb(0.1)]", "[0, dirac_comb(0), 0, dirac_comb(x), 0]"),
@@ -47,8 +47,8 @@ fn threshold_and_staircase() {
 #[test]
 fn mandelbrot_and_peaks() {
     run(&[
-        ("mandelbrot_set_member_q([0, 1, im/2, im + 1, -2, 1/4, 0.26])", "[true, false, true, false, true, true, false]"),
-        ("[mandelbrot_set_member_q(0.2501, max_iterations: 250), mandelbrot_set_member_q(0.2501, max_iterations: 500)]", "[true, false]"),
+        ("is_mandelbrot_set_member([0, 1, im/2, im + 1, -2, 1/4, 0.26])", "[true, false, true, false, true, true, false]"),
+        ("[is_mandelbrot_set_member(0.2501, max_iterations: 250), is_mandelbrot_set_member(0.2501, max_iterations: 500)]", "[true, false]"),
         ("find_peaks([1, 3, 5, 6, 6, 4, 3, 2, 4, 7, 3, 2, 4, 2, 2, 1])", "[[9/2, 6], [10, 7], [13, 4]]"),
         ("find_peaks([2, 1, 3, 5, 6, 6, 4, 3, 2, 4, 7, 3, 4, 2, 2, 1], 1)", "[[11/2, 6], [11, 7]]"),
         ("find_peaks([2, 1, 3, 5, 6, 6, 4, 3, 2, 4, 7, 2, 3, 4, 3, 2], 0, 3)", "[[11, 7]]"),
@@ -141,7 +141,7 @@ fn random_polygons() {
         ("seed(7); p = random_polygon(5); [head(p), length(p[1]), every(flatten(p[1]), x => 0 <= x and x <= 1)]", "[polygon, 5, true]"),
         ("dimensions(random_polygon(8, [2, 2]))", "[2, 2]"),
         ("length(random_polygon(3 -> 10)[1][1])", "3"),
-        ("q = random_polygon([\"Convex\", 9])[1]; length(q) == length(nl_hull(q))", "true"),
+        ("q = random_polygon([convex, 9])[1]; length(q) == length(nl_hull(q))", "true"),
         ("f = list_interpolation(map(x => [sin(8*x), 8*cos(8*x)], range(0, 3, 0.5)), [[0, 3]]); abs(f(1.0) - sin(8.0)) < 10^-12", "true"),
     ]);
 }

@@ -96,8 +96,8 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("polynomial_reduce", "polynomial_reduce(p, [g1, ...], [x1, ...]): [[q1, ...], r] with p = q1 g1 + ... + r, by multivariate division in lexicographic order"),
     ("polynomial_mod", "polynomial_mod(p, m): p with coefficients reduced modulo the integer m, or its remainder modulo the polynomial m; a list of moduli in turn"),
     ("partial_fractions", "partial_fractions(f, x): the partial fraction decomposition of f over the complex numbers; extension: reals for real factors"),
-    ("polynomial_expression_q", "polynomial_expression_q(e, xs), (e, xs, test): whether e is a polynomial expression in the variables xs (coefficients passing test)"),
-    ("possible_zero_q", "possible_zero_q(e): whether e is probably zero (by simplification, then by high-precision values at sample points)"),
+    ("is_polynomial_expression", "is_polynomial_expression(e, xs), (e, xs, test): whether e is a polynomial expression in the variables xs (coefficients passing test)"),
+    ("is_possible_zero", "is_possible_zero(e): whether e is probably zero (by simplification, then by high-precision values at sample points)"),
 ];
 
 /// The table of natives: (name, function).

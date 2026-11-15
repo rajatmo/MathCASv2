@@ -210,7 +210,7 @@ fn vector_angle_of_parallel_machine_vectors_is_zero_to_rounding() {
 fn qr_full_completes_q_to_a_square_orthogonal_matrix() {
     // a singular 3 x 3 and a tall matrix: q is square and orthogonal, r has the zero rows, and q . r gives m back
     assert_eq!(
-        ev("m = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]; t = qr(m, \"Full\"); [length(t[1][1]), simplify(dot(t[1], t[2])) == m, simplify(dot(transpose(t[1]), t[1])) == identity_matrix(3), t[2][3]]"),
+        ev("m = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]; t = qr(m, full); [length(t[1][1]), simplify(dot(t[1], t[2])) == m, simplify(dot(transpose(t[1]), t[1])) == identity_matrix(3), t[2][3]]"),
         "[3, true, true, [0, 0, 0]]"
     );
     assert_eq!(
@@ -237,7 +237,7 @@ fn qr_svd_eigen_null_space_satisfy_their_defining_properties() {
     let m = "m = [[1.2, 2.3, 3.4], [2.3, 4.5, 5.6], [3.2, 7.6, 6.5]]; t = qr(m); q = t[1]; r = t[2];";
     assert_eq!(close(&format!("{m} max(abs(flatten(dot(q, r) - m)))")), "true");
     assert_eq!(close(&format!("{m} max(abs(flatten(dot(transpose(q), q) - identity_matrix(3))))")), "true");
-    assert_eq!(ev(&format!("{m} upper_triangular_matrix_q(map(row => map(x => if abs(x) < 1.0e-13 then 0 else x, row), r))")), "true");
+    assert_eq!(ev(&format!("{m} is_upper_triangular_matrix(map(row => map(x => if abs(x) < 1.0e-13 then 0 else x, row), r))")), "true");
     // svd(m) = [u, s, v]: m = u.s.v^T with orthonormal u and v and the singular values in decreasing order
     let svd = "m = [[0.5, 1], [2, 2.5]]; t = svd(m); u = t[1]; s = t[2]; v = t[3];";
     assert_eq!(close(&format!("{svd} max(abs(flatten(dot(u, s, transpose(v)) - m)))")), "true");
@@ -289,12 +289,12 @@ fn recorded_conventions_with_a_second_route() {
 #[test]
 fn small_list_fixes_second_round() {
     assert_eq!(ev("array_pad([[], []], 1, x)"), "[[x, x], [x, x], [x, x], [x, x]]");
-    assert_eq!(ev("array_pad([[], []], 1, \"Fixed\")"), "[[], [], [], []]");
+    assert_eq!(ev("array_pad([[], []], 1, fixed)"), "[[], [], [], []]");
     assert_eq!(
         ev("bin_lists([1.5 -> \"a\", 3 -> \"b\", 2.5 -> \"c\", 1 -> \"d\", 7 -> \"f\"], 2)"),
         "[[\"a\", \"d\"], [\"b\", \"c\"], [], [\"f\"]]"
     );
-    assert_eq!(ev("array_reshape([10, 20, 30, 40, 50, 60, 70], [5, 3], \"Extrapolated\")"), "[[10, 20, 30], [40, 50, 60], [70, 80, 90], [100, 110, 120], [130, 140, 150]]");
+    assert_eq!(ev("array_reshape([10, 20, 30, 40, 50, 60, 70], [5, 3], extrapolated)"), "[[10, 20, 30], [40, 50, 60], [70, 80, 90], [100, 110, 120], [130, 140, 150]]");
     // a pair that is not one entry per coordinate pads below and above every coordinate
     assert_eq!(ev("coordinate_bounds([[-9, 1, 0], [8, 2, 3]], [0, 1])"), "[[-9, 9], [1, 3], [0, 4]]");
     // ragged numeric points: dynamic time warping, a distance (symmetric, zero on the diagonal)

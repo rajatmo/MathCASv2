@@ -179,7 +179,7 @@ pub const OPERATOR_FORMS: &[(&str, OperatorForm)] = {
         ("group_by", F), ("count_by", F), ("sort_by", F), ("max_by", F), ("min_by", F), ("all_true", F),
         ("any_true", F), ("none_true", F), ("member", F), ("member_of", F), ("free_of", F), ("rewrite", F),
         ("replace", F), ("replace_part", F), ("extract", F), ("insert", F), ("delete", F), ("key_select", F),
-        ("match_q", F), ("string_replace", F), ("string_contains", F), ("string_starts", F), ("string_ends", F),
+        ("is_match", F), ("string_replace", F), ("string_contains", F), ("string_starts", F), ("string_ends", F),
         ("string_split", F), ("string_cases", F), ("string_delete", F), ("gather_by", F), ("unique_by", F),
         ("take_largest", F), ("take_smallest", F), ("first_case", F),
         ("contains_any", F), ("contains_all", F), ("contains_none", F), ("key_member", F),
@@ -188,7 +188,7 @@ pub const OPERATOR_FORMS: &[(&str, OperatorForm)] = {
         ("map_apply", L), ("comap", L), ("comap_apply", L), ("map_all", L), ("replace_at", F), ("contains_only", F),
         ("contains_exactly", F), ("take_largest_by", F),
         ("take_smallest_by", F), ("reverse_sort_by", F), ("replace_list", F),
-        ("string_match_q", F), ("string_free_q", F), ("string_count", F), ("string_position", F),
+        ("is_string_match", F), ("is_string_free", F), ("string_count", F), ("string_position", F),
         ("merge", F), ("linear_solve", L), ("nearest", L), ("flatten_at", F),
     ]
 };

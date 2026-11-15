@@ -90,17 +90,17 @@ fn to_polar_coordinates(ps) when is_list(ps) and length(ps) >= 1 and is_list(ps[
 # b29_zero_matrix(d, scale): whether every entry of d is zero (up to rounding when inexact)
 fn b29_zero_matrix(d, scale) = every(flatten(d), x => x === 0 or (is_inexact(x) and b29_small(x, scale)) or (is_number(x) and simplify(x) === 0))
 
-# symmetric_matrix_q(m): whether the square matrix m equals its transpose (inexact entries up to rounding)
-fn symmetric_matrix_q(m) = is_matrix(m) and length(m) == length(m[1]) and b29_zero_matrix(m - transpose(m), max(map(abs, flatten(m))))
+# is_symmetric_matrix(m): whether the square matrix m equals its transpose (inexact entries up to rounding)
+fn is_symmetric_matrix(m) = is_matrix(m) and length(m) == length(m[1]) and b29_zero_matrix(m - transpose(m), max(map(abs, flatten(m))))
 
-# hermitian_matrix_q(m): whether the square matrix m equals its conjugate transpose (inexact entries up to rounding)
-fn hermitian_matrix_q(m) = is_matrix(m) and length(m) == length(m[1]) and b29_zero_matrix(m - conjugate(transpose(m)), max(map(abs, flatten(m))))
+# is_hermitian_matrix(m): whether the square matrix m equals its conjugate transpose (inexact entries up to rounding)
+fn is_hermitian_matrix(m) = is_matrix(m) and length(m) == length(m[1]) and b29_zero_matrix(m - conjugate(transpose(m)), max(map(abs, flatten(m))))
 
-# diagonalizable_matrix_q(m): whether the square exact matrix m is diagonalizable over the complex numbers, that is
+# is_diagonalizable_matrix(m): whether the square exact matrix m is diagonalizable over the complex numbers, that is
 # whether its minimal polynomial has no repeated factor; that holds when the square-free part s = p/gcd(p, p') of the
 # characteristic polynomial p annihilates m (s(m) = 0), as s divides every polynomial with the roots of p (Horn and
 # Johnson, Matrix analysis, 3.3.10); unevaluated for inexact entries
-fn diagonalizable_matrix_q(m) when is_matrix(m) and length(m) == length(m[1]) and not is_inexact(total(flatten(m))) = {
+fn is_diagonalizable_matrix(m) when is_matrix(m) and length(m) == length(m[1]) and not is_inexact(total(flatten(m))) = {
   let p = characteristic_polynomial(m, r38_t)
   let s = cancel(p/polynomial_gcd(p, d(p, r38_t)))
   let cs = coefficient_list(expand(s), r38_t)
@@ -111,9 +111,9 @@ fn diagonalizable_matrix_q(m) when is_matrix(m) and length(m) == length(m[1]) an
     acc = acc + cs[i]*pw
     pw = dot(pw, m)
   }
-  every(flatten(acc), x => possible_zero_q(x))
+  every(flatten(acc), x => is_possible_zero(x))
 }
-fn diagonalizable_matrix_q(m) when is_matrix(m) and length(m) != length(m[1]) = false
+fn is_diagonalizable_matrix(m) when is_matrix(m) and length(m) != length(m[1]) = false
 
 # pauli_matrix(k): the Pauli matrix sigma_k for k = 1, 2, 3 and the identity matrix for k = 0; a list maps
 fn pauli_matrix(k) when k === 0 = [[1, 0], [0, 1]]
@@ -135,14 +135,14 @@ fn fourier_matrix(n; fourier_parameters = [0, 1]) when is_integer(n) and n >= 1 
 # b29_numeric_matrix(m): whether every entry of the matrix m is a number
 fn b29_numeric_matrix(m) = every(flatten(m), x => is_number(x))
 
-# positive_definite_matrix_q(m): whether the Hermitian part (m + m^H)/2 of the square matrix m is positive definite
+# is_positive_definite_matrix(m): whether the Hermitian part (m + m^H)/2 of the square matrix m is positive definite
 # (so a real matrix is tested through its symmetric part), by Sylvester's criterion: every leading principal minor
 # positive; unevaluated for entries that are not numbers
-fn positive_definite_matrix_q(m) when is_matrix(m) and length(m) == length(m[1]) and b29_numeric_matrix(m) = {
+fn is_positive_definite_matrix(m) when is_matrix(m) and length(m) == length(m[1]) and b29_numeric_matrix(m) = {
   let h = (m + conjugate(transpose(m)))/2
   every(range(length(m)), k => { let d = det(map(r => take(r, k), take(h, k))); is_numeric(d) and n(re(d)) > 0 })
 }
-fn positive_definite_matrix_q(m) when is_matrix(m) and (length(m) != length(m[1])) = false
+fn is_positive_definite_matrix(m) when is_matrix(m) and (length(m) != length(m[1])) = false
 
 # --- matrix functions ---
 
@@ -343,12 +343,12 @@ rule lighter(img_, f_) := img_colour_map(img, x => x + f*(1 - x)) when img_is_im
 # a gray image as an RGB image (the gray level in each colour channel), an RGB image as gray by the luma weights
 # of ITU-R BT.601 (0.299, 0.587, 0.114)
 # (other channel counts and colour spaces: failure(unsupported, ...))
-rule color_convert(img_, s_) := img_convert(img, s) when img_is_image(img) and (s === "RGB" or s === "Grayscale")
+rule color_convert(img_, s_) := img_convert(img, s) when img_is_image(img) and (s === "RGB" or s === gray_level)
 fn img_convert(img, s) = {
   let d = image_data(img)
   let c = length(d[1, 1])
   if c == 1 and s === "RGB" then image(map(row => map(px => [px[1], px[1], px[1]], row), d))
-  else if (c == 3 and s === "RGB") or (c == 1 and s === "Grayscale") then img
+  else if (c == 3 and s === "RGB") or (c == 1 and s === gray_level) then img
   else if c == 3 then image(map(row => map(px => 0.299*px[1] + 0.587*px[2] + 0.114*px[3], row), d))
   else failure(unsupported, color_convert, s)
 }
@@ -450,12 +450,12 @@ fn mixed_fraction_parts(x) when not is_list(x) and is_numeric(x) and is_real(n(x
 }
 
 # perfect_number(k): the k-th (even) perfect number 2^(p - 1) (2^p - 1), p the k-th Mersenne prime exponent; a list
-# maps. perfect_number(k, "Even") is the same number (every even perfect number has this form, Euclid-Euler); no odd
-# perfect number is known, so perfect_number(k, "Odd") stays as it is
+# maps. perfect_number(k, even) is the same number (every even perfect number has this form, Euclid-Euler); no odd
+# perfect number is known, so perfect_number(k, odd) stays as it is
 fn perfect_number(k) when is_list(k) = map(perfect_number, k)
 fn perfect_number(k: Int) when k >= 1 and k <= 51 = { let p = mersenne_prime_exponent(k); 2^(p - 1)*(2^p - 1) }
-fn perfect_number(k, kind) when kind == "Even" and is_list(k) = map(perfect_number, k)
-fn perfect_number(k: Int, kind) when kind == "Even" and k >= 1 and k <= 51 = perfect_number(k)
+fn perfect_number(k, kind) when kind === even and is_list(k) = map(perfect_number, k)
+fn perfect_number(k: Int, kind) when kind === even and k >= 1 and k <= 51 = perfect_number(k)
 
 # rudin_shapiro(n): (-1)^(the number of occurrences of the digits 11 in the binary expansion of n), n >= 0
 fn rudin_shapiro(k) when is_list(k) = map(rudin_shapiro, k)
@@ -464,9 +464,9 @@ fn rudin_shapiro(k: Int) when k >= 0 = {
   (-1)^total(map(i => b[i]*b[i + 1], range(length(b) - 1)))
 }
 
-# quadratic_irrational_q(x): whether x is an irrational root of a quadratic polynomial with integer coefficients
-fn quadratic_irrational_q(x) when is_list(x) = map(quadratic_irrational_q, x)
-fn quadratic_irrational_q(x) when not is_list(x) = {
+# is_quadratic_irrational(x): whether x is an irrational root of a quadratic polynomial with integer coefficients
+fn is_quadratic_irrational(x) when is_list(x) = map(is_quadratic_irrational, x)
+fn is_quadratic_irrational(x) when not is_list(x) = {
   let c = is_numeric(x) and not is_inexact(x) and not is_integer(x) and not is_rational(x)
   if not c then false else { let p = minimal_polynomial(x, b29_t); free_of(p, minimal_polynomial) and degree(p, b29_t) == 2 }
 }
@@ -544,7 +544,7 @@ fn matrix_minimal_polynomial(m, x) when is_matrix(m) and length(m) == length(m[1
 # coefficient_arrays(polys, vars): the list [a0, a1, ..., ad] of arrays of the coefficients of the polynomial (or list
 # of polynomials) in the variables vars: a_k holds the coefficient of a monomial x_i1 ... x_ik (i1 <= ... <= ik) at
 # the position [i1, ..., ik] (after the polynomial's own index for a list), 0 elsewhere
-fn b29_sorted_q(t) = every(range(length(t) - 1), i => t[i] <= t[i + 1])
+fn b29_is_sorted(t) = every(range(length(t) - 1), i => t[i] <= t[i + 1])
 # b29_eq_poly(p): lhs - rhs of an equation, else p
 fn b29_eq_poly(p) = if not is_atom(p) and head(p) === head(b29_p == b29_q) and length(p) == 2 then p[1] - p[2] else p
 fn coefficient_arrays(ps, vars) when is_list(ps) and is_list(vars) = {
@@ -552,7 +552,7 @@ fn coefficient_arrays(ps, vars) when is_list(ps) and is_list(vars) = {
   let rules = map(p => coefficient_rules(b29_eq_poly(p), vars), ps)
   let deg = max(map(r => max(map(q => total(first(q)), r)), rules))
   let entry = (i, t) => {
-    if not b29_sorted_q(t) then 0
+    if not b29_is_sorted(t) then 0
     else {
       let ex = map(j => length(select(t, s => s == j)), range(nv))
       let hit = select(rules[i], q => first(q) == ex)
@@ -643,11 +643,11 @@ fn b29_boxes(i) = {
 }
 fn b29_box_in(b, c) = c[1] <= b[1] and b[2] <= c[2] and c[3] <= b[3] and b[4] <= c[4]
 
-# interval_member_q(i, x): whether the number x, or every piece of the interval x, lies in the interval i (real
-# intervals, or centered intervals with complex centers); interval_member_q(i)(x) likewise
-fn interval_member_q(i, x) when head(i) === interval or head(i) === centered_interval =
+# is_interval_member(i, x): whether the number x, or every piece of the interval x, lies in the interval i (real
+# intervals, or centered intervals with complex centers); is_interval_member(i)(x) likewise
+fn is_interval_member(i, x) when head(i) === interval or head(i) === centered_interval =
   every(b29_boxes(x), b => any_true(map(c => b29_box_in(b, c), b29_boxes(i)), t => t))
-fn interval_member_q(i) = x => interval_member_q(i, x)
+fn is_interval_member(i) = x => is_interval_member(i, x)
 
 # interval_union(i1, i2, ...): the union of the intervals as one interval (real pieces merged); the smallest
 # centered interval containing them when a complex centered interval is involved
@@ -835,17 +835,17 @@ fn b29_cone_conditions(c) = {
     let kind = c[2][1]
     let v = c[1][1]
     let w = c[1][2]
-    if kind == "SemidefiniteCone" and is_matrix(v) then {
+    if kind === semidefinite_cone and is_matrix(v) then {
       let m = if is_matrix(w) then v - w else v
       let k = length(m)
       map(s => det(map(i => map(j => m[i][j], s), s)) >= 0, select(subsets(range(k)), s => length(s) > 0))
     }
-    else if kind == "NormCone" and is_list(v) then {
+    else if kind === norm_cone and is_list(v) then {
       let t = last(v) - (if is_list(w) then last(w) else w)
       let xs = most(v)
       [total(map(a => a^2, xs)) <= t^2, t >= 0]
     }
-    else if kind == "NonNegativeCone" then [vector_greater_equal([v, w])]
+    else if kind === nonnegative_cone then [vector_greater_equal([v, w])]
     else [c]
   }
   else [c]
@@ -883,7 +883,7 @@ rule semidefinite_optimization(c_, mats_) := {
   let k = length(c)
   let xs = map(i => to_expression(string_join(["sdp_x", to_string(i)])), range(k))
   let m = map(i => map(j => mats[1][i][j] + total(map(t => xs[t]*mats[t + 1][i][j], range(k))), range(length(mats[1]))), range(length(mats[1])))
-  let cons = b29_cone_conditions(vector_greater_equal([m, 0], ["SemidefiniteCone", length(m)]))
+  let cons = b29_cone_conditions(vector_greater_equal([m, 0], [semidefinite_cone, length(m)]))
   let r = optimization_point(dot(c, xs), cons, xs)
   if is_list(r) and length(r) > 0 and every(r, t => b29_is_rule(t)) then map(t => last(t), r) else r
 } when is_vector(c) and is_list(mats) and length(mats) == length(c) + 1 and every(mats, is_matrix)
@@ -1199,10 +1199,10 @@ rule euclidean_distance(u_, w_) := rewrite(sqrt(total(abs(u - w)^2)), (abs(z_)^2
 rule manhattan_distance(u_, w_) := total(abs(u - w)) when is_list(w) and not is_list(u)
 rule manhattan_distance(u_, w_) := total(abs(u - w)) when is_list(u) and not is_list(w)
 rule euclidean_distance(u_, w_) := rewrite(sqrt(total(abs(u - w)^2)), (abs(z_)^2)^(1/2) :> abs(z)) when is_list(u) and not is_list(w)
-# total(xs, method: "CompensatedSummation"): Neumaier's compensated sum (a running compensation for the low bits
+# total(xs, method: compensated_summation): Neumaier's compensated sum (a running compensation for the low bits
 # lost by each addition); the default total is the plain sum in the canonical order (the same packed, unpacked and
-# compiled), which "Pairwise" and "Ordinary" name
-rule total(xs_, method: mth_) := nl_total_compensated(xs) when mth == "CompensatedSummation" and is_list(xs)
+# compiled), which `pairwise` and `ordinary` name
+rule total(xs_, method: mth_) := nl_total_compensated(xs) when mth === compensated_summation and is_list(xs)
 # what the native passes on: reals that are not all machine numbers (the same sum, folded), anything else (the plain total)
 rule b29_total_fold(xs_) := {
   let r = fold((acc, x) => {
@@ -1212,7 +1212,7 @@ rule b29_total_fold(xs_) := {
   r[1] + r[2]
 } when every(xs, is_real)
 rule b29_total_fold(xs_) := total(xs)
-rule total(xs_, method: mth_) := total(xs) when (mth == "Pairwise" or mth == "Ordinary") and is_list(xs) and every(xs, is_real)
+rule total(xs_, method: mth_) := total(xs) when (mth === pairwise or mth === ordinary) and is_list(xs) and every(xs, is_real)
 
 # lo_cmp(a, b, op): op applied entry by entry to lists of any depth (a scalar against a list is taken at every entry)
 fn lo_cmp(a, b, op) = if is_list(a) or is_list(b) then flatten(map(k => lo_cmp(if is_list(a) then a[k] else a, if is_list(b) then b[k] else b, op), range(if is_list(a) then length(a) else length(b))), 1) else [op(a, b)]
@@ -1251,8 +1251,8 @@ rule flatten(a_, spec_) := {
   out
 } when is_list(a) and is_list(spec) and length(spec) > 0 and every(spec, g => is_list(g) and length(g) > 0 and every(g, is_integer)) and sort(flatten(spec, 1)) == range(length(dimensions(a)))
 
-# real_valued_numeric_q(x): x is a numeric expression with a real value
-fn real_valued_numeric_q(x) = is_numeric(x) and is_real(n(x))
+# is_real_valued_numeric(x): x is a numeric expression with a real value
+fn is_real_valued_numeric(x) = is_numeric(x) and is_real(n(x))
 
 # operator forms whose data comes last: nest_list(f, n)(x) is nest_list(f, x, n), nest(f, n)(x) is nest(f, x, n)
 rule nest_list(f_, n_)(x_) := nest_list(f, x, n) when is_integer(n)
@@ -1261,7 +1261,6 @@ rule nest(f_, n_)(x_) := nest(f, x, n) when is_integer(n)
 # qr(m, full): the factorization with a square q: the columns of q completed to an orthonormal basis of the space
 # and r padded with zero rows (m == dot(q, r) still)
 rule qr(m_, full) := nl_qr_full(m) when is_matrix(m)
-rule qr(m_, "Full") := nl_qr_full(m) when is_matrix(m)
 fn nl_qr_full(m) = {
   let t = qr(m)
   let q = t[1]
@@ -1274,8 +1273,8 @@ fn nl_qr_full(m) = {
   }
 }
 
-# array_reshape(xs, dims, "Extrapolated"): the missing entries continue the last step of the data linearly
-rule array_reshape(xs_, dims_, "Extrapolated") := {
+# array_reshape(xs, dims, extrapolated): the missing entries continue the last step of the data linearly
+rule array_reshape(xs_, dims_, extrapolated) := {
   let fl = flatten(xs)
   let total = apply(mul, dims)
   let step = fl[-1] - fl[-2]
@@ -1370,10 +1369,10 @@ fn commonest(xs, n: Int) when n >= 0 = {
   let top = take(sort_by(range(length(t)), i => [-t[i][2], i]), min(n, length(t)))
   map(i => t[i][1], sort(top))
 }
-fn commonest(xs, u) when match_q(u, up_to(_)) and is_integer(u[1]) and u[1] >= 0 = commonest(xs, u[1])
+fn commonest(xs, u) when is_match(u, up_to(_)) and is_integer(u[1]) and u[1] >= 0 = commonest(xs, u[1])
 
 # delete_missing(xs): the elements of the list xs (values of the association xs) that are not missing(...)
-fn delete_missing(xs) when is_list(xs) = select(xs, x => not is_missing(x) and not (match_q(x, _ -> _) and is_missing(x[2])))
+fn delete_missing(xs) when is_list(xs) = select(xs, x => not is_missing(x) and not (is_match(x, _ -> _) and is_missing(x[2])))
 fn delete_missing(a) when is_assoc(a) = select_keys(a, k => not is_missing(a[k]))
 # delete_missing(xs, n): down to level n of nested lists and associations; delete_missing(xs, n, d): the elements
 # at levels 1 to n that hold a missing(...) at most d levels inside them (lists and associations)
@@ -1421,11 +1420,11 @@ fn chessboard_distance(u, v) when not is_list(u) and not is_list(v) = abs(u - v)
 fn squared_euclidean_distance(u, v) when is_list(u) and is_list(v) and length(u) == length(v) = total(map(i => abs(u[i] - v[i])^2, range(length(u))))
 fn squared_euclidean_distance(u, v) when not is_list(u) and not is_list(v) = abs(u - v)^2
 
-# palindrome_q(x): whether the list, the string or the digits of the integer x read the same backwards
-fn palindrome_q(x: Str) = x === string_reverse(x)
-fn palindrome_q(x) when is_list(x) = x === reverse(x)
-fn palindrome_q(x) when is_integer(x) = palindrome_q(integer_digits(x))
-fn palindrome_q(x) when not is_list(x) and not is_string(x) and not is_integer(x) = false
+# is_palindrome(x): whether the list, the string or the digits of the integer x read the same backwards
+fn is_palindrome(x: Str) = x === string_reverse(x)
+fn is_palindrome(x) when is_list(x) = x === reverse(x)
+fn is_palindrome(x) when is_integer(x) = is_palindrome(integer_digits(x))
+fn is_palindrome(x) when not is_list(x) and not is_string(x) and not is_integer(x) = false
 
 # --- more argument forms of list and structure functions ---
 
@@ -1495,17 +1494,17 @@ fn alpha_lower(s, lang) = if lang == "Turkish" then to_lower(string_replace(s, [
 # the levels of a string: [letters (first-level weights), accents (the code points of its lower case), case (1 for
 # an upper-case letter)]; punctuation and spaces left out when they are ignored
 fn alpha_levels(s0, lang, tab, nopunct) = {
-  let s = if nopunct then from_characters(select(characters(s0), c => string_match_q(c, letter_character | digit_character))) else s0
+  let s = if nopunct then from_characters(select(characters(s0), c => is_string_match(c, letter_character | digit_character))) else s0
   let low = alpha_lower(s, lang)
   [r37_weights(low, tab), to_character_code(low), map(c => boole(alpha_lower(c, lang) != c), characters(s))]
 }
 # the strings of xs in the order of the language: letters first, then accents unless ignored, then case unless
-# ignored (lower case first, upper case first for "UpperFirst" and in Danish), then the order of xs
+# ignored (lower case first, upper case first for upper_first and in Danish), then the order of xs
 fn alpha_sort(xs, lang, o) = {
   let get = (k, d) => { let hit = select(apply(list, o), r => r[1] === k); if length(hit) == 0 then d else last(hit)[2] }
   let tab = alpha_tailoring(lang)
   let co = get(case_ordering, automatic)
-  let upper = co === "UpperFirst" or (co === automatic and lang == "Danish")
+  let upper = co === upper_first or (co === automatic and lang == "Danish")
   let icase = get(ignore_case, false) === true
   let iacc = get(ignore_diacritics, false) === true
   let lv = map(s => alpha_levels(s, lang, tab, get(ignore_punctuation, false) === true), xs)
@@ -1623,21 +1622,21 @@ rule range_space(m_, o_) := select(modp_rref(transpose(m), opt_value(o, modulus,
 rule range_space(m_, o_) := range_space(m) when is_options(o) and opt_only(o, [tolerance]) and is_matrix(m) and not is_inexact(total(flatten(m)))
 
 # a numeric matrix (exact constants such as pi included) is tested through its leading minors
-rule positive_definite_matrix_q(m_) := {
+rule is_positive_definite_matrix(m_) := {
   let h = (m + conjugate(transpose(m)))/2
   every(range(length(m)), k => { let d = det(map(r => take(r, k), take(h, k))); n(re(d)) > 0 })
 } when is_matrix(m) and length(m) == length(m[1]) and every(flatten(m), x => is_numeric(x)) and not b29_numeric_matrix(m)
 
 # the tests of matrix shapes with tolerance: t (an entry counts as 0 when its size is at most t; a symbolic entry
-# when possible_zero_q says it is 0) and symmetric_matrix_q with same_test: f (f(m_ij, m_ji) for every pair)
-fn tol_zero(x, t) = if is_numeric(x) then n(abs(x)) <= t else possible_zero_q(x)
-rule symmetric_matrix_q(m_, o_) := (is_matrix(m) and length(m) == length(m[1]) and every(range(length(m)), i => every(range(length(m)), j => tol_zero(m[i][j] - m[j][i], opt_value(o, tolerance, 0))))) when is_options(o) and opt_only(o, [tolerance]) and is_real(n(opt_value(o, tolerance, 0)))
-rule symmetric_matrix_q(m_, o_) := (is_matrix(m) and length(m) == length(m[1]) and every(range(length(m)), i => every(range(i), j => opt_value(o, same_test, null)(m[i][j], m[j][i]) === true))) when is_options(o) and opt_only(o, [same_test])
-rule diagonal_matrix_q(m_, o_) := (is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => i == j or tol_zero(m[i][j], opt_value(o, tolerance, 0))))) when is_options(o) and opt_only(o, [tolerance]) and is_real(n(opt_value(o, tolerance, 0)))
-rule upper_triangular_matrix_q(m_, o_) := (is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => j >= i or tol_zero(m[i][j], opt_value(o, tolerance, 0))))) when is_options(o) and opt_only(o, [tolerance]) and is_real(n(opt_value(o, tolerance, 0)))
-rule lower_triangular_matrix_q(m_, o_) := (is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => j <= i or tol_zero(m[i][j], opt_value(o, tolerance, 0))))) when is_options(o) and opt_only(o, [tolerance]) and is_real(n(opt_value(o, tolerance, 0)))
+# when is_possible_zero says it is 0) and is_symmetric_matrix with same_test: f (f(m_ij, m_ji) for every pair)
+fn tol_zero(x, t) = if is_numeric(x) then n(abs(x)) <= t else is_possible_zero(x)
+rule is_symmetric_matrix(m_, o_) := (is_matrix(m) and length(m) == length(m[1]) and every(range(length(m)), i => every(range(length(m)), j => tol_zero(m[i][j] - m[j][i], opt_value(o, tolerance, 0))))) when is_options(o) and opt_only(o, [tolerance]) and is_real(n(opt_value(o, tolerance, 0)))
+rule is_symmetric_matrix(m_, o_) := (is_matrix(m) and length(m) == length(m[1]) and every(range(length(m)), i => every(range(i), j => opt_value(o, same_test, null)(m[i][j], m[j][i]) === true))) when is_options(o) and opt_only(o, [same_test])
+rule is_diagonal_matrix(m_, o_) := (is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => i == j or tol_zero(m[i][j], opt_value(o, tolerance, 0))))) when is_options(o) and opt_only(o, [tolerance]) and is_real(n(opt_value(o, tolerance, 0)))
+rule is_upper_triangular_matrix(m_, o_) := (is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => j >= i or tol_zero(m[i][j], opt_value(o, tolerance, 0))))) when is_options(o) and opt_only(o, [tolerance]) and is_real(n(opt_value(o, tolerance, 0)))
+rule is_lower_triangular_matrix(m_, o_) := (is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => j <= i or tol_zero(m[i][j], opt_value(o, tolerance, 0))))) when is_options(o) and opt_only(o, [tolerance]) and is_real(n(opt_value(o, tolerance, 0)))
 
-# array_pad(v, m, "Extrapolated", interpolation_order: k) of a list of numbers: the polynomial of degree k (all the
+# array_pad(v, m, extrapolated, interpolation_order: k) of a list of numbers: the polynomial of degree k (all the
 # points for inf, at most length(v) - 1) through the last k + 1 entries continued (Newton's forward differences
 # with the k-th difference held), and likewise before the first entries
 fn extrap_right(v, k, cnt) = {
@@ -1662,7 +1661,7 @@ rule array_pad(v_, m_, mode_, o_) := {
   let kk = if k === inf then length(v) - 1 else k
   let lr = if is_integer(m) then [m, m] else if length(m) == 1 then [m[1], m[1]] else m
   join(reverse(extrap_right(reverse(v), kk, lr[1])), v, extrap_right(v, kk, lr[2]))
-} when mode === "Extrapolated" and is_options(o) and opt_only(o, [interpolation_order]) and is_list(v) and length(v) >= 1 and every(v, x => is_numeric(x)) and (is_integer(m) or (is_list(m) and every(m, is_integer) and length(m) <= 2)) and every(flatten([m]), c => c >= 0) and (opt_value(o, interpolation_order, 1) === inf or (is_integer(opt_value(o, interpolation_order, 1)) and opt_value(o, interpolation_order, 1) >= 0))
+} when mode === extrapolated and is_options(o) and opt_only(o, [interpolation_order]) and is_list(v) and length(v) >= 1 and every(v, x => is_numeric(x)) and (is_integer(m) or (is_list(m) and every(m, is_integer) and length(m) <= 2)) and every(flatten([m]), c => c >= 0) and (opt_value(o, interpolation_order, 1) === inf or (is_integer(opt_value(o, interpolation_order, 1)) and opt_value(o, interpolation_order, 1) >= 0))
 
 # total(e, allowed_heads: inherited): the sum of the arguments of e whatever its head
 rule total(e_, o_) := apply(add, apply(list, e)) when is_options(o) and opt_only(o, [allowed_heads]) and opt_value(o, allowed_heads, null) === inherited and not is_atom(e) and not is_options(e)

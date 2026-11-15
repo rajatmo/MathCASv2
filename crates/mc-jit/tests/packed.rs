@@ -90,7 +90,7 @@ fn engines(threads: usize) -> [CoreEngine; 3] {
             assert_eq!(eval(e, def), "null", "{def}");
             match k {
                 1 => assert_eq!(eval(e, &format!("compile({name})")), *name),
-                2 => assert_eq!(eval(e, &format!("compile({name}, back_end: \"interpreter\")")), *name),
+                2 => assert_eq!(eval(e, &format!("compile({name}, back_end: interpreter)")), *name),
                 _ => {}
             }
         }
