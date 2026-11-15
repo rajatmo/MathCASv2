@@ -7,17 +7,60 @@
 //! The evaluator polls its control block once per block of 1024 fuel units, so charges are scaled to the work done
 //! (decision J.2): one unit is roughly a thousand machine operations, which polls the interrupt about every
 //! millisecond of arithmetic.
-use mc_eval::{Abort, NativeCx, Res};
+use mc_eval::{Abort, Control, NativeCx, Res};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// Fuel and interrupt polling for a long computation.
 pub trait Budget {
     /// Charge `units` of fuel (one unit is about a thousand machine operations); an error stops the computation.
     fn charge(&mut self, units: u64) -> Res<()>;
+    /// What an interrupt raises, for parallel workers that cannot charge (they poll it between pieces of work and
+    /// end early; the caller then reports the stop). `None`: nothing to poll.
+    fn stop_signal(&self) -> Option<StopSignal> {
+        None
+    }
+}
+
+/// The stop flag of the session and the evaluation's control block (an interrupt raises one or the other).
+#[derive(Clone)]
+pub struct StopSignal {
+    flag: Arc<AtomicBool>,
+    ctl: Arc<Control>,
 }
 
 impl Budget for NativeCx<'_, '_, '_> {
     fn charge(&mut self, units: u64) -> Res<()> {
         self.tick(units)
+    }
+    fn stop_signal(&self) -> Option<StopSignal> {
+        Some(StopSignal { flag: self.stop_flag().clone(), ctl: self.control() })
+    }
+}
+
+/// A poll of [`Budget::stop_signal`] that worker threads share.
+#[derive(Clone)]
+pub struct Halt(Option<StopSignal>);
+
+impl Halt {
+    /// The poll for `b`.
+    pub fn of(b: &dyn Budget) -> Halt {
+        Halt(b.stop_signal())
+    }
+    /// Whether a stop is requested.
+    #[inline]
+    pub fn up(&self) -> bool {
+        self.0.as_ref().is_some_and(|s| s.flag.load(Ordering::Relaxed) || s.ctl.should_stop())
+    }
+    /// `Err` (the evaluator's stop) when a stop is requested: after a parallel round whose workers may have ended
+    /// early. A charge of two fuel blocks first lets the evaluator report the stop in its own way.
+    pub fn check(&self, b: &mut dyn Budget) -> Res<()> {
+        if self.up() {
+            b.charge(2048)?;
+            Err(Abort::Limit)
+        } else {
+            Ok(())
+        }
     }
 }
 

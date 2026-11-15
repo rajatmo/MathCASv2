@@ -274,6 +274,10 @@ impl<'h> NativeCx<'_, '_, 'h> {
     pub fn stop_flag(&self) -> &std::sync::Arc<std::sync::atomic::AtomicBool> {
         self.ev.k.stop_flag_ref()
     }
+    /// The control block of the evaluation (for worker threads to poll [`Control::should_stop`](crate::Control)).
+    pub fn control(&self) -> std::sync::Arc<crate::Control> {
+        self.ev.k.ctl.clone()
+    }
     /// The bytes this evaluation may still allocate before its memory limit stops it: the session's memory budget,
     /// or the smaller cap of an enclosing `memory_constrained`, less what the evaluation has allocated so far. A
     /// builder whose result would not fit can refuse before allocating anything.

@@ -71,3 +71,48 @@ fn lommel_functions_at_exceptional_orders() {
     close(&mut e, "weber_e(1, 0.7)", "2/pi - struve_h(1, 0.7)", "10^-14");
     close(&mut e, "rewrite(weber_e(0, z), z -> 13/10)", "weber_e(0, 1.3)", "10^-14");
 }
+
+/// Evaluate `src`, raising the stop flag from another thread after 300 ms: the result and the time from the raise
+/// to the return (`None` when the evaluation ended before the raise).
+fn stopped_after_300ms(e: &mut CoreEngine, src: &str) -> (Result<String, mc_api::EngineError>, Option<std::time::Duration>) {
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+    let stop = StopFlag::new();
+    let raised: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
+    let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let raiser = {
+        let (stop, raised, done) = (stop.clone(), raised.clone(), done.clone());
+        std::thread::spawn(move || {
+            let t0 = Instant::now();
+            while t0.elapsed() < Duration::from_millis(300) {
+                if done.load(std::sync::atomic::Ordering::Relaxed) {
+                    return;
+                }
+                std::thread::yield_now();
+            }
+            *raised.lock().unwrap() = Some(Instant::now());
+            stop.raise();
+        })
+    };
+    let r = e.eval(src, &stop).map(|r| r.printed);
+    let end = Instant::now();
+    done.store(true, std::sync::atomic::Ordering::Relaxed);
+    raiser.join().unwrap();
+    let after = raised.lock().unwrap().map(|t| end.saturating_duration_since(t));
+    (r, after)
+}
+
+#[test]
+fn prime_counting_stops_on_request() {
+    let mut e = CoreEngine::new();
+    // pi(10^17 + 1) takes many seconds; the stop is honoured between segments, primes and windows of the workers
+    for src in ["prime_pi(10^17 + 1)", "prime(3 * 10^15)", "prime_pi(2^59 + 3)"] {
+        let (r, after) = stopped_after_300ms(&mut e, src);
+        let Some(after) = after else { continue };
+        assert!(after < std::time::Duration::from_secs(2), "{src}: returned {after:?} after the stop");
+        assert!(r.is_err() || r.as_ref().is_ok_and(|s| s.starts_with("failure(interrupted")), "{src}: {r:?}");
+        println!("{src}: {after:?} from the stop to the return");
+    }
+    // the session goes on
+    assert_eq!(ev(&mut e, "prime_pi(10^6)"), "78498");
+}

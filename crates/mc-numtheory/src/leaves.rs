@@ -29,7 +29,7 @@
 //!
 //! y = alpha x^(1/3) balances the sieve (about x / y numbers) against the leaves (about sqrt(x y) easy leaves and
 //! y pi(sqrt(y)) candidates for hard ones).
-use crate::budget::Budget;
+use crate::budget::{Budget, Halt};
 use crate::sieve::{pattern, primes_below, PiTable, PATTERN_WORDS};
 use crate::word::{iroot, isqrt};
 use mc_eval::Res;
@@ -134,6 +134,8 @@ struct Ctx<'a> {
     /// the number of primes <= sqrt(y): primes[b] for b below it may have composite m
     pi_sqrty: usize,
     a: usize,
+    /// the interrupt, polled by the workers between segments, primes and windows
+    halt: Halt,
 }
 
 /// What one chunk of segments contributes.
@@ -326,7 +328,7 @@ impl Ctx<'_> {
         let mut ps = Vec::new();
         for k in 0..SEGS_PER_CHUNK {
             let low = low0 + k * SEG_NUMS;
-            if low >= self.z_end {
+            if low >= self.z_end || self.halt.up() {
                 break;
             }
             let high = (low + SEG_NUMS).min(self.z_end);
@@ -424,6 +426,7 @@ fn parts(x: u64, alpha: f64, b: &mut dyn Budget) -> Res<[i128; 4]> {
         pit: &pit,
         pi_sqrty,
         a,
+        halt: Halt::of(b),
     };
     let t = wheel_counts();
 
@@ -434,6 +437,9 @@ fn parts(x: u64, alpha: f64, b: &mut dyn Budget) -> Res<[i128; 4]> {
         .enumerate()
         .map(|(ci, ch)| {
             let mut s = 0i128;
+            if ctx.halt.up() {
+                return s;
+            }
             for (j, &f) in ch.iter().enumerate() {
                 if f != 0 && f.unsigned_abs() > 13 {
                     let m = 2 * ((ci << 16) + j) as u64 + 1;
@@ -444,6 +450,7 @@ fn parts(x: u64, alpha: f64, b: &mut dyn Budget) -> Res<[i128; 4]> {
             s
         })
         .sum();
+    ctx.halt.check(b)?;
 
     // S2, the trivial and easy leaves
     let mut s2 = 0i128;
@@ -454,6 +461,7 @@ fn parts(x: u64, alpha: f64, b: &mut dyn Budget) -> Res<[i128; 4]> {
         let end = (bb + len).min(a);
         let part: i128 = (bb..end).into_par_iter().with_max_len(1).map(|b| ctx.easy(b)).sum();
         s2 += part;
+        ctx.halt.check(b)?;
         b.charge(((end - bb) as u64) * (y / 4096 + 1))?;
         bb = end;
         len = (len * 2).min(4096);
@@ -483,6 +491,7 @@ fn parts(x: u64, alpha: f64, b: &mut dyn Budget) -> Res<[i128; 4]> {
             primes_before += o.primes_here;
             nq += o.nq;
         }
+        ctx.halt.check(b)?;
         b.charge((end - ci) * SEGS_PER_CHUNK * 600)?;
         ci = end;
     }
@@ -497,6 +506,9 @@ fn parts(x: u64, alpha: f64, b: &mut dyn Budget) -> Res<[i128; 4]> {
 impl Ctx<'_> {
     /// The trivial and easy leaves of primes[b], and for p <= sqrt(y) every leaf that is not hard.
     fn easy(&self, b: usize) -> i128 {
+        if self.halt.up() {
+            return 0;
+        }
         let p = self.primes[b] as u64;
         let xp = self.x / p;
         let xp2 = xp / p;
@@ -587,8 +599,9 @@ impl Ctx<'_> {
             s += round
                 .par_iter()
                 .with_max_len(1)
-                .map(|&(lo, hi)| (first..last).map(|bi| self.sparse(bi, lo, hi)).sum::<i128>())
+                .map(|&(lo, hi)| (first..last).map(|bi| if self.halt.up() { 0 } else { self.sparse(bi, lo, hi) }).sum::<i128>())
                 .sum::<i128>();
+            self.halt.check(b)?;
             b.charge(round.len() as u64 * (last - first) as u64 / 8 + 1)?;
         }
         Ok(s)
@@ -624,6 +637,7 @@ mod tests {
             pit: &pit,
             pi_sqrty: pit.pi(isqrt(y)) as usize,
             a: primes.len(),
+            halt: Halt::of(&Unlimited),
         };
         let zmax = (x / (y + 1)) as usize + 1;
         // phi[v] for the current b

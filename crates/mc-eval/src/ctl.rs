@@ -136,6 +136,12 @@ impl Control {
 
     /// The poll: has the evaluation been stopped? Turns a raised stop flag into the `Interrupted` status.
     #[inline]
+    /// Whether an interrupt is requested or a limit fired: a read-only poll for worker threads of a native, which
+    /// end their piece of work early (the native's next charge or evaluation then reports the stop).
+    pub fn should_stop(&self) -> bool {
+        self.stop.load(Relaxed) != 0 || self.status.load(Relaxed) != 0
+    }
+
     pub(crate) fn halted(&self) -> bool {
         if self.stop.load(Relaxed) != 0 {
             self.fail(Status::Interrupted);
