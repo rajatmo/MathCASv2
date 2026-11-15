@@ -56,6 +56,39 @@ pub fn berkowitz<F: Field>(a: &[F], n: usize, m: &mut Meter) -> WorkResult<Vec<F
     Ok(p)
 }
 
+/// The body of a `root` object's function: `c_0 + c_1 x + c_2 x^2 + ...` from coefficient terms (highest degree
+/// first), in increasing degree with each coefficient written before its power, as such a body is read (it stays
+/// unevaluated inside the function, so the canonical order of products would show `x*(16 + 10*a)` instead).
+fn root_body<'h>(env: &Env<'h>, coefs: &[T<'h>], x: T<'h>) -> T<'h> {
+    let h = env.h();
+    let (add, mul) = (h.sym(mc_api::names::ADD), h.sym(mc_api::names::MUL));
+    let d = coefs.len() - 1;
+    let mut terms = vec![];
+    for k in 0..=d {
+        let c = coefs[d - k];
+        if is_zero_term(env, c) {
+            continue;
+        }
+        let p = if k == 1 { x } else { env.ar.pow(x, h.int(k as i64)) };
+        if k == 0 {
+            // a constant that is a sum joins the body's sum
+            match h.view(c) {
+                mc_api::View::App { head, args } if head == h.sym_term(add) => terms.extend_from_slice(args),
+                _ => terms.push(c),
+            }
+        } else if env.ar.num(c).is_some() {
+            terms.push(env.ar.mul(&[c, p]));
+        } else {
+            terms.push(h.call(mul, &[c, p]));
+        }
+    }
+    match terms.len() {
+        0 => h.int(0),
+        1 => terms[0],
+        _ => h.call(add, &terms),
+    }
+}
+
 /// The polynomial term `sum c_k x^k` from coefficient terms, highest degree first.
 fn poly_term<'h>(env: &Env<'h>, coefs: &[T<'h>], x: T<'h>) -> T<'h> {
     let d = coefs.len() - 1;
@@ -198,6 +231,8 @@ struct Group<'h> {
     params: bool,
     /// for numeric quadratics: each root as `p + q sqrt(d)`
     quadratic: Option<(Vec<(Rat, Rat)>, Z)>,
+    /// for quadratics with parameters: the sign of the square root in each root, `(-b + sign sqrt(d)) / (2 a)`
+    signs: Option<[i64; 2]>,
 }
 
 fn z_rat(z: &Z) -> Rat {
@@ -274,9 +309,16 @@ fn exact_groups_by<'h>(
         for (k, c) in g.coeffs_in(xv) {
             coefs[k as usize] = c;
         }
+        // the factor with a positive leading coefficient (the factorization may give its negative; the roots are
+        // the same, and the `root` objects then show the monic characteristic polynomial's factor)
+        if dx >= 3 && coefs[dx].lc().is_neg() {
+            for c in coefs.iter_mut() {
+                *c = c.neg();
+            }
+        }
         let params = coefs.iter().any(|c| !c.is_constant());
         let consts: Option<Vec<Z>> = coefs.iter().map(|c| if c.is_zero() { Some(Z::ZERO) } else { c.as_constant() }).collect();
-        let mut group = Group { roots: vec![], approx: vec![], mult: *mult, coefs: coefs.clone(), params, quadratic: None };
+        let mut group = Group { roots: vec![], approx: vec![], mult: *mult, coefs: coefs.clone(), params, quadratic: None, signs: None };
         match (dx, &consts) {
             (1, _) => {
                 group.roots.push(ex.quotient(&E::P(coefs[0].neg()), &E::P(coefs[1].clone()), m)?);
@@ -311,6 +353,7 @@ fn exact_groups_by<'h>(
                 // coefficients with free symbols: the root with the minus sign first, (-b - sqrt(d))/(2a), then the
                 // plus one (a fixed order: the canonical form of -1 times a sum no longer decides this); numeric coefficients (pi, im): the plus root first, as before
                 let signs: [i64; 2] = if has_free_symbol(h, s) { [-1, 1] } else { [1, -1] };
+                group.signs = Some(signs);
                 for sign in signs {
                     let num = ar.add(&[neg_b, ar.mul(&[h.int(sign), s])]);
                     group.roots.push(ar.mul(&[num, inv]));
@@ -320,7 +363,7 @@ fn exact_groups_by<'h>(
             _ => {
                 let x = env.sym("x");
                 let ct: Vec<T<'h>> = coefs.iter().rev().map(|c| ex.poly_term(c, m)).collect::<WorkResult<_>>()?;
-                let body = poly_term(env, &ct, x);
+                let body = root_body(env, &ct, x);
                 let closure = env.call("fn", &[env.list(&[x]), body]);
                 let approx = match &consts {
                     Some(c) => companion_roots(&c.iter().map(|z| rat_f64(&z_rat(z))).collect::<Vec<_>>(), m)?,
@@ -405,7 +448,7 @@ fn group_vectors<'h>(
         return Ok(Some(basis.into_iter().map(|v| integral(env, v)).collect()));
     }
     if group.params {
-        return Ok(None);
+        return param_vectors(env, terms, b, n, group, root, m);
     }
     // the number field of the factor, with the monic modulus
     let d = group.coefs.len() - 1;
@@ -459,6 +502,106 @@ fn group_vectors<'h>(
         out.push(tv);
     }
     Ok(Some(out))
+}
+
+/// The eigenvectors of one root of a factor with parameters in its coefficients (degree at least 2): the null space
+/// of `t I - a` (of `t b - a` for a pencil) over the field `K[t]/(g)`, `K` the rational functions of the
+/// parameters (module [`crate::paramfield`]). Each entry is written over one denominator: a polynomial in the
+/// root (`root(...)^j`) for a factor of degree 3 or more, `(p + q sqrt(d)) / r` for a quadratic. `None` when the
+/// kernels can interact (radicals among the entries) or the elimination cannot be read.
+fn param_vectors<'h>(
+    env: &Env<'h>,
+    terms: &[T<'h>],
+    b: Option<&[T<'h>]>,
+    n: usize,
+    group: &Group<'h>,
+    root: usize,
+    m: &mut Meter,
+) -> WorkResult<Option<Vec<Vec<T<'h>>>>> {
+    use crate::paramfield::{common_denominator, PField};
+    let ar = &env.ar;
+    let h = env.h();
+    // the same matrix as the characteristic polynomial was read from, so the kernels are the same variables
+    let lam = env.sym("lambda$");
+    let ct = shifted_by(env, terms, b, n, lam, true);
+    let Some((ex, xm)) = exact_input(env, &ct, n, n, &[lam], m)? else { return Ok(None) };
+    if ex.interacting() {
+        return Ok(None);
+    }
+    let Some(xv) = ex.var(lam) else { return Ok(None) };
+    if group.coefs.iter().any(|c| c.nvars() != ex.nvars() || c.degree(xv).is_some_and(|d| d > 0)) {
+        return Ok(None);
+    }
+    let Some(k) = PField::new(&group.coefs, m)? else { return Ok(None) };
+    let nv = ex.nvars();
+    let mut a = Vec::with_capacity(n * n);
+    for e in &xm.a {
+        let E::P(p) = e else { return Ok(None) };
+        let mut coefs = vec![mc_poly::ratfun::RatFun::constant(nv, Z::ZERO, Z::ONE); p.degree(xv).unwrap_or(0) as usize + 1];
+        for (j, c) in p.coeffs_in(xv) {
+            coefs[j as usize] = mc_poly::ratfun::RatFun { num: c, den: Poly::constant(nv, Z::ONE) };
+        }
+        a.push(k.reduce(coefs, m)?);
+    }
+    let Some((r, pivots)) = k.rref(a, n, n, m)? else { return Ok(None) };
+    let basis = k.null_basis(&r, &pivots, n);
+    if basis.is_empty() {
+        return Ok(None);
+    }
+    let pt = |p: &Poly, m: &mut Meter| ex.poly_term(p, m);
+    let mut out = Vec::with_capacity(basis.len());
+    for v in basis {
+        let mut tv = Vec::with_capacity(n);
+        for e in &v {
+            if PField::is_zero(e) {
+                tv.push(h.int(0));
+                continue;
+            }
+            let (nums, den) = common_denominator(e, m)?;
+            let (num, den) = match (k.degree(), group.signs) {
+                // sum_j n_j t^j with t = (-b + sign sqrt(disc)) / (2 a): (2 a n_0 - b n_1 + sign n_1 sqrt(disc)) / (2 a den)
+                (2, Some(signs)) => {
+                    let (c0, c1, c2) = (&group.coefs[0], &group.coefs[1], &group.coefs[2]);
+                    let two_a = c2.scale(&Z::S(2));
+                    let p = two_a.mul(&nums[0], m)?.sub(&c1.mul(&nums[1], m)?);
+                    let q = nums[1].scale(&Z::S(signs[root]));
+                    let d = two_a.mul(&den, m)?;
+                    let g = mc_poly::gcd::gcd(&mc_poly::gcd::gcd(&p, &q, m)?, &d, m)?;
+                    let div = |x: &Poly, m: &mut Meter| -> WorkResult<Poly> {
+                        if x.is_zero() {
+                            return Ok(x.clone());
+                        }
+                        mc_poly::work::exact(x.div_exact(&g, m)?, "a gcd divides")
+                    };
+                    let (mut p, mut q, mut d) = (div(&p, m)?, div(&q, m)?, div(&d, m)?);
+                    if d.lc().is_neg() {
+                        (p, q, d) = (p.neg(), q.neg(), d.neg());
+                    }
+                    let disc = c1.mul(c1, m)?.sub(&c0.mul(c2, m)?.scale(&Z::S(4)));
+                    let s = ar.pow(pt(&disc, m)?, ar.rational(h.int(1), h.int(2)));
+                    (ar.add(&[pt(&p, m)?, ar.mul(&[pt(&q, m)?, s])]), d)
+                }
+                _ => {
+                    let rt = group.roots[root];
+                    let mut parts = Vec::with_capacity(nums.len());
+                    for (j, c) in nums.iter().enumerate() {
+                        if !c.is_zero() {
+                            parts.push(ar.mul(&[pt(c, m)?, ar.pow(rt, h.int(j as i64))]));
+                        }
+                    }
+                    (ar.add(&parts), den)
+                }
+            };
+            tv.push(if d_is_one(&den) { num } else { ar.mul(&[num, ar.pow(pt(&den, m)?, h.int(-1))]) });
+        }
+        out.push(tv);
+    }
+    Ok(Some(out))
+}
+
+/// Is the polynomial the constant one?
+fn d_is_one(p: &Poly) -> bool {
+    p.is_constant() && p.as_constant() == Some(Z::ONE)
 }
 
 /// Eigenvalues (and eigenvectors) of an argument as terms; `None` declines.

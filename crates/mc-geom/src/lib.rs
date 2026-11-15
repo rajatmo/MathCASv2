@@ -23,6 +23,7 @@ pub mod coords;
 pub mod derived;
 pub mod ex;
 pub mod flat;
+pub mod hrep;
 pub mod mesh;
 pub mod shapes;
 pub mod metric;

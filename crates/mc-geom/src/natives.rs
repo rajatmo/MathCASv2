@@ -227,11 +227,20 @@ fn region_member<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h
             let e = E { h };
             let vars = if c.len() == 1 { c[0] } else { e.f("alternatives", &c) };
             let mut parts = vec![e.f("element", &[vars, e.sym("reals")])];
+            // a description that holds under conditions on the region's parameters keeps them outside
+            let (v, cond) = match call_parts(h, v) {
+                Some((n, &[c, k])) if n == "conditional_expression" => (c, Some(k)),
+                _ => (v, None),
+            };
             match call_parts(h, v) {
                 Some((n, a)) if n == "and" => parts.extend(a.iter().copied()),
                 _ => parts.push(v),
             }
-            Reply::Done(e.f("and", &parts))
+            let t = e.f("and", &parts);
+            Reply::Done(match cond {
+                Some(k) => e.f("conditional_expression", &[t, k]),
+                None => t,
+            })
         }
         None => Reply::Decline,
     })

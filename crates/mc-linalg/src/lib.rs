@@ -34,6 +34,7 @@ pub mod exact;
 pub mod more;
 mod natives;
 mod ops;
+pub mod paramfield;
 pub mod scalar;
 mod systems;
 pub mod tensor;

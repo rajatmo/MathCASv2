@@ -74,8 +74,9 @@ fn exact_reconstruction() {
     }
     // a symbolic quadratic
     s.run("m = [[a, b], [c, d]]; e = [eigenvalues(m)]");
-    // eigenvectors of a quadratic factor with parameters are a gap: the call stays
-    assert_eq!(s.run("eigenvectors(m)"), "eigenvectors([[a, b], [c, d]])");
+    // eigenvectors of a quadratic factor with parameters: m v - lambda v simplifies to zero
+    s.run("v = eigenvectors(m)");
+    s.holds("every(range(2), k => every(simplify(dot(m, v[k]) - e[1][k]*v[k]), x => x == 0))");
     s.holds("expand(e[1][1] + e[1][2] - a - d) == 0");
     s.holds("expand(expand(e[1][1]*e[1][2] - det(m))) == 0");
 }

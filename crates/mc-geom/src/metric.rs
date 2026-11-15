@@ -557,7 +557,7 @@ pub fn member<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>, p: &[T<'h>]) ->
                 (2, 1, 0) => {
                     // a line in the plane: its normal (-d2, d1) is orthogonal to p - q
                     let n = vec![e.neg(free[0][1]), free[0][0]];
-                    let Some(c) = crate::flat::linear_condition(cx, &n, q, p, "equal")? else { return Ok(None) };
+                    let Some(c) = crate::flat::linear_condition(cx, &n, q, p, "equal")? else { return crate::hrep::member(cx, r, p) };
                     c
                 }
                 (3, 2, 0) => {
@@ -565,9 +565,10 @@ pub fn member<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>, p: &[T<'h>]) ->
                     let Some(c) = crate::flat::linear_condition(cx, &n, q, p, "equal")? else { return Ok(None) };
                     c
                 }
-                _ => return Ok(None),
+                _ => return crate::hrep::member(cx, r, p),
             }
         }
+        _ if nums(cx, p)?.is_none() => return crate::hrep::member(cx, r, p),
         Region::Torus { .. } | Region::Affine { .. } | Region::Union(_) | Region::Revolved { .. } => {
             let Some(pn) = nums(cx, p)? else { return Ok(None) };
             return Ok(crate::flat::member(cx, r, p, &pn)?.map(|b| truth(h, b)));

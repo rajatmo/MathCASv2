@@ -554,6 +554,10 @@ impl Native for ListDensity {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let name = if self.contour { "list_contour_plot" } else { "list_density_plot" };
+        // several arrays (or several lists of [x, y, f]): each drawn, shown together
+        if let Some(r) = crate::several_data(cx, name, args, 1)? {
+            return Ok(r);
+        }
         let base = Look { exact: true, size: Some(SIZE), ..Look::default() };
         let allowed: &[&str] =
             if self.contour { &["color_function", "color_bar", "data_range", "contours"] } else { &["color_function", "color_bar", "data_range"] };

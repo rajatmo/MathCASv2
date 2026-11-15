@@ -246,3 +246,12 @@ used. Tests: `tests/round20.rs`.
 - A primitive of `epilog` or `prolog` whose coordinates are not numbers after the numeric pass (an undefined symbol,
   a failure term) is left out with a message naming it, and the plot is drawn: lists and `style(...)` are taken
   apart, so the drawable primitives beside it stay. Content that is not graphics at all still fails as before.
+
+## Round 42: several data sets in one list plot
+
+- `list_density_plot`, `list_contour_plot`, `list_vector_plot`, `list_stream_plot`, `list_vector_plot3d` and
+  `list_stream_plot3d` take a list of data sets: each is drawn with the same options and the plots are shown
+  together (`show`). A list of data sets is told from one data set by its nesting (`several_data`): following
+  first elements, a list sits where one data set has a number (one step for arrays of values and lists of
+  `[x, y, f]`, two for matrices of vectors and lists of pairs, three for 3D arrays of vectors). Lists of pairs
+  `[[x, y, z], [vx, vy, vz]]` in space are not told apart from one 3D array and are still read as one data set.

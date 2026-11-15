@@ -242,3 +242,18 @@ No Rust change. Conventions recorded with property tests (`mc-engine/tests/r36_w
   clustered eigenvalues) keep the machine values, as do eigenvectors.
 - Swept: `det`, `inverse`, `linear_solve`, `rank`, `matrix_exp` already work at the input's precision through
   elimination in balls; the symmetric eigenproblem since round 36.
+
+## Round 42: eigenvectors with parameters
+
+- An eigenvalue that is a root of an irreducible factor `g` of degree 2 or more with parameters in its
+  coefficients: the eigenvectors are the null space of `t I - m` (of `t b - a` for a pencil) over the field
+  `K[t]/(g)`, `K` the rational functions of the entries' kernels (module `paramfield`; Gauss's lemma makes `g`
+  irreducible over `K`). Inverses by the extended Euclidean algorithm in `K[t]` (von zur Gathen and Gerhard,
+  Modern Computer Algebra, 3.14). Each entry is written over one denominator: a polynomial of degree below
+  `deg g` in the `root(...)` object, or `(p + q sqrt(d))/r` for a quadratic. The answer is the generic one (valid
+  where no denominator vanishes), as for every symbolic elimination here.
+- The factor of degree 3 or more is given a positive leading coefficient, so `root` objects show the monic
+  characteristic polynomial's factor (the factorization could return its negative).
+- Gap: entries with interacting kernels (radicals next to parameters, `[[a, sqrt(2)], [1, a]]`) still decline.
+- The function of a `root` object is written in increasing degree with each coefficient before its power
+  (`28 - 20*a + (16 + 10*a)*&1 + ...`), the way such a body reads: it is held, so it keeps the order it is built in.

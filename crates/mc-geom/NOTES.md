@@ -166,3 +166,15 @@ functions); `boolean_region`, `polygon_decomposition`, `winding_polygon`, `regio
 - `bounding_region(region, "MinRectangle" | "MinCuboid" | "MinInterval")` of a region other than points (meshes,
   primitives): the box of `region_bounds`; unbounded regions stay unevaluated.
 - Gap: `"MinOrientedCuboid"` (O'Rourke's algorithm for the least box in space) is not done.
+
+## Round 42: membership conditions for symbolic points
+
+- `region_member(r, [x, y, ...])` with symbolic coordinates (module `hrep`): simplices of any dimension and
+  polylines (affine-hull equations from the null space of the edges, then barycentric coordinates read on the
+  first coordinates where the edges stay independent), convex polygons in the plane and in space and convex
+  polyhedra (one inequality per edge or face, the normal turned to the centroid; a region that is not convex
+  declines), flats with half-line or half-plane directions, solid cylinders and cones (the axial interval and a
+  quadratic inequality cleared of denominators, content 1, positive terms on the left), tori and solid tori
+  (`r0 r1 + |x - c|^2 <= (r0 + r1) sqrt((x - c1)^2 + (y - c2)^2)`, under `0 < r0 < r1` when the radii are symbolic,
+  given as `conditional_expression`). Checked against numeric membership on grids of points.
+- Non-convex polygons and polyhedra with symbolic points still decline (a triangulation would give a union).

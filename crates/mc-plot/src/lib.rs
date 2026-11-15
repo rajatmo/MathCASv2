@@ -381,6 +381,41 @@ pub(crate) fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {
     h.call(h.sym(names::FAILURE), &a)
 }
 
+/// Several data sets given to a list plot as one list: the plot of each data set (with the same options), shown
+/// together. A data set is recognised by its nesting: following first elements from a data set, `depth` steps reach
+/// a list (one data set of the plot has a number there). `None` when the argument is one data set.
+pub(crate) fn several_data<'h>(cx: &mut NativeCx<'_, '_, 'h>, name: &str, args: &[T<'h>], depth: usize) -> Res<Option<Reply<'h>>> {
+    let h = cx.heap();
+    let Some((&first, rest)) = args.split_first() else { return Ok(None) };
+    let first = cx.eval(first)?;
+    let Some(sets) = cx.as_list(first).map(|l| l.to_vec()) else { return Ok(None) };
+    if sets.len() < 2 {
+        return Ok(None);
+    }
+    let nested = |t: T<'h>| -> bool {
+        let mut x = t;
+        for _ in 0..depth {
+            match cx.as_list(x).and_then(|l| l.first().copied()) {
+                Some(y) => x = y,
+                None => return false,
+            }
+        }
+        cx.as_list(x).is_some()
+    };
+    if !sets.iter().all(|&s| nested(s)) {
+        return Ok(None);
+    }
+    let plots: Vec<T<'h>> = sets
+        .iter()
+        .map(|&s| {
+            let mut a = vec![s];
+            a.extend_from_slice(rest);
+            h.call(h.sym(name), &a)
+        })
+        .collect();
+    Ok(Some(Reply::Again(h.call(h.sym("show"), &[h.call(h.sym(names::LIST), &plots)]))))
+}
+
 pub(crate) fn bad<'h>(h: &'h Heap, f: &str, k: i64) -> Reply<'h> {
     Reply::Done(failure(h, "argument", &[h.sym_term(h.sym(f)), h.int(k)]))
 }

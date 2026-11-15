@@ -279,6 +279,12 @@ impl Native for FieldPlot {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let name = self.name;
+        // several matrices of vectors (or several lists of pairs): each drawn, shown together
+        if self.kind == Kind::List {
+            if let Some(r) = crate::several_data(cx, name, args, 2)? {
+                return Ok(r);
+            }
+        }
         let (a, o) = split(h, args);
         let base = Look { exact: true, size: Some((460.0, 440.0)), ..Look::default() };
         let extra_opts = ["plot_points", "color_function", "stream_points", "vector_points", "stream_scale", "vector_scale", "data_range", "vector_color_function", "stream_color_function", "stream_style", "vector_style", "vector_markers", "stream_markers", "region_function", "vector_range", "vector_size_function", "color_function_scaling", "region_bounding_style"];
@@ -490,6 +496,12 @@ impl Native for Field3 {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let name = self.name;
+        // several arrays of vectors: each drawn, shown together
+        if self.list {
+            if let Some(r) = crate::several_data(cx, name, args, 3)? {
+                return Ok(r);
+            }
+        }
         let (a, o) = split(h, args);
         let (mut src, b) = match (self.list, a.as_slice()) {
             (false, [f, sx, sy, sz]) => {
