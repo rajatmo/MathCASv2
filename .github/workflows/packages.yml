@@ -1,7 +1,7 @@
 # Packages: build the Windows installer and zip (tools/dist.ps1, tools/package.ps1), the Linux tarball and AppImage
-# (packaging/linux/build-tarball.sh, build-appimage.sh), the macOS disk image for Apple Silicon (packaging/macos/build-app.sh) and the
+# (packaging/linux/build-tarball.sh, build-appimage.sh), the macOS disk images for Apple Silicon and Intel (packaging/macos/build-app.sh) and the
 # Android package (packaging/android/build-apk.sh), check each, and upload them as the artifacts `windows`, `linux`,
-# `macos` and `android`.
+# `macos-arm64`, `macos-x64` and `android`.
 # Called by release.yml (tags) and nightly.yml (pushes to main); the tests run in ci.yml.
 #
 # The Android package is signed with the key of the secrets ANDROID_KEYSTORE_BASE64 (the keystore file in base64),
@@ -128,8 +128,15 @@ jobs:
           retention-days: 7
 
   macos:
-    name: macOS disk image (Apple Silicon)
-    runs-on: macos-latest
+    name: macOS disk image (${{ matrix.name }})
+    # the script builds for the machine it runs on: one runner of each kind
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Apple Silicon, arch: arm64, runner: macos-latest }
+          - { name: Intel, arch: x64, runner: macos-15-intel }
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -144,8 +151,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: macos-packages-${{ hashFiles('Cargo.lock') }}
-          restore-keys: macos-packages-
+          key: macos-${{ matrix.arch }}-packages-${{ hashFiles('Cargo.lock') }}
+          restore-keys: macos-${{ matrix.arch }}-packages-
       - name: Build the bundle and the image (packaging/macos/build-app.sh)
         run: JOBS=4 bash packaging/macos/build-app.sh dist-macos
       # the REPL, the kernel, and both windows in self-test mode (they type, evaluate, plot and save screenshots)
@@ -155,7 +162,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: macos-smoke-failure
+          name: macos-${{ matrix.arch }}-smoke-failure
           path: |
             smoke-work/**/*.png
             smoke-work/**/*.log
@@ -164,8 +171,8 @@ jobs:
           retention-days: 7
       - uses: actions/upload-artifact@v4
         with:
-          name: macos
-          path: dist-macos/MathCAS-v2-*.dmg
+          name: macos-${{ matrix.arch }}
+          path: dist-macos/MathCAS-v2-*-macos-${{ matrix.arch }}.dmg
           if-no-files-found: error
           retention-days: 7
 

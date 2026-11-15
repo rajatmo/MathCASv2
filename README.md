@@ -52,6 +52,7 @@ Download the latest release from the repository's **Releases** page.
 | Linux (x64) | `MathCAS-v2-<version>-linux-x64.AppImage` | `chmod +x` it and run it; `<AppImage> repl` starts the REPL |
 | Linux (x64) | `MathCAS-v2-<version>-linux-x64.tar.gz` | unpack and run `./install.sh` (per user, no root needed) |
 | macOS (Apple Silicon) | `MathCAS-v2-<version>-macos-arm64.dmg` | open the image and drag the application to Applications; the first launch needs Open from the context menu (the application is not notarized) |
+| macOS (Intel) | `MathCAS-v2-<version>-macos-x64.dmg` | the same, for a Mac with an Intel processor (macOS 11 or later) |
 
 The `nightly` pre-release is rebuilt from every push to `main`.
 

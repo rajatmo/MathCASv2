@@ -2,6 +2,9 @@
 
 ## Not released yet
 
+**macOS on Intel.** The disk image is also built for Macs with an Intel processor
+(`MathCAS-v2-<version>-macos-x64.dmg`), beside the one for Apple Silicon.
+
 Changes that old input will notice. They settle the language before 1.0.
 
 **Names.** Predicates are `is_*`: the 27 that ended in `_q` are renamed (`interval_member_q` is
