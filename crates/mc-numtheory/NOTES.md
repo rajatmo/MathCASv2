@@ -115,7 +115,7 @@ non-power rejected in 0.9 s.
 ## Known gaps
 
 - SIQS stops at 85 digits (no block Lanczos); above, only ECM (slow for balanced factors of 35+ digits).
-- `prime_pi` capped at 2^47.
+- `prime_pi` capped at 2^47 (raised to 2^60 by the combinatorial method in round 42).
 - Baillie–PSW on 10^4+-digit numbers takes tens of seconds (interruptible).
 - The half-gcd constant is about 3–4 times GMP's.
 - For a huge non-power the perfect-power filter costs about 1 s.
@@ -207,3 +207,21 @@ non-power rejected in 0.9 s.
 - `divisible(a, b)` of exact numeric constants: a/b simplified, then decided as an integer (`element`): 2 pi and pi/2
   true, sqrt(6) and sqrt(2) false. `quotient_remainder(a, b)` of real constants: the quotient that `quotient`
   decides and a - b q.
+
+## Round 42: prime counting beyond 2^47
+
+- `prime_pi(x)` for 2^40 <= x <= 2^60 by the combinatorial method (`leaves.rs`): Lagarias, Miller and Odlyzko's
+  phi(x, a) = S1 + S2 with y = alpha x^(1/3), alpha = (ln x)^2/150, and Deléglise and Rivat's division of the
+  special leaves into trivial (phi = 1), easy (phi = 1 + pi(v) - b from a table of pi up to sqrt(x); leaves of one
+  prime with equal pi(v) counted together; those with v > y read in windows of v) and hard ones (a segmented sieve
+  of the numbers below x / y with survivor counters per block, worked in parallel chunks whose starting counts are
+  added afterwards). The same segments, sieved on to the square root of their end, give the pi(x / p) of P2.
+  Memory: the table of pi up to sqrt(x) (x^(1/2)/8 bytes) and the factor table of the odd numbers up to y. Meissel's
+  formula stays between 2^23 and 2^40; `prime(k)` follows the larger range. This replaces decision J.9's cap.
+- Checked: pi(10^9 .. 10^13) for several alpha, every x of a grid up to 4 10^7 against the sieve table, phi(x, a)
+  and P2 separately against direct counting, the trivial, easy and hard leaves of every prime against direct sums,
+  pi(2^40), pi(10^14), pi(10^15), and the two methods against each other below the switch; pi(10^16) and
+  pi(10^17 + 1) = 2623557157654233 in the timing test (ignored by default: 20 s).
+- Time on four threads: 10^15 about 0.8 s, 10^16 about 3 s, 10^17 about 15 s. Above 10^16 the easy leaves with
+  v <= y (one table lookup per group, about y pi(x^(1/3)) groups) and the sieve's crossing out with counter updates
+  dominate; a sieve on the residues prime to 30 (8 bits per 30 numbers instead of 15) would be the next step.

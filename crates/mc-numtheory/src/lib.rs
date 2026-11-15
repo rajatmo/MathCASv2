@@ -6,6 +6,7 @@
 //!
 //! - [`word`]: machine-word Montgomery arithmetic, deterministic primality below 2^64, roots, Jacobi symbols;
 //! - [`sieve`]: segmented sieves and the table of pi(z); [`count`]: Meissel's prime counting and the k-th prime;
+//!   [`leaves`]: prime counting by the combinatorial method (Lagarias-Miller-Odlyzko, Deléglise-Rivat);
 //! - [`ring`]: arithmetic modulo big odd numbers (Montgomery on fixed limbs, Newton reciprocals above);
 //! - [`prime`]: Baillie-PSW and the next prime; [`gcd`]: the subquadratic half-gcd;
 //! - [`power`]: exact roots, valuations and perfect-power detection; [`factor`]: trial division, rho, ECM, SIQS;
@@ -22,6 +23,7 @@ pub mod cover;
 pub mod digits;
 pub mod factor;
 pub mod gcd;
+pub mod leaves;
 pub mod modular;
 mod natives;
 pub mod power;

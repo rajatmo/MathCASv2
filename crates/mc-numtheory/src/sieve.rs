@@ -11,12 +11,12 @@ use std::sync::OnceLock;
 /// The primes 3 to 13, removed by the pattern.
 const PATTERN_PRIMES: [u64; 5] = [3, 5, 7, 11, 13];
 /// The pattern's period in words (each word is 64 odd numbers; the period in odd numbers is 15015).
-const PATTERN_WORDS: usize = 15015;
+pub(crate) const PATTERN_WORDS: usize = 15015;
 /// Bits of one sieving segment (32 KB, so that the segment stays in the first-level cache).
 const SEGMENT_BITS: usize = 1 << 18;
 
 /// The words of the odd numbers 1, 3, 5, ... with the multiples of 3 to 13 cleared, one period.
-fn pattern() -> &'static [u64] {
+pub(crate) fn pattern() -> &'static [u64] {
     static P: OnceLock<Vec<u64>> = OnceLock::new();
     P.get_or_init(|| {
         let mut w = vec![u64::MAX; PATTERN_WORDS];
@@ -226,6 +226,57 @@ impl PiTable {
         let mask = (2u64 << (i % 32)) - 1;
         1 + (e >> 32) + (e & mask).count_ones() as u64
     }
+    /// The primes in `[lo, hi]` (hi <= limit), in increasing order, appended to `out`.
+    pub fn primes_between(&self, lo: u64, hi: u64, out: &mut Vec<u64>) {
+        debug_assert!(hi <= self.limit);
+        if lo > hi {
+            return;
+        }
+        if lo <= 2 && hi >= 2 {
+            out.push(2);
+        }
+        // odd numbers 2i + 1 with i in [i0, i1]
+        let i0 = lo.max(3) / 2;
+        let i1 = (hi.max(1) - 1) / 2;
+        let mut i = i0;
+        while i <= i1 {
+            let k = (i / 32) as usize;
+            let mut bits = self.entries[k] & 0xFFFF_FFFF;
+            let first = i % 32;
+            bits &= u64::MAX << first;
+            let last = (k as u64 + 1) * 32 - 1;
+            if last > i1 {
+                bits &= (2u64 << (i1 % 32)) - 1;
+            }
+            while bits != 0 {
+                let j = bits.trailing_zeros() as u64;
+                bits &= bits - 1;
+                out.push(2 * (32 * k as u64 + j) + 1);
+            }
+            i = last + 1;
+        }
+    }
+    /// The largest prime <= z (2 <= z <= limit).
+    pub fn prev_prime(&self, z: u64) -> u64 {
+        debug_assert!((2..=self.limit).contains(&z));
+        if z < 3 {
+            return 2;
+        }
+        let i = (z - 1) / 2;
+        let mut k = (i / 32) as usize;
+        let mut bits = self.entries[k] & ((2u64 << (i % 32)) - 1) & 0xFFFF_FFFF;
+        loop {
+            if bits != 0 {
+                let j = 63 - bits.leading_zeros() as u64;
+                return 2 * (32 * k as u64 + j) + 1;
+            }
+            if k == 0 {
+                return 2;
+            }
+            k -= 1;
+            bits = self.entries[k] & 0xFFFF_FFFF;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -255,6 +306,17 @@ mod tests {
         }
         assert_eq!(t.pi(1_000_000), 78498);
         assert_eq!(t.pi(2_000_000), 148933);
+        // primes of a range and the previous prime, against trial division
+        for (lo, hi) in [(0u64, 100u64), (10, 10), (10, 11), (8, 13), (1000, 1100), (1_999_000, 2_000_000)] {
+            let mut got = vec![];
+            t.primes_between(lo, hi, &mut got);
+            let want: Vec<u64> = (lo..=hi).filter(|&n| is_prime_u64(n)).collect();
+            assert_eq!(got, want, "[{lo}, {hi}]");
+        }
+        for z in [2u64, 3, 4, 10, 64, 65, 66, 127, 128, 1_000_000, 1_999_999] {
+            let want = (2..=z).rev().find(|&n| is_prime_u64(n)).unwrap();
+            assert_eq!(t.prev_prime(z), want, "{z}");
+        }
     }
 
     #[test]

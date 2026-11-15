@@ -117,6 +117,9 @@ fn bilateral_hypergeometric_pfq<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>])
     if let Some(v) = one_sided(fx, a, b, z) {
         return Ok(Some(v));
     }
+    if let Some(v) = dougall(fx, a, b, z)? {
+        return Ok(Some(v));
+    }
     let mut all: Vec<T<'h>> = a.to_vec();
     all.extend_from_slice(b);
     all.push(z);
@@ -148,6 +151,41 @@ fn bilateral_hypergeometric_pfq<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>])
     }
     let v = fx.eval(fx.sub(fx.add(&[up, dn]), fx.int(1)))?;
     Ok(fx.num(v).map(|_| v))
+}
+
+/// Dougall's sum of the bilateral series 2H2 at z = 1 (Slater, Generalized Hypergeometric Functions, (6.1.2.6);
+/// DLMF 16.4.18 with the Pochhammer quotients written as gamma quotients): for Re(c + d - a - b) > 1,
+///
+/// 2H2(a, b; c, d; 1) = G(c) G(d) G(1 - a) G(1 - b) G(c + d - a - b - 1) / (G(c - a) G(d - a) G(c - b) G(d - b)).
+///
+/// Numeric parameters only (the condition must be decided); `None` when a or b is a positive integer (the terms of
+/// negative index are infinite), when the series does not converge, or for other shapes.
+fn dougall<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], b: &[T<'h>], z: T<'h>) -> R<'h> {
+    let ([pa, pb], [pc, pd]) = (a, b) else { return Ok(None) };
+    let (pa, pb, pc, pd) = (*pa, *pb, *pc, *pd);
+    let Some(zn) = fx.num(z) else { return Ok(None) };
+    let unit = fx.is_int(z, 1) || fx.f64_of(z).is_some_and(|v| v == 1.0) && zn.kind() != Kind::Exact;
+    if !unit || [pa, pb, pc, pd].iter().any(|&t| fx.num(t).is_none()) {
+        return Ok(None);
+    }
+    if [pa, pb].iter().any(|&t| fx.int_of(t).is_some_and(|v| v >= 1)) || [pc, pd].iter().any(|&t| fx.int_of(t).is_some_and(|v| v <= 0)) {
+        return Ok(None);
+    }
+    let s = fx.sub(fx.add(&[pc, pd]), fx.add(&[pa, pb, fx.int(1)]));
+    let s = fx.eval(s)?;
+    let re_s = fx.call("re", &[s]);
+    let re_s = fx.eval(re_s)?;
+    let Some(r) = fx.f64_of(re_s) else { return Ok(None) };
+    if r <= 1e-12 {
+        return Ok(None);
+    }
+    let one = fx.int(1);
+    let g = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| fx.call("gamma", &[t]);
+    let num = fx.mul(&[g(fx, pc), g(fx, pd), g(fx, fx.sub(one, pa)), g(fx, fx.sub(one, pb)), g(fx, s)]);
+    let den = fx.mul(&[g(fx, fx.sub(pc, pa)), g(fx, fx.sub(pd, pa)), g(fx, fx.sub(pc, pb)), g(fx, fx.sub(pd, pb))]);
+    // an inexact argument 1.0 makes the value numeric
+    let v = fx.mul(&[z, fx.div(num, den)]);
+    Ok(Some(fx.eval(v)?))
 }
 
 /// The bilateral series when a lower parameter is a positive integer n: 1/(n)_k = Gamma(n + k)^-1 Gamma(n) is 0 for
@@ -257,7 +295,12 @@ fn pfq<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], b: &[T<'h>], z: T<'h>) -> R
     if fx.num(v).is_some() {
         return Ok(v);
     }
-    crate::cover::numify(fx, v, &[z])
+    let v = crate::cover::numify(fx, v, &[z])?;
+    if fx.num(v).is_some() {
+        return Ok(v);
+    }
+    // the numeric function continues (p+1)Fp itself beyond the circle (complex parameters included)
+    direct(fx, a, b, z)
 }
 
 /// The definitions of this module.

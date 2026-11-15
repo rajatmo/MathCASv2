@@ -1,6 +1,7 @@
 //! Prime counting and the k-th prime.
 //!
-//! `prime_pi(x)` is Meissel's formula with a = pi(x^(1/3)):
+//! `prime_pi(x)` is a sieve below 2^23, the combinatorial method of [`crate::leaves`] from 2^40 on, and in between
+//! Meissel's formula with a = pi(x^(1/3)):
 //!
 //! pi(x) = phi(x, a) + a - 1 - P2(x, a),  P2 = sum over a < i <= pi(sqrt x) of (pi(x / p_i) - i + 1),
 //!
@@ -20,8 +21,11 @@ use mc_eval::Res;
 
 /// Below this bound prime_pi sieves directly.
 const DIRECT: u64 = 1 << 23;
-/// Largest argument of [`prime_pi`]: the table of pi up to x^(2/3) then needs about 200 MB (decision J.9).
-pub const PI_MAX: u64 = 1 << 47;
+/// From this bound on, the combinatorial method of [`crate::leaves`] (memory about x^(1/2)/8 bytes) replaces
+/// Meissel's formula (whose table of pi up to x^(2/3) needs about 200 MB at 2^47).
+const LEAVES: u64 = 1 << 40;
+/// Largest argument of [`prime_pi`]: the table of pi up to sqrt(x) of the combinatorial method is 128 MB here.
+pub const PI_MAX: u64 = 1 << 60;
 /// The primes of the wheel.
 const WHEEL: usize = 6;
 /// Rows of the cache of phi(z, b) for small z: b from 6 to 6 + CACHE_ROWS - 1.
@@ -146,6 +150,9 @@ pub fn prime_pi(x: u64, b: &mut dyn Budget) -> Res<u64> {
     assert!(x <= PI_MAX);
     if x < DIRECT {
         return Ok(PiTable::new(x, b)?.pi(x));
+    }
+    if x >= LEAVES {
+        return crate::leaves::prime_pi_leaves(x, b);
     }
     let y = iroot(x, 3);
     let r = isqrt(x);
@@ -298,6 +305,15 @@ mod tests {
         assert_eq!(pi(10_000_000_000), 455_052_511);
         // pi(2^32)
         assert_eq!(pi(1 << 32), 203_280_221);
+        // the combinatorial method: pi(2^40), pi(10^14), pi(10^15) (Deleglise and Rivat's table)
+        assert_eq!(pi(1 << 40), 41_203_088_796);
+        assert_eq!(pi(100_000_000_000_000), 3_204_941_750_802);
+        assert_eq!(pi(1_000_000_000_000_000), 29_844_570_422_669);
+        // the two methods agree below the switch (Meissel there)
+        for x in [LEAVES - 1, (LEAVES / 3) | 1] {
+            let l = crate::test_pool().install(|| crate::leaves::prime_pi_leaves(x, &mut Unlimited).unwrap());
+            assert_eq!(l, pi(x), "{x}");
+        }
     }
 
     #[test]
@@ -308,6 +324,9 @@ mod tests {
         }
         assert_eq!(nth(1_000_000), Some(15_485_863));
         assert_eq!(nth(100_000_000), Some(2_038_074_743));
+        // beyond 2^40 through the combinatorial count: p(10^12) and p(10^13)
+        assert_eq!(nth(1_000_000_000_000), Some(29_996_224_275_833));
+        assert_eq!(nth(10_000_000_000_000), Some(323_780_508_946_331));
     }
 
     #[test]

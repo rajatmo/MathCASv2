@@ -75,8 +75,59 @@ pub fn hyp_pfq(a: &[CBall], b: &[CBall], z: &CBall, p: u64) -> Option<CBall> {
     if b.iter().any(|x| nonpos_int(x).is_some()) {
         return None;
     }
+    if a.len() == b.len() + 1 && a.len() >= 3 {
+        let (zr, zi) = super::cseries::approx(z);
+        if zr * zr + zi * zi > 1.0 + 1e-9 {
+            // the guard of the series in 1/z (the divergent series in z has no meaningful one)
+            let w = c(1).div(z, 64)?;
+            let g = guard_for(a, b, &w) + 16;
+            return refine(p, g, |wp| pfq_inverse(a, b, z, wp));
+        }
+    }
     let g = guard_for(a, b, z);
     refine(p, g, |wp| pfq_sum(a, b, z, wp))
+}
+
+/// (p+1)Fp(a; b; z) for |z| > 1 by its connection to the argument 1/z (the Mellin-Barnes integral closed on the
+/// poles of Gamma(a_j + s); Luke, The Special Functions and Their Approximations I, 5.3; DLMF 16.8.8 for 2F1):
+///
+/// F(z) = sum_j prod_i G(b_i)/G(b_i - a_j) prod_(k != j) G(a_k - a_j)/G(a_k) (-z)^(-a_j)
+///        (p+1)Fp(a_j, 1 + a_j - b_1, ..., 1 + a_j - b_p; 1 + a_j - a_k (k != j); 1/z),
+///
+/// valid when no two a's differ by an integer (`None` then). A real z > 1 is the limit from below, as for 2F1.
+fn pfq_inverse(a: &[CBall], b: &[CBall], z: &CBall, wp: u64) -> Option<CBall> {
+    for (i, ai) in a.iter().enumerate() {
+        for ak in &a[i + 1..] {
+            if dist_to_int(&ak.sub(ai, wp)) {
+                return None;
+            }
+        }
+    }
+    let w = c(1).div(z, wp)?;
+    let mz = z.neg();
+    let mut total: Option<CBall> = None;
+    for (j, aj) in a.iter().enumerate() {
+        let mut g = c(1);
+        let mut up = vec![aj.clone()];
+        let mut low = vec![];
+        for bi in b {
+            g = g.mul(&cgamma(bi, wp)?, wp).mul(&rgamma(&bi.sub(aj, wp), wp)?, wp);
+            up.push(aj.sub(bi, wp).add(&c(1), wp));
+        }
+        for (k, ak) in a.iter().enumerate() {
+            if k != j {
+                g = g.mul(&cgamma(&ak.sub(aj, wp), wp)?, wp).mul(&rgamma(ak, wp)?, wp);
+                low.push(aj.sub(ak, wp).add(&c(1), wp));
+            }
+        }
+        let f = pfq_sum(&up, &low, &w, wp)?;
+        let term = g.mul(&pw(&mz, &aj.neg(), wp)?, wp).mul(&f, wp);
+        total = Some(match total {
+            Some(t0) => t0.add(&term, wp),
+            None => term,
+        });
+    }
+    total
 }
 
 // ------------------------------------------------------------------ 2F1

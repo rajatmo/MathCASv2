@@ -360,6 +360,9 @@ pub fn hyp_pfq(a: &[C64], b: &[C64], z: C64) -> Option<C64> {
     if b.iter().any(|&q| is_pole(q) && ends.is_none_or(|n| (-q.re) < n as f64)) {
         return None;
     }
+    if ends.is_none() && a.len() == b.len() + 1 && a.len() >= 3 && abs(z) > 1.12 {
+        return hyp_pfq_inverse(a, b, z);
+    }
     if ends.is_none() && (a.len() > b.len() + 1 || (a.len() == b.len() + 1 && abs(z) >= 0.9)) {
         return None;
     }
@@ -396,6 +399,44 @@ pub fn hyp_pfq(a: &[C64], b: &[C64], z: C64) -> Option<C64> {
         }
     }
     None
+}
+
+/// (p+1)Fp for |z| > 1.12 by the connection to 1/z (the same formula as `ball::cspecial::hyp_pfq`, Luke 5.3):
+/// sum_j prod G(b_i)/G(b_i - a_j) prod_(k != j) G(a_k - a_j)/G(a_k) (-z)^(-a_j) F(a_j, 1 + a_j - b; 1 + a_j - a_k; 1/z).
+/// `None` when two a's differ by an integer (up to 1e-9) or a factor is not finite. A real z is the limit from
+/// below (the argument of -z is +pi).
+fn hyp_pfq_inverse(a: &[C64], b: &[C64], z: C64) -> Option<C64> {
+    for (i, &ai) in a.iter().enumerate() {
+        for &ak in &a[i + 1..] {
+            let d = ak - ai;
+            if (d.re - d.re.round()).abs() < 1e-9 && d.im.abs() < 1e-9 {
+                return None;
+            }
+        }
+    }
+    let one = r(1.0);
+    let w = one / z;
+    // -z with a positive zero imaginary part on the real line (the side Im z = -0)
+    let mz = if z.im == 0.0 { C64::new(-z.re, 0.0) } else { neg(z) };
+    let mut total = r(0.0);
+    for (j, &aj) in a.iter().enumerate() {
+        let mut g = one;
+        let mut up = vec![aj];
+        let mut low = vec![];
+        for &bi in b {
+            g = g * gamma(bi)? * rgamma(bi - aj)?;
+            up.push(aj - bi + one);
+        }
+        for (k, &ak) in a.iter().enumerate() {
+            if k != j {
+                g = g * gamma(ak - aj)? * rgamma(ak)?;
+                low.push(aj - ak + one);
+            }
+        }
+        let f = hyp_pfq(&up, &low, w)?;
+        total = total + g * powc(mz, neg(aj)) * f;
+    }
+    finite(total)
 }
 
 /// 1/Gamma(z), 0 at the poles.

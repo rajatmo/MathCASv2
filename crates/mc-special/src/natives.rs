@@ -434,6 +434,48 @@ fn machine_c64(n: &Num) -> Option<C64> {
     })
 }
 
+/// (p+1)Fp at machine numbers beyond the unit circle, where the machine series declines: the connection to 1/z on
+/// complex balls at 53 bits (`ball::cspecial::hyp_pfq`), rounded to machine numbers. A real value when every number
+/// is real and z < -1 (the series in 1/z is then real).
+fn pfq_beyond_machine(nums: &[Num], na: usize, nb: usize, stop: &Arc<AtomicBool>) -> Option<Mach> {
+    if na != nb + 1 || na < 3 {
+        return None;
+    }
+    let real_line = nums.iter().all(|n| matches!(n, Num::Real(_))) && nums.last().is_some_and(|z| match z {
+        Num::Real(r) => r.to_f64() < -1.0,
+        _ => false,
+    });
+    // the connection in machine arithmetic first (|z| > 1.12), then on balls
+    if let Some(cs) = nums.iter().map(machine_c64).collect::<Option<Vec<C64>>>() {
+        if let Some(v) = crate::machine::complex::hyp_pfq(&cs[..na], &cs[na..na + nb], cs[na + nb]) {
+            return Some(if real_line { Mach::Real(v.re) } else { Mach::Complex(v) });
+        }
+    }
+    let ball = |r: &Real| match r {
+        Real::Machine(v) if v.is_finite() => Some(mc_arith::num::Ball::exact(crate::ball::float_of(*v))),
+        _ => match r.to_kind(mc_arith::Kind::Ball, 64) {
+            Real::Ball(b, _) => Some(b),
+            _ => None,
+        },
+    };
+    let cs: Vec<CBall> = nums
+        .iter()
+        .map(|n| match n {
+            Num::Real(r) => Some(CBall::real(ball(r)?)),
+            Num::Complex(x, y) => Some(CBall::new(ball(x)?, ball(y)?)),
+        })
+        .collect::<Option<_>>()?;
+    let (ca, rest) = cs.split_at(na);
+    let (cb, cz) = rest.split_at(nb);
+    let v = {
+        let _scope = StopScope::enter(Some(stop));
+        crate::ball::cspecial::hyp_pfq(ca, cb, &cz[0], 53)?
+    };
+    let re = crate::ball::f64_of(&v.re.mid);
+    let im = crate::ball::f64_of(&v.im.mid);
+    Some(if real_line { Mach::Real(re) } else { Mach::Complex(C64::new(re, im)) })
+}
+
 impl Native for Pfq {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         if args.len() != 3 {
@@ -499,6 +541,10 @@ impl Native for Pfq {
                         return Ok(Reply::Done(mach_term(&ar, Mach::Complex(v))));
                     }
                 }
+                cx.tick(1)?;
+                if let Some(v) = pfq_beyond_machine(&nums, a.len(), b.len(), &self.stop) {
+                    return Ok(Reply::Done(mach_term(&ar, v)));
+                }
                 return Ok(Reply::Decline);
             }
             // complex balls (no machine number): the series on complex balls with its rigorous tail
@@ -551,6 +597,11 @@ impl Native for Pfq {
             let fb: Vec<f64> = rb.iter().map(Real::to_f64).collect();
             let v = crate::machine::hyper::hyp_pfq(&fa, &fb, rz[0].to_f64());
             if v.is_nan() {
+                let nums: Vec<Num> = reals.iter().cloned().map(Num::Real).collect();
+                cx.tick(1)?;
+                if let Some(v) = pfq_beyond_machine(&nums, a.len(), b.len(), &self.stop) {
+                    return Ok(Reply::Done(mach_term(&ar, v)));
+                }
                 return Ok(Reply::Decline);
             }
             cx.tick(1)?;
@@ -560,7 +611,20 @@ impl Native for Pfq {
         cx.tick(1 + p / 256)?;
         let r = {
             let _scope = StopScope::enter(Some(&self.stop));
-            crate::ball::hyper::hyp_pfq(ra, rb, &rz[0], p)
+            crate::ball::hyper::hyp_pfq(ra, rb, &rz[0], p).or_else(|| {
+                // (p+1)Fp beyond the unit circle: the connection to 1/z on complex balls
+                if a.len() != b.len() + 1 || a.len() < 3 {
+                    return None;
+                }
+                let cs: Vec<CBall> = reals
+                    .iter()
+                    .map(|r| match r.to_kind(mc_arith::Kind::Ball, p) {
+                        Real::Ball(x, _) => Some(CBall::real(x)),
+                        _ => None,
+                    })
+                    .collect::<Option<_>>()?;
+                crate::ball::cspecial::hyp_pfq(&cs[..a.len()], &cs[a.len()..a.len() + b.len()], &cs[a.len() + b.len()], p)
+            })
         };
         if stopped() || cx.stopped() {
             cx.tick(0)?;

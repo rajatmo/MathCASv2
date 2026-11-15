@@ -1629,7 +1629,20 @@ fn struve_l<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 /// S2 = sum (-1)^k (z/2)^(2k+1)/(Gamma(k + nu/2 + 3/2) Gamma(k - nu/2 + 3/2)),
 /// J = cos(pi nu/2) S1 + sin(pi nu/2) S2, E = sin(pi nu/2) S1 - cos(pi nu/2) S2.
 fn anger_weber<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], weber: bool) -> R<'h> {
-    if a.len() != 2 || !numeric(fx, a) {
+    if a.len() != 2 {
+        return Ok(None);
+    }
+    // E_0 = -H_0 and E_1 = 2/pi - H_1 (DLMF 11.10.15, 11.10.16), at a symbolic argument
+    if weber && fx.num(a[1]).is_none() {
+        if fx.is_int(a[0], 0) {
+            return Ok(Some(fx.neg(fx.call("struve_h", &[fx.int(0), a[1]]))));
+        }
+        if fx.is_int(a[0], 1) {
+            let two_pi = fx.div(fx.int(2), fx.sym("pi"));
+            return Ok(Some(fx.sub(two_pi, fx.call("struve_h", &[fx.int(1), a[1]]))));
+        }
+    }
+    if !numeric(fx, a) {
         return Ok(None);
     }
     if series_too_long(fx, a[1]) {
@@ -1690,10 +1703,24 @@ fn weber_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 /// `None` otherwise (the numerical paths take numbers).
 pub(crate) fn lommel_exact<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: u8) -> R<'h> {
     let (mu, nu, z) = (a[0], a[1], a[2]);
+    // s and t when mu + nu or mu - nu is a negative odd integer: a denominator (mu + 2j + 1)^2 - nu^2 of the series
+    // vanishes and the function is not defined (DLMF 11.9.3): complex infinity, at any z but 0
+    if which == 0 || which == 2 {
+        let neg_odd = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| fx.int_of(t).is_some_and(|n| n < 0 && n % 2 != 0);
+        let (sum, dif) = (fx.eval(fx.add(&[mu, nu]))?, fx.eval(fx.sub(mu, nu))?);
+        if (neg_odd(fx, sum) || neg_odd(fx, dif)) && !fx.num(z).is_some_and(|n| n.is_zero()) {
+            return Ok(Some(fx.sym("complex_infinity")));
+        }
+    }
     if numeric(fx, a) {
         return Ok(None);
     }
     let pi = fx.sym("pi");
+    // s_(-1, +-1) = -(pi/2) E_1(z) with E_1 = 2/pi - H_1 (Watson 10.71; DLMF 11.10.16)
+    if which == 0 && fx.is_int(mu, -1) && fx.int_of(nu).is_some_and(|n| n.abs() == 1) {
+        let e1 = fx.sub(fx.div(fx.int(2), pi), fx.call("struve_h", &[fx.int(1), z]));
+        return Ok(Some(fx.mul(&[fx.rat(-1, 2), pi, e1])));
+    }
     let same = fx.eval(fx.sub(mu, nu))? == fx.int(0);
     let opposite = fx.eval(fx.add(&[mu, nu]))? == fx.int(0);
     let c = |fx: &Fx<'_, '_, '_, 'h>| fx.mul(&[pi, fx.call("pochhammer", &[fx.rat(1, 2), nu]), fx.pow(fx.int(2), fx.sub(nu, fx.int(1)))]);

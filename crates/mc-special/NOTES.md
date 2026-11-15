@@ -1117,3 +1117,20 @@ small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
 - `elliptic_theta_prime` at |q| > 0.9 uses the modular transformations of `elliptic_theta`: the transformed value
   is C e^(alpha z^2) theta_j(c z | tau_n), so the derivative is C e^(alpha z^2) (2 alpha z theta_j + c theta_j');
   the series at |q| near 1 was summed directly before.
+## Round 42: (p+1)Fp beyond the unit circle, the bilateral series at 1, Lommel orders
+
+- `hypergeometric_pfq` with p = q + 1 >= 3 and |z| > 1: the connection to 1/z (Luke, The Special Functions and Their
+  Approximations I, 5.3; DLMF 16.8.8 is the case 2F1), sum_j prod G(b_i)/G(b_i - a_j) prod_(k != j) G(a_k - a_j)/
+  G(a_k) (-z)^(-a_j) F(a_j, 1 + a_j - b; 1 + a_j - a_k; 1/z), on complex balls (`ball::cspecial::pfq_inverse`, any
+  precision, real balls too) and in machine arithmetic for |z| > 1.12 (`machine::complex::hyp_pfq_inverse`, about
+  1e-14 relative; 1 < |z| <= 1.12 goes to the balls at 53 bits). A real z > 1 is the limit from below, as for 2F1.
+  Two a's differing by an integer: no value (the degenerate formula has logarithms). Checked against Euler's integral
+  of 2F1 at real and complex z and against z - 10^-40 i on the cut.
+- `bilateral_hypergeometric_pfq` 2H2 at z = 1 by Dougall's sum G(c) G(d) G(1 - a) G(1 - b) G(c + d - a - b - 1)/(G(c - a)
+  G(d - a) G(c - b) G(d - b)) for Re(c + d - a - b) > 1 (Slater 6.1.2.6), exact at exact parameters; beyond the circle
+  the halves use the continuation above when the gamma form of the old path does not give a number.
+- Lommel s and t with mu + nu or mu - nu a negative odd integer: complex infinity (a denominator of the series
+  vanishes, DLMF 11.9.3); s_(-1, +-1)(z) = -(pi/2) E_1(z); E_0 = -H_0 and E_1 = 2/pi - H_1 at symbolic arguments
+  (DLMF 11.10.15, 11.10.16), so the plots of E_0 evaluate Struve's function.
+- Not reached: Lommel series and integrals with symbolic orders (series with a symbolic power are not compared),
+  property functions of the Lommel functions with symbolic orders, 2H3 at 1 (its negative half diverges).
