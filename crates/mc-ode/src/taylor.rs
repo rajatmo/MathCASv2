@@ -505,6 +505,8 @@ pub(crate) enum End {
     MaxSteps,
     StepSize,
     NotNumeric(f64),
+    /// a monitor gave a failure (the native gives it)
+    Monitor,
 }
 
 /// The result of one Taylor integration.
@@ -527,16 +529,21 @@ fn log2(b: &Ball) -> f64 {
 }
 
 /// Integrate the tape's system from `(t0, y0)` to `t1` with a local error of about `10^-digits` relative to
-/// `max(1, |y|)`, at most `max_steps` steps.
-pub(crate) fn integrate(
-    cx: &mut NativeCx<'_, '_, '_>,
+/// `max(1, |y|)`, at most `max_steps` steps. The evaluation monitor of `mons` is called with the time at which the
+/// right-hand side is expanded (once per step), the step monitor with the time each accepted step ends at, both at
+/// the working precision; a failure of either ends the run ([`End::Monitor`]).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn integrate<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
     tape: &Tape,
     t0: &Ball,
     y0: &[Ball],
     t1: &Ball,
     digits: f64,
     max_steps: usize,
+    mons: &mc_numfn::Monitors,
 ) -> Res<Run> {
+    let time = |cx: &NativeCx<'_, '_, 'h>, t: &Ball| Arith::new(cx.heap()).number(&num_of(t.clone(), tape.p));
     let p = tape.p;
     let n = y0.len();
     let ln_tol = digits * std::f64::consts::LN_10;
@@ -553,6 +560,10 @@ pub(crate) fn integrate(
         cx.tick(1)?;
         if run.segments.len() >= max_steps {
             run.end = End::MaxSteps;
+            return Ok(run);
+        }
+        if mons.any() && !mons.evaluated(cx, &[time(cx, &t)])? {
+            run.end = End::Monitor;
             return Ok(run);
         }
         // the coefficients: y_{k+1} = F_k / (k + 1)
@@ -611,6 +622,10 @@ pub(crate) fn integrate(
         t = Ball::exact(tnew.mid);
         run.t = tb;
         y = ynew;
+        if mons.steps() && !mons.stepped(cx, &[time(cx, &t)])? {
+            run.end = End::Monitor;
+            return Ok(run);
+        }
         if last {
             return Ok(run);
         }

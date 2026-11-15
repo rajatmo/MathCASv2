@@ -777,3 +777,9 @@ Not parallel here: `find_instance` (witness search, sequential by design), `trig
   symbols, so a call with options that no clause matched stayed unevaluated; `is_ground` now inspects only the
   values of an `options(...)` argument. A `rule` with options is lowered by the same `clauses`, so its condition sees the options too.
   Test `mc-engine/tests/round43_language.rs`.
+
+## Round 43b: polling the interrupt from a native
+
+- `NativeCx::poll`: `Err` when the evaluation has been stopped. `tick` polls only when it draws a new block of fuel,
+  so a native that saw the stop flag in work below the evaluator (a renderer returning `interrupted`) and then
+  called `tick(1)` usually went on and returned a value. The plot and graphics natives use `poll`.

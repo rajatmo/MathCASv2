@@ -205,6 +205,10 @@ impl CoreEngine {
         let mut jit = None;
         let session = Session::with_state(cfg.heap, cfg.threads, |h| {
             let mut k = Kernel::new(h, cfg.eval);
+            // the kernel's stop flag (`NativeCx::stop_flag`, polled by the renderers and other library loops) is the
+            // one the engine raises with the interrupt: a flag of the kernel's own was never raised, so those loops
+            // ran on after a stop
+            k.set_stop_flag(arith_stop.clone());
             k.watch_flag(arith_stop.clone());
             arith::install(&mut k, h, &arith_stop);
             // every library, polling the same stop flag as the arithmetic (decision G.5)

@@ -165,6 +165,15 @@ impl<'h> NativeCx<'_, '_, 'h> {
         let w = self.ev.work_units(self.cx);
         self.ev.spend(self.cx, n + w)
     }
+    /// Poll the interrupt now: `Err` when the evaluation has been stopped (or a limit fired). [`NativeCx::tick`] polls
+    /// only when it draws a new block of fuel; a native whose work below the evaluator saw the stop flag (a renderer
+    /// that ended early) calls this to end with the interrupt instead of a value.
+    pub fn poll(&mut self) -> Res<()> {
+        if self.ev.k.ctl.halted() {
+            return Err(crate::Abort::Limit);
+        }
+        Ok(())
+    }
     /// The fuel this task has spent so far, the kernels' work not yet charged included: the clock of a method's
     /// budget (semantics 18.7). It counts work, never time, so the same calls give the same reading on every
     /// machine; only differences of two readings in one native call mean anything.

@@ -34,7 +34,7 @@
 # `digits: d` solves with Taylor series at `d` decimal digits; values of the solution are then balls.
 
 #% subitem
-# `evaluation_monitor: f` and `step_monitor: f` call `f` with the value of the independent variable at every evaluation of the equations and at the end of every accepted step (machine precision only); a failure `f` gives ends the integration and is the result.
+# `evaluation_monitor: f` and `step_monitor: f` call `f` with the value of the independent variable at every evaluation of the equations and at the end of every accepted step; under `digits:` the Taylor method expands the equations once per step, at the working precision, and integrates twice (the second run estimates the error), so the monitors see both runs. A failure `f` gives ends the integration and is the result.
 
 #% item
 # When the step size shrinks to nothing (the solution blows up), the solution covers the part computed and a message says where it stopped.

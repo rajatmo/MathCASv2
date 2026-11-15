@@ -906,3 +906,11 @@ Source in `lib/lists.mc`.
   continue in `fixed_point_list` gives no new value, so the list ends). A multi-dimensional `array` and the key
   functions (`keys`: `sort_by`, `gather_by`, ...) do not read them: there the signal is an ordinary failure, the
   call's result, which reaches the iteration around it. Test `mc-engine/tests/round43_language.rs`.
+
+## Round 43b: table without a body
+
+- `table()` (and `table(parallel: true)`) indexed the empty argument list (`construct.rs`, a native panic turned
+  into `failure(internal, ...)`); with no body there is nothing to iterate, so no rule reads the call and it stays
+  unevaluated, like `table(i)`. A fuzz test (`mc-engine/tests/round43b_iterators.rs`) calls every iterating function
+  with no, one and malformed arguments, the loop signals as values and as elements, nested and in the parallel
+  forms; a long campaign of 28,000 inputs found nothing else.

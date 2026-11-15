@@ -391,11 +391,28 @@ pub fn paint(g: &Graphic, p: &Plan, s: &mut dyn Surface, stop: &dyn Fn() -> bool
     if p.clip {
         s.clip(p.area);
     }
-    for (i, it) in g.items.iter().enumerate() {
-        if i % POLL == POLL - 1 && stop() {
-            return Err(Failure::new("interrupted", ""));
+    // polled by the work done, in points: a primitive may hold a hundred thousand of them
+    let mut work = 0usize;
+    for it in &g.items {
+        work += 1 + size(&it.shape);
+        if work >= POLL {
+            work = 0;
+            if stop() {
+                return Err(Failure::new("interrupted", ""));
+            }
         }
-        item(g, p, it, s);
+        match &it.shape {
+            // a large set of points is drawn in parts, the flag polled between them
+            Shape::Points(ps) if ps.len() > POLL => {
+                for part in ps.chunks(POLL) {
+                    if stop() {
+                        return Err(Failure::new("interrupted", ""));
+                    }
+                    item(g, p, &Item { shape: Shape::Points(part.to_vec()), style: it.style }, s);
+                }
+            }
+            _ => item(g, p, it, s),
+        }
     }
     s.role(Role::Data);
     if p.clip {
@@ -520,6 +537,15 @@ fn clipped_runs(pts: &[(f32, f32)], r: [f32; 4]) -> Vec<Vec<(f32, f32)>> {
         runs.push(cur);
     }
     runs
+}
+
+/// The work of a primitive in points (at least one), as the polls of the stop flag count it.
+pub(crate) fn size(shape: &Shape) -> usize {
+    match shape {
+        Shape::Points(ps) | Shape::Bezier(ps) => ps.len(),
+        Shape::Line(rs) | Shape::Polygon(rs) | Shape::Arrow(rs) => rs.iter().map(|r| r.len()).sum(),
+        _ => 1,
+    }
 }
 
 /// Paint one primitive.

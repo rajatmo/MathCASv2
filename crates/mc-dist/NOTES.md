@@ -104,3 +104,11 @@ t 43 us. `random_variate` 10^6 draws: normal 64 ms, gamma 74 ms, Poisson(50) 420
    `central_moment(exponential_distribution(l), 3)` is `2*(l^-2)^(3/2)`).
 7. `random_variate` draws sequentially on the session stream (no parallel split streams for big arrays).
 8. Univariate only; `covariance`/`correlation` take two data lists, no matrix form.
+
+## Round 43b: monitors of find_fit
+
+- `find_fit(..., evaluation_monitor: f, step_monitor: f)`: functions of the parameter values (one argument per
+  parameter, in their order), called before every evaluation of the model over the data and after every accepted
+  Levenberg-Marquardt step (`findfit.rs`, `watched`); a failure ends the fit and is its result, a value that is not
+  a function is `failure(not_a_function, ...)` (`mc_numfn::take_monitors`). Any other option leaves the call
+  unevaluated as before. Test `mc-engine/tests/round43b_monitors.rs`.

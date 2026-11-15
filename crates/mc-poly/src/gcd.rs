@@ -242,7 +242,12 @@ fn pgcd(f: Fp, a: &Sp, b: &Sp, m: &mut Meter) -> WorkResult<Sp> {
         if ga == 0 {
             continue;
         }
-        m.step(1)?;
+        // a point: both inputs evaluated run by run (every exponent word read, the prefixes copied, a dozen vectors
+        // made), the image scaled and interpolated: 16 steps and one per eight exponent words. A point of two
+        // monomials takes about 1.6 microseconds, so this is the rate of about 200 units of fuel per millisecond the
+        // budgets of the tower methods assume (mc-api NOTES, "budgets of work"). Counted as one step before, a gcd
+        // of monomials in many variables (2^k points) ran for seconds on a few units.
+        m.step(16 + ((a.len() + b.len()) * nv) as u64 / 8)?;
         let img = pgcd(f, &a.eval_last(f, alpha), &b.eval_last(f, alpha), m)?;
         let img = img.scale(f, ga);
         if let Some(cur) = &h {

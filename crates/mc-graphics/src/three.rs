@@ -676,7 +676,7 @@ fn scene<S: Store + ?Sized>(h: &S, content: T<'_>, stop: &dyn Fn() -> bool) -> R
     let mut sc = Scene { elems: vec![], styles: vec![Style::uncoloured()] };
     let single = [content];
     let mut stack: Vec<(&[T<'_>], usize)> = vec![(&single[..], 0)];
-    let mut seen = 0usize;
+    let (mut seen, mut made, mut next_poll) = (0usize, 0usize, POLL);
     while let Some((rest, style)) = stack.last_mut() {
         let Some((&e, tail)) = rest.split_first() else {
             stack.pop();
@@ -684,9 +684,14 @@ fn scene<S: Store + ?Sized>(h: &S, content: T<'_>, stop: &dyn Fn() -> bool) -> R
         };
         *rest = tail;
         let cur = *style;
-        seen += 1;
-        if seen.is_multiple_of(POLL) && stop() {
-            return Err(Failure::new("interrupted", ""));
+        // polled by the elements and the faces made: a sphere is hundreds of faces
+        seen += 1 + sc.elems.len().saturating_sub(made);
+        made = sc.elems.len();
+        if seen >= next_poll {
+            next_poll = seen + POLL;
+            if stop() {
+                return Err(Failure::new("interrupted", ""));
+            }
         }
         if let Some(items) = list(h, e) {
             stack.push((items, cur));
@@ -1361,7 +1366,14 @@ impl Prepared {
                 }
             }
         }
+        // the sort of a million faces takes a good part of a second: polled on both sides
+        if stop() {
+            return Err(Failure::new("interrupted", ""));
+        }
         drawn.sort_by(|a, b| b.depth.total_cmp(&a.depth));
+        if stop() {
+            return Err(Failure::new("interrupted", ""));
+        }
         drawn.extend(labels);
         let mut g = Graphic { items: Vec::with_capacity(drawn.len()), styles: vec![Style::default()], opts: Opts::default() };
         g.styles.reserve(drawn.len());

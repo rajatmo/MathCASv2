@@ -592,13 +592,15 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
         look
     };
     let g = figure::figure(h, series, look, &extra);
+    // every stage of the drawing polls the stop flag; an interrupt seen there ends the evaluation with the
+    // interrupt (`NativeCx::poll`), not with a picture or a failure value
+    cx.poll()?;
     let stop = cx.stop_flag().clone();
     let rendered = mc_graphics::render_read(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed));
     let (files, layout, mut model) = match rendered {
         Ok(r) => r,
         Err(f) => {
-            // an interrupt ends the evaluation as interrupts do; other failures are the value
-            cx.tick(1)?;
+            cx.poll()?;
             return Ok(Reply::Done(f.term(h)));
         }
     };
@@ -619,14 +621,14 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
         on_page(COLUMN_SIZE, &[Format::Svg], &[COLUMN_EXTENSION]);
         model.opts.image_size = screen;
     }
-    if stop.load(Ordering::Relaxed) {
-        // an interrupt while the twins were drawn ends the evaluation
-        cx.tick(1)?;
-    }
+    // an interrupt while the twins were drawn ends the evaluation
+    cx.poll()?;
     let mut entries = entries(series, look, &layout);
     entries.extend(extra.entries);
     let json = sidecar::json(&layout, look.scale, &entries);
+    cx.poll()?;
     let text = mc_syntax::Printer::new(h).expr(g);
+    cx.poll()?;
     Ok(Reply::Done(match write_files(&files, &json, None, &twins) {
         Ok(path) => {
             // remembered, so that show(...) and layouts can use the plot as a graphic
@@ -652,12 +654,14 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
     let (files, layout, mut model) = match mc_graphics::render_read(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed)) {
         Ok(r) => r,
         Err(f) => {
-            cx.tick(1)?;
+            cx.poll()?;
             return Ok(Reply::Done(f.term(h)));
         }
     };
+    cx.poll()?;
     let json = sidecar::json(&layout, Scale::default(), &[]);
     let text = mc_syntax::Printer::new(h).expr(g);
+    cx.poll()?;
     // a 3D graphic's term next to its picture: a front end turns it from there (mc_graphics::view3d)
     let three = mc_graphics::three::is_graphics3d(h, g);
     let scene = three.then_some(text.as_str());
@@ -672,9 +676,7 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
             twins.push((COLUMN_EXTENSION, made.remove(0)));
         }
         model.opts.image_size = screen;
-        if stop.load(Ordering::Relaxed) {
-            cx.tick(1)?;
-        }
+        cx.poll()?;
     }
     Ok(Reply::Done(match write_files(&files, &json, scene, &twins) {
         Ok(path) => {
@@ -1568,7 +1570,6 @@ const SILENT: &[&str] = &[
     "working_precision",
     "performance_goal",
     "evaluated",
-    "evaluation_monitor",
     "method",
     "plot_points",
     "max_plot_points",

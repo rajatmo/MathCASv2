@@ -2387,6 +2387,7 @@ dependencies = [
  "mc-engine",
  "mc-eval",
  "mc-numeric",
+ "mc-numfn",
  "mc-random",
  "mc-special",
 ]

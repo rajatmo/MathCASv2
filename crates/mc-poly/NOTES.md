@@ -395,3 +395,13 @@ factor by factor and stay products.
   depends only on the ideal and the order (Pauer 2007). Lex and degree reverse lexicographic orders.
 - Checked: the basis generates the same ideal over Q and modulo every prime tried (the reductions modulo p of a
   strong basis over Z generate the ideal modulo p, including primes dividing a leading coefficient).
+
+## Round 43b: the work of a gcd
+
+- Brown's algorithm (`gcd.rs`) counted one meter step per evaluation point. On monomials in k variables it visits
+  about 2^k points (the lcm of the derivations' denominators of a tower of 40 nested functions: 1.6 million
+  points, 2.6 s, for a few units of fuel), so the ansatz of `integrate` ran 8 s past a budget meant for 2.5. A
+  point now costs 16 steps plus one per eight exponent words of the inputs, about the rate of 200 units of fuel per
+  millisecond that the budgets of the tower methods assume (mc-api NOTES, "budgets of work"): the ansatz stops at
+  its budget after about 2.3 s, and `integrate` of that integrand takes 2.9 s (4.2 s before round 43, 8.7 s
+  after). The gcds of small polynomials gain a few units of fuel each.

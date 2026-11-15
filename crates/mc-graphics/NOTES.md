@@ -295,3 +295,11 @@ through the same plan (plot range, area) the page is painted with; `rasterize(g,
 - `text(e, p, automatic)`: centred on the position.
 - `geometric_transformation(g, [t1, t2, ...])`: a copy of `g` under each map (transformation functions, matrices,
   `[m, b]` pairs).
+
+## Round 43b: polls counted in work
+
+- The loops that read, lay out and paint a graphic polled `stop` every 4096 *elements*; one element can be 400,000
+  points or a sphere of hundreds of faces, so a stop waited for seconds. `model::read` and `three::scene` now count
+  the points and faces made (`page::size`), `page::paint` counts the points painted and draws a set of more than
+  4096 points in parts with a poll between them (the SVG and PDF then hold several point paths; the picture is the
+  same), and the 3D draw polls around its depth sort. A poll comes at least every 4096 points or faces.

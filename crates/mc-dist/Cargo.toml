@@ -14,6 +14,7 @@ mc-arith = { path = "../mc-arith" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
 mc-numeric = { path = "../mc-numeric" }
+mc-numfn = { path = "../mc-numfn" }
 mc-random = { path = "../mc-random" }
 mc-special = { path = "../mc-special" }
 

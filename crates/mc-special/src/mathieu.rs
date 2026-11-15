@@ -577,6 +577,8 @@ fn tridiag_eigen(diag: &[f64], off: &[f64], j: usize) -> f64 {
         if mid == lo || mid == hi {
             break;
         }
+        // a Sturm count's work, n divisions (mc_api::work)
+        mc_api::work::charge(8 * n as u64 + 16);
         if count(mid) > j {
             hi = mid;
         } else {

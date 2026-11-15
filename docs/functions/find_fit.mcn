@@ -18,6 +18,9 @@
 #% item
 # Levenberg-Marquardt on machine numbers with the symbolic Jacobian; the result is a list of rules.
 
+#% item
+# `evaluation_monitor: f` calls `f` with the parameter values, one argument per parameter, before every evaluation of the model over the data; `step_monitor: f` after every accepted step. A failure `f` gives (a `throw`) ends the fit and is the result; a value that is not a function is a failure showing the form to write.
+
 #% section
 # Examples
 
@@ -44,6 +47,14 @@ find_fit([[0, 1.0], [1, 2.7], [2, 7.4], [3, 20.1]], a*exp(b*x), [[a, 1], [b, 1]]
 find_fit([1.0, 1.9, 3.2, 3.9], a + b*x, [a, b], x)
 #% output
 #= [a -> 9.289926551926663e-17, b -> 1.0]
+
+#% text
+# The parameter values after each accepted step:
+
+#% cell
+last(reap(find_fit([[0, 1.0], [1, 2.7], [2, 7.4], [3, 20.1]], a*exp(b*x), [[a, 1], [b, 1]], x, step_monitor: ((a, b) => sow([a, b])))))
+#% output
+#= [[[0.9984879437953297, 1.0007744690200309], [0.9983182325782122, 1.0008339873233434], [0.9983168020429763, 1.000834489975262], [0.9983168020321685, 1.0008344899743837], [0.9983168020321654, 1.0008344899743848]]]
 
 #% section
 # See also

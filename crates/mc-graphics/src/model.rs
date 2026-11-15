@@ -2023,7 +2023,7 @@ pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Resu
     let seq: Vec<T<'_>> = extra("prolog").into_iter().chain([content]).chain(extra("epilog")).collect();
     // a stack of (remaining elements, the style index current in that list)
     let mut stack: Vec<(&[T<'_>], usize)> = vec![(&seq[..], 0)];
-    let mut seen = 0usize;
+    let (mut seen, mut counted, mut next_poll) = (0usize, 0usize, POLL);
     let mut pending: Vec<Unbounded> = vec![];
     let mut axes: Vec<AxisSpec> = vec![];
     // transforms in force: (the stack depth of their content, the first item they move, the maps)
@@ -2056,9 +2056,17 @@ pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Resu
         };
         *rest = tail;
         let cur = *style;
+        // polled by the elements and the points read: one element may hold a hundred thousand points
         seen += 1;
-        if seen.is_multiple_of(POLL) && stop() {
-            return Err(Failure::new("interrupted", ""));
+        for it in &g.items[counted.min(g.items.len())..] {
+            seen += crate::page::size(&it.shape);
+        }
+        counted = g.items.len();
+        if seen >= next_poll {
+            next_poll = seen + POLL;
+            if stop() {
+                return Err(Failure::new("interrupted", ""));
+            }
         }
         if let Some(items) = list(h, e) {
             stack.push((items, cur));

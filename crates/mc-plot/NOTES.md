@@ -255,3 +255,18 @@ used. Tests: `tests/round20.rs`.
   first elements, a list sits where one data set has a number (one step for arrays of values and lists of
   `[x, y, f]`, two for matrices of vectors and lists of pairs, three for 3D arrays of vectors). Lists of pairs
   `[[x, y, z], [vx, vy, vz]]` in space are not told apart from one 3D array and are still read as one data set.
+
+## Round 43b: monitors and interrupts of plots
+
+- Monitors take a function (design NUM.8). The function plots (every native registered through `held::register`)
+  have no hook for one: their samples are compiled and evaluated in batches. `Held` takes the monitor options out
+  first: a value that is not a function is `failure(not_a_function, ...)`, a function is
+  `failure(unknown_option, evaluation_monitor)` (`step_monitor` likewise); `evaluation_monitor` is no longer in the
+  silent options, so a list plot names it among the options not used. A plot used to accept a held expression and
+  ignore it.
+- Drawing honours an interrupt: `finish` and `finish_graphic` call `NativeCx::poll` after building the figure,
+  after a render that saw the stop flag, after the twins and around printing the term, so an interrupt ends the
+  evaluation with the interrupt instead of a failure value or a picture. Together with the engine's stop flag
+  (mc-engine) and the work-counted polls of mc-graphics, a stop raised 200 ms into a heavy plot (3D surfaces,
+  contours, 60,000 disks, 200,000 points, 1,200 spheres) ends it within about 50 ms. Test
+  `mc-engine/tests/round43b_render.rs`.

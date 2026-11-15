@@ -152,6 +152,8 @@ pub fn hurwitz_zeta(s: C64, a: C64) -> Option<C64> {
         return None;
     }
     let mut sum = r(0.0);
+    // the terms' work (a complex power each, about 100 ns), for the evaluator's fuel (mc_api::work)
+    mc_api::work::charge(128 * n as u64);
     for k in 0..n {
         sum = sum + powc(a + r(k as f64), neg(s));
     }
@@ -199,6 +201,9 @@ fn zeta_em_large(s: C64) -> Option<C64> {
     let mut sum = r(0.0);
     let mut k = 1.0;
     while k < n {
+        // a term's work (a double-double logarithm and sine and cosine, about a microsecond), for the evaluator's
+        // fuel (mc_api::work): zeta(1/2 + 10^5 i) sums 10^5 terms
+        mc_api::work::charge(1024);
         sum = sum + int_pow_neg(k, s);
         k += 1.0;
     }

@@ -281,7 +281,11 @@ impl Native for Graphics {
         Ok(Reply::Done(match model::read(h, g, &stopped) {
             Ok(_) => g,
             Err(f) if f.tag == "not_numeric" => g,
-            Err(f) => f.term(h),
+            Err(f) => {
+                // a read that saw the stop flag ends the evaluation with the interrupt, not with a failure value
+                cx.poll()?;
+                f.term(h)
+            }
         }))
     }
 }

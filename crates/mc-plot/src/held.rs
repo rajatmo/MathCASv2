@@ -25,6 +25,19 @@ fn is_failure<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> bool {
 
 impl Native for Held {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        // monitors take a function (design NUM.8): a value that is not one is a failure showing the form to write; a
+        // plot has no hook for one (its samples are compiled and evaluated in batches), so a function is an unknown
+        // option, never accepted and ignored
+        let (args, mons) = match mc_numfn::take_monitors(cx, args, &mc_numfn::MONITOR_OPTIONS) {
+            Ok(v) => v,
+            Err(f) => return Ok(Reply::Done(f)),
+        };
+        if mons.any() {
+            let h = cx.heap();
+            let name = if mons.steps() { "step_monitor" } else { "evaluation_monitor" };
+            return Ok(Reply::Done(h.call(h.sym("failure"), &[h.sym_term(h.sym("unknown_option")), h.sym_term(h.sym(name))])));
+        }
+        let args = &args[..];
         let Some((&f, rest)) = args.split_first() else {
             return self.0.call(cx, t, args);
         };

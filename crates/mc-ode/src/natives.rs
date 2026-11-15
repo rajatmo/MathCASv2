@@ -183,9 +183,6 @@ impl Solve {
         if opts.high_precision() && !sys.targets.is_empty() {
             return Ok(Err(bad_argument(h, name, h.string("boundary value problems are solved at machine precision only"))));
         }
-        if opts.high_precision() && opts.monitors.any() {
-            return Ok(Err(bad_argument(h, name, h.string("monitors are called by the machine-precision methods only"))));
-        }
         if opts.high_precision() {
             // the ends as given (3/2 stays exact)
             let start = ar.num(sys.start).expect("a number");
@@ -345,9 +342,11 @@ impl Solve {
             let mut segs = vec![];
             let mut reached = (lo.1, hi.1);
             for (end, forward) in [(&a, false), (&b, true)] {
-                let run = taylor::integrate(cx, &tape, &t0, &y0, end, digits as f64, limit)?;
+                let run = taylor::integrate(cx, &tape, &t0, &y0, end, digits as f64, limit, &opts.monitors)?;
                 match run.end {
                     taylor::End::Done => {}
+                    // the monitor's failure is the result (the native reads it from the monitors)
+                    taylor::End::Monitor => return Ok(Err(cx.null())),
                     taylor::End::NotNumeric(tp) => {
                         let at = rules(h, &[(h.sym_term(sys.t), h.real(tp))]);
                         return Ok(Err(failure(h, "not_numeric", &[h.sym_term(h.sym(name)), at])));

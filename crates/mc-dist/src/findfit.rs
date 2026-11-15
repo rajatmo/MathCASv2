@@ -7,9 +7,14 @@
 //! evaluated by substituting numbers and evaluating the term. The result is the list of rules `p -> value`; a model
 //! that does not evaluate to real numbers gives `failure(not_numeric, model)`, and no convergence in 500
 //! iterations `failure(not_converged, find_fit, rules)`.
+//!
+//! Monitors (`mc_numfn::monitor`): `evaluation_monitor: f` is called with the parameter values (one argument per
+//! parameter, in the order of the parameters) before every evaluation of the model over the data, `step_monitor: f`
+//! with the parameter values after every accepted step; a failure either gives ends the fit and is its result.
 use mc_api::{Store, View, T};
 use mc_eval::Res;
 use mc_numeric::formula::{Def, Fx};
+use mc_numfn::Monitors;
 
 type R<'h> = Res<Option<T<'h>>>;
 
@@ -55,6 +60,28 @@ impl<'h> Problem<'h> {
     }
 }
 
+/// The parameter values as the arguments of a monitor.
+fn monitor_args<'h>(fx: &Fx<'_, '_, '_, 'h>, p: &[f64]) -> Vec<T<'h>> {
+    p.iter().map(|&v| fx.real(v)).collect()
+}
+
+/// The model's values at the parameters `p`, after the evaluation monitor saw them; `Err` with the failure a monitor
+/// gave.
+fn watched<'h>(fx: &mut Fx<'_, '_, '_, 'h>, pr: &Problem<'h>, p: &[f64], mons: &Monitors) -> Res<Result<Option<Vec<f64>>, T<'h>>> {
+    if mons.any() {
+        let args = monitor_args(fx, p);
+        if !mons.evaluated(fx.cx, &args)? {
+            return Ok(Err(stopped(fx, mons)));
+        }
+    }
+    Ok(Ok(pr.values(fx, p)?))
+}
+
+/// The failure a monitor gave.
+fn stopped<'h>(fx: &Fx<'_, '_, '_, 'h>, mons: &Monitors) -> T<'h> {
+    mons.failure(fx.h).unwrap_or_else(|| fx.failure(&["argument", "find_fit"]))
+}
+
 fn sse(f: &[f64], y: &[f64]) -> f64 {
     f.iter().zip(y).map(|(a, b)| (b - a) * (b - a)).sum()
 }
@@ -87,6 +114,14 @@ fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Option<Vec<f64>> {
 }
 
 fn find_fit<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    // the monitors from a trailing `options(...)`; any other option leaves the call as it is
+    let (a, mons) = match mc_numfn::take_monitors(fx.cx, a, &mc_numfn::MONITOR_OPTIONS) {
+        Ok(v) => v,
+        Err(f) => return Ok(Some(f)),
+    };
+    if !matches!(a.len(), 3 | 4) || a.last().is_some_and(|&l| matches!(fx.h.view(l), View::App { head, .. } if head == fx.sym("options"))) {
+        return Ok(None);
+    }
     let (data, model, params) = (a[0], a[1], a[2]);
     let vars: Vec<T<'h>> = match a.get(3) {
         Some(&v) => fx.as_list(v).map_or_else(|| vec![v], |l| l.to_vec()),
@@ -132,7 +167,16 @@ fn find_fit<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let pr = Problem { model, syms, xs, ys };
     let np = ps.len();
     let mut p = p0;
-    let Some(mut f) = pr.values(fx, &p)? else {
+    // the model at the parameters, seen by the evaluation monitor first (its failure ends the fit)
+    macro_rules! values {
+        ($p:expr) => {
+            match watched(fx, &pr, $p, &mons)? {
+                Ok(v) => v,
+                Err(failure) => return Ok(Some(failure)),
+            }
+        };
+    }
+    let Some(mut f) = values!(&p) else {
         return Ok(Some(fx.h.call(fx.h.sym("failure"), &[fx.sym("not_numeric"), model])));
     };
     let mut cost = sse(&f, &pr.ys);
@@ -161,7 +205,8 @@ fn find_fit<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
             let (mut up, mut dn) = (p.clone(), p.clone());
             up[j] += h;
             dn[j] -= h;
-            let (Some(fu), Some(fd)) = (pr.values(fx, &up)?, pr.values(fx, &dn)?) else { break };
+            let (fu, fd) = (values!(&up), values!(&dn));
+            let (Some(fu), Some(fd)) = (fu, fd) else { break };
             for i in 0..pr.ys.len() {
                 jac[i][j] = (fu[i] - fd[i]) / (2.0 * h);
             }
@@ -188,7 +233,7 @@ fn find_fit<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
                 continue;
             };
             let q: Vec<f64> = p.iter().zip(&step).map(|(a, b)| a + b).collect();
-            if let Some(fq) = pr.values(fx, &q)? {
+            if let Some(fq) = values!(&q) {
                 let c = sse(&fq, &pr.ys);
                 // within rounding of the sum near the minimum, a step that does not increase it is accepted
                 if c <= cost * (1.0 + 1e-13) {
@@ -205,6 +250,12 @@ fn find_fit<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
                 }
             }
             lambda = if lambda == 0.0 { 1e-9 } else { lambda * 10.0 };
+        }
+        if accepted && mons.steps() {
+            let args = monitor_args(fx, &p);
+            if !mons.stepped(fx.cx, &args)? {
+                return Ok(Some(stopped(fx, &mons)));
+            }
         }
         if !accepted || converged {
             converged = true;
@@ -223,7 +274,8 @@ fn find_fit<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 /// The definitions of this module.
 pub static DEFS: &[Def] = &[Def {
     name: "find_fit",
-    arities: &[3, 4],
+    // a fifth argument: the options (the monitors)
+    arities: &[3, 4, 5],
     listable: false,
     exact: Some(find_fit),
     numeric: None,

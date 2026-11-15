@@ -1134,3 +1134,14 @@ small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
   (DLMF 11.10.15, 11.10.16), so the plots of E_0 evaluate Struve's function.
 - Not reached: Lommel series and integrals with symbolic orders (series with a symbolic power are not compared),
   property functions of the Lommel functions with symbolic orders, 2H3 at 1 (its negative half diverges).
+
+## Round 43b: the machine kernels report their work
+
+- A survey of 70 evaluations (machine and 30 to 40 digits; `mc-engine/tests/round43b_special_work.rs`, which
+  measures the fuel of each and prints the rates under `MC_SPECIAL_WORK_SURVEY=1`) found three kernels that ran
+  for milliseconds without reporting: the Euler-Maclaurin sum of `zeta` at a large imaginary part
+  (`machine/complex.rs`; 10^5 terms, 150 ms on 16 units), the Taylor steps of the Mathieu equation
+  (`fast29::mathieu_solve`, behind the machine Mathieu functions and characteristic values) and the Sturm bisection
+  of `mathieu::tridiag_eigen`; the Heun steps (`fast29::heun_step`) and the Hurwitz sum report too now. Each charges
+  its terms (`mc_api::work::charge`: about a nanosecond per operation, 1,024 for a double-double term of zeta).
+  Every evaluation of the survey longer than 2 ms is now charged above 1,000 units per ms.

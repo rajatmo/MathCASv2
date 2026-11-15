@@ -167,3 +167,13 @@ others. Gap: vector-valued unknowns (`z(0) == [1, 0]`).
   called at every evaluation of the right-hand side (`Model::new` interprets a monitored right-hand side) and at
   the end of every accepted step (`driver::integrate`, `Model::step`); a failure ends the integration and is the
   result. The Taylor method under `digits:` has no monitor hook: monitors there are a bad argument.
+
+## Round 43b: monitors of the Taylor method
+
+- Under `digits:` the monitors are no longer refused: `taylor::integrate` calls the evaluation monitor with the
+  time at which the right-hand side is expanded (once per step) and the step monitor with the end of every step,
+  both as numbers at the working precision; a failure ends the run (`End::Monitor`) and the native gives it. Both
+  runs of the method (the second estimates the error) are seen. Test `mc-engine/tests/round43b_monitors.rs`.
+- Seen on the way, left as it is: a step can pass the end of the range (`[t, 0, 12]` steps to 12.217, then back to
+  12), because the test of the last step compares `log2` of the remaining length rounded to its leading bit with
+  the exact `log2` of the step. The solution stays within its tolerance; a change would move printed digits.

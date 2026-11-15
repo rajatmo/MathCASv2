@@ -261,3 +261,14 @@ and `prime_zeta_p` to `lib/special.mc`.
   `perfect_number(k, even)`); strings stay only where an outside standard fixes the spelling (hashes, formats,
   units, colour spaces, languages) and for property names and keys. The rule and both tables (converted, kept with
   the reason) are in design 04-syntax, section 10.1.
+
+## Round 43b: one stop flag
+
+- The kernel's stop flag (`NativeCx::stop_flag`, polled by the renderers of mc-graphics and other library loops)
+  was a flag of the kernel's own that the engine never raised: the engine forwards a stop to the evaluator's
+  control block and to the number kernels' flag only. `CoreEngine::with_config` now makes the number kernels' flag
+  the kernel's stop flag, so every loop that polls it sees an interrupt (and a `time_constrained` limit, which
+  raises the watched flags). Under load eleven plots had ignored an interrupt for five seconds.
+- Tests: `round43b_iterators.rs` (every iterating function with no, one and malformed arguments, the loop signals
+  as values and elements, nested and parallel; `MC_ITER_FUZZ_CASES` for a long campaign: 21,798 + 6,265 inputs
+  ran clean), `round43b_monitors.rs`, `round43b_render.rs`.

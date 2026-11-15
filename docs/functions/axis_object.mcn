@@ -4,7 +4,7 @@
 # axis_object
 
 #% text
-# `axis_object(path, [t0, t1])`: an axis drawn along line([p, q]), infinite_line(...), [horizontal, y, [x0, x1]] or [vertical, x, [y0, y1]] (names as strings or symbols), with ticks labelled from t0 to t1 (option axis_label)
+# `axis_object(path, [t0, t1])`: an axis drawn along line([p, q]), infinite_line(...), [horizontal, y, [x0, x1]] or [vertical, x, [y0, y1]] (`horizontal` and `vertical` are symbols), with ticks labelled from t0 to t1 (option axis_label)
 
 #% section
 # Examples

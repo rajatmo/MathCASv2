@@ -334,6 +334,10 @@ pub(crate) fn table<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
 /// threads at once.
 pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], parallel: bool) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // no body (`table()`, `table(parallel: true)`): no rule reads the call
+    if args.is_empty() {
+        return Ok(Reply::Decline);
+    }
     // an indexed variable `a(1)` or `a(x)` (a call of a symbol without definitions, its arguments atoms) in a
     // variable's place: a fresh symbol stands for it in the body
     if args.len() >= 3 {

@@ -603,6 +603,9 @@ fn mathieu_solve(a: CD, q: CD, z: CD, y0: f64, d0: f64) -> Option<(CD, CD, f64)>
         let mut small = 0;
         let mut ok = false;
         for k in 0..400usize {
+            // the coefficient's work: a convolution of k double-double complex terms (mc_api::work); a solution at a
+            // large argument takes thousands of steps
+            mc_api::work::charge(8 * k as u64 + 32);
             if k > 0 {
                 pk = pk.mul_f(2.0) / DD::new(k as f64);
             }
@@ -1040,6 +1043,8 @@ fn heun_step(a: &[CD], b: &[CD], c: &[CD], z0: CD, h: CD, y0: CD, d0: CD, regula
     let mut big = 0.0f64;
     let len = a.len().max(b.len()).max(c.len());
     for k in 0..6000usize {
+        // a coefficient's work: the recurrence over the polynomials' terms (mc_api::work)
+        mc_api::work::charge(24 * len as u64 + 32);
         if k >= y.len() {
             let n = if regular { k - 1 } else { k - 2 };
             let mut rest = CD::ZERO;
