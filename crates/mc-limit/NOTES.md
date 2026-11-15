@@ -85,3 +85,11 @@ sum is `root_sum(p, t => lim g)` when the summand's own limit is a finite value;
   function may still have no limit along other paths), so the call then stays unevaluated; deciding existence over
   the plane (analyticity at the point) is not done. `abs(x + h) - abs(x)` over h with a symbolic x stays: its ray
   limits are expressions in x whose difference is not decided. Tests `mc-engine/tests/round40_limits.rs`.
+
+## Round 43b: poles of tanh
+
+- The walk took tanh and atan as continuous at every finite limit point of their argument. tanh has poles where
+  cosh vanishes (i pi/2 + i k pi): there it is now sinh(u)/cosh(u), whose limit the side of cosh(u) decides, so
+  `limit(t tanh(i pi/2 + t), t -> 0)` is 1 (it was 0) and `limit(tanh(i pi/2 + t), t -> 0)` has no limit (it was
+  `i tan(pi/2)`). atan takes the fast path only off its branch points and cuts (a real point, one off the imaginary
+  axis, or one on it strictly between -i and i). Tests `mc-engine/tests/round43b_proofs.rs`.

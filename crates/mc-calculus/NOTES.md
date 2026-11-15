@@ -1718,3 +1718,54 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   argument for unbounded domains (an enclosure needs a bounded interval); a smallest period T/n with every prime
   factor of n above 24 is not looked for.
   Tests: `mc-engine/tests/round43_proofs.rs`.
+
+## Round 43b: proofs of property answers
+
+- **Signs over a whole interval** (`props/interval.rs`): the sign of g = f, f', f'' on an open interval, also
+  unbounded, by (in order) `refine` under a < x < b; the factors of g (`together` after writing tan, cot, sec, csc,
+  tanh, coth, sech, csch as quotients, and after clearing fractional powers u^(-e) of positive bases, which
+  `together` leaves); the limit L of g at an end with the sign of g' inside (g - L has one sign: the tail argument
+  at infinity, and the argument at an end where g is not defined); enclosures over a bounded interval; splitting an
+  unbounded interval at a point. A sign is strict, or weak with isolated zeros (g real-analytic there, not 0), which
+  suffices for strict monotonicity and convexity. On the domain (`shape_on_domain`): monotonicity and convexity need
+  one interval and f continuous on it, so f' (f'') may be undefined at its ends (acosh at 1); for monotonicity,
+  isolated points inside where f' is not defined but f is (sinh(x)/x for Shi) split the interval. Literature: Rudin,
+  Principles of Mathematical Analysis, theorem 5.11; Boyd and Vandenberghe, Convex Optimization, 3.1.4.
+- **Table**: weak facts (2, -2: nonnegative, nondecreasing; a strict question is not settled by them) and the sign
+  from the range on the real domain (cantor_staircase, heaviside_lambda, sawtooth_wave, inverse_beta_regularized).
+  New facts: erf increasing, erfc positive and decreasing (DLMF 7.2.1, 7.2.2); inverse Jacobi functions monotone
+  where their real domain is an interval and nonnegative where their elliptic integral starts at an end (DLMF
+  22.15(ii), reciprocal modulus 22.17.2-22.17.4; checked against values for m = 1/3, -2, 3); F(phi|m) and am(x|m)
+  increasing (19.2.4, 22.16.1); Li_s increasing and convex on x < 1 for s > 0 (25.12.11); log_gamma convex (5.15.1),
+  real only for x > 0 (its domain over the reals was the complex one); Neville theta_d, theta_n positive for m < 1
+  (20.5.3, 20.5.4); hyperharmonic numbers of integer order with the poles of digamma (5.2.2, 5.7.6); Struve L_nu
+  increasing and nonnegative on x >= 0 for nu > -1 (11.2.2); pFq with p = q and real 0 < a_i < b_i in sorted pairs
+  positive, increasing and convex on the line (the iterated Euler integral, 16.5.2): `function_sign` of
+  3F3(1, 1, 1; 3, 3, 3; z) is 1 (a Laplace transform of a positive measure; at z = -500 it is 0.1509), not
+  indeterminate.
+- **Injectivity** (`props/inject.rs`): the pieces of the domain with the limits of f at their ends: open images that
+  overlap give false (Ei, li, E_(-1)); strictly monotone pieces with disjoint images give true (1/x, csch, coth,
+  tanh(1/x), Moebius maps); two disjoint stretches of samples whose value ranges meet, confirmed at exact points and
+  f continuous on both, give false (inverse_gudermannian, Weierstrass p' and zeta); turning points take the nearest
+  samples whose values differ (sech at 0: the samples 10^-k near 0 hid it). Monotonicity for injectivity is asked
+  on the domain (as the condition: without one, a domain that is not the whole line made it indeterminate); an
+  inverse that is a right inverse (inverse_weierstrass_p) is injective; exact zero ties are tried (ramp, the
+  imaginary part of subfactorial at the integers); integral samples are integers for domains of integers.
+- **Steps and kinks**: compositions with strictness (x + floor(x) strictly increasing: a strict part and parts of
+  its direction); convexity of a continuous function with kinks from its pieces (each convex by refine, f
+  continuous at the joints and the one-sided slopes not dropping: |x|^3); `conjugate`, `re`, `im_part` of
+  polynomials in a real x refined away.
+- **Refutations**: a point where f is defined and proved not real (30-digit imaginary part) without a condition
+  makes the property indeterminate (one variable: spheroidal_s1 at x = 1/2; several: Weierstrass e_1 and eta_1 of
+  real invariants with a negative discriminant); chords across the gaps of a region of several intervals (li on
+  x >= 0, x != 1); along a segment of several variables, f defined by its known conditions (no enclosure needed:
+  the ball form of inverse_gamma_regularized took 23 s); a bracket end that is an exact zero (sin(2 pi x) at 1/2,
+  so `function_analytic(square_wave(x), x)` is false).
+- **Budget of work**: `SEARCH_BUDGET` (2.5 s) is `SEARCH_WORK`, 5M units of fuel (`mc_eval::Allowance`): the
+  property calls of the example pages spend 2,000 to 3,000 units per ms here, so 5M is the old 2.5 s; every answer
+  that came within it before comes within it now. Measured: Mathieu a_1 injective 1.7M (proved false), spheroidal
+  convexity cut at 5M (the non-real point decides it first), 3F3 sign 20k.
+- Left: the sign of alternating_factorial on z > 0 (no ball form and no closed derivative of its continuation
+  e Gamma(z + 2) Gamma(-z - 1, 1) - cos(pi z)(1 + e Ei(-1))); the convexity of inverse_elliptic_nome_q (no ball
+  form of m(q)); the convexity of inverse_jacobi_dn(x, m) in (x, m) (no 30-digit value of elliptic_f at a complex
+  amplitude to confirm a non-real point). Tests: `mc-engine/tests/round43b_proofs.rs`.

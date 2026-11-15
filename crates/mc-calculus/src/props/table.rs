@@ -81,9 +81,10 @@ pub struct Entry {
     /// a condition on the parameters under which the function is periodic in the variable (not injective)
     pub periodic: &'static str,
     /// the strict sign on the real domain: (condition on the parameters, 1 positive or -1 negative), the first that
-    /// holds
+    /// holds; 2 (-2) when only nonnegative (nonpositive) is known
     pub signs: &'static [(&'static str, i8)],
-    /// strictly increasing (1) or decreasing (-1) on the real domain (an interval), the first condition that holds
+    /// strictly increasing (1) or decreasing (-1) on the real domain (an interval), the first condition that holds;
+    /// 2 (-2) when only nondecreasing (nonincreasing) is known
     pub mono: &'static [(&'static str, i8)],
     /// strictly convex (1) or concave (-1) on the real domain (an interval), the first condition that holds
     pub convex: &'static [(&'static str, i8)],
@@ -186,6 +187,16 @@ pub static TABLE: &[Entry] = &[
     Entry { name: "scorer_hi", signs: &[("", 1)], mono: &[("", 1)], convex: &[("", 1)], ranges: &[("", "$y > 0")], bound: Bound::Below, refs: "DLMF 9.12.5, 9.12.20, 9.12.30", ..ENTIRE },
     Entry { name: "scorer_hi_prime", signs: &[("", 1)], mono: &[("", 1)], convex: &[("", 1)], ranges: &[("", "$y > 0")], bound: Bound::Below, refs: "DLMF 9.12.5, 9.12.20", ..ENTIRE },
     // error functions and their inverses (DLMF 7.2, 7.5, 7.17)
+    Entry { name: "erf", mono: &[("", 1)], ranges: &[("", "-1 < $y and $y < 1")], bound: Bound::Both, refs: "DLMF 7.2.1 (2/sqrt(pi) times the integral of exp(-t^2) from 0 to x)", ..ENTIRE },
+    Entry {
+        name: "erfc",
+        signs: &[("", 1)],
+        mono: &[("", -1)],
+        ranges: &[("", "0 < $y and $y < 2")],
+        bound: Bound::Both,
+        refs: "DLMF 7.2.2 (2/sqrt(pi) times the integral of exp(-t^2) from x to inf)",
+        ..ENTIRE
+    },
     Entry { name: "dawson_f", bound: Bound::Both, refs: "DLMF 7.2.5, 7.8 (bounded: a maximum near 0.924, odd)", ..ENTIRE },
     Entry { name: "fresnel_c", ranges: &[("", "-fresnel_c(1) <= $y and $y <= fresnel_c(1)")], bound: Bound::Both, refs: "DLMF 7.2.7, 7.3", ..ENTIRE },
     Entry {
@@ -280,6 +291,20 @@ pub static TABLE: &[Entry] = &[
         refs: "the gamma function, DLMF 5.2",
         ..E
     },
+    // the hyperharmonic numbers of an integer order r >= 1 continued to real m: (m + 1) ... (m + r - 1)/(r - 1)!
+    // (psi(m + r) - psi(r)), with the simple poles of psi at m + r = 0, -1, ... (DLMF 5.2.2, 5.7.6)
+    Entry {
+        name: "hyper_harmonic_number",
+        arity: 2,
+        var: 1,
+        when: "element($a, integers) and $a >= 1",
+        real: "$u > -$a or not_element($u, integers)",
+        complex: "re($u) > -$a or not_element($u, integers)",
+        sr: Some(&[("sin(pi*$u) == 0 and $u <= -$a", PO)]),
+        sc: Some(&[("sin(pi*$u) == 0 and re($u) <= -$a", PO)]),
+        refs: "DLMF 5.2.2, 5.7.6",
+        ..E
+    },
     // functions of an integer: complex-valued off the integers (subfactorial: Gamma(z + 1, -1)/e, entire in z, DLMF
     // 8.2.(ii)); the alternating harmonic numbers (a factor (-1)^z); the tau function (integers only)
     Entry { name: "subfactorial", real: "element($u, integers) and $u >= 0", complex: "true", sr: Some(&[("true", BR)]), sc: Some(NONE), refs: "DLMF 8.2.(ii)", ..E },
@@ -314,7 +339,8 @@ pub static TABLE: &[Entry] = &[
         refs: "DLMF 19.2.8, 19.6.1",
         ..E
     },
-    Entry { name: "elliptic_f", arity: 2, when: "$a < 1", real: "true", sr: Some(NONE), refs: "DLMF 19.2.4", ..E },
+    // F(phi|m) increases: its derivative (1 - m sin(phi)^2)^(-1/2) is positive where it is real (DLMF 19.2.4)
+    Entry { name: "elliptic_f", arity: 2, when: "$a < 1", mono: &[("", 1)], real: "true", sr: Some(NONE), refs: "DLMF 19.2.4", ..E },
     Entry { name: "elliptic_e", arity: 2, when: "$a < 1", real: "true", sr: Some(NONE), refs: "DLMF 19.2.5", ..E },
     Entry {
         name: "elliptic_pi",
@@ -343,14 +369,18 @@ pub static TABLE: &[Entry] = &[
     Entry { name: "jacobi_ns", arity: 2, joint: true, onto: &[("element($a, reals)", false)], periodic: PERIODIC_M, real: "~", sr: Some(SN_ZEROS), refs: "DLMF 22.2.10, 22.4.1, 22.17.4", ..E },
     Entry { name: "jacobi_cs", arity: 2, joint: true, onto: &[("$a < 1", true), ("$a >= 1", false)], periodic: PERIODIC_M, real: "~", sr: Some(SN_ZEROS), refs: "DLMF 22.2.10, 22.4.1, 22.17.4", ..E },
     Entry { name: "jacobi_ds", arity: 2, joint: true, onto: &[("$a <= 1", false), ("$a > 1", true)], periodic: PERIODIC_M, real: "~", sr: Some(SN_ZEROS), refs: "DLMF 22.2.10, 22.4.1, 22.17.4", ..E },
-    Entry { name: "jacobi_amplitude", arity: 2, when: "$a < 1", real: "true", sr: Some(NONE), ranges: &[("", "true")], refs: "DLMF 22.16.1", ..E },
+    // am(x|m) is the integral of dn(t|m) from 0 to x, and dn >= (1 - m)^(1/2) > 0 for m < 1 (DLMF 22.16.1, 22.2.6)
+    Entry { name: "jacobi_amplitude", arity: 2, when: "$a < 1", mono: &[("", 1)], real: "true", sr: Some(NONE), ranges: &[("", "true")], refs: "DLMF 22.16.1", ..E },
     // theta functions are entire in z for a nome inside the unit disc (DLMF 20.2.1-20.2.4); Neville's for m < 1
     // (nome in (-1, 1), DLMF 20.1, 22.2.1)
     Entry { name: "elliptic_theta", arity: 3, var: 1, when: "abs($b) < 1", periodic: "true", bound: Bound::Both, refs: "DLMF 20.2.1", ..ENTIRE },
     Entry { name: "elliptic_theta_prime", arity: 3, var: 1, when: "abs($b) < 1", periodic: "true", bound: Bound::Both, refs: "DLMF 20.2.1", ..ENTIRE },
     Entry { name: "neville_theta_c", arity: 2, periodic: "$a < 1", real: "$a < 1", sr: Some(&[("$a >= 1", BR)]), refs: "DLMF 20.1, 22.2.1", ..E },
-    Entry { name: "neville_theta_d", arity: 2, periodic: "$a < 1", real: "$a < 1", sr: Some(&[("$a >= 1", BR)]), refs: "DLMF 20.1, 22.2.1", ..E },
-    Entry { name: "neville_theta_n", arity: 2, periodic: "$a < 1", real: "$a < 1", sr: Some(&[("$a >= 1", BR)]), refs: "DLMF 20.1, 22.2.1", ..E },
+    // theta_d and theta_n are theta_3 and theta_4 of a real argument and a real nome q in (-1, 1) divided by their
+    // values at 0: the products prod (1 - q^(2n)) (1 +- 2 q^(2n - 1) cos(2 z) + q^(4n - 2)) have every factor at least
+    // (1 - |q|^(2n - 1))^2 > 0 (DLMF 20.5.3, 20.5.4), so both are positive
+    Entry { name: "neville_theta_d", arity: 2, periodic: "$a < 1", signs: &[("$a < 1", 1)], real: "$a < 1", sr: Some(&[("$a >= 1", BR)]), refs: "DLMF 20.1, 20.5.3, 22.2.1", ..E },
+    Entry { name: "neville_theta_n", arity: 2, periodic: "$a < 1", signs: &[("$a < 1", 1)], real: "$a < 1", sr: Some(&[("$a >= 1", BR)]), refs: "DLMF 20.1, 20.5.4, 22.2.1", ..E },
     Entry { name: "neville_theta_s", arity: 2, periodic: "$a < 1", real: "$a < 1", sr: Some(&[("$a >= 1", BR)]), refs: "DLMF 20.1, 22.2.1", ..E },
     // Weierstrass functions: sigma entire in z and the invariants (DLMF 23.2.6); p, p', zeta with a pole at 0
     // (and the other lattice points, not listed: DLMF 23.2.4-23.2.5)
@@ -501,7 +531,20 @@ pub static TABLE: &[Entry] = &[
         refs: "DLMF 11.2.2",
         ..E
     },
-    Entry { name: "struve_l", arity: 2, var: 1, when: "not_element($a, integers)", real: "$u > 0 or $u == 0 and $a > -1", complex: "$u != 0 or re($a) > -1", refs: "DLMF 11.2.2", ..POSITIVE },
+    // L_nu(x) = (x/2)^(nu + 1) times a series in (x/2)^2 with the positive coefficients 1/(Gamma(k + 3/2) Gamma(k + nu +
+    // 3/2)) for nu > -3/2 (DLMF 11.2.2): for nu > -1 every term increases on x > 0, from L_nu(0) = 0
+    Entry {
+        name: "struve_l",
+        arity: 2,
+        var: 1,
+        when: "not_element($a, integers)",
+        signs: &[("$a > -1", 2)],
+        mono: &[("$a > -1", 1)],
+        real: "$u > 0 or $u == 0 and $a > -1",
+        complex: "$u != 0 or re($a) > -1",
+        refs: "DLMF 11.2.2",
+        ..POSITIVE
+    },
     Entry { name: "anger_j", arity: 2, var: 1, refs: "DLMF 11.10.1, 11.10.(i)", ..ENTIRE },
     Entry { name: "weber_e", arity: 2, var: 1, refs: "DLMF 11.10.2, 11.10.(i)", ..ENTIRE },
     // Lommel functions of a non-integer first order mu: s_(mu,nu) = z^(mu + 1)/((mu + 1)^2 - nu^2) 1F2(1; (mu - nu + 3)/2,
@@ -614,7 +657,10 @@ pub static TABLE: &[Entry] = &[
     // re(s) > 1; increasing on (-inf, 1] to zeta(s) for s > 1, to inf for 0 < s <= 1 (DLMF 25.12.10-25.12.12)
     Entry {
         name: "polylog",
-        mono: &[("$a >= 1", 1)],
+        // Li_s(x) = x/Gamma(s) times the integral of t^(s-1)/(e^t - x) over t > 0 for s > 0 (DLMF 25.12.11): x/(e^t - x)
+        // increases and is convex in x < 1 (its derivatives e^t/(e^t - x)^2, 2 e^t/(e^t - x)^3 are positive)
+        mono: &[("$a > 0", 1)],
+        convex: &[("$a > 0", 1)],
         arity: 2,
         var: 1,
         real: "$u < 1 or $u == 1 and $a > 1 or element($a, integers) and $a <= 0 and $u != 1",
@@ -762,6 +808,7 @@ pub static TABLE: &[Entry] = &[
         when: "$a > 1",
         real: "-asin($a^(-1/2)) <= $u and $u <= asin($a^(-1/2))",
         sr: Some(&[("$u <= -asin($a^(-1/2)) or $u >= asin($a^(-1/2))", BR)]),
+        mono: &[("", 1)],
         bound: Bound::Both,
         refs: "DLMF 19.2.4, 19.7.4",
         ..E
@@ -787,13 +834,20 @@ pub static TABLE: &[Entry] = &[
     Entry { name: "alternating_harmonic_number", arity: 2, when: "$a == 1", real: "element($u, integers)", sr: Some(&[("true", BR)]), refs: "DLMF 25.11", ..E },
     // inverse Jacobi functions for real m other than 1: the real domain of the principal branch is the range of the
     // function on the line (for m > 1 through Jacobi's real transformation), the values bounded by a period
-    // (DLMF 22.15.1-22.15.12, 22.17.4, 22.16.(i)); the numeric values are real exactly on these sets
+    // (DLMF 22.15.1-22.15.12, 22.17.4, 22.16.(i)); the numeric values are real exactly on these sets. Where that
+    // domain is an interval, the function is the elliptic integral of DLMF 22.15(ii) (arcsn x = integral of
+    // ((1 - t^2)(1 - m t^2))^(-1/2) from 0 to x, arccn x = integral of ((1 - t^2)(1 - m + m t^2))^(-1/2) from x to 1,
+    // ...), whose integrand is positive inside: increasing (sn, sd, sc, nd) or decreasing (cn, cd, dn), and
+    // nonnegative where the integral starts at an end (cn, cd, dn, nd); for m > 1 through sn(z|m) = m^(-1/2)
+    // sn(m^(1/2) z|1/m), cn(z|m) = dn(m^(1/2) z|1/m), dn(z|m) = cn(m^(1/2) z|1/m) (DLMF 22.17.2-22.17.4): arcdc(x|m) =
+    // m^(-1/2) arccd(x|1/m), arcnc(x|m) = m^(-1/2) arcnd(x|1/m), arcsd(x|m) = m^(-1/2) arcsc(m^(1/2) x|1/m), ...
     Entry {
         name: "inverse_jacobi_sn",
         arity: 2,
         when: M_NOT_1,
         real: "$a < 1 and -1 <= $u and $u <= 1 or $a > 1 and -1 <= $u*$a^(1/2) and $u*$a^(1/2) <= 1",
         onto: &[("", false)],
+        mono: &[("", 1)],
         refs: "DLMF 22.15.1, 22.17.4",
         ..E
     },
@@ -803,6 +857,8 @@ pub static TABLE: &[Entry] = &[
         when: M_NOT_1,
         real: "$a < 1 and -1 <= $u and $u <= 1 or $a > 1 and (1 - 1/$a)^(1/2) <= $u and $u <= 1",
         onto: &[("", false)],
+        mono: &[("", -1)],
+        signs: &[("", 2)],
         refs: "DLMF 22.15.2, 22.17.4",
         ..E
     },
@@ -812,6 +868,8 @@ pub static TABLE: &[Entry] = &[
         when: M_NOT_1,
         real: "$a < 1 and min((1 - $a)^(1/2), 1) <= $u and $u <= max((1 - $a)^(1/2), 1) or $a > 1 and -1 <= $u and $u <= 1",
         onto: &[("", false)],
+        mono: &[("0 < $a and $a < 1", -1), ("$a > 1", -1)],
+        signs: &[("0 < $a and $a < 1", 2), ("$a > 1", 2)],
         refs: "DLMF 22.15.3, 22.17.4",
         ..E
     },
@@ -821,6 +879,8 @@ pub static TABLE: &[Entry] = &[
         when: M_NOT_1,
         real: "$a < 1 and -1 <= $u and $u <= 1 or $a > 1 and ($u <= -1 or $u >= 1)",
         onto: &[("", false)],
+        mono: &[("$a < 1", -1)],
+        signs: &[("$a < 1", 2)],
         refs: "DLMF 22.15.4, 22.17.4",
         ..E
     },
@@ -830,6 +890,7 @@ pub static TABLE: &[Entry] = &[
         when: M_NOT_1,
         real: "$a < 1 and -1 <= $u*(1 - $a)^(1/2) and $u*(1 - $a)^(1/2) <= 1 or $a > 1",
         onto: &[("", false)],
+        mono: &[("", 1)],
         refs: "DLMF 22.15.5, 22.17.4",
         ..E
     },
@@ -839,6 +900,8 @@ pub static TABLE: &[Entry] = &[
         when: M_NOT_1,
         real: "$a < 1 and min((1 - $a)^(-1/2), 1) <= $u and $u <= max((1 - $a)^(-1/2), 1) or $a > 1 and ($u <= -1 or $u >= 1)",
         onto: &[("", false)],
+        mono: &[("0 < $a and $a < 1", 1)],
+        signs: &[("0 < $a and $a < 1", 2)],
         refs: "DLMF 22.15.6, 22.17.4",
         ..E
     },
@@ -848,6 +911,8 @@ pub static TABLE: &[Entry] = &[
         when: M_NOT_1,
         real: "$a < 1 and ($u <= -1 or $u >= 1) or $a > 1 and -1 <= $u and $u <= 1",
         onto: &[("", false)],
+        mono: &[("$a > 1", -1)],
+        signs: &[("$a > 1", 2)],
         refs: "DLMF 22.15.7, 22.17.4",
         ..E
     },
@@ -857,6 +922,8 @@ pub static TABLE: &[Entry] = &[
         when: M_NOT_1,
         real: "$a < 1 and ($u <= -1 or $u >= 1) or $a > 1 and 1 <= $u and $u <= (1 - 1/$a)^(-1/2)",
         onto: &[("", false)],
+        mono: &[("$a > 1", 1)],
+        signs: &[("$a > 1", 2)],
         refs: "DLMF 22.15.8, 22.17.4",
         ..E
     },
@@ -876,6 +943,7 @@ pub static TABLE: &[Entry] = &[
         real: "$a < 1 or $a > 1 and -1 <= $u*($a - 1)^(1/2) and $u*($a - 1)^(1/2) <= 1",
         sr: Some(&[("$a > 1 and ($u <= -($a - 1)^(-1/2) or $u >= ($a - 1)^(-1/2))", BR)]),
         onto: &[("", false)],
+        mono: &[("", 1)],
         refs: "DLMF 22.15.10, 22.17.4",
         ..E
     },
@@ -912,7 +980,8 @@ pub static TABLE: &[Entry] = &[
     Entry { name: "inverse_jacobi_sc", arity: 2, joint: true, sr: Some(&[("$a == 2 and $u == 1", BR)]), partial: true, ..E },
     Entry { name: "inverse_jacobi_cs", arity: 2, joint: true, sr: Some(&[("$a == 2 and $u == 1", BR)]), partial: true, ..E },
     // steps, waves and the Cantor function (continuous, not analytic on the Cantor set, values in [0, 1])
-    Entry { name: "cantor_staircase", real: "true", complex: "element($u, reals)", sr: Some(&[("?", KI)]), smooth: false, ranges: &[("", "0 <= $y and $y <= 1")], bound: Bound::Both, ..E },
+    // the distribution function of the Cantor measure: nondecreasing
+    Entry { name: "cantor_staircase", mono: &[("", 2)], real: "true", complex: "element($u, reals)", sr: Some(&[("?", KI)]), smooth: false, ranges: &[("", "0 <= $y and $y <= 1")], bound: Bound::Both, ..E },
     Entry {
         name: "heaviside_lambda",
         real: "true",
@@ -980,7 +1049,7 @@ pub static TABLE: &[Entry] = &[
     Entry { name: "tan", ranges: &[("", "true")], refs: "DLMF 4.14", ..E },
     Entry { name: "gamma", ranges: &[("", "$y != 0")], refs: "DLMF 5.2, 5.4 (the extrema of the pieces tend to 0)", ..E },
     Entry { name: "factorial", ranges: &[("", "$y != 0")], refs: "DLMF 5.2, 5.4", ..E },
-    Entry { name: "log_gamma", bound: Bound::Below, refs: "log-convex gamma on (0, inf) (Bohr-Mollerup), DLMF 5.4.(iii), 5.5", ..E },
+    Entry { name: "log_gamma", convex: &[("", 1)], bound: Bound::Below, refs: "log-convex gamma on (0, inf) (Bohr-Mollerup; psi'(x) = sum 1/(x + k)^2 > 0, DLMF 5.15.1), DLMF 5.4.(iii), 5.5", ..E },
     // roots of a real number
     Entry { name: "cube_root", mono: &[("", 1)], real: "true", complex: "element($u, reals)", sr: Some(&[("$u == 0", KI)]), sc: Some(&[("true", BR)]), ranges: &[("", "true")], crange: "im_part($y) == 0", ..E },
     Entry {
@@ -1338,6 +1407,30 @@ fn hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, 
     };
     let mut f = f;
     f.bound = bound;
+    // p = q with real parameters 0 < a_i < b_i (sorted in pairs): the iterated Euler integral (DLMF 16.5.2, from
+    // 13.4.1) writes pFq(a; b; x) as the integral of e^(x s) against a positive measure of s in [0, 1] (the product of
+    // the beta densities t_i^(a_i - 1) (1 - t_i)^(b_i - a_i - 1) of s = t_1 ... t_p), so it is positive, increasing and
+    // convex on the whole line (its derivatives integrate s e^(x s) and s^2 e^(x s)); the regularized one divides it
+    // by the positive Gamma(b_1) ... Gamma(b_q)
+    if p == q && p > 0 && num.iter().chain(&den).all(|&t| real_num(t)) {
+        // compared exactly: a_i > 0 and b_i > a_i, each pair of the sorted lists
+        let order = |x: &T<'h>, y: &T<'h>| match b.ar.compare(*x, *y) {
+            Some(mc_arith::Cmp3::Less) => std::cmp::Ordering::Less,
+            Some(mc_arith::Cmp3::Greater) => std::cmp::Ordering::Greater,
+            _ => std::cmp::Ordering::Equal,
+        };
+        let (mut na, mut nb) = (num.clone(), den.clone());
+        na.sort_by(order);
+        nb.sort_by(order);
+        let pos = na.iter().all(|&a| b.ar.compare(a, b.zero()) == Some(mc_arith::Cmp3::Greater));
+        let above = na.iter().zip(&nb).all(|(&a, &c)| b.ar.compare(c, a) == Some(mc_arith::Cmp3::Greater));
+        if pos && above {
+            f.signs = vec![(String::new(), 1)];
+            f.mono = vec![(String::new(), 1)];
+            f.convex = vec![(String::new(), 1)];
+            f.bound = Bound::Below;
+        }
+    }
     Ok(Some(Hit { facts: f, rules, arg: z, pf: vec![] }))
 }
 
@@ -1407,6 +1500,26 @@ impl<'h> Hit<'h> {
                 }
             }
             return Ok(Some(inst(cx, b, &r, &rules)?));
+        }
+        Ok(None)
+    }
+
+    /// The sign the range on the reals implies: 1 (-1) when every value is positive (negative), 2 (-2) when every
+    /// value is nonnegative (nonpositive); `None` when the range is not known or has values of both signs.
+    pub fn range_sign(&self, cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>) -> Res<Option<i8>> {
+        let h = b.heap();
+        let y = h.sym_term(h.sym("y·range"));
+        let Some(r) = self.range(cx, b, y)? else { return Ok(None) };
+        if cx.is_true(r) {
+            return Ok(None);
+        }
+        let mut facts = vec![r, h.call(h.sym("element"), &[y, h.sym_term(h.sym("reals"))])];
+        facts.extend(self.pf.iter().copied());
+        for (rel, s) in [("greater", 1), ("less", -1), ("greater_equal", 2), ("less_equal", -2)] {
+            let v = cx.eval_assuming(&facts, b.call("refine", &[b.call(rel, &[y, b.zero()])]))?;
+            if cx.is_true(v) {
+                return Ok(Some(s));
+            }
         }
         Ok(None)
     }

@@ -58,9 +58,9 @@ fn d26_13_essential_singularities_and_r25_09() {
 
 #[test]
 fn d26_14_injective_moebius() {
-    // injective, but only samples between the poles supported it: the calls stay
-    assert_eq!(ev("function_injective(1/x, x)"), "function_injective(x^-1, x)");
-    assert_eq!(ev("function_injective(tanh(1/x), x)"), "function_injective(tanh(x^-1), x)");
+    // injective by the pieces of the domain: strictly monotone on each, disjoint images (tanh(1/x): (-1, 0), (0, 1))
+    assert_eq!(ev("function_injective(1/x, x)"), "true");
+    assert_eq!(ev("function_injective(tanh(1/x), x)"), "true");
     assert_eq!(ev("function_injective(1/x^2, x)"), "false");
     assert_eq!(ev("function_injective(x + 1/x, x)"), "false");
 }

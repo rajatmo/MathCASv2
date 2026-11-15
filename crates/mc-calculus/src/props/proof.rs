@@ -112,7 +112,7 @@ fn contains<'h>(b: &Build<'h>, t: T<'h>, s: T<'h>) -> bool {
 pub(crate) fn closed_sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>) -> Res<Option<i8>> {
     cx.tick(1)?;
     // past the search budget of the call: nothing more is decided (no answer, never a different one)
-    if super::out_of_time() {
+    if super::out_of_time(cx) {
         return Ok(None);
     }
     let v = cx.eval(t)?;
@@ -222,7 +222,7 @@ pub(crate) fn with_ball_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'
 /// evaluation gives no real ball (a pole or a branch point inside, complex values, a function without a ball form).
 pub(crate) fn enclose<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>, lo: f64, hi: f64) -> Res<Option<(f64, f64)>> {
     cx.tick(1)?;
-    if super::out_of_time() {
+    if super::out_of_time(cx) {
         return Ok(None);
     }
     let ball = if lo == hi { exact_point(cx, b, lo)? } else { ball_of(b, lo, hi) };
@@ -349,7 +349,7 @@ pub(crate) fn sign_on<'h>(
 
 /// The bounds of `g` at the exact point `x = q` (exact, else 30 digits).
 fn value_at_exact<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>, q: T<'h>) -> Res<Option<(f64, f64)>> {
-    if super::out_of_time() {
+    if super::out_of_time(cx) {
         return Ok(None);
     }
     let v = at(cx, b, g, x, q)?;

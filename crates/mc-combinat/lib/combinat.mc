@@ -1202,11 +1202,15 @@ fn rsd_reduce(e) =
       rsd_num(total(select(ts, is_numeric))) + total(map(rsd_reduce, select(ts, u => not is_numeric(u))))
     } else apply(head(e2), map(rsd_reduce, apply(list, e2)))
   }
-rule residue(f_, [x_, a_]) := {
-  let t = rsd_t
-  let g = rewrite(f, x -> a + t)
-  coefficient(normal(series(if is_numeric(a) and not is_rational(a) then rsd_reduce(g) else g, t, 0, 7)), t, -1)
-} when not is_list(f)
+fn rsd_laurent(f, x, a) = {
+  let g = rewrite(f, x -> a + rsd_t)
+  normal(series(if is_numeric(a) and not is_rational(a) then rsd_reduce(g) else g, rsd_t, 0, 7))
+}
+# zeta has one pole, at 1, simple with residue 1 (DLMF 25.2.4): zeta(u(x)) with u(a) = 1 and u'(a) != 0 has the
+# residue 1/u'(a) at a
+rule residue(f_, [x_, a_]) := 1/rewrite(d(f[1], x), x -> a) when not is_atom(f) and head(f) === zeta and length(f) == 1 and rewrite(f[1], x -> a) === 1 and rewrite(d(f[1], x), x -> a) != 0
+# an expansion that was not computed (a series left unevaluated) gives no residue: the call stays
+rule residue(f_, [x_, a_]) := coefficient(rsd_laurent(f, x, a), rsd_t, -1) when not is_list(f) and free_of(rsd_laurent(f, x, a), series)
 
 # --- the Gaussian integers: gaussian_integers: true of the number-theory functions ---
 # A nonzero Gaussian integer z factors from its norm N = a^2 + b^2 (Hardy and Wright, An Introduction to the Theory of

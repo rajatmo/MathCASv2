@@ -170,3 +170,9 @@ is 0, the inverse of `roman_numeral(0)`. `number_compose(digits, bases)` with fe
 bases (the digits are the smallest places).
 `euler_e(n, 1/2) = 2^-n euler_e(n)` and `bernoulli_b(n, 1/2) = -(1 - 2^(1 - n)) bernoulli_b(n)` for a symbolic n
 (DLMF 24.4.6, 24.4.27); checked against the polynomials at several n.
+
+## Round 43b: residues
+
+- `residue` took the coefficient of t^-1 of `normal(series(...))` also when the series was not computed (an
+  unevaluated `series` has no t^-1 term: `residue(zeta(x), [x, 1])` gave 0). Now such a call stays; zeta(u(x)) at a
+  point where u = 1 and u' != 0 has the residue 1/u' (the simple pole of zeta at 1 with residue 1, DLMF 25.2.4).

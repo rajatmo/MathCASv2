@@ -354,17 +354,48 @@ fn exact_of<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>) -> Res<T<'h>> {
     Ok(t)
 }
 
+/// The partial derivative in argument `j` of a function whose `d` gives no closed form, from its series where the
+/// literature gives one: the Lerch transcendent Phi(z, s, a) = sum z^n/(n + a)^s (DLMF 25.14.1), so dPhi/dz =
+/// (Phi(z, s - 1, a) - a Phi(z, s, a))/z and dPhi/da = -s Phi(z, s + 1, a); Carlson's R_F, whose partials are
+/// -R_D/6 with the variable last (DLMF 19.18.1, R_F symmetric). `None` otherwise.
+fn known_partial<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], j: usize) -> Res<Option<T<'h>>> {
+    let View::Sym(s) = fx.h.view(head) else { return Ok(None) };
+    let name = fx.h.sym_name(s);
+    let e = match (name.as_str(), args, j) {
+        ("lerch_phi", &[z, s, a], 0) => {
+            let lower = fx.call("lerch_phi", &[z, fx.add(&[s, fx.int(-1)]), a]);
+            let same = fx.call("lerch_phi", &[z, s, a]);
+            fx.mul(&[fx.add(&[lower, fx.neg(fx.mul(&[a, same]))]), fx.pow(z, fx.int(-1))])
+        }
+        ("lerch_phi", &[z, s, a], 2) => fx.neg(fx.mul(&[s, fx.call("lerch_phi", &[z, fx.add(&[s, fx.int(1)]), a])])),
+        ("carlson_rf", &[x, y, z], _) => {
+            let order = match j {
+                0 => [y, z, x],
+                1 => [x, z, y],
+                _ => [x, y, z],
+            };
+            fx.mul(&[fx.ar.rational(fx.int(-1), fx.int(6)), fx.call("carlson_rd", &order)])
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(fx.eval(e)?))
+}
+
 /// An enclosure of `head` over the box of several real spreads c_i +- r_i (2 to 4; the other arguments numbers),
-/// as outward-rounded machine bounds (round 43: proved, never sampled), in two stages, each on sub-boxes made by
-/// halving (at most [`MAX_BOX_CELLS`] each; every expression is tried as given and in its `function_expand` form,
-/// the enclosures met):
-/// 1. the sign of every partial derivative (in closed form) proved on sub-boxes that cover the box (a sub-box where
-///    a sign is open is halved in the widest such spread), one sign per argument: the function is monotone in
-///    each argument, its least value is at the corner of the lower ends of the increasing arguments and the upper
-///    ends of the decreasing ones, its largest at the opposite corner (the corner values enclosed on point balls);
-/// 2. otherwise interval arithmetic on sub-boxes that cover the box (a sub-box without an enclosure is halved): the
-///    natural extension (the function of the balls) met with the mean value form f(c) + sum_i f_i(B) [-r_i, r_i]
-///    (f_i the partials on the sub-box B); both enclose, so their intersection does, and so does the hull.
+/// as outward-rounded machine bounds (round 43: proved, never sampled). Each sub-box (made by halving) is enclosed
+/// by the monotonicity test of interval analysis: a spread in which the partial derivative (in closed form, or a
+/// known series form, [`known_partial`]) has one proved sign over the sub-box is fixed at the end that gives the
+/// least (largest) value; the least value over the sub-box is then the least over that face, enclosed exactly at a
+/// corner when every spread is fixed, otherwise by interval arithmetic in the free spreads: the natural extension (the
+/// function of the balls, the expression as given and in its `function_expand` form, met) and, when the free
+/// partials are known, the mean value form f(c) + sum_i f_i(B) [-r_i, r_i] met with it. The hull over the sub-boxes
+/// encloses the image. The sub-boxes that give the least and the largest value are halved in a free spread while a
+/// budget of sub-boxes ([`MAX_BOX_CELLS`]) lasts (adaptive bisection; a sub-box without an enclosure is halved as
+/// well).
+///
+/// Literature: R. E. Moore, R. B. Kearfott, M. J. Cloud, "Introduction to Interval Analysis", SIAM 2009, sections
+/// 6.1-6.4 (mean value form, subdivision) and the monotonicity test of E. Hansen, G. W. Walster, "Global
+/// Optimization Using Interval Analysis", 2nd ed., Marcel Dekker 2004, section 12.4.
 ///
 /// `None` when no enclosure is found (a function without a ball form, a pole or a cut inside the box).
 fn box_image<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>], unc: &[Option<T<'h>>]) -> Res<Option<(f64, f64)>> {
@@ -404,15 +435,20 @@ fn box_image<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>], un
     };
     // the partial derivatives in closed form
     let mut dgs: Vec<Option<(T<'h>, Option<T<'h>>)>> = vec![];
-    for &v in &vars {
-        let dg = fx.eval(fx.call("d", &[g, v]))?;
+    for (j, &v) in vars.iter().enumerate() {
+        let mut dg = fx.eval(fx.call("d", &[g, v]))?;
         if fx.contains(dg, "derivative") || fx.contains(dg, "d") {
-            dgs.push(None);
-        } else {
-            dgs.push(Some(forms(fx, dg)?));
+            match known_partial(fx, head, &xs, idx[j])? {
+                Some(p) => dg = p,
+                None => {
+                    dgs.push(None);
+                    continue;
+                }
+            }
         }
+        dgs.push(Some(forms(fx, dg)?));
     }
-    // an expression (both forms, the enclosures met) on the balls `bs` of the spread arguments
+    // an expression (both forms, the enclosures met) at the values `bs` of the spread arguments (balls or numbers)
     let on_balls = |fx: &mut Fx<'_, '_, '_, 'h>, (e, alt): (T<'h>, Option<T<'h>>), bs: &[T<'h>]| -> Res<Option<(f64, f64)>> {
         let rules: Vec<T<'h>> = vars.iter().zip(bs).map(|(&v, &bl)| fx.call("rule", &[v, bl])).collect();
         let rl = fx.list(&rules);
@@ -434,6 +470,18 @@ fn box_image<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>], un
     // the value at an exact point, enclosed
     let at_point = |fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>]| -> Res<Option<(f64, f64)>> {
         fx.tick(1)?;
+        // the spread arguments as balls of radius 0 (a ball value is far cheaper than 30 digits)
+        let mut bargs = args.to_vec();
+        for &i in &idx {
+            if let Some(b) = fx.ar.ball_with_radius(args[i], fx.int(0), CELL_BITS) {
+                bargs[i] = b;
+            }
+        }
+        let v = fx.eval(fx.h.app(head, &bargs))?;
+        let v = crate::enclose::constants_as_balls(fx, v)?;
+        if let Some(bd) = crate::enclose::bounds(fx, v) {
+            return Ok(Some(bd));
+        }
         let v = fx.eval(fx.h.app(head, args))?;
         if let Some(bd) = crate::enclose::bounds(fx, v) {
             return Ok(Some(bd));
@@ -441,13 +489,11 @@ fn box_image<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>], un
         let w = fx.eval(fx.call("n", &[v, fx.int(30)]))?;
         Ok(crate::enclose::bounds(fx, w))
     };
-    let gb = forms(fx, g)?;
+    let mut gb = forms(fx, g)?;
     // a sub-box: the exact centre and radius of each spread
     type SubBox<'h> = Vec<(T<'h>, T<'h>)>;
     let root: SubBox<'h> = idx.iter().enumerate().map(|(j, &i)| (exact[i], radii[j])).collect();
-    let balls_of = |fx: &mut Fx<'_, '_, '_, 'h>, bx: &SubBox<'h>| -> Option<Vec<T<'h>>> {
-        bx.iter().map(|&(c, r)| fx.ar.ball_with_radius(c, r, CELL_BITS)).collect()
-    };
+    let ball = |fx: &mut Fx<'_, '_, '_, 'h>, (c, r): (T<'h>, T<'h>)| -> Option<T<'h>> { fx.ar.ball_with_radius(c, r, CELL_BITS) };
     // halve the box in spread j
     let split = |fx: &mut Fx<'_, '_, '_, 'h>, bx: &SubBox<'h>, j: usize| -> Res<(SubBox<'h>, SubBox<'h>)> {
         let (c, r) = bx[j];
@@ -461,127 +507,197 @@ fn box_image<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>], un
         let w = |j: usize| fx.f64_of(bx[j].1).unwrap_or(0.0);
         among.iter().copied().max_by(|&a, &b| w(a).total_cmp(&w(b))).unwrap_or(0)
     };
-    // the partials enclosed on a sub-box
-    let partials_on = |fx: &mut Fx<'_, '_, '_, 'h>, bs: &[T<'h>]| -> Res<Vec<Option<(f64, f64)>>> {
-        let mut parts = vec![];
-        for dg in &dgs {
-            parts.push(match dg {
-                Some(dg) => on_balls(fx, *dg, bs)?,
-                None => None,
-            });
-        }
-        Ok(parts)
-    };
     let sign_of = |e: Option<(f64, f64)>| match e {
         Some((a, b)) if a == 0.0 && b == 0.0 => Some(0i8),
         Some((a, _)) if a >= 0.0 => Some(1),
         Some((_, b)) if b <= 0.0 => Some(-1),
         _ => None,
     };
-    // 1. monotone in every argument: one proved sign per partial over sub-boxes that cover the box
-    if dgs.iter().all(Option::is_some) {
-        let mut signs: Vec<i8> = vec![0; k];
-        let mut stack = vec![root.clone()];
-        let mut cells = 0usize;
-        let mut monotone = true;
-        while let Some(bx) = stack.pop() {
-            cells += 1;
-            if cells > MAX_BOX_CELLS {
-                monotone = false;
-                break;
-            }
-            let Some(bs) = balls_of(fx, &bx) else { return Ok(None) };
-            let parts = partials_on(fx, &bs)?;
-            let mut open = vec![];
-            for (j, p) in parts.iter().enumerate() {
-                match sign_of(*p) {
-                    Some(0) => {}
-                    Some(s) if signs[j] == 0 || signs[j] == s => signs[j] = s,
-                    Some(_) => monotone = false,
-                    None => open.push(j),
-                }
-            }
-            if !monotone {
-                break;
-            }
-            if !open.is_empty() {
-                let j = widest(fx, &bx, &open);
-                let (a, b) = split(fx, &bx, j)?;
-                stack.push(a);
-                stack.push(b);
-            }
-        }
-        if monotone {
-            let mut ends = vec![];
-            for dir in [-1i64, 1] {
-                let mut ys = exact.clone();
-                for (j, &i) in idx.iter().enumerate() {
-                    let s = if signs[j] == -1 { -dir } else { dir };
-                    ys[i] = fx.eval(fx.add(&[exact[i], fx.mul(&[fx.int(s), radii[j]])]))?;
-                }
-                ends.push(at_point(fx, &ys)?);
-            }
-            if let [Some((l0, _)), Some((_, h1))] = ends[..] {
-                if l0 <= h1 {
-                    return Ok(Some((l0, h1)));
-                }
-            }
+    // one sub-box: its least and largest value enclosed, with the spreads left free on each side
+    struct Cell<'h> {
+        bx: Vec<(T<'h>, T<'h>)>,
+        lo: f64,
+        hi: f64,
+        free_lo: Vec<usize>,
+        free_hi: Vec<usize>,
+        /// the partial signs proved on this sub-box (they hold on its halves too)
+        signs: Vec<Option<i8>>,
+        /// how many sub-boxes in a row on the way here a partial's sign was not proved
+        misses: Vec<u32>,
+    }
+    // of the two forms, the one with the narrower enclosure over the whole box alone (each enclosure is valid; this
+    // halves the work on every sub-box)
+    if let (Some(alt), Some(bs)) = (gb.1, root.iter().map(|&e| ball(fx, e)).collect::<Option<Vec<T<'h>>>>()) {
+        let width = |e: Option<(f64, f64)>| e.map_or(f64::INFINITY, |(a, b)| b - a);
+        let w0 = width(on_balls(fx, (gb.0, None), &bs)?);
+        let w1 = width(on_balls(fx, (alt, None), &bs)?);
+        if w0.is_finite() || w1.is_finite() {
+            gb = (if w1 < w0 { alt } else { gb.0 }, None);
         }
     }
-    // 2. interval arithmetic on sub-boxes that cover the box: the natural extension met with the mean value form
-    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
-    let mut stack = vec![root];
-    let mut cells = 0usize;
-    while let Some(bx) = stack.pop() {
-        cells += 1;
-        if cells > MAX_BOX_CELLS {
+    let eval_cell = |fx: &mut Fx<'_, '_, '_, 'h>, bx: &SubBox<'h>, known: &[Option<i8>], missed: &[u32]| -> Res<Option<Cell<'h>>> {
+        let mut bs = vec![];
+        for &e in bx {
+            let Some(b) = ball(fx, e) else { return Ok(None) };
+            bs.push(b);
+        }
+        let mut signs = vec![];
+        let mut misses = vec![];
+        for (j, dg) in dgs.iter().enumerate() {
+            let m = missed.get(j).copied().unwrap_or(0);
+            // a sign missed on the way here is tried again on every other halving (a slow partial is not enclosed
+            // on every sub-box)
+            let s = match (known.get(j).copied().flatten(), dg) {
+                (Some(s), _) => Some(s),
+                (None, Some(_)) if m % 2 == 1 => None,
+                (None, Some(dg)) => sign_of(on_balls(fx, *dg, &bs)?),
+                (None, None) => None,
+            };
+            misses.push(if s.is_some() { 0 } else { m + 1 });
+            signs.push(s);
+        }
+        let mut sides: Vec<((f64, f64), Vec<usize>)> = vec![];
+        for dir in [-1i64, 1] {
+            // no spread fixed: both sides are the same enclosure
+            if dir == 1 && signs.iter().all(Option::is_none) {
+                let first = sides[0].clone();
+                sides.push(first);
+                break;
+            }
+            // the face: a spread of proved sign at its end (the centre when constant in it), the others free
+            let mut vals = bs.clone();
+            let mut point = exact.clone();
+            let mut free = vec![];
+            for j in 0..k {
+                let (c, r) = bx[j];
+                match signs[j] {
+                    Some(0) => vals[j] = c,
+                    Some(s) => vals[j] = fx.eval(fx.add(&[c, fx.mul(&[fx.int(dir * i64::from(s)), r])]))?,
+                    None => {
+                        free.push(j);
+                        point[idx[j]] = c;
+                        continue;
+                    }
+                }
+                point[idx[j]] = vals[j];
+            }
+            let e = if free.is_empty() {
+                at_point(fx, &point)?
+            } else {
+                let natural = on_balls(fx, gb, &vals)?;
+                // the mean value form in the free spreads, when their partials are known
+                let mut mean_value = None;
+                if free.iter().all(|&j| dgs[j].is_some()) {
+                    if let Some((mut a, mut b)) = at_point(fx, &point)? {
+                        let mut ok = true;
+                        for &j in &free {
+                            let (Some(p), Some(r)) = (on_balls(fx, dgs[j].expect("a partial"), &vals)?, fx.f64_of(bx[j].1)) else {
+                                ok = false;
+                                break;
+                            };
+                            // [pa, pb] times [-r, r] lies in [-w, w], w = max(|pa|, |pb|) r, rounded up
+                            let w = (p.0.abs().max(p.1.abs()) * r.next_up()).next_up();
+                            a = (a - w).next_down();
+                            b = (b + w).next_up();
+                        }
+                        if ok && a.is_finite() && b.is_finite() {
+                            mean_value = Some((a, b));
+                        }
+                    }
+                }
+                match (natural, mean_value) {
+                    (Some((a, b)), Some((c, d))) if a.max(c) <= b.min(d) => Some((a.max(c), b.min(d))),
+                    (Some(e), _) | (None, Some(e)) => Some(e),
+                    (None, None) => None,
+                }
+            };
+            let Some(e) = e else { return Ok(None) };
+            sides.push((e, free));
+        }
+        let ((lo_e, free_lo), (hi_e, free_hi)) = (sides[0].clone(), sides[1].clone());
+        Ok(Some(Cell { bx: bx.clone(), lo: lo_e.0, hi: hi_e.1, free_lo, free_hi, signs, misses }))
+    };
+    let all: Vec<usize> = (0..k).collect();
+    // cover the box by sub-boxes with enclosures
+    let mut cells: Vec<Cell<'h>> = vec![];
+    let mut pending = vec![root];
+    let mut count = 0usize;
+    let none = vec![None; k];
+    while let Some(bx) = pending.pop() {
+        count += 1;
+        if count > MAX_BOX_CELLS {
             return Ok(None);
         }
-        let Some(bs) = balls_of(fx, &bx) else { return Ok(None) };
-        let natural = on_balls(fx, gb, &bs)?;
-        let parts = partials_on(fx, &bs)?;
-        let mean_value = if parts.iter().all(Option::is_some) {
-            let mut mids = exact.clone();
-            for (j, &i) in idx.iter().enumerate() {
-                mids[i] = bx[j].0;
-            }
-            match at_point(fx, &mids)? {
-                Some((mut a, mut b)) => {
-                    for (j, p) in parts.iter().enumerate() {
-                        let (pa, pb) = p.expect("a partial");
-                        let Some(r) = fx.f64_of(bx[j].1) else { continue };
-                        // [pa, pb] times [-r, r] lies in [-w, w], w = max(|pa|, |pb|) r, rounded up
-                        let w = (pa.abs().max(pb.abs()) * r.next_up()).next_up();
-                        a = (a - w).next_down();
-                        b = (b + w).next_up();
-                    }
-                    (a.is_finite() && b.is_finite()).then_some((a, b))
-                }
-                None => None,
-            }
-        } else {
-            None
-        };
-        let e = match (natural, mean_value) {
-            (Some((a, b)), Some((c, d))) if a.max(c) <= b.min(d) => Some((a.max(c), b.min(d))),
-            (Some(e), _) | (None, Some(e)) => Some(e),
-            (None, None) => None,
-        };
-        match e {
-            Some((a, b)) => {
-                lo = lo.min(a);
-                hi = hi.max(b);
-            }
+        match eval_cell(fx, &bx, &none, &[])? {
+            Some(c) => cells.push(c),
             None => {
-                // no enclosure on this sub-box: halve it in its widest spread
-                let all: Vec<usize> = (0..k).collect();
                 let j = widest(fx, &bx, &all);
                 let (a, b) = split(fx, &bx, j)?;
-                stack.push(a);
-                stack.push(b);
+                pending.push(a);
+                pending.push(b);
             }
         }
     }
+    // refine the sub-boxes that give the least and the largest value, in a free spread
+    // a side is done when its extreme sub-box has no free spread, or when 2 k + 1 halvings in a row (k spreads) moved its
+    // bound by less than 1/500 of the hull's width
+    let hull = |cells: &[Cell<'h>]| {
+        (cells.iter().map(|c| c.lo).fold(f64::INFINITY, f64::min), cells.iter().map(|c| c.hi).fold(f64::NEG_INFINITY, f64::max))
+    };
+    let mut done = [false, false];
+    let mut small = [0usize, 0];
+    let mut side = 0usize;
+    while count + 2 <= MAX_BOX_CELLS && !(done[0] && done[1]) {
+        if done[side] {
+            side = 1 - side;
+            continue;
+        }
+        let pick = if side == 0 {
+            cells.iter().enumerate().min_by(|a, b| a.1.lo.total_cmp(&b.1.lo)).map(|(i, c)| (i, c.free_lo.clone()))
+        } else {
+            cells.iter().enumerate().max_by(|a, b| a.1.hi.total_cmp(&b.1.hi)).map(|(i, c)| (i, c.free_hi.clone()))
+        };
+        let this = side;
+        side = 1 - side;
+        let Some((i, free)) = pick else { break };
+        if free.is_empty() {
+            done[this] = true;
+            continue;
+        }
+        let before = hull(&cells);
+        let cell = cells.swap_remove(i);
+        let j = widest(fx, &cell.bx, &free);
+        let (a, b) = split(fx, &cell.bx, j)?;
+        let mut parts = vec![];
+        for bx in [a, b] {
+            count += 1;
+            match eval_cell(fx, &bx, &cell.signs, &cell.misses)? {
+                Some(c) => parts.push(c),
+                None => {
+                    parts.clear();
+                    break;
+                }
+            }
+        }
+        if parts.len() == 2 {
+            cells.extend(parts);
+        } else {
+            // a half without an enclosure: keep the cell as it was, and this side as it is
+            cells.push(cell);
+            done[this] = true;
+            continue;
+        }
+        let after = hull(&cells);
+        let gain = if this == 0 { after.0 - before.0 } else { before.1 - after.1 };
+        if gain <= 2e-3 * (after.1 - after.0) {
+            small[this] += 1;
+            done[this] |= small[this] > 2 * k;
+        } else {
+            small[this] = 0;
+        }
+    }
+    let lo = cells.iter().map(|c| c.lo).fold(f64::INFINITY, f64::min);
+    let hi = cells.iter().map(|c| c.hi).fold(f64::NEG_INFINITY, f64::max);
     // an enclosure a hundred times wider than the value at the centre says nothing useful (a loose ball form):
     // the call stays
     let Some((c0, c1)) = at_point(fx, &exact)? else { return Ok(None) };
@@ -1027,8 +1143,8 @@ fn periodic_cover<'h>(fx: &mut Fx<'_, '_, '_, 'h>, name: &str, arity: usize, (a,
 const BALL_BITS: i64 = 100;
 /// The precision of the balls of the sub-boxes of a box (bits; a wide ball needs no more).
 const CELL_BITS: u64 = 64;
-/// At most this many sub-boxes in each stage of [`box_image`].
-const MAX_BOX_CELLS: usize = 64;
+/// At most this many sub-boxes (each enclosed once) in [`box_image`].
+const MAX_BOX_CELLS: usize = 96;
 
 /// A ball as `centered_interval(mid, rad)` with machine numbers (the radius rounded up).
 fn from_ball<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<T<'h>> {

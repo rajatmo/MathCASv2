@@ -33,10 +33,10 @@ fn close(got: &str, want: f64, rel: f64) -> bool {
 
 #[test]
 fn x26_1_injective_reciprocal_hyperbolics() {
-    // injective, but only samples between the poles supported it: no proof yet, the call stays
+    // injective: decreasing on x < 0 and on x > 0 (the sign of f'), with the disjoint images (-inf, 0), (0, inf) for
+    // csch and (-inf, -1), (1, inf) for coth (the limits at the ends of the pieces)
     for f in ["csch(x)", "coth(x)", "jacobi_cs(x, 1)", "jacobi_ds(x, 1)", "jacobi_ns(x, 1)"] {
-        let r = ev(&format!("function_injective({f}, x)"));
-        assert!(r.starts_with("function_injective("), "{f}: {r}");
+        assert_eq!(ev(&format!("function_injective({f}, x)")), "true", "{f}");
     }
 }
 

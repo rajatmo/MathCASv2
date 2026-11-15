@@ -110,6 +110,18 @@ fn lim<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, dep
         (f @ ("atan" | "sin" | "cos" | "sinh" | "cosh" | "tanh"), [u]) => {
             let Some(l) = lim(cx, b, *u, t, d)? else { return Ok(None) };
             Ok(match l {
+                // tanh has poles where cosh vanishes (u = i pi/2 + i k pi): there sinh(u)/cosh(u), the side of cosh(u) → 0
+                // deciding; atan is not continuous at its branch points +-i and across its cuts on the imaginary axis
+                // beyond them (a complex limit point there: no fast path)
+                Lim::Fin(v, _) if f == "tanh" && !nonzero(cx, b, b.call("cosh", &[v]))? => {
+                    let c = cx.eval(b.call("cosh", &[v]))?;
+                    if c != b.zero() {
+                        return Ok(None);
+                    }
+                    let q = b.mul(&[b.call("sinh", &[*u]), b.powi(b.call("cosh", &[*u]), -1)]);
+                    lim(cx, b, q, t, d)?
+                }
+                Lim::Fin(v, _) if f == "atan" && !off_atan_cuts(cx, b, v)? => None,
                 // these functions keep 0 at 0 and its side, except cos and cosh (value 1)
                 Lim::Fin(v, s) => {
                     let s = if v == b.zero() && f != "cos" && f != "cosh" { s } else { 0 };
@@ -701,6 +713,34 @@ fn algebraic<'h>(b: &Build<'h>, u: T<'h>, t: T<'h>) -> bool {
         }
     }
     true
+}
+
+/// Is the constant `c` proved nonzero (a real one by its sign, a complex one by its absolute value)?
+fn nonzero<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: T<'h>) -> Res<bool> {
+    let c = cx.eval(c)?;
+    if c == b.zero() {
+        return Ok(false);
+    }
+    if matches!(sign(cx, b, c)?, Some(1 | -1)) {
+        return Ok(true);
+    }
+    let a = cx.eval(b.call("abs", &[c]))?;
+    Ok(sign(cx, b, a)? == Some(1))
+}
+
+/// Is atan continuous at the constant `v`: a real `v`, or one off the imaginary axis, or on it strictly between -i
+/// and i (atan's cuts run along the imaginary axis beyond +-i)?
+fn off_atan_cuts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'h>) -> Res<bool> {
+    let im = cx.eval(b.call("im_part", &[v]))?;
+    if im == b.zero() {
+        return Ok(true);
+    }
+    let re = cx.eval(b.call("re", &[v]))?;
+    if matches!(sign(cx, b, re)?, Some(1 | -1)) {
+        return Ok(true);
+    }
+    let inside = cx.eval(b.sub(b.one(), b.call("abs", &[im])))?;
+    Ok(sign(cx, b, inside)? == Some(1))
 }
 
 /// Is `a` bounded for small positive t: `sin(u)`, `cos(u)`, `atan(u)` or `tanh(u)` with `u` real there?

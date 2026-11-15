@@ -66,16 +66,18 @@ fn answers_only_samples_supported_stay_unevaluated() {
     let r = ev(&mut e, "function_sign(airy_ai(x) + 1, x)");
     assert!(r.starts_with("function_sign("), "{r}");
     assert!(holds(&mut e, "airy_ai(-1) + 1 > 0"));
-    // the Cantor function is nondecreasing, but its differences prove nothing
-    let r = ev(&mut e, "function_monotonicity(cantor_staircase(x), x)");
-    assert!(r.starts_with("function_monotonicity("), "{r}");
+    // the Cantor function is nondecreasing (a fact of the table: the distribution function of a measure), never
+    // strictly (its differences prove nothing either way)
+    assert_eq!(ev(&mut e, "function_monotonicity(cantor_staircase(x), x)"), "1");
+    let r = ev(&mut e, "function_monotonicity(cantor_staircase(x), x, strict_inequalities: true)");
+    assert!(r.starts_with("function_monotonicity(") || r == "indeterminate", "{r}");
     // floor of an increasing argument is nondecreasing by the rule of compositions (not by samples)
     assert_eq!(ev(&mut e, "function_monotonicity(floor(x), x)"), "1");
     assert_eq!(ev(&mut e, "function_monotonicity(floor(x^3 + x) + unit_step(x), x)"), "1");
     assert!(holds(&mut e, "floor(1/2) <= floor(3/2) and floor(3/2) <= floor(5/2)"));
-    // 1/x is injective, but the pieces between sampled poles proved nothing
-    let r = ev(&mut e, "function_injective(1/x, x)");
-    assert!(r.starts_with("function_injective("), "{r}");
+    // 1/x is injective: decreasing on x < 0 and on x > 0 (the sign of -1/x^2), with the images (-inf, 0) and (0, inf)
+    // from the limits at the ends of the pieces; the pieces between sampled poles never prove it
+    assert_eq!(ev(&mut e, "function_injective(1/x, x)"), "true");
 }
 
 #[test]

@@ -70,10 +70,10 @@ fn b26_3_convexity_with_a_cusp() {
 
 #[test]
 fn b26_4_injective_inverse_and_mobius() {
-    // injective, but only samples between the poles supported it: no proof yet, the call stays
+    // injective: strictly monotone on each piece of the domain (the sign of f'), the images of the pieces (from the
+    // limits at their ends) disjoint; the samples between the poles never prove it
     for f in ["1/x", "-1/x", "1/x^3", "x/(x + 1)", "(2*x + 1)/(x - 3)", "exp(1/x)"] {
-        let r = ev(&format!("function_injective({f}, x)"));
-        assert!(r.starts_with("function_injective("), "{f}: {r}");
+        assert_eq!(ev(&format!("function_injective({f}, x)")), "true", "{f}");
     }
 }
 

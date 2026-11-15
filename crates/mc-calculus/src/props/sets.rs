@@ -1523,6 +1523,13 @@ fn witness_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, live: &[T<'h>]
                             if good && lo < hi {
                                 let (ql, qh) = (super::proof::exact_point(cx, b, lo)?, super::proof::exact_point(cx, b, hi)?);
                                 let (sl, sh) = (super::proof::point_sign(cx, b, g, x, ql, &[])?, super::proof::point_sign(cx, b, g, x, qh, &[])?);
+                                // an end of the bracket that is itself an exact zero (a zero at a binary rational,
+                                // as sin(2 pi x) at 1/2)
+                                for (s, q) in [(sl, ql), (sh, qh)] {
+                                    if s == Some(0) && exact_ok(cx, q)? {
+                                        return Ok(true);
+                                    }
+                                }
                                 if matches!((sl, sh), (Some(1), Some(-1)) | (Some(-1), Some(1))) && super::proof::enclose(cx, b, gb, x, lo, hi)?.is_some() {
                                     let ball = super::proof::ball_of(b, lo, hi);
                                     if super::proof::holds_at(cx, b, &all, x, ball)? {

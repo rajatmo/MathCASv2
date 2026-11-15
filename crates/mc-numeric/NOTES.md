@@ -741,3 +741,25 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
 - Intervals are turned into exact centres (a + b)/2 and radii (b - a)/2 (machine ends as their binary values);
   an end that is a closed form (pi) is not read yet (the call stays).
 - `enclose.rs`: `bounds` and `constants_as_balls` are shared with `uncertain.rs`.
+
+## Round 43b: several intervals by the monotonicity test
+
+- `box_image` encloses each sub-box by the monotonicity test (Hansen and Walster, Global Optimization Using Interval
+  Analysis, 2nd ed., 12.4): a spread whose partial derivative has a proved sign on the sub-box is fixed at the end
+  that gives the least (largest) value; the face is enclosed at a corner when every spread is fixed, otherwise by the
+  natural extension in the free spreads met with the mean value form when their partials are known. The sub-boxes
+  that give the least and the largest value are halved in a free spread (adaptive bisection) until a side's
+  extreme sub-box has no free spread, or 2k + 1 halvings in a row moved its bound by less than 1/500 of the hull's
+  width, or 128 sub-boxes are used (a count of work). Before, the corner rule needed every partial's sign on the
+  whole box and the rest was the natural extension on at most 64 equal sub-boxes.
+- Partials the derivative does not give in closed form: the Lerch transcendent in z and a ((Phi(z, s - 1, a) - a
+  Phi(z, s, a))/z and -s Phi(z, s + 1, a), from DLMF 25.14.1) and Carlson's R_F (-R_D/6 with the variable last,
+  DLMF 19.18.1). Values at corners on balls of radius 0 (far cheaper than 30 digits); of an expression and its
+  `function_expand` form only the one with the narrower enclosure over the whole box is used on the sub-boxes.
+- Examples: carlson_rf of three centred intervals is monotone (the exact corner range); lerch_phi of three intervals
+  of width 0.001 is within 0.2% of the corner range in width; coulomb_f of three intervals of width 0.001 is about
+  2.5 times its true width (no closed partials in l and eta), before 15 times; bessel_j of two centred intervals of
+  radius 1/1000 is about 7 times (before 150 times). Left:
+  `bessel_j(interval([0.5, 0.6]), interval([2.4, 2.5]))` gives [0.07, 0.60] (the true range is about [0.30, 0.40]):
+  the ball form of J_nu with a ball order is about 70 times wider than the variation, and its order derivative has
+  no closed form, so neither the monotonicity test nor the mean value form applies in nu.

@@ -306,6 +306,21 @@ fn surjective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps
         if let Some(a) = surjective_by_range(cx, b, s, ys[0])? {
             return Ok(a);
         }
+        // a sign proved on the domain (and the condition): the values of the other sign are not taken
+        if s.ycond.is_none() {
+            let (f, x) = (s.comps[0], s.vars[0]);
+            let dom = cx.eval(b.call("function_domain", &[f, x]))?;
+            if !is_head(b, dom, "function_domain") && !is_head(b, dom, names::FAILURE) {
+                let region = match s.cond {
+                    Some(k) => cx.eval(b.call("and", &[dom, k]))?,
+                    None => dom,
+                };
+                let sg = cx.eval(b.call("function_sign", &[cx.list(&[f, region]), x]))?;
+                if matches!(h.view(sg), View::Int(1 | -1)) {
+                    return Ok(Ans::Bool(false));
+                }
+            }
+        }
     }
     Ok(r)
 }
@@ -598,6 +613,7 @@ fn surjective_complex<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec
     for &row in rows {
         let Some(&[rule]) = cx.as_list(row) else { continue };
         let View::App { args: &[_, g], .. } = h.view(rule) else { continue };
+        let mut stated = false;
         let g = if is_head(b, g, mc_decide::CONDITIONAL) {
             let View::App { args, .. } = h.view(g) else { continue };
             if args.len() == 2 && is_head(b, args[1], "element") {
@@ -607,6 +623,7 @@ fn surjective_complex<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec
                 r.is_some_and(|r| cx.is_true(r))
             }) {
                 // a solution under a condition the codomain condition implies
+                stated = true;
                 args[0]
             } else {
                 continue;
@@ -616,9 +633,11 @@ fn surjective_complex<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec
         };
         // f(g(y)) == y
         let back = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, g])]))?;
-        // f(g(y)) == y must be proved (values at points only refute)
+        // f(g(y)) == y must be proved (values at points only refute); a solution `solve` states under a condition
+        // that the codomain's condition implies is one by what `solve` returns (log(x) == y: x = exp(y) for -pi <
+        // im(y) <= pi)
         let d = cx.eval(b.call("simplify", &[b.sub(back, ys)]))?;
-        if d != b.zero() {
+        if d != b.zero() && !stated {
             let proved = match s.ycond {
                 Some(yc) => {
                     let r = cx.eval_assuming(&[yc], b.call("simplify", &[d]))?;
@@ -701,7 +720,7 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps:
                 return Ok(Ans::Bool(false));
             }
             // strictly monotonic on its domain
-            if hit.arg == s.vars[0] && hit.shape(cx, b, 1)?.is_some() {
+            if hit.arg == s.vars[0] && hit.shape(cx, b, 1)?.is_some_and(|k| k.abs() == 1) {
                 return Ok(Ans::Bool(true));
             }
         }
