@@ -139,6 +139,10 @@ fn mel<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, st: &mut State<'h>, f
         return Ok(None);
     }
     cx.tick(1)?;
+    // x^a (c + g(x)) with g(0+) = -c: the continuation of M[g] to the left of 0
+    if let Some(r) = continued(cx, tc, st, f, x, s, depth)? {
+        return Ok(Some(r));
+    }
     let f = super::laplace::split_powers(cx, b, f, x)?;
     // x^a (and constants) as distributions
     if let Some(a) = power_of(cx, b, f, x)? {
@@ -266,6 +270,79 @@ fn mel<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, st: &mut State<'h>, f
     let (v, c) = super::conditional(b, r);
     st.cond = super::and(b, st.cond, c);
     Ok(Some(v))
+}
+
+/// `x^a (c + g(x))` with a constant `c != 0` and `g` whose transform G is known: then `g -> -c` at 0 (the strip
+/// of G starts at 0) and `h = c + g = O(x^p)` there, and `M[h](s)` is the continuation of G to `-p < re(s) < 0`
+/// (the subtraction of the value at 0 moves the strip to the left past the pole of G at 0: Titchmarsh 1948, section
+/// 1.5; Flajolet, Gourdon and Dumas, Theoret. Comput. Sci. 144 (1995), section 2, as for `M[exp(-x) - 1] =
+/// gamma(s)` on `-1 < re(s) < 0`). p is the largest of 1/2, 1, ..., 4 with `h/x^p` bounded at 0; the shift by
+/// `x^a` moves the strip by `-a`. The result is checked numerically by the caller.
+#[allow(clippy::too_many_arguments)]
+fn continued<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, st: &mut State<'h>, f: T<'h>, x: T<'h>, s: T<'h>, depth: u32) -> Res<Option<T<'h>>> {
+    let b = tc.b;
+    let h = b.heap();
+    let mut fs = factors(b, f);
+    // the power factor x^a and the factor that is a sum with a constant term
+    let mut a = b.zero();
+    if let Some(i) = fs.iter().position(|&g| !is_free(b, g, x) && power_of(cx, b, g, x).ok().flatten().is_some()) {
+        let Some(e) = power_of(cx, b, fs[i], x)? else { return Ok(None) };
+        a = e;
+        fs.remove(i);
+    }
+    let (consts, rest): (Vec<T<'h>>, Vec<T<'h>>) = fs.iter().partition(|&&g| is_free(b, g, x));
+    let [sumf] = rest.as_slice() else { return Ok(None) };
+    let ts = terms(b, *sumf);
+    if ts.len() < 2 {
+        return Ok(None);
+    }
+    let (cs, gs): (Vec<T<'h>>, Vec<T<'h>>) = ts.iter().partition(|&&t| is_free(b, t, x));
+    if cs.is_empty() || gs.is_empty() {
+        return Ok(None);
+    }
+    let c = cx.eval(b.add(&cs))?;
+    if c == b.zero() {
+        return Ok(None);
+    }
+    let g = cx.eval(b.add(&gs))?;
+    // the transform of g alone, with its own strip
+    let before = st.cond.take();
+    let big = mel(cx, tc, st, g, x, s, depth + 1)?;
+    let gcond = st.cond.take();
+    st.cond = before;
+    let Some(big) = big else { return Ok(None) };
+    let big = cx.eval(big)?;
+    if gcond.is_none() || super::has_held(b, big, Kind::Mellin) || !is_free(b, big, h.sym_term(h.sym("dirac_delta"))) {
+        return Ok(None);
+    }
+    // the order p of h = c + g at 0
+    let hsum = *sumf;
+    let zero_rule = b.call(names::RULE, &[x, b.zero()]);
+    let dir = h.call(h.sym("options"), &[b.call(names::RULE, &[h.sym_term(h.sym("direction")), h.sym_term(h.sym("from_above"))])]);
+    let mut p = None;
+    for k in 1..=8 {
+        cx.tick(1)?;
+        let pk = b.rat(k, 2);
+        let q = cx.eval(b.div(hsum, b.pow(x, pk)))?;
+        let l = apply(cx, b, "limit", &[q, zero_rule, dir])?;
+        let bad = ["inf", "complex_infinity", "indeterminate", "limit", "interval"].iter().any(|n| !is_free(b, l, h.sym_term(h.sym(n))));
+        let held_limit = call_of(b, l).is_some_and(|(n, _)| n == "limit" || n == "interval");
+        if bad || held_limit || !is_free(b, l, x) || mc_calculus::common::is_failure(b, l) {
+            break;
+        }
+        p = Some(pk);
+    }
+    let Some(p) = p else { return Ok(None) };
+    // M[x^a h](s) = M[h](s + a) on -p - a < re(s) < -a
+    let sa = b.add(&[s, a]);
+    let r = subst(cx, b, big, s, sa)?;
+    let re = b.call("re", &[s]);
+    let lo = b.call("less", &[b.neg(b.add(&[p, a])), re]);
+    let hi = b.call("less", &[re, b.neg(a)]);
+    let cond = cx.eval(b.call("and", &[lo, hi]))?;
+    st.checked = false;
+    st.cond = super::and(b, st.cond, Some(cond));
+    Ok(Some(b.mul(&[b.mul(&consts), r])))
 }
 
 /// `M[g(log x) unit_step(x - 1)] = L[g](-s)` (`above`) and `M[g(log x) unit_step(1 - x)] = L[g(-u)](s)`, when `x`

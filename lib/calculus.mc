@@ -1670,13 +1670,76 @@ fn calc_mb_closes_left(g, w) = {
   }
 }
 
+# The balanced case sum(e |a|) = sum(e a) = 0 (p = q): by Stirling's formula the integrand behaves like (K/x)^w with
+# K = C prod |a|^(e a) (C^w the power of the product), so the residues on the left give the function for x < K and
+# those on the right (closing to the right) for x > K, and the two may differ (a jump at x = K; Paris and Kaminski
+# 2001, section 2.4; Luke 1969, 5.2 for the G-function with p = q). inverse_mellin_transform gives both sides through
+# the G-function. Since nothing in that route sees the side x > K by itself, the result is accepted only when its
+# forward Mellin transform, by quadrature over (0, K) and (K, inf) at two points of the strip with the parameters
+# at sample values, agrees with the product (an independent check of both sides).
+fn calc_mb_balanced(g, w) = {
+  let ws = map(f => calc_mb_weight(f, w), calc_factors(g))
+  if some(ws, p => p === null) then false else calc_total(map(p => p[1], ws)) == 0 and calc_total(map(p => p[2], ws)) == 0
+}
+fn calc_mb_radius_f(f, w) =
+  if free_of(f, w) then 1
+  else if head(f) === gamma then abs(calc_mb_slope(f[1], w))^calc_mb_slope(f[1], w)
+  else if head(f) === pow and head(f[1]) === gamma and is_integer(f[2]) then abs(calc_mb_slope(f[1][1], w))^(f[2]*calc_mb_slope(f[1][1], w))
+  else if head(f) === pow and free_of(f[1], w) then f[1]^coefficient(expand(f[2]), w, 1)
+  else 1
+fn calc_mb_radius(g, w) = simplify(product(map(f => calc_mb_radius_f(f, w), calc_factors(g))))
+fn calc_mb_check(g, w, x, v, lo, hi) = {
+  let ps = select(union(calc_syms(g), calc_syms(v)), p => not (p === w) and not (p === x))
+  let vals = [3/4, 5/7, 4/3, 6/5]
+  if length(ps) > length(vals) then false else {
+    let rl = map(i => ps[i] -> vals[i], range(length(ps)))
+    let gs = rewrite(g, rl)
+    let vs = rewrite(v, rl)
+    let k = n(rewrite(calc_mb_radius(g, w), rl))
+    let l0 = rewrite(lo, rl)
+    let top = if hi === inf then l0 + 2 else rewrite(hi, rl)
+    # two points inside the strip, away from the integers and half-integers where removable singularities of the
+    # gamma ratio sit
+    let pts = [l0 + 3713*(top - l0)/10000, l0 + 6871*(top - l0)/10000]
+    if not is_number(n(l0)) or not is_number(n(top)) or not is_number(k) or not (k > 0) then false else not some(pts, w0 => {
+      let iv = n_integrate(rewrite(vs, x -> calc_mb_t)*calc_mb_t^(w0 - 1), [calc_mb_t, 0, k, inf], precision_goal: 6)
+      let gv = n(rewrite(gs, w -> w0))
+      not (is_number(iv) and is_number(gv) and abs(iv - gv) <= 10^-6*(1 + abs(gv)))
+    })
+  }
+}
+
+# A gamma factor gamma(k w + c) whose poles fall on both sides of the strip lo < re(w) < hi (the first pole -c/k of
+# gamma(-w) at the strip's left edge 0) is written gamma(u + N)/(u (u + 1) ... (u + N - 1)), u = k w + c, with N the
+# least shift that puts every pole of gamma(u + N) on one side; the rational factors keep the poles in between, on
+# the side where they lie. The inversion then takes the contour at the middle of the strip (any line inside it gives
+# the same integral), so that a pole on an edge is on the right side of it.
+fn calc_mb_sep_f(f, w, lo, hi) = {
+  let base = if head(f) === pow and is_integer(f[2]) and f[2] > 0 then f[1] else f
+  let e = if head(f) === pow and is_integer(f[2]) and f[2] > 0 then f[2] else 1
+  let k = if head(base) === gamma then calc_mb_slope(base[1], w) else null
+  if k === null then f else {
+    let u = base[1]
+    let p0 = -expand(u - k*w)/k
+    let nn = if k < 0 and p0 <= lo then floor((lo - p0)*abs(k)) + 1 else if k > 0 and p0 >= hi then floor((p0 - lo)*k) + 1 else 0
+    if nn == 0 or nn > 20 then f else (gamma(u + nn)/product(map(j => u + j, range(0, nn - 1))))^e
+  }
+}
+fn calc_mb_sep(g, w, lo, hi) =
+  if not (is_number(n(lo)) and (hi === inf or is_number(n(hi)))) then g
+  else product(map(f => calc_mb_sep_f(f, w, lo, hi), calc_factors(g)))
+
 # the inverse Mellin transform of the product g in w at x on the strip lo < re(w) < hi, or null
 fn calc_mb_invert(g, w, x, lo, hi) = {
   let g2 = expand_all(calc_gamma_form(g, w))
   let g3 = if head(g2) === add then simplify(g2) else g2
-  if lo === -inf or not (simplify(lo < hi) === true) or not calc_mb_closes_left(g3, w) then null else {
-    let v = inverse_mellin_transform(g3, w, x, assumptions: lo < re(w) and re(w) < hi)
-    if free_of(v, inverse_mellin_transform) and free_of(v, mellin_transform) and free_of(v, sum) and not (head(v) === failure) then v else null
+  let bal = not (lo === -inf) and calc_mb_balanced(g3, w)
+  let mid = if hi === inf then lo + 1/2 else (lo + hi)/2
+  if lo === -inf or not (simplify(lo < hi) === true) or not (bal or calc_mb_closes_left(g3, w)) then null else {
+    let v = inverse_mellin_transform(calc_mb_sep(g3, w, lo, hi), w, x, assumptions: mid < re(w) and re(w) < hi)
+    if not (free_of(v, inverse_mellin_transform) and free_of(v, mellin_transform) and free_of(v, sum) and not (head(v) === failure)) then null
+    else if bal and not (free_of(v, meijer_g) and calc_mb_check(g3, w, x, v, lo, hi)) then null
+    else v
   }
 }
 
@@ -1711,7 +1774,8 @@ fn calc_hk_cond(f, x, p) = {
   if free_of(a, x) and not (a === 0) and not (head(a) === limit) then (re(a) > 0 and p >= 0) else p >= 0
 }
 fn calc_hk_run(f, x, p, nu, asm, gc) = {
-  let v = if asm === automatic then calc_at(w => calc_hankel(f, x, w, nu), p) else assuming(asm, calc_at(w => calc_hankel(f, x, w, nu), p))
+  # an option read in a condition of the definition arrives as its own name (not yet its default): no assumptions
+  let v = if asm === automatic or is_symbol(asm) then calc_at(w => calc_hankel(f, x, w, nu), p) else assuming(asm, calc_at(w => calc_hankel(f, x, w, nu), p))
   if v === null or not gc then v else conditional_expression(v, calc_hk_cond(f, x, p))
 }
 fn hankel_transform(f, r, s; assumptions = automatic, generate_conditions = false) when not (calc_hk_run(f, r, s, 0, assumptions, false) === null) = calc_hk_run(f, r, s, 0, assumptions, generate_conditions)
@@ -3734,6 +3798,30 @@ rule difference_quotient(factorial_power(x_, n_, h_), [x_, h_]) := n*factorial_p
 
 # a sum of a list-valued summand over an infinite range is taken elementwise
 rule sum(f_, sp_) := map(g => sum(g, sp), f) when is_list(f) and is_list(sp) and length(sp) == 3 and sp[3] === inf
+
+# sum(g boole(m1 + m2 <= n), [m1, 1, n1], [m2, 1, n2]) with the box holding the triangle (n1, n2 >= n - 1): summed
+# along the diagonals m1 + m2 = j, sum(sum(g(m, j - m), [m, 1, j - 1]), [j, 2, n]) (a reindexing of the same terms;
+# Tornheim's double series and its partial sums, Tornheim 1950, become sums over j of inner sums in harmonic numbers)
+fn calc_diag_sum(f, s1, s2) = {
+  let fs = calc_factors(f)
+  let bs = select(fs, u => head(u) === boole)
+  if not (is_list(s1) and is_list(s2) and length(s1) == 3 and length(s2) == 3 and is_symbol(s1[1]) and is_symbol(s2[1]) and s1[2] === 1 and s2[2] === 1 and length(bs) == 1) then null else {
+    let m1 = s1[1]
+    let m2 = s2[1]
+    let c = bs[1][1]
+    let lin = if head(c) === less_equal then c[1] - c[2] else if head(c) === less then c[1] - c[2] + 1 else null
+    let e = if lin === null then null else expand(lin)
+    let top = if e === null then null else -expand(e - m1 - m2)
+    let ok = not (e === null) and free_of(top, m1) and free_of(top, m2) and is_integer(expand(s1[3] - top + 1)) and expand(s1[3] - top + 1) >= 0 and is_integer(expand(s2[3] - top + 1)) and expand(s2[3] - top + 1) >= 0
+    if not ok then null else {
+      let g = product(select(fs, u => not (head(u) === boole)))
+      let j = calc_diag_j
+      let v = sum(sum(rewrite(g, [m1 -> calc_diag_m, m2 -> j - calc_diag_m]), [calc_diag_m, 1, j - 1]), [j, 2, top])
+      if free_of(v, sum) then v else null
+    }
+  }
+}
+rule sum(f_, s1_) := calc_diag_sum(f[1], s1, f[2]) when not is_atom(f) and head(f) === sum and length(f) == 2 and not free_of(f[1], boole) and not (calc_diag_sum(f[1], s1, f[2]) === null)
 # the angle of the origin is indeterminate
 rule atan(x_, y_) := indeterminate when x === 0 and y === 0
 

@@ -36,3 +36,12 @@
 - The shift rule of the inverse Laplace transform retries with the shifted term expanded: a completed square under a
   root, `(s^2 + b s + a^2)^(-1/2)`, becomes `(s^2 + a^2 - b^2/4)^(-1/2)` at `s - b/2` (the unexpanded base did not
   match the table): `exp(-b t/2) bessel_j(0, t sqrt(a^2 - b^2/4))`.
+
+## Round 42: the continuation past the value at 0
+
+- `x^a (c + g(x))` with a constant c and g whose transform G is known on a strip starting at 0: when `c + g =
+  O(x^p)` at 0 (p the largest of 1/2, 1, ..., 4 with a finite limit of `(c + g)/x^p`), the transform is G
+  continued to `-p - a < re(s) < -a` (Titchmarsh 1948, 1.5; Flajolet, Gourdon and Dumas 1995, section 2):
+  `M[exp(-r) - 1] = gamma(s)` on `-1 < re(s) < 0`, `M[(1 - exp(-m r))/r^2] = -gamma(s - 2) m^(2 - s)` on
+  `1 < re(s) < 2`. The value is checked numerically as other table results are. Tried before the term-by-term rule,
+  which gave a constant the distributional transform.

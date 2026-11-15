@@ -554,13 +554,25 @@ fn rational_finite<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h
     for (c, r, j) in fr {
         let a = sx.sub(lo, r)?;
         let b = sx.sub(hi, r)?;
-        let piece = match sx.as_int(a) {
-            Some(ai) if ai >= 1 => {
+        // the pole r a fixed distance above the range (r - hi a positive integer d): with i = r - k the terms are
+        // (-i)^-j for i from d to r - lo, (-1)^j (H(r - lo, j) - H(d - 1, j))
+        let above = sx.sub(r, hi)?;
+        let piece = match (sx.as_int(a), sx.as_int(above)) {
+            (Some(ai), _) if ai >= 1 => {
                 // H(hi - r, j) - H(lo - r - 1, j)
                 let hb = if j == 1 { sx.ev("harmonic_number", &[b])? } else { sx.ev("harmonic_number", &[b, sx.int(j)])? };
                 let am1 = sx.int(ai - 1);
                 let ha = if j == 1 { sx.ev("harmonic_number", &[am1])? } else { sx.ev("harmonic_number", &[am1, sx.int(j)])? };
                 sx.sub(hb, ha)?
+            }
+            (_, Some(d)) if d >= 1 => {
+                let top = sx.sub(r, lo)?;
+                let hb = if j == 1 { sx.ev("harmonic_number", &[top])? } else { sx.ev("harmonic_number", &[top, sx.int(j)])? };
+                let dm1 = sx.int(d - 1);
+                let ha = if j == 1 { sx.ev("harmonic_number", &[dm1])? } else { sx.ev("harmonic_number", &[dm1, sx.int(j)])? };
+                let sign = sx.int(if j % 2 == 0 { 1 } else { -1 });
+                let diff = sx.sub(hb, ha)?;
+                sx.mul(&[sign, diff])?
             }
             _ => {
                 let b1 = sx.plus(b, 1)?;

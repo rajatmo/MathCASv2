@@ -310,3 +310,10 @@ differences and ratios, generating functions and convergence, interruption.
   summation of S-sums with polynomial weights beyond the leading-zero rule (sum k^2 H(k) keeps
   S(n; (-2, 1), (1, 1))). The evaluator's add left a sum nested in the result when equal multiples of one sum
   combined: numeric multiples of sums are spread before the final add.
+
+## Round 42: the pole above the range
+
+- A rational summand with a pole a fixed distance d >= 1 above the range (`1/(n - m)^j` for m up to n - 1) is
+  summed with i = r - k: `(-1)^j (H(r - lo, j) - H(d - 1, j))` (before, Hurwitz zeta functions at non-positive
+  integers, which the check rejected). With the diagonal summation in `lib/calculus.mc` this gives Tornheim's
+  partial sums.

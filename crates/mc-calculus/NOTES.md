@@ -1609,3 +1609,34 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   harmonic_number(x, r) in x = r zeta(r + 1, x + 1) (the order derivative stays an operator); whittaker_m and
   whittaker_w in z (DLMF section 13.15), parameters opaque. Checked by central differences (the rule test of
   `tests/numeric.rs` at 25 digits, and at 30 digits in the engine tests).
+## Round 42: step functions in optimization; balanced Mellin-Barnes integrals; sums over a triangle
+
+- `minimize` (and the other optimizers of one variable) with an objective holding floor, ceiling, round,
+  integer_part, unit_step, heaviside_theta or sign of continuous arguments, on a bounded domain: the domain is cut
+  where an innermost step atom jumps (its argument meets an integer, a half-integer for round, 0 for the sign
+  functions; the levels between the exact minimum and maximum of the argument, the points by `solve`), the atom is
+  replaced by its value on each piece and the cutting repeats (`optimize.rs`, module `steps`; Hansen and Walster
+  2004, ch. 15). Values at the cut points are attained; the minimum of the continuous function of a piece at an end
+  of the piece is only a limit. A limit below every attained value gives the value alone (`min_value`), and
+  `minimize` stays unevaluated. Equal values: the rightmost point. Comparisons of floor and ceiling with integers in
+  the condition are rewritten first (`ceiling(abs(x)) < 5` is `abs(x) <= 4`). Before this, `minimize([floor(x^2) -
+  x, 0 <= x <= 2], x)` gave `[0, [x -> 0]]` (wrong: the values tend to -1); it now stays unevaluated and `min_value`
+  is -1. Unbounded domains and other symbols decline.
+- The Mellin-Parseval route of `hankel_transform` and `mellin_convolve` (`calc_mb_invert`) accepts the balanced
+  case sum(e |a|) = sum(e a) = 0: the integrand behaves like (K/x)^w, K = C prod |a|^(e a), and the G-function
+  reduction gives both sides of the jump at x = K. Accepted only when the forward Mellin transform of the result,
+  by quadrature over (0, K) and (K, inf) at two points of the strip with sample parameter values, agrees with the
+  product to 1e-6 (an independent check of both sides). `hankel_transform(sin(a r)/r, r, s)` is
+  `heaviside_theta(1 - s^2/a^2)/sqrt(a^2 - s^2)`. The generalised transform of `cos(r)` (a non-integrable
+  `(1 - s^2)^(-3/2)` below 1) fails the quadrature and stays unevaluated. Gamma factors with poles on both sides
+  of the strip are split into a gamma function and rational factors (`calc_mb_sep`), and the inversion contour is
+  the middle of the strip. A definition's option read in its condition arrives as the option's name: the Hankel
+  definitions treat a symbol there as no assumptions (before, transforms whose numeric check printed a message
+  were lost through this).
+- `sum(sum(g boole(m1 + m2 <= n), [m2, 1, n2]), [m1, 1, n1])` with the box holding the triangle is summed by the
+  diagonals j = m1 + m2 (`calc_diag_sum`): Tornheim's sums (Tornheim 1950) become sums over j of harmonic numbers
+  of j - 1, written as multiple harmonic numbers.
+- Not done: `(1 - exp(-m r))/r^2` (its Mellin transform is found now, but the inversion gives an unreduced
+  G^{2,1}_{2,2}), Mellin transforms that are not gamma ratios (`cos(r)/(1 + r^2)`, Airy, elliptic), and the
+  continuation of `1 - bessel_j(0, a r)` (the scaled table entry does not pass through the continuation).
+  Tests: `mc-engine/tests/round42_depth.rs`.

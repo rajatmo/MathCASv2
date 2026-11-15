@@ -225,6 +225,15 @@ fn minimize1<'h>(
 ) -> Res<Option<(T<'h>, Vec<T<'h>>)>> {
     let b = c.b;
     let h = b.heap();
+    // comparisons of floor and ceiling with integers written without them (ceiling(u) < 5 is u <= 4)
+    let cond = match cond {
+        Some(k) => Some(steps::plain_condition(c, k)?),
+        None => None,
+    };
+    // a step function of x on a bounded domain: piece by piece
+    if !steps::atoms(c, g, x).is_empty() {
+        return steps::minimize_steps(c, g, cond, x);
+    }
     // no other symbols
     let mut stack = vec![g];
     while let Some(u) = stack.pop() {
@@ -1083,6 +1092,298 @@ fn find_instance<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, vars: &[T<'h>])
         }
     }
     Ok(fallback.map(|p| c.list(&[p])))
+}
+
+/// Optimization of step functions of one variable on a bounded domain.
+///
+/// The objective holds floor, ceiling, round, integer_part, unit_step, heaviside_theta or sign of continuous
+/// arguments (possibly nested). The domain [lo, hi] is cut at the points where an innermost step atom jumps (its
+/// argument crosses an integer, a half-integer for round, 0 for the sign functions: found exactly by `solve` for every
+/// level between the exact minimum and maximum of the argument on the piece); on each open piece the atom is a
+/// constant (its value at the midpoint), and the cutting repeats for the atoms of the remaining expression. Each
+/// piece then carries a continuous function whose minimum on the closed piece is found by the continuous method;
+/// at an end of the piece that minimum is only a limit of the objective, which takes its own value at the cut point
+/// (a candidate of its own). The smallest attained value wins (among equal values the rightmost point); when a limit
+/// lies below every attained value the infimum is not attained and only the value is known (Hansen and Walster,
+/// Global Optimization Using Interval Analysis, 2004, ch. 15, for the splitting of a domain at the discontinuities).
+mod steps {
+    use super::{is_free, minimize1, pieces, View, C, T};
+    use mc_api::Store;
+    use mc_eval::Res;
+
+    /// The step functions cut at.
+    const STEP: &[&str] = &["floor", "ceiling", "round", "integer_part", "unit_step", "heaviside_theta", "sign"];
+    /// The most pieces of one domain.
+    const MAX_PIECES: usize = 400;
+
+    /// The step atoms of `g` that hold `x` (each once).
+    pub(super) fn atoms<'h>(c: &C<'_, '_, '_, '_, 'h>, g: T<'h>, x: T<'h>) -> Vec<T<'h>> {
+        let b = c.b;
+        let h = b.heap();
+        let mut out = vec![];
+        let mut stack = vec![g];
+        while let Some(u) = stack.pop() {
+            if let View::App { head, args } = h.view(u) {
+                if args.len() == 1 && b.sym_of(head).is_some_and(|s| STEP.contains(&h.sym_name(s).as_str())) && !is_free(b, u, x) && !out.contains(&u) {
+                    out.push(u);
+                }
+                stack.extend(args.iter().copied());
+            }
+        }
+        out
+    }
+
+    /// `cond` with every comparison of floor(u) or ceiling(u) with an integer n written as one of u (floor(u) < n is
+    /// u < n, ceiling(u) < n is u <= n - 1, and so on); other parts unchanged.
+    pub(super) fn plain_condition<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>) -> Res<T<'h>> {
+        let b = c.b;
+        let h = b.heap();
+        let View::App { head, args } = h.view(cond) else { return Ok(cond) };
+        let Some(s) = b.sym_of(head) else { return Ok(cond) };
+        let name = h.sym_name(s);
+        match (name.as_str(), args) {
+            ("and" | "or", _) => {
+                let mut out = vec![];
+                for &a in args {
+                    out.push(plain_condition(c, a)?);
+                }
+                c.cx.eval(h.call(s, &out))
+            }
+            (op @ ("less" | "less_equal" | "greater" | "greater_equal"), &[l, r]) => {
+                // as step(u) op n, the step on the left
+                let (step, n, op) = if matches!(h.view(r), View::Int(_)) {
+                    (l, r, op)
+                } else if matches!(h.view(l), View::Int(_)) {
+                    let flipped = match op {
+                        "less" => "greater",
+                        "less_equal" => "greater_equal",
+                        "greater" => "less",
+                        _ => "less_equal",
+                    };
+                    (r, l, flipped)
+                } else {
+                    return Ok(cond);
+                };
+                let View::Int(nv) = h.view(n) else { return Ok(cond) };
+                let View::App { head: sh, args: &[u] } = h.view(step) else { return Ok(cond) };
+                let Some(ss) = b.sym_of(sh) else { return Ok(cond) };
+                let floor = match h.sym_name(ss).as_str() {
+                    "floor" => true,
+                    "ceiling" => false,
+                    _ => return Ok(cond),
+                };
+                // floor(u) < n: u < n; <= n: u < n + 1; > n: u >= n + 1; >= n: u >= n
+                // ceiling(u) < n: u <= n - 1; <= n: u <= n; > n: u > n; >= n: u > n - 1
+                let (rel, m) = match (floor, op) {
+                    (true, "less") => ("less", nv),
+                    (true, "less_equal") => ("less", nv + 1),
+                    (true, "greater") => ("greater_equal", nv + 1),
+                    (true, _) => ("greater_equal", nv),
+                    (false, "less") => ("less_equal", nv - 1),
+                    (false, "less_equal") => ("less_equal", nv),
+                    (false, "greater") => ("greater", nv),
+                    (false, _) => ("greater", nv - 1),
+                };
+                c.cx.eval(b.call(rel, &[u, b.int(m)]))
+            }
+            _ => Ok(cond),
+        }
+    }
+
+    /// An innermost atom: one whose argument holds no other step atom.
+    fn innermost<'h>(c: &C<'_, '_, '_, '_, 'h>, g: T<'h>, x: T<'h>) -> Option<T<'h>> {
+        let h = c.b.heap();
+        atoms(c, g, x).into_iter().find(|&a| match h.view(a) {
+            View::App { args: &[u], .. } => atoms(c, u, x).is_empty(),
+            _ => false,
+        })
+    }
+
+    /// The jumps of the atom `a` inside the open interval (l, r), exact and sorted; `None` when they are not found.
+    fn jumps<'h>(c: &mut C<'_, '_, '_, '_, 'h>, a: T<'h>, x: T<'h>, l: T<'h>, r: T<'h>) -> Res<Option<Vec<T<'h>>>> {
+        let b = c.b;
+        let h = b.heap();
+        let View::App { head, args: &[u] } = h.view(a) else { return Ok(None) };
+        let name = b.sym_of(head).map(|s| h.sym_name(s)).unwrap_or_default();
+        let (Some(lv), Some(rv)) = (c.num(l)?, c.num(r)?) else { return Ok(None) };
+        let closed = b.call("and", &[b.call("less_equal", &[l, x]), b.call("less_equal", &[x, r])]);
+        // the levels where the atom jumps
+        let levels: Vec<T<'h>> = if matches!(name.as_str(), "unit_step" | "heaviside_theta" | "sign") {
+            vec![b.zero()]
+        } else {
+            let Some((lo_u, _)) = minimize1(c, u, Some(closed), x, None)? else { return Ok(None) };
+            let Some((hi_u, _)) = minimize1(c, b.neg(u), Some(closed), x, None)? else { return Ok(None) };
+            let (Some(a0), Some(a1)) = (c.num(lo_u)?, c.num(b.neg(hi_u))?) else { return Ok(None) };
+            let half = if name == "round" { 0.5 } else { 0.0 };
+            let k0 = (a0 - half).floor() as i64;
+            let k1 = (a1 - half).ceil() as i64;
+            if k1 - k0 > MAX_PIECES as i64 {
+                return Ok(None);
+            }
+            (k0..=k1).map(|k| if name == "round" { b.rat(2 * k + 1, 2) } else { b.int(k) }).collect()
+        };
+        let reals = h.sym_term(h.sym("reals"));
+        let mut out: Vec<(f64, T<'h>)> = vec![];
+        for lev in levels {
+            c.cx.tick(1)?;
+            let eq = b.call("and", &[b.call("equal", &[u, lev]), closed]);
+            let s = c.ev("solve", &[eq, x, reals])?;
+            let Some(items) = c.cx.as_list(s).map(|v| v.to_vec()) else { return Ok(None) };
+            for it in items {
+                let Some(&[rule]) = c.cx.as_list(it) else { return Ok(None) };
+                let View::App { args: &[_, p], .. } = h.view(rule) else { return Ok(None) };
+                if !is_free(b, p, x) {
+                    return Ok(None);
+                }
+                let Some(pv) = c.num(p)? else { return Ok(None) };
+                if pv > lv && pv < rv && !out.iter().any(|q| (q.0 - pv).abs() <= 1e-12 * (1.0 + pv.abs())) {
+                    out.push((pv, p));
+                }
+            }
+            if out.len() > MAX_PIECES {
+                return Ok(None);
+            }
+        }
+        out.sort_by(|p, q| p.0.total_cmp(&q.0));
+        Ok(Some(out.into_iter().map(|p| p.1).collect()))
+    }
+
+    /// One piece: the open interval and the continuous function the objective is on it.
+    struct Piece<'h> {
+        l: T<'h>,
+        r: T<'h>,
+        g: T<'h>,
+    }
+
+    /// Cut `g` on (l, r) until no step atom is left; the cut points into `cuts`. False when a cut is not found.
+    fn split<'h>(c: &mut C<'_, '_, '_, '_, 'h>, g: T<'h>, x: T<'h>, l: T<'h>, r: T<'h>, out: &mut Vec<Piece<'h>>, cuts: &mut Vec<T<'h>>) -> Res<bool> {
+        let b = c.b;
+        c.cx.tick(1)?;
+        let Some(a) = innermost(c, g, x) else {
+            out.push(Piece { l, r, g });
+            return Ok(true);
+        };
+        let Some(js) = jumps(c, a, x, l, r)? else { return Ok(false) };
+        cuts.extend(js.iter().copied());
+        let mut ends = vec![l];
+        ends.extend(js);
+        ends.push(r);
+        for w in ends.windows(2) {
+            let mid = c.cx.eval(b.div(b.add(&[w[0], w[1]]), b.int(2)))?;
+            let av = c.at(a, x, mid)?;
+            if c.num(av)?.is_none() {
+                return Ok(false);
+            }
+            let rule = c.rule(a, av);
+            let gi = c.ev("rewrite", &[g, rule])?;
+            if !split(c, gi, x, w[0], w[1], out, cuts)? || out.len() > MAX_PIECES {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    /// The best attained value so far: (value, exact value, point, machine point).
+    type Best<'h> = Option<(f64, T<'h>, T<'h>, f64)>;
+
+    /// `v` at `p` as the best when it is smaller, or equal at a point further right.
+    fn offer<'h>(best: &mut Best<'h>, nv: f64, v: T<'h>, p: T<'h>, pv: f64) {
+        let tol = 1e-12 * (1.0 + nv.abs());
+        let better = match best {
+            None => true,
+            Some(bst) => nv < bst.0 - tol || (nv <= bst.0 + tol && pv > bst.3),
+        };
+        if better {
+            *best = Some((nv, v, p, pv));
+        }
+    }
+
+    /// The minimum of the step function `g` (module comment).
+    #[allow(clippy::type_complexity)]
+    pub(super) fn minimize_steps<'h>(c: &mut C<'_, '_, '_, '_, 'h>, g: T<'h>, cond: Option<T<'h>>, x: T<'h>) -> Res<Option<(T<'h>, Vec<T<'h>>)>> {
+        let b = c.b;
+        let h = b.heap();
+        // no other symbols
+        let mut stack = vec![g];
+        while let Some(u) = stack.pop() {
+            match h.view(u) {
+                View::Sym(s) if u != x && !matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma") => return Ok(None),
+                View::App { args, .. } => stack.extend(args.iter().copied()),
+                _ => {}
+            }
+        }
+        // a bounded domain: its ends and single points
+        let Some(k) = cond else { return Ok(None) };
+        let Some((ends, points)) = pieces(c, k, x)? else { return Ok(None) };
+        let mut marks: Vec<(f64, T<'h>)> = vec![];
+        for p in ends.iter().map(|e| e.0).chain(points.iter().copied()) {
+            let Some(v) = c.num(p)? else { return Ok(None) };
+            if !marks.iter().any(|q| q.0 == v) {
+                marks.push((v, p));
+            }
+        }
+        marks.sort_by(|p, q| p.0.total_cmp(&q.0));
+        let (Some(first), Some(last)) = (marks.first().map(|m| m.1), marks.last().map(|m| m.1)) else { return Ok(None) };
+        let inside = |c: &mut C<'_, '_, '_, '_, 'h>, v: T<'h>| -> Res<bool> {
+            let r = c.at(k, x, v)?;
+            Ok(c.cx.is_true(r))
+        };
+        for v in [b.sub(first, b.one()), b.add(&[last, b.one()])] {
+            let v = c.cx.eval(v)?;
+            if inside(c, v)? {
+                return Ok(None);
+            }
+        }
+        let mut cuts: Vec<T<'h>> = marks.iter().map(|m| m.1).collect();
+        let mut ps: Vec<Piece<'h>> = vec![];
+        for w in marks.windows(2) {
+            let mid = c.cx.eval(b.div(b.add(&[w[0].1, w[1].1]), b.int(2)))?;
+            if inside(c, mid)? && !split(c, g, x, w[0].1, w[1].1, &mut ps, &mut cuts)? {
+                return Ok(None);
+            }
+        }
+        let mut best: Best<'h> = None;
+        let mut limit: Option<(f64, T<'h>)> = None;
+        // the values at the cut points and the domain's ends
+        for p in cuts {
+            c.cx.tick(1)?;
+            if !inside(c, p)? {
+                continue;
+            }
+            let v = c.at(g, x, p)?;
+            let (Some(nv), Some(pv)) = (c.num(v)?, c.num(p)?) else { continue };
+            let v = c.ev("simplify", &[v])?;
+            offer(&mut best, nv, v, p, pv);
+        }
+        // the pieces
+        for pc in ps {
+            c.cx.tick(1)?;
+            let (Some(lv), Some(rv)) = (c.num(pc.l)?, c.num(pc.r)?) else { return Ok(None) };
+            if is_free(b, pc.g, x) {
+                let Some(nv) = c.num(pc.g)? else { return Ok(None) };
+                let mid = c.cx.eval(b.div(b.add(&[pc.l, pc.r]), b.int(2)))?;
+                let v = c.ev("simplify", &[pc.g])?;
+                offer(&mut best, nv, v, mid, (lv + rv) / 2.0);
+                continue;
+            }
+            let closed = b.call("and", &[b.call("less_equal", &[pc.l, x]), b.call("less_equal", &[x, pc.r])]);
+            let Some((v, pt)) = minimize1(c, pc.g, Some(closed), x, None)? else { return Ok(None) };
+            let [p] = pt.as_slice() else { return Ok(None) };
+            let (Some(nv), Some(pv)) = (c.num(v)?, c.num(*p)?) else { return Ok(None) };
+            if pv > lv && pv < rv {
+                offer(&mut best, nv, v, *p, pv);
+            } else if limit.as_ref().is_none_or(|l| nv < l.0) {
+                limit = Some((nv, v));
+            }
+        }
+        if let Some((nl, l)) = limit {
+            if best.as_ref().is_none_or(|bst| nl < bst.0 - 1e-12 * (1.0 + nl.abs())) {
+                // the infimum is a limit at a cut point, not attained
+                return Ok(Some((c.ev("simplify", &[l])?, vec![])));
+            }
+        }
+        Ok(best.map(|(_, v, p, _)| (v, vec![p])))
+    }
 }
 
 
