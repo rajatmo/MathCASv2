@@ -13,8 +13,8 @@
 //!   the first that is not `false` is the condition of a `conditional_expression`; when all are `false` the
 //!   answer is `indeterminate`.
 //!
-//! Only polynomial quantities (after dropping positive factors) are decided here; other calls go to the
-//! sampling of [`super`].
+//! Only polynomial quantities (after dropping positive factors) are decided here; other calls go to the proofs and
+//! refutations of [`super`].
 use super::sets::{self, is_head};
 use super::spec::{self, Spec};
 use crate::term::Build;
@@ -32,7 +32,7 @@ pub fn shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ord
         return Ok(None);
     }
     let f = s.f;
-    // functions with jumps or kinks: their derivatives miss them (sampled in the caller)
+    // functions with jumps or kinks: their derivatives miss them (refuted by differences in the caller)
     if super::nonsmooth_any(b, f, &s.vars) {
         return Ok(None);
     }

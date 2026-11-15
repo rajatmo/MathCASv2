@@ -95,7 +95,8 @@ fn surjective_bijective_injective() {
         ("function_surjective(csch(x), x)", "false"),
         ("function_bijective(sinh(x), x)", "true"),
         ("function_bijective(sinh(x), x, complexes)", "false"),
-        ("function_bijective([log(x), true, -pi < im_part(y) and im_part(y) <= pi], x, y, complexes)", "true"),
+        // the inverse exp(y) was checked at grid points only (f(g(y)) = y not proved): the call stays
+        ("function_bijective([log(x), true, -pi < im_part(y) and im_part(y) <= pi], x, y, complexes)", "function_bijective([log(x), true, -pi < im_part(y) and im_part(y) <= pi], x, y, complexes)"),
         ("function_bijective(x^3 + a*x + b, x)", "conditional_expression(true, element(a | b, reals) and a > 0)"),
         ("function_bijective(a*x, x, complexes)", "conditional_expression(true, a != 0)"),
         ("function_bijective([x + 2*y + 3*z, 4*x + 5*y + 6*z, 7*x + 8*y + 9*z], [x, y, z])", "false"),

@@ -111,6 +111,32 @@ Machine reals follow IEEE 754 binary64 with round-to-nearest. Overflow gives inf
 neither raises. There is no automatic switch from machine reals to balls. *Reason:* v1's "redo in high precision when
 the machine result underflows" made results depend on hidden thresholds.
 
+### 2.8 Answers that need a proof (decision 1.0-7)
+
+Functions whose answer is a statement about every point of a set give it only when it is proved; otherwise the call
+stays unevaluated. This covers the property functions (`function_sign`, `function_monotonicity`,
+`function_convexity`, `function_injective`, `function_surjective`, `function_bijective`, `function_range`,
+`function_period`, `function_poles`, `function_continuous` and the other properties of `mc-calculus/src/props`) and
+the functions of several `interval` or `centered_interval` arguments.
+
+- **Sources of a proof:** the property table of the special functions; `refine` and the decision service under the
+  domain's facts (the sign of a symbolic derivative); exact computation (`solve`, `limit`, `simplify` to 0,
+  quantifier elimination); enclosures, that is ball arithmetic over an interval or a box (the natural interval
+  extension, subdivision into cells, the mean value form), used on bounded domains; certified root counts.
+- **Points refute only.** Values at sample points never prove a universal property. They may refute one: a
+  counterexample point proves `false` (or `indeterminate` for a sign or a shape) when the value there is itself
+  proved, i.e. computed exactly or as a ball that separates (from 0, or from another value). A machine value is
+  never such a proof; machine samples only guide the search for a counterexample, which is then confirmed at the
+  exact point.
+- **Several intervals:** the hull of two corners of the box only when the sign of every partial derivative is
+  proved over the whole box by an enclosure; otherwise interval arithmetic on the expression (the function of the
+  balls, met with the mean value form), which always encloses.
+- **Clock:** no answer is read off the clock. The searches for counterexamples are bounded by their number of
+  points and, for slow functions, still cut short by a time budget (a cut search gives no answer); that budget is
+  to become a work count.
+- *Reason:* an answer read off samples is a guess presented as a fact (a function positive at 600 points need not
+  be positive). Inputs that used to pass on a sampled answer now stay unevaluated until a proof is built for them.
+
 ## 3. Canonical arithmetic
 
 `add`, `mul` and `pow` (surface `+`, `*`, `^`) are built-in constructors with a fixed **canonicaliser** that every
@@ -571,6 +597,7 @@ Decisions on what draft 1 left open. Each can be reopened by a spike or benchmar
 | r17fix.3 | Removing definitions during an evaluation | `unset` is an effect of the frontier; removed rule sets are retired until a safe point | 6.4 |
 | r17fix.4 | Protection | A `protected` attribute; changes to a protected symbol's definitions are failures | 6.4 |
 | r17fix.5 | `assumptions:` option and `assuming` | The option replaces the context; `assuming` and positional facts extend it | 13 |
+| 1.0-7 | Property answers and functions of several intervals from samples | Only proved answers; points refute only, at exact or separating values; else unevaluated | 2.8 |
 
 Spike outcomes:
 

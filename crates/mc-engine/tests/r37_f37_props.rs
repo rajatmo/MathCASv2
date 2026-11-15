@@ -164,7 +164,8 @@ fn kelvin_functions_at_zero() {
 #[test]
 fn steps_and_gaps_by_the_samples_of_the_function() {
     assert_eq!(ev("function_injective(cantor_staircase(x), x)"), "false");
-    assert_eq!(ev("function_monotonicity(cantor_staircase(x), x)"), "1");
+    // nondecreasing, but only differences of samples supported it: the call stays
+    assert_eq!(ev("function_monotonicity(cantor_staircase(x), x)"), "function_monotonicity(cantor_staircase(x), x)");
     assert_eq!(ev("function_monotonicity([inverse_jacobi_ns(x, 1 / 3), x <= -1 or x >= 1], x)"), "indeterminate");
     assert_eq!(ev("function_monotonicity(acoth(x), x)"), "indeterminate");
     // a flat piece of the Cantor function; ns^-1 decreases on each piece but f(-1.5) < f(1.5)

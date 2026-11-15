@@ -70,8 +70,10 @@ fn b26_3_convexity_with_a_cusp() {
 
 #[test]
 fn b26_4_injective_inverse_and_mobius() {
+    // injective, but only samples between the poles supported it: no proof yet, the call stays
     for f in ["1/x", "-1/x", "1/x^3", "x/(x + 1)", "(2*x + 1)/(x - 3)", "exp(1/x)"] {
-        assert_eq!(ev(&format!("function_injective({f}, x)")), "true", "{f}");
+        let r = ev(&format!("function_injective({f}, x)"));
+        assert!(r.starts_with("function_injective("), "{f}: {r}");
     }
 }
 

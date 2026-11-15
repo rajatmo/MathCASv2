@@ -6,23 +6,27 @@
 //!   `1/(1 + x^2)` gives `0 < y <= 1`, `x^2 + a` gives `y >= a`.
 //! - **Other continuous functions** (no parameters): the domain (`cond` with the definedness conditions of
 //!   [`super::conditions`]) is reduced to intervals; on each interval the extreme values are among the values
-//!   at the critical points (`solve(f' == 0)`, a family sampled at `c(1) = -4..4`), the zeros of the arguments of
-//!   `abs` (kinks), the closed finite ends, and the limits at the open and infinite ends. A bound is closed only
-//!   when a point of the domain takes the value; a limit that is not taken (an infinity, an open end, `exp`
-//!   at `-inf`) is an open bound (`y > 0` for `exp`). The ranges of the intervals are united and reduced.
+//!   at the critical points (`solve(f' == 0)`), the zeros of the arguments of `abs` (kinks), the closed finite
+//!   ends, and the limits at the open and infinite ends. A family of critical points (`c(1)`) is read only on the
+//!   whole line and when f is proved constant along it (f at the member c(1) minus f at the member 0 simplifies to
+//!   0 for integer c(1)); a limit at an infinity that does not exist is passed over only when f is proved periodic
+//!   (f(x + step) - f(x) simplifies to 0). Membership of a candidate in an interval and the comparison of two
+//!   candidate values are decided exactly (the proved sign of the difference); undecided, the call stays. A bound
+//!   is closed only when a point of the domain takes the value; a limit that is not taken (an infinity, an open
+//!   end, `exp` at `-inf`) is an open bound (`y > 0` for `exp`). The ranges of the intervals are united and reduced.
 //! - **Cross-check**: the function is sampled on a wide grid; a sample outside the answer, or a function with
-//!   jumps (`floor`, `sign`, ...), gives no answer rather than a wrong one.
+//!   jumps (`floor`, `sign`, ...), gives no answer rather than a wrong one (samples only ever remove an answer).
+use super::proof;
 use super::sets::{is_head, poly_degree};
 use super::spec;
 use crate::term::Build;
 use mc_api::{names, Store, View, T};
 use mc_eval::{NativeCx, Res};
 
-/// One end value: the exact term, its machine value and whether a point of the domain takes it.
+/// One end value: the exact term and whether a point of the domain takes it.
 #[derive(Clone, Copy)]
 struct Ext<'h> {
     v: T<'h>,
-    n: f64,
     taken: bool,
 }
 
@@ -340,13 +344,13 @@ fn harmonic<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: Op
 }
 
 /// An interval of the domain: ends with closedness, `None` for an infinite end.
-struct Piece<'h> {
-    lo: Option<(T<'h>, bool)>,
-    hi: Option<(T<'h>, bool)>,
+pub(super) struct Piece<'h> {
+    pub(super) lo: Option<(T<'h>, bool)>,
+    pub(super) hi: Option<(T<'h>, bool)>,
 }
 
 /// The intervals of a reduced condition on `x` (`None` when its shape is not read).
-fn pieces<'h>(b: &Build<'h>, r: T<'h>, x: T<'h>) -> Option<Vec<Piece<'h>>> {
+pub(super) fn pieces<'h>(b: &Build<'h>, r: T<'h>, x: T<'h>) -> Option<Vec<Piece<'h>>> {
     let h = b.heap();
     let View::App { head, args } = h.view(r) else { return None };
     let name = h.sym_name(b.sym_of(head)?).to_string();
@@ -420,8 +424,9 @@ fn at<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, v: T
     cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, v])]))
 }
 
-/// The members of the solutions of `f' == 0` (a family `c(1)` sampled at -4..4), or `None` when not read.
-fn critical<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>, out: &mut Vec<T<'h>>) -> Res<Option<()>> {
+/// The members of the solutions of `f' == 0` (of a family in `c(1)` the members at -4..4, the family itself in
+/// `fams` with its parameter: the caller proves that the function is constant along it), or `None` when not read.
+fn critical<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>, out: &mut Vec<T<'h>>, fams: &mut Vec<(T<'h>, T<'h>)>) -> Res<Option<()>> {
     let h = b.heap();
     let reals = h.sym_term(h.sym("reals"));
     // a factor that never vanishes on the line (`sech(x)`, `exp(x)`) has no critical point
@@ -437,7 +442,7 @@ fn critical<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>
         if let View::App { head, args } = h.view(g) {
             if b.sym_of(head) == Some(b.hd.mul) {
                 for &a in args.iter().filter(|&&a| !is_free(b, a, x)) {
-                    if critical(cx, b, a, x, out)?.is_none() {
+                    if critical(cx, b, a, x, out, fams)?.is_none() {
                         return Ok(None);
                     }
                 }
@@ -449,7 +454,7 @@ fn critical<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>
                     match h.view(n) {
                         View::Real(v) if v < 0.0 => return Ok(Some(())),
                         View::Int(v) if v < 0 => return Ok(Some(())),
-                        View::Real(_) | View::Int(_) => return critical(cx, b, *base, x, out),
+                        View::Real(_) | View::Int(_) => return critical(cx, b, *base, x, out, fams),
                         _ => {}
                     }
                 }
@@ -466,6 +471,7 @@ fn critical<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>
                 if !matches!(h.view(k), View::App { args: [a], .. } if *a == h.int(1)) {
                     return Ok(None);
                 }
+                fams.push((v, k));
                 for j in -4..=4i64 {
                     let m = at(cx, b, v, k, b.int(j))?;
                     if is_free(b, m, x) {
@@ -522,32 +528,26 @@ fn drop_abs<'h>(b: &Build<'h>, t: T<'h>, us: &[T<'h>], mask: u32) -> T<'h> {
 }
 
 /// Does `t` contain a jump function (the range of a step function is not an interval)?
-fn has_jumps<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+pub(super) fn has_jumps<'h>(b: &Build<'h>, t: T<'h>) -> bool {
     let h = b.heap();
     match h.view(t) {
         View::App { head, args } => {
             b.sym_of(head).is_some_and(|s| {
-                matches!(h.sym_name(s).as_str(), "floor" | "ceiling" | "round" | "integer_part" | "sign" | "unit_step" | "mod" | "fractional_part" | "heaviside_theta" | "unit_box" | "piecewise" | "if" | "boole")
+                matches!(h.sym_name(s).as_str(), "floor" | "ceiling" | "round" | "integer_part" | "sign" | "unit_step" | "mod" | "fractional_part" | "heaviside_theta" | "unit_box" | "piecewise" | "if" | "boole" | "real_sign" | "square_wave" | "sawtooth_wave" | "kronecker_delta" | "prime_pi")
             }) || args.iter().any(|&a| has_jumps(b, a))
         }
         _ => false,
     }
 }
 
-/// Smaller (`min`) or larger value of `a` and `b`; a tie is taken when either is.
-fn better<'h>(cur: Option<Ext<'h>>, new: Ext<'h>, min: bool) -> Option<Ext<'h>> {
-    Some(match cur {
-        None => new,
-        Some(c) => {
-            let tol = 1e-12 * (1.0 + c.n.abs().max(new.n.abs()));
-            if (c.n - new.n).abs() <= tol {
-                Ext { taken: c.taken || new.taken, ..c }
-            } else if (new.n < c.n) == min {
-                new
-            } else {
-                c
-            }
-        }
+/// Smaller (`min`) or larger value of the current one and `new`, compared by the proved sign of their difference; a
+/// tie (exactly equal) is taken when either is. `None` when the comparison is not decided.
+fn better<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, cur: Option<Ext<'h>>, new: Ext<'h>, min: bool) -> Res<Option<Ext<'h>>> {
+    let Some(c) = cur else { return Ok(Some(new)) };
+    Ok(match super::proof::closed_sign(cx, b, b.sub(new.v, c.v))? {
+        Some(0) => Some(Ext { taken: c.taken || new.taken, ..c }),
+        Some(s) => Some(if (s < 0) == min { new } else { c }),
+        None => None,
     })
 }
 
@@ -581,6 +581,7 @@ fn intervals<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: O
     };
     // the candidates: critical points and kinks
     let mut cands = vec![];
+    let mut fams = vec![];
     let mut kinks = vec![];
     abs_args(b, f, x, &mut kinks);
     kinks.dedup();
@@ -610,16 +611,40 @@ fn intervals<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: O
             }
             continue;
         }
-        if critical(cx, b, dg, x, &mut cands)?.is_none() {
+        if critical(cx, b, dg, x, &mut cands, &mut fams)?.is_none() {
             return Ok(None);
         }
     }
     for u in kinks {
-        if critical(cx, b, u, x, &mut cands)?.is_none() {
+        if critical(cx, b, u, x, &mut cands, &mut fams)?.is_none() {
             return Ok(None);
         }
     }
-    let periodic = cands.len() > 1;
+    // a family of critical points: its members -4..4 stand for all only on the whole line and when f is constant
+    // along the family (proved: f at the member c(1) minus f at the member 0 simplifies to 0 for integer c(1))
+    let whole = matches!(ps.as_slice(), [p] if p.lo.is_none() && p.hi.is_none());
+    let mut periodic = false;
+    if !fams.is_empty() {
+        if !whole {
+            return Ok(None);
+        }
+        for &(v, k) in &fams {
+            let fv = at(cx, b, f, x, v)?;
+            let f0 = at(cx, b, fv, k, b.zero())?;
+            let ints = b.call("element", &[k, h.sym_term(h.sym("integers"))]);
+            let d = cx.eval_assuming(&[ints], b.call("simplify", &[b.sub(fv, f0)]))?;
+            if d != b.zero() {
+                return Ok(None);
+            }
+        }
+        // f periodic with the step of the first family: its extremes are attained at the critical points
+        let (v, k) = fams[0];
+        let (m1, m0) = (at(cx, b, v, k, b.one())?, at(cx, b, v, k, b.zero())?);
+        let step = cx.eval(b.sub(m1, m0))?;
+        let shifted = at(cx, b, f, x, b.add(&[x, step]))?;
+        let d = cx.eval(b.call("simplify", &[b.sub(shifted, f)]))?;
+        periodic = d == b.zero() && step != b.zero();
+    }
     let inf = h.sym_term(h.sym("inf"));
     let mut conds = vec![];
     for p in &ps {
@@ -635,30 +660,37 @@ fn intervals<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: O
             }
         }
         for t in points {
-            let inside = |cx: &mut NativeCx<'_, '_, 'h>, v: T<'h>| -> Res<bool> {
-                let Some(nv) = num(cx, b, v)? else { return Ok(false) };
-                let mut ok = true;
-                if let Some((l, c)) = p.lo {
-                    if let Some(nl) = num(cx, b, l)? {
-                        ok &= nv > nl || c && nv >= nl - 1e-13 * (1.0 + nl.abs());
+            // inside the piece, decided exactly (the sign of the distance to each end, proved); undecided: no answer
+            let inside = |cx: &mut NativeCx<'_, '_, 'h>, v: T<'h>| -> Res<Option<bool>> {
+                if num(cx, b, v)?.is_none() {
+                    return Ok(Some(false));
+                }
+                for (end, lower) in [(p.lo, true), (p.hi, false)] {
+                    let Some((e, closed)) = end else { continue };
+                    let d = if lower { b.sub(v, e) } else { b.sub(e, v) };
+                    match proof::closed_sign(cx, b, d)? {
+                        Some(1) => {}
+                        Some(0) if closed => {}
+                        Some(_) => return Ok(Some(false)),
+                        None => return Ok(None),
                     }
                 }
-                if let Some((u, c)) = p.hi {
-                    if let Some(nu) = num(cx, b, u)? {
-                        ok &= nv < nu || c && nv <= nu + 1e-13 * (1.0 + nu.abs());
-                    }
-                }
-                Ok(ok)
+                Ok(Some(true))
             };
-            if !inside(cx, t)? {
-                continue;
+            match inside(cx, t)? {
+                Some(true) => {}
+                Some(false) => continue,
+                None => return Ok(None),
             }
             let v = at(cx, b, f, x, t)?;
-            let Some(n) = num(cx, b, v)? else { continue };
+            if num(cx, b, v)?.is_none() {
+                continue;
+            }
             let v = cx.eval(b.call("simplify", &[v]))?;
-            let e = Ext { v, n, taken: true };
-            lo = better(lo, e, true);
-            hi = better(hi, e, false);
+            let e = Ext { v, taken: true };
+            let (Some(l), Some(u)) = (better(cx, b, lo, e, true)?, better(cx, b, hi, e, false)?) else { return Ok(None) };
+            lo = Some(l);
+            hi = Some(u);
         }
         // limits at the ends not taken (open, infinite, or a pole at a closed end)
         for (end, is_lo) in [(p.lo, true), (p.hi, false)] {
@@ -669,7 +701,7 @@ fn intervals<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: O
             let dir = h.call(h.sym("options"), &[h.call(h.sym(names::RULE), &[h.sym_term(h.sym("direction")), h.sym_term(h.sym(if is_lo { "from_above" } else { "from_below" }))])]);
             let l = cx.eval(b.call("limit", &[f, h.call(h.sym(names::RULE), &[x, pt]), dir]))?;
             if is_head(b, l, "limit") || is_head(b, l, names::FAILURE) {
-                // an oscillating function at an infinity: the sampled critical points and the cross-check decide
+                // an oscillating function at an infinity: a periodic one (proved) has its extremes at the critical points
                 if periodic && end.is_none() {
                     continue;
                 }
@@ -683,12 +715,15 @@ fn intervals<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: O
                 lo_inf = true;
                 continue;
             }
-            let Some(n) = num(cx, b, l)? else { return Ok(None) };
-            let e = Ext { v: l, n, taken: false };
+            if num(cx, b, l)?.is_none() {
+                return Ok(None);
+            }
+            let e = Ext { v: l, taken: false };
             // a closed finite end takes its value (when finite there)
             let _ = closed;
-            lo = better(lo, e, true);
-            hi = better(hi, e, false);
+            let (Some(a), Some(u)) = (better(cx, b, lo, e, true)?, better(cx, b, hi, e, false)?) else { return Ok(None) };
+            lo = Some(a);
+            hi = Some(u);
         }
         let mut parts = vec![];
         if !lo_inf {
@@ -745,9 +780,6 @@ fn checks_out_with<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, c
     }
     for v in xs {
         cx.tick(1)?;
-        if super::out_of_time() {
-            return Ok(false);
-        }
         if let Some(k) = cond {
             let ok = cx.eval(h.call(h.sym("rewrite"), &[k, h.call(h.sym(names::RULE), &[x, h.real(v)])]))?;
             if !cx.is_true(ok) {

@@ -58,15 +58,17 @@ fn d26_13_essential_singularities_and_r25_09() {
 
 #[test]
 fn d26_14_injective_moebius() {
-    assert_eq!(ev("function_injective(1/x, x)"), "true");
-    assert_eq!(ev("function_injective(tanh(1/x), x)"), "true");
+    // injective, but only samples between the poles supported it: the calls stay
+    assert_eq!(ev("function_injective(1/x, x)"), "function_injective(x^-1, x)");
+    assert_eq!(ev("function_injective(tanh(1/x), x)"), "function_injective(tanh(x^-1), x)");
     assert_eq!(ev("function_injective(1/x^2, x)"), "false");
     assert_eq!(ev("function_injective(x + 1/x, x)"), "false");
 }
 
 #[test]
 fn d26_05_18_poles_and_piecewise() {
-    assert_eq!(ev("function_poles(zeta(x), x)"), "[[1, 1]]");
+    // the order of zeta's pole came from the growth of |zeta| near 1 (no limit in closed form): the call stays
+    assert_eq!(ev("function_poles(zeta(x), x)"), "function_poles(zeta(x), x)");
     assert_eq!(ev("function_poles(gamma(x), x)"), "[[conditional_expression(-c(1), element(c(1), integers) and c(1) >= 0), 1]]");
     assert_eq!(ev("function_discontinuities(piecewise([[1, x < 0], [2, x >= 0]]), x)"), "x == 0");
     assert_eq!(ev("function_continuous(piecewise([[1, x < 0], [2, x >= 0]]), x)"), "false");

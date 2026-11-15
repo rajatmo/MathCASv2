@@ -23,8 +23,10 @@
 //! without parameters, `reduce` (one real variable) or the cylindrical decomposition (`resolve(exists(...))`,
 //! polynomial atoms), the complex plane through the real and imaginary parts of the variables (`z -> zr + im zi`,
 //! `complex_expand`); a nonconstant polynomial or entire periodic template (`cos(u) == 0` with `u` a nonconstant
-//! polynomial) always has a complex zero; otherwise a numeric search for a witness (a sign change refined by
-//! bisection to a residual below 1e-9, a sample inside an inequality). With parameters the condition under which
+//! polynomial) always has a complex zero; otherwise a numeric search for a witness, which is accepted only when
+//! proved (round 43): a sign change refined by bisection, with proved opposite signs at the exact ends of the
+//! bracket, an enclosure of the function over it (continuous there) and the other conjuncts true on its whole ball;
+//! or an exact point inside the inequalities. With parameters the condition under which
 //! the set misses the region is `resolve(for_all(vars, region implies not atoms))`, after dropping the
 //! non-polynomial conjuncts of cuts (which only enlarges the set: the condition stays sufficient).
 use super::spec::{Dom, Spec};
@@ -210,39 +212,44 @@ fn piecewise_atoms<'h>(
             }
         }
     }
-    let val = |cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>| -> Res<Option<f64>> {
-        let r = cx.eval(h.call(h.sym("rewrite"), &[u, h.call(h.sym(names::RULE), &[x, t])]))?;
-        let n = cx.eval(h.call(h.sym("n"), &[r]))?;
-        Ok(match h.view(n) {
-            View::Real(y) if y.is_finite() => Some(y),
-            View::Int(k) => Some(k as f64),
-            _ => None,
-        })
+    // each boundary point by the one-sided limits of the piecewise function and its value there (round 43: values at
+    // points beside it prove nothing): an infinite limit is a pole; finite limits that differ, or a value that
+    // differs from them, a jump; equal ones nothing; a limit or a comparison not decided leaves the call
+    let infinite = |t: T<'h>| {
+        let inf = h.sym_term(h.sym("inf"));
+        t == inf || t == b.neg(inf) || t == h.sym_term(h.sym("complex_infinity"))
     };
     for e in points {
         cx.tick(1)?;
-        let mut side = vec![];
-        for (k, sgn) in [(-12i64, -1i64), (-12, 1), (-18, -1), (-18, 1)] {
-            let d = b.pow(b.int(10), b.int(k));
-            side.push(val(cx, b.add(&[e, b.mul(&[b.int(sgn), d])]))?);
-        }
-        let at = val(cx, e)?;
-        let big = |v: &Option<f64>| v.is_none() || v.is_some_and(|y| y.abs() > 1e7);
-        let kind = if big(&side[0]) || big(&side[1]) || big(&side[2]) || big(&side[3]) {
-            if side.iter().all(|v| v.is_some_and(|y| y.is_finite())) && side[2].zip(side[0]).is_some_and(|(a, c)| a.abs() > 5.0 * c.abs()) || side[3].zip(side[1]).is_some_and(|(a, c)| a.abs() > 5.0 * c.abs()) {
-                Some(Kind::Pole)
-            } else {
-                Some(Kind::Jump)
+        let mut sides = vec![];
+        for dir in ["from_above", "from_below"] {
+            let rule = h.call(h.sym(names::RULE), &[x, e]);
+            let d = h.call(h.sym(names::RULE), &[h.sym_term(h.sym("direction")), h.sym_term(h.sym(dir))]);
+            let l = cx.eval(b.call("limit", &[u, rule, h.call(h.sym("options"), &[d])]))?;
+            if is_head(b, l, "limit") || is_head(b, l, names::FAILURE) {
+                return Ok(false);
             }
+            sides.push(l);
+        }
+        let kind = if sides.iter().any(|&l| infinite(l)) {
+            Some(Kind::Pole)
         } else {
-            let (l, r) = (side[2].unwrap_or(0.0), side[3].unwrap_or(0.0));
-            let tol = 1e-7 * (1.0 + l.abs().max(r.abs()));
-            let jump = (l - r).abs() > tol || at.is_some_and(|y| (y - l).abs() > tol || (y - r).abs() > tol);
-            // `unequal`/closed sides: the value at the point must match the side it belongs to
-            if jump {
-                Some(Kind::Jump)
-            } else {
-                None
+            match super::proof::closed_sign(cx, b, b.sub(sides[0], sides[1]))? {
+                None => return Ok(false),
+                Some(s) if s != 0 => Some(Kind::Jump),
+                Some(_) => {
+                    let v = cx.eval(h.call(h.sym("rewrite"), &[u, h.call(h.sym(names::RULE), &[x, e])]))?;
+                    let vn = cx.eval(h.call(h.sym("n"), &[v]))?;
+                    if matches!(h.view(vn), View::Real(_) | View::Int(_)) {
+                        match super::proof::closed_sign(cx, b, b.sub(v, sides[0]))? {
+                            None => return Ok(false),
+                            Some(0) => None,
+                            Some(_) => Some(Kind::Jump),
+                        }
+                    } else {
+                        None
+                    }
+                }
             }
         };
         if let Some(kind) = kind {
@@ -1442,12 +1449,24 @@ fn witness_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, live: &[T<'h>]
             }
             inside(cx, v)
         };
+        // the conjuncts (and the region) hold at the exact point q, or for every point of the ball q
+        let mut all: Vec<T<'h>> = others.clone();
+        all.extend(cond);
+        let exact_ok = |cx: &mut NativeCx<'_, '_, 'h>, q: T<'h>| -> Res<bool> { super::proof::holds_at(cx, b, &all, x, q) };
+        let mut tries = 0;
         match eq {
             None => {
                 for &v in &pts {
                     cx.tick(1)?;
                     if ok_others(cx, v)? {
-                        return Ok(true);
+                        tries += 1;
+                        if tries > 24 {
+                            break;
+                        }
+                        let q = super::proof::exact_point(cx, b, v)?;
+                        if exact_ok(cx, q)? {
+                            return Ok(true);
+                        }
                     }
                 }
             }
@@ -1463,14 +1482,20 @@ fn witness_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, live: &[T<'h>]
                     })
                 };
                 let mut prev: Option<(f64, f64)> = None;
+                let gb = super::proof::with_ball_constants(cx, b, g)?;
                 for &v in &pts {
                     cx.tick(1)?;
                     let y = val(cx, v)?;
                     if let (Some((pv, py)), Some(y)) = (prev, y) {
                         if py == 0.0 && ok_others(cx, pv)? {
-                            return Ok(true);
+                            // an exact zero at the exact point
+                            let q = super::proof::exact_point(cx, b, pv)?;
+                            if super::proof::point_sign(cx, b, g, x, q, &all)? == Some(0) {
+                                return Ok(true);
+                            }
                         }
-                        if py * y < 0.0 && v - pv < 1.0 {
+                        if py * y < 0.0 && v - pv < 1.0 && tries < 24 {
+                            tries += 1;
                             // bisect to a small residual
                             let (mut lo, mut hi, mut ylo) = (pv, v, py);
                             let mut good = true;
@@ -1492,9 +1517,23 @@ fn witness_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, live: &[T<'h>]
                                     ylo = ym;
                                 }
                             }
-                            let m = 0.5 * (lo + hi);
-                            if good && val(cx, m)?.is_some_and(|ym| ym.abs() < 1e-9) && ok_others(cx, m)? {
-                                return Ok(true);
+                            // a zero inside [lo, hi] proved: opposite proved signs at the exact ends, g continuous on
+                            // the bracket (an enclosure over it), the other conjuncts and the region true on the
+                            // whole bracket (evaluated on its ball)
+                            if good && lo < hi {
+                                let (ql, qh) = (super::proof::exact_point(cx, b, lo)?, super::proof::exact_point(cx, b, hi)?);
+                                let (sl, sh) = (super::proof::point_sign(cx, b, g, x, ql, &[])?, super::proof::point_sign(cx, b, g, x, qh, &[])?);
+                                if matches!((sl, sh), (Some(1), Some(-1)) | (Some(-1), Some(1))) && super::proof::enclose(cx, b, gb, x, lo, hi)?.is_some() {
+                                    let ball = super::proof::ball_of(b, lo, hi);
+                                    if super::proof::holds_at(cx, b, &all, x, ball)? {
+                                        return Ok(true);
+                                    }
+                                }
+                            } else if good && ok_others(cx, lo)? {
+                                let q = super::proof::exact_point(cx, b, lo)?;
+                                if super::proof::point_sign(cx, b, g, x, q, &all)? == Some(0) {
+                                    return Ok(true);
+                                }
                             }
                         }
                     }

@@ -33,8 +33,10 @@ fn close(got: &str, want: f64, rel: f64) -> bool {
 
 #[test]
 fn x26_1_injective_reciprocal_hyperbolics() {
+    // injective, but only samples between the poles supported it: no proof yet, the call stays
     for f in ["csch(x)", "coth(x)", "jacobi_cs(x, 1)", "jacobi_ds(x, 1)", "jacobi_ns(x, 1)"] {
-        assert_eq!(ev(&format!("function_injective({f}, x)")), "true", "{f}");
+        let r = ev(&format!("function_injective({f}, x)"));
+        assert!(r.starts_with("function_injective("), "{f}: {r}");
     }
 }
 
@@ -61,7 +63,8 @@ fn x26_4_analytic_inverse_functions() {
 
 #[test]
 fn x26_5_surjective_x_sin_x() {
-    assert_eq!(ev("function_surjective(x*sin(x), x)"), "true");
+    // onto, but only values growing along samples supported it: the call stays
+    assert_eq!(ev("function_surjective(x*sin(x), x)"), "function_surjective(x*sin(x), x)");
 }
 
 #[test]

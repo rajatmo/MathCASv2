@@ -724,3 +724,20 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
   and log_integral, zeta, zeta(s, a) across their poles (correct). Slow at r = 1: barnes_g (11 s), kelvin_ber (6 s).
 - Gap: `interval_member_q` answers false when a comparison of a symbolic end with a ball is undecided
   (whittaker_w(1, 2, 4) <= a 30-digit 3 stays a relation); the tests compare with `n` of the interval.
+
+## Round 43: functions of several intervals from enclosures
+
+- Decision (semantics 2.8): a function of several `interval` or `centered_interval` arguments (2 to 4 spreads,
+  other than sums and products) is enclosed over the box, never from a grid. `box_image` (`uncertain.rs`) cuts the
+  box into m^k equal sub-boxes (m = 1, 2, 4; at most 64) and stops at the first m where (a) every partial
+  derivative in closed form has one proved sign over every sub-box (the partial evaluated on the balls of the
+  sub-box): the hull of the values at the two corners, each enclosed on point balls; or (b) every sub-box has an
+  enclosure: the function of the balls (natural extension) met with the mean value form f(c) + sum f_i(B) [-r_i,
+  r_i]; the hull over the sub-boxes. Otherwise the call stays. Literature: Moore, Kearfott, Cloud (SIAM 2009),
+  chapter 6 (mean value form, subdivision).
+- Before: `centered_corners` and `several_intervals` took the function as monotone when the partials (or central
+  differences of the values) kept their sign at 5 points a side (3 for three or four spreads), and evaluated the
+  corners as machine numbers; an extremum between the grid points gave an interval that was not an enclosure.
+- Intervals are turned into exact centres (a + b)/2 and radii (b - a)/2 (machine ends as their binary values);
+  an end that is a closed form (pi) is not read yet (the call stays).
+- `enclose.rs`: `bounds` and `constants_as_balls` are shared with `uncertain.rs`.

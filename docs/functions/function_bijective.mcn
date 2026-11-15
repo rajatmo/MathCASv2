@@ -40,12 +40,13 @@ function_bijective([x + 2*y, 3*x - y], [x, y])
 # Scope
 
 #% text
-# The principal logarithm onto the strip of its values:
+# The principal logarithm is not bijective on the plane. Onto the strip of its values it is, but the answer needs a proof
+# that exp(y) is its inverse on the strip (log(exp(y)) = y there), which is not built yet: the second call stays:
 
 #% cell
 [function_bijective(log(x), x, complexes), function_bijective([log(x), true, -pi < im_part(y) and im_part(y) <= pi], x, y, complexes)]
 #% output
-#= [false, true]
+#= [false, function_bijective([log(x), true, -pi < im_part(y) and im_part(y) <= pi], x, y, complexes)]
 
 #% text
 # A cubic beyond its turning points, onto the positive numbers:

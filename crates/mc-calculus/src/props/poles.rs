@@ -7,10 +7,14 @@
 //!   `cos(u) == 0`, `sin(u) == 0`, ... (families `p(c(1))` with `c(1)` an integer), `u == 1` (`zeta`) and
 //!   `u == -k`, `k = 0, 1, 2, ...` (the gamma family, only inside a bounded condition).
 //! - **Order**: the smallest `m >= 0` with `limit(t^m f(p + t), t -> 0)` finite; `m = 0` is a removable point
-//!   and no pole. The limit value is checked numerically against `t^m f(p + t)` at `t = 10^-12` (40 digits).
-//!   A family is checked at `c(1) = 0`, `1`, `-1` (one order for all three, or no answer).
+//!   and no pole. The limit value is checked numerically against `t^m f(p + t)` at `t = 10^-12` (40 digits): a
+//!   disagreement leaves the call (values near p never give an order). A family is taken only when f is proved
+//!   periodic with its step (then the orders at `c(1) = 0`, `1`, `-1` are those of every member); the gamma family
+//!   (`c(1) >= 0`) only inside a bounded condition. A root of a rational function's denominator has the multiplicity
+//!   of the derivatives that vanish there, each decided exactly (simplified to 0, or a ball excluding 0).
 //! - **Condition**: with a condition the points are kept when it holds there (decided by `refine` under the
-//!   facts, or numerically); families are enumerated for `c(1)` from -40 to 40 when the condition bounds `x`.
+//!   facts; undecided, the call stays); families are enumerated for `c(1)` from -40 to 40 when the condition
+//!   bounds `x`.
 //! - Two families `a + P c(1)` and `a + P/2 + P c(1)` are merged into `a' + (P/2) c(1)` with the smaller
 //!   nonnegative offset. Points are sorted by the degree of the factor they come from (1 for a rational point), then by their imaginary and real parts.
 use super::sets::{self, Kind, Mode};
@@ -132,13 +136,7 @@ pub fn poles<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>) -> 
                 continue;
             }
             if !cx.is_true(r) {
-                let rn = cx.eval(b.call("n", &[r]))?;
-                if cx.is_false(rn) {
-                    continue;
-                }
-                if !cx.is_true(rn) {
-                    return Ok(None);
-                }
+                return Ok(None);
             }
         }
         kept.push(c);
@@ -155,6 +153,41 @@ pub fn poles<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>) -> 
     for c in kept {
         let m = if c.family {
             let View::App { args, .. } = h.view(c.p) else { continue };
+            // one order for every member only when f is periodic with the family's step (proved: f(x + step) - f(x)
+            // simplifies to 0); the orders at three members prove nothing about the others
+            if c.nonneg {
+                // gamma(u) of an affine u: every pole is simple (DLMF 5.2.1, 5.5.1); other functions of the family
+                // are not read
+                let simple = matches!(h.view(f), View::App { head, args: &[u] } if b.sym_of(head) == Some(h.sym("gamma")) && sets::poly_degree(b, u, &[x]) == Some(1));
+                if !simple {
+                    return Ok(None);
+                }
+                out.push((1, (0.0, 0.0), c.p, 1));
+                continue;
+            }
+            let step = {
+                let m1 = cx.eval(h.call(h.sym("rewrite"), &[args[0], h.call(h.sym(names::RULE), &[c1, b.one()])]))?;
+                let m0 = cx.eval(h.call(h.sym("rewrite"), &[args[0], h.call(h.sym(names::RULE), &[c1, b.zero()])]))?;
+                cx.eval(b.sub(m1, m0))?
+            };
+            let shifted = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, b.add(&[x, step])])]))?;
+            if step == b.zero() {
+                return Ok(None);
+            }
+            if cx.eval(b.call("simplify", &[b.sub(shifted, f)]))? != b.zero() {
+                // or the step is a multiple of the period proved by `function_period` (tanh: i pi)
+                let p = cx.eval(b.call("function_period", &[f, x, h.sym_term(h.sym("complexes"))]))?;
+                let multiple = match cx.as_list(p) {
+                    Some(&[p]) if p != b.zero() => {
+                        let r = cx.eval(b.call("simplify", &[b.div(step, p)]))?;
+                        matches!(h.view(r), View::Int(k) if k != 0)
+                    }
+                    _ => false,
+                };
+                if !multiple {
+                    return Ok(None);
+                }
+            }
             let mut ms = vec![];
             for k in if c.nonneg { [0, 1, 2] } else { [0, 1, -1] } {
                 let v = cx.eval(h.call(h.sym("rewrite"), &[args[0], h.call(h.sym(names::RULE), &[c1, b.int(k)])]))?;
@@ -337,19 +370,27 @@ fn is_rational<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
 }
 
 /// The multiplicity of the root `p` of the polynomial `den`: the number of its derivatives (from the 0th) that
-/// vanish at `p` (to 40 digits, |value| < 10^-30); `None` beyond 12.
+/// vanish at `p`. A derivative vanishes when its value simplifies to 0 and does not when the 40-digit ball of
+/// |value|^2 excludes 0; undecided (or beyond 12): `None`.
 fn rational_order<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, den: T<'h>, x: T<'h>, p: T<'h>) -> Res<Option<i64>> {
     let h = b.heap();
     let mut g = den;
     for m in 0..=12i64 {
         cx.tick(1)?;
         let v = cx.eval(h.call(h.sym("rewrite"), &[g, h.call(h.sym(names::RULE), &[x, p])]))?;
-        let v = cx.eval(b.call("n", &[v, b.int(40)]))?;
-        let re = cx.eval(b.call("re", &[v]))?;
-        let im = cx.eval(b.call("im_part", &[v]))?;
-        let small = cx.eval(b.call("less", &[b.add(&[b.powi(re, 2), b.powi(im, 2)]), b.pow(b.int(10), b.int(-60))]))?;
-        if !cx.is_true(small) {
+        let w = cx.eval(b.call("n", &[v, b.int(40)]))?;
+        let re = cx.eval(b.call("re", &[w]))?;
+        let im = cx.eval(b.call("im_part", &[w]))?;
+        let sq = b.add(&[b.powi(re, 2), b.powi(im, 2)]);
+        if super::proof::closed_sign(cx, b, sq)? == Some(1) {
             return Ok(Some(m));
+        }
+        let s = cx.eval(b.call("simplify", &[v]))?;
+        if s != b.zero() {
+            let r = cx.eval(b.call("root_reduce", &[v]))?;
+            if r != b.zero() {
+                return Ok(None);
+            }
         }
         g = cx.eval(b.call("d", &[g, x]))?;
     }
@@ -373,8 +414,8 @@ fn order<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, t
             return Ok(None);
         }
         if sets::is_head(b, l, "limit") {
-            // no limit by the engine: the growth of |f| towards the point decides (F27.5)
-            return numeric_order(cx, b, f, x, p);
+            // no limit by the engine: not decided (the growth of |f| at points near p proves no order)
+            return Ok(None);
         }
         let ln = cx.eval(b.call("n", &[l]))?;
         let finite = match h.view(ln) {
@@ -398,40 +439,11 @@ fn order<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, t
         let scale = sq(cx, l)?;
         let ok = cx.eval(b.call("less_equal", &[d, b.mul(&[b.add(&[b.one(), scale]), b.pow(b.int(10), b.int(-12))])]))?;
         if !cx.is_true(ok) {
-            // the limit contradicts the values (a wrong limit): the growth of |f| decides
-            return numeric_order(cx, b, f, x, p);
+            // the limit contradicts the values (a wrong limit): not decided
+            return Ok(None);
         }
         return Ok(Some(m));
     }
     Ok(None)
 }
 
-/// The order of the pole of `f` at `p` from the growth of `|f|` along a ray: `|f(p + t)| ~ t^-m` at
-/// `t = 10^-6 e^(0.6 i)` and `10^-9 e^(0.6 i)`; `m = 0` when the values stay bounded; `None` for a growth that is
-/// not near an integer.
-fn numeric_order<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, p: T<'h>) -> Res<Option<i64>> {
-    let h = b.heap();
-    let imu = h.sym_term(h.sym("im"));
-    let mut sizes = vec![];
-    for e in [-6i64, -9, -12] {
-        let dir = b.add(&[b.rat(4, 5), b.mul(&[b.rat(3, 5), imu])]);
-        let pt = cx.eval(b.add(&[p, b.mul(&[b.pow(b.int(10), b.int(e)), dir])]))?;
-        let v = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, pt])]))?;
-        let m = cx.eval(h.call(h.sym("n"), &[b.call("abs", &[v])]))?;
-        match h.view(m) {
-            View::Real(r) if r.is_finite() => sizes.push(r),
-            View::Int(k) => sizes.push(k as f64),
-            _ => return Ok(None),
-        }
-    }
-    if sizes[2] < 1e3 * (1.0 + sizes[0]) && sizes[2] < 10.0 * (1.0 + sizes[0]) {
-        return Ok(Some(0));
-    }
-    let m1 = (sizes[1] / sizes[0]).log10() / 3.0;
-    let m2 = (sizes[2] / sizes[1]).log10() / 3.0;
-    let m = m2.round();
-    if m >= 1.0 && (m2 - m).abs() < 0.08 && (m1 - m).abs() < 0.15 {
-        return Ok(Some(m as i64));
-    }
-    Ok(None)
-}

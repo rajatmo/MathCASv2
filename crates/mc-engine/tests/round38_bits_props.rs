@@ -74,7 +74,8 @@ fn bounded_inverse_jacobi_functions_are_not_onto() {
 
 #[test]
 fn inverse_jacobi_for_m_above_one_real_domain_and_sign() {
-    assert_eq!(ev("function_sign([inverse_jacobi_dc(x, 3), -1 <= x and x <= 1], x)"), "1");
+    // positive, but only samples supported it (no ball form encloses it over [-1, 1] yet): the call stays
+    assert_eq!(ev("function_sign([inverse_jacobi_dc(x, 3), -1 <= x and x <= 1], x)"), "function_sign([inverse_jacobi_dc(x, 3), -1 <= x and x <= 1], x)");
     assert_eq!(ev("function_sign(inverse_jacobi_ds(x, 3), x)"), "indeterminate");
     assert_eq!(ev("function_domain(inverse_jacobi_cd(x, 3), x)"), "x <= -1 or x >= 1");
     assert_eq!(ev("function_domain(inverse_jacobi_dn(x, 5/2), x)"), "-1 <= x and x <= 1");

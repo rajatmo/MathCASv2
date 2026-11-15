@@ -15,25 +15,32 @@
 //!   **analytic**: `true` when there are none (or the condition excludes them), `false` otherwise.
 //! - **Sign, monotonicity, convexity** of the function, its derivative, its second derivative: `1` when the value
 //!   is at least 0 everywhere on the domain, `-1` when at most 0, `0` when it vanishes, `indeterminate` otherwise.
-//!   Decided by `refine` under the domain's facts when it can; otherwise, for one variable without parameters, by
-//!   sampling: a change of sign among the samples is a proof of `indeterminate`, samples of one sign are taken as
-//!   the answer (the sampling covers the domain from 10^-6 to 10^6 in both directions; decision 2C.12).
+//!   An answer is given only when it is proved (round 43): by `refine` under the domain's facts, by the table, or,
+//!   for one variable without parameters on a domain of finitely many bounded intervals, by enclosures of the
+//!   function (its derivative, its second derivative) over the intervals ([`proof::sign_on`]); a bounded set of
+//!   integers by the exact values. Points refute only: values of both signs (of f, f' or f''; or of the first and
+//!   second differences of f) at points of the domain, each sign proved at an exact point ([`proof`]), give
+//!   `indeterminate`; samples of one sign give no answer. Convexity from the sign of f'' needs f'' to exist on the
+//!   whole domain (a cusp such as x^(2/3) at 0 is not seen by f'').
 //!   A function with jumps or kinks (`floor`, `unit_step`, `abs`, `max`, ...: the derivative misses the jumps and the
-//!   second derivative the kinks) is decided by the samples of the function itself: its differences for the
-//!   monotonicity, its slopes between neighbouring samples for the convexity.
-//! - **Injective**: strictly monotonic (by the derivative's sign) is `true`; two equal values found among the
-//!   samples is `false`; equal neighbouring machine values of samples otherwise monotonic (a function that
-//!   saturates, like `logistic_sigmoid` at 40) are compared again at 40 digits.
+//!   second derivative the kinks) is refuted by the differences of the function itself (its first differences for
+//!   the monotonicity, its chords for the convexity); it is never proved monotonic or convex by them. Its sign (and,
+//!   with kinks only, its monotonicity) is proved piece by piece on its piecewise form ([`piecewise_shape`]).
+//! - **Injective**: strictly monotonic (by a proved sign of the derivative) is `true`; two points of the domain
+//!   with exactly equal values, or a proved turning point inside a stretch where the function is continuous (an
+//!   enclosure over it exists; the intermediate value theorem), is `false`; nothing else.
 //! - Over the complexes the functions entire on the reals that have poles or branch points off the real line are
 //!   not analytic everywhere: `tanh`, `sech`, `gudermannian` (`cosh(u) != 0`), `coth`, `csch` (`sinh(u) != 0`),
 //!   and the inverse trigonometric and hyperbolic functions off their branch cuts.
 //! - The special functions: what each one is (domain, singular set, range, bounds, sign, monotonicity, convexity,
 //!   periodicity) is kept once in [`table`], with its literature, and read by every property.
-//! - The samples of one call stop after a time budget and the call declines (a resource guard, see [`Budget`]).
+//! - The searches for refuting points are bounded by their number of points and, for slow functions, by a time
+//!   budget ([`Budget`]) that only cuts a search short (no answer then); it is to become a work count.
 mod domain_form;
 mod onto;
 mod period;
 mod poles;
+mod proof;
 mod pw;
 mod range;
 mod sets;
@@ -51,13 +58,15 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 thread_local! {
-    /// When the samples of the current property call must stop (the outermost call sets it).
+    /// When the searches for refuting points of the current property call must stop (the outermost call sets it).
     static DEADLINE: std::cell::Cell<Option<std::time::Instant>> = const { std::cell::Cell::new(None) };
 }
 
-/// The time the samples of one property call may take: numeric evaluation of some special functions is slow, and
-/// a call that cannot finish its samples declines instead of running into the evaluation's time limit.
-const SAMPLE_BUDGET: std::time::Duration = std::time::Duration::from_millis(2500);
+/// The time the searches for refuting points of one property call may take. Only a search is cut (it then gives no
+/// answer): every answer comes from a proof or from a counterexample confirmed at exact points. Some special
+/// functions take seconds per value (at 30 digits more), so the searches need a bound; it becomes a work count once
+/// the evaluator reports the fuel spent.
+const SEARCH_BUDGET: std::time::Duration = std::time::Duration::from_millis(2500);
 
 /// The budget of the outermost property call on this thread, released on drop.
 struct Budget(bool);
@@ -68,7 +77,7 @@ impl Budget {
             if d.get().is_some() {
                 Budget(false)
             } else {
-                d.set(Some(std::time::Instant::now() + SAMPLE_BUDGET));
+                d.set(Some(std::time::Instant::now() + SEARCH_BUDGET));
                 Budget(true)
             }
         })
@@ -83,7 +92,7 @@ impl Drop for Budget {
     }
 }
 
-/// Has the sample budget of the current call run out?
+/// Has the search budget of the current call run out?
 pub(crate) fn out_of_time() -> bool {
     DEADLINE.with(|d| d.get().is_some_and(|t| std::time::Instant::now() > t))
 }
@@ -273,6 +282,7 @@ impl Native for PropNative {
                 let ind = h.sym_term(h.sym("indeterminate"));
                 match excluded_points_shape(cx, &b, &c)? {
                     2 => Some(ind),
+                    3 => None,
                     0 => sign_of(cx, &b, &c, 2)?,
                     k => sign_of(cx, &b, &c, 2)?.map(|r| match h.view(r) {
                         View::Int(s) if s == 0 || s == i64::from(k) => h.int(i64::from(k)),
@@ -282,7 +292,11 @@ impl Native for PropNative {
             }
             Prop::Sign => sign_of(cx, &b, &c, 0)?,
             Prop::Monotonicity => sign_of(cx, &b, &c, 1)?,
-            Prop::Injective => injective(cx, &b, &c)?,
+            // undecided here: the pairs f(x) == f(x2) by quantifier elimination (rational functions: 1/x, x/(x + 1))
+            Prop::Injective => match injective(cx, &b, &c)? {
+                Some(r) => Some(r),
+                None => onto::decide(cx, &b, &sp, onto::Want::Injective)?,
+            },
             Prop::Discontinuities | Prop::Continuous | Prop::Meromorphic | Prop::Period | Prop::Poles | Prop::Surjective | Prop::Bijective | Prop::PiecewiseExpand | Prop::Range => None,
         };
         Ok(r.map_or(Reply::Decline, Reply::Done))
@@ -291,7 +305,8 @@ impl Native for PropNative {
 
 /// The shape of f at the points `x != c` (alone or in a conjunction) a condition on one variable leaves out: 2 when
 /// the one-sided limits of f are finite and differ at one (a jump) or the kinks disagree, 1 (-1) when f is
-/// continuous there and the one-sided limits of f' jump up (down), 0 otherwise.
+/// continuous there and the one-sided limits of f' jump up (down), 0 otherwise; 3 when a comparison of the limits is
+/// not decided (exact limits compared by the proved sign of their difference).
 fn excluded_points_shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> Res<i8> {
     let h = b.heap();
     let (Some(cond), [x]) = (c.cond, c.vars.as_slice()) else { return Ok(0) };
@@ -307,8 +322,8 @@ fn excluded_points_shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &C
             _ => {}
         }
     }
-    // the one-sided limits (above, below) of g at p as machine numbers, `None` when one is not a finite number
-    let sides = |cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, p: T<'h>| -> Res<Option<(f64, f64)>> {
+    // the one-sided limits (above, below) of g at p, `None` when one is not a finite number
+    let sides = |cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, p: T<'h>| -> Res<Option<(T<'h>, T<'h>)>> {
         let mut v = vec![];
         for dir in ["from_above", "from_below"] {
             let rule = h.call(h.sym(names::RULE), &[*x, p]);
@@ -316,8 +331,8 @@ fn excluded_points_shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &C
             let l = cx.eval(b.call("limit", &[g, rule, h.call(h.sym("options"), &[d])]))?;
             let n = cx.eval(b.call("n", &[l]))?;
             match h.view(n) {
-                View::Int(i) => v.push(i as f64),
-                View::Real(r) if r.is_finite() => v.push(r),
+                View::Int(_) => v.push(l),
+                View::Real(r) if r.is_finite() => v.push(l),
                 _ => return Ok(None),
             }
         }
@@ -326,17 +341,16 @@ fn excluded_points_shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &C
     let mut shape = 0i8;
     for p in points {
         let Some((above, below)) = sides(cx, c.f, p)? else { continue };
-        if (above - below).abs() > 1e-12 * (1.0 + above.abs()) {
-            return Ok(2);
+        match proof::closed_sign(cx, b, b.sub(above, below))? {
+            Some(0) => {}
+            Some(_) => return Ok(2),
+            None => return Ok(3),
         }
         let df = cx.eval(b.call("d", &[c.f, *x]))?;
         let Some((da, db)) = sides(cx, df, p)? else { continue };
-        let k = if da > db + 1e-12 * (1.0 + da.abs()) {
-            1
-        } else if da < db - 1e-12 * (1.0 + da.abs()) {
-            -1
-        } else {
-            0
+        let k = match proof::closed_sign(cx, b, b.sub(da, db))? {
+            Some(k) => k,
+            None => return Ok(3),
         };
         if k != 0 {
             if shape != 0 && shape != k {
@@ -787,16 +801,9 @@ fn machine_real<'h>(h: &'h mc_core::Heap, t: T<'h>) -> Option<f64> {
     }
 }
 
-/// The value of `f` at (a rational next to) `v` to 40 digits.
-fn precise_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, v: f64) -> Res<T<'h>> {
-    let h = b.heap();
-    let q = cx.eval(b.call("rationalize", &[h.real(v), b.zero()]))?;
-    let r = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, q])]))?;
-    cx.eval(h.call(h.sym("n"), &[r, b.int(40)]))
-}
-
-/// Sample points of the real line (or of the integers): 0, ±10^k at quarter decades from 10^-6 to 10^6, and the
-/// integers -50..50.
+/// Search points of the real line (or of the integers) for refuting witnesses: 0, ±10^k at quarter decades from
+/// 10^-6 to 10^6, the integers -50..50 and a grid of step 0.1 over [-10, 10]. They only guide the search: a witness
+/// is confirmed at the exact point.
 fn samples(integers: bool) -> Vec<f64> {
     let mut v: Vec<f64> = (-50..=50).map(f64::from).collect();
     if !integers {
@@ -805,8 +812,8 @@ fn samples(integers: bool) -> Vec<f64> {
             v.push(p);
             v.push(-p);
         }
-        for k in 0..400 {
-            v.push(-10.0 + 0.05 * k as f64 + 0.0123);
+        for k in 0..200 {
+            v.push(-10.0 + 0.1 * k as f64 + 0.0123);
         }
     }
     v.sort_by(f64::total_cmp);
@@ -814,11 +821,199 @@ fn samples(integers: bool) -> Vec<f64> {
     v
 }
 
+/// At most this many candidate witnesses are confirmed by one search.
+const MAX_CONFIRM: usize = 24;
+
+/// Do the conditions hold at the machine point `v` (a cheap filter before a confirmation)?
+fn holds_machine<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, conds: &[T<'h>], x: T<'h>, v: f64) -> Res<bool> {
+    proof::holds_at(cx, b, conds, x, b.heap().real(v))
+}
+
+/// A refutation of a sign of `g`: among the machine points `xs` (inside `conds`), values of both signs (with
+/// `zero`, also an exact 0), each confirmed at the exact point. `true` when refuted.
+#[allow(clippy::too_many_arguments)]
+fn sign_witness<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>, conds: &[T<'h>], xs: &[f64], zero: bool, real_known: bool) -> Res<bool> {
+    let (mut pos, mut neg) = (false, false);
+    let mut tries = 0;
+    for &v in xs {
+        cx.tick(1)?;
+        if !holds_machine(cx, b, conds, x, v)? {
+            continue;
+        }
+        let Some(y) = value_at(cx, b, g, x, v)? else { continue };
+        let tol = 1e-12 * (1.0 + y.abs());
+        let wanted = (y > tol && !pos) || (y < -tol && !neg) || (zero && y.abs() <= tol);
+        if !wanted {
+            continue;
+        }
+        tries += 1;
+        if tries > MAX_CONFIRM {
+            break;
+        }
+        let q = proof::exact_point(cx, b, v)?;
+        let s = if real_known { proof::point_sign_real(cx, b, g, x, q, conds)? } else { proof::point_sign(cx, b, g, x, q, conds)? };
+        match s {
+            Some(1) => pos = true,
+            Some(-1) => neg = true,
+            Some(0) if zero => return Ok(true),
+            _ => {}
+        }
+        if pos && neg {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// The proved sign of the first difference f(q) - f(p) (`order` 1, points [p, q]) or of the chord defect
+/// (r - q) f(p) + (q - p) f(r) - (r - p) f(q) (`order` 2, points [p, q, r]: positive when f(q) lies below the chord)
+/// at the exact points next to the machine points, which must lie inside `conds`; for the chord also f must have an
+/// enclosure over [p, r] (it is defined on the whole segment). `None` when not proved.
+fn confirmed_diff<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, conds: &[T<'h>], vs: &[f64], order: usize) -> Res<Option<i8>> {
+    let mut qs = vec![];
+    for &v in vs {
+        let q = proof::exact_point(cx, b, v)?;
+        if !proof::holds_at(cx, b, conds, x, q)? {
+            return Ok(None);
+        }
+        qs.push(q);
+    }
+    let mut fs = vec![];
+    for &q in &qs {
+        fs.push(proof::at(cx, b, f, x, q)?);
+    }
+    if order == 1 {
+        return proof::closed_sign(cx, b, b.sub(fs[1], fs[0]));
+    }
+    // f defined on the whole segment
+    let (p, q, r) = (qs[0], qs[1], qs[2]);
+    if !defined_on(cx, b, f, x, conds, (p, vs[0]), (r, vs[2]), false)? {
+        return Ok(None);
+    }
+    let defect = b.add(&[b.mul(&[b.sub(r, q), fs[0]]), b.mul(&[b.sub(q, p), fs[2]]), b.neg(b.mul(&[b.sub(r, p), fs[1]]))]);
+    proof::closed_sign(cx, b, defect)
+}
+
+/// Is `f` defined on the whole segment [p, r] (exact ends with their machine values), and with `continuous` also
+/// continuous there? Its definedness conditions and `conds` hold for p <= x <= r (refine; continuity then needs no
+/// step function and no function the table does not describe completely), or else an enclosure of f over the
+/// segment exists (no pole or cut inside; continuity then needs no step function).
+#[allow(clippy::too_many_arguments)]
+fn defined_on<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, conds: &[T<'h>], (p, pv): (T<'h>, f64), (r, rv): (T<'h>, f64), continuous: bool) -> Res<bool> {
+    let h = b.heap();
+    let steps = range::has_jumps(b, f) || contains_call(b, f, "arg");
+    if continuous && steps {
+        return Ok(false);
+    }
+    let incomplete = {
+        let mut stack = vec![f];
+        let mut found = false;
+        while let Some(u) = stack.pop() {
+            if let View::App { head, args } = h.view(u) {
+                found |= b.sym_of(head).is_some_and(|s| table::not_smooth(&h.sym_name(s)));
+                stack.extend(args.iter().copied());
+            }
+        }
+        found
+    };
+    if !(continuous && incomplete) {
+        if let Some(cs) = conditions(cx, b, f, &[x], false)? {
+            let seg = [h.call(h.sym("element"), &[x, h.sym_term(h.sym("reals"))]), b.call("less_equal", &[p, x]), b.call("less_equal", &[x, r])];
+            let mut all = true;
+            for k in cs.iter().chain(conds) {
+                let v = cx.eval_assuming(&seg, b.call("refine", &[*k]))?;
+                if !cx.is_true(v) {
+                    all = false;
+                    break;
+                }
+            }
+            if all {
+                return Ok(true);
+            }
+        }
+    }
+    let fb = proof::with_ball_constants(cx, b, f)?;
+    Ok(proof::enclose(cx, b, fb, x, pv, rv)?.is_some())
+}
+
+/// A refutation of monotonicity (`order` 1) or convexity (`order` 2) from the triples: differences (chord defects)
+/// of both signs, each confirmed ([`confirmed_diff`]). `true` when refuted.
+fn diff_witness<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, conds: &[T<'h>], triples: &[[f64; 3]], order: usize) -> Res<bool> {
+    let (mut up, mut down) = (false, false);
+    let mut tries = 0;
+    for t in triples {
+        let mut ys = [0.0; 3];
+        let mut ok = true;
+        for (i, &v) in t.iter().enumerate() {
+            cx.tick(1)?;
+            if !holds_machine(cx, b, conds, x, v)? {
+                ok = false;
+                break;
+            }
+            match value_at(cx, b, f, x, v)? {
+                Some(y) => ys[i] = y,
+                None => {
+                    ok = false;
+                    break;
+                }
+            }
+        }
+        if !ok {
+            continue;
+        }
+        let tol = 1e-9 * (1.0 + ys[0].abs() + ys[1].abs() + ys[2].abs());
+        let cands: Vec<(f64, Vec<f64>)> = if order == 1 {
+            vec![(ys[1] - ys[0], vec![t[0], t[1]]), (ys[2] - ys[1], vec![t[1], t[2]])]
+        } else {
+            let d = (t[2] - t[1]) * ys[0] + (t[1] - t[0]) * ys[2] - (t[2] - t[0]) * ys[1];
+            vec![(d, t.to_vec())]
+        };
+        for (d, pts) in cands {
+            let want = (d > tol && !up) || (d < -tol && !down);
+            if !want {
+                continue;
+            }
+            tries += 1;
+            if tries > MAX_CONFIRM {
+                return Ok(false);
+            }
+            match confirmed_diff(cx, b, f, x, conds, &pts, order)? {
+                Some(1) => up = true,
+                Some(-1) => down = true,
+                _ => {}
+            }
+            if up && down {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
 /// The sign of `f`, `f'` or `f''` on the domain (module comment): `1`, `-1`, `0`, `indeterminate`, or `None`.
 /// A convexity claim is checked against the chords of the function (cusps, where the second derivative has one sign
 /// on each side but the function is not convex or concave across the point: B26-3).
 fn sign_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, order: usize) -> Res<Option<T<'h>>> {
     let r = sign_of_inner(cx, b, c, order)?;
+    // undecided convexity: chords above and below the function refute both (a cusp, as x^(2/3) at 0)
+    if r.is_none() && order == 2 && !c.integers && !c.complex && c.vars.len() == 1 {
+        let x = c.vars[0];
+        let mut params = rustc_hash::FxHashSet::default();
+        symbols(b, c.f, &mut params);
+        if params.iter().all(|&s| s == x) {
+            let fr = real_roots(cx, b, c.f)?;
+            let conds: Vec<T<'h>> = c.cond.into_iter().collect();
+            let mut triples = vec![];
+            for x0 in (-10..=10).map(|i| f64::from(i) * 0.5) {
+                for t in [0.1, 0.5, 1.0, 2.5] {
+                    triples.push([x0 - t, x0, x0 + t]);
+                }
+            }
+            if diff_witness(cx, b, fr, x, &conds, &triples, 2)? {
+                return Ok(Some(b.heap().sym_term(b.heap().sym("indeterminate"))));
+            }
+        }
+    }
     if order == 2 && !c.integers && !c.complex && c.vars.len() == 1 {
         if let Some(t) = r {
             if let View::Int(k @ (1 | -1)) = b.heap().view(t) {
@@ -856,32 +1051,27 @@ fn real_roots<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>) -> Res
     cx.eval(h.app(head, &new))
 }
 
-/// Do the chords of `f` agree with the claim `k` (1 convex, -1 concave) at the triples `x0 - t, x0, x0 + t`?
+/// Do the chords of `f` agree with the claim `k` (1 convex, -1 concave) at the triples `x0 - t, x0, x0 + t`? A
+/// disagreement found by machine values is confirmed at the exact points ([`confirmed_diff`]); an unconfirmed one
+/// leaves the claim undecided (`None`).
 fn chords_agree<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>, k: i64) -> Res<Option<bool>> {
-    let h = b.heap();
     let mut params = rustc_hash::FxHashSet::default();
     symbols(b, c.f, &mut params);
     if params.iter().any(|&s| s != x) {
         return Ok(Some(true));
     }
     let fr = real_roots(cx, b, c.f)?;
+    let conds: Vec<T<'h>> = c.cond.into_iter().collect();
     for x0 in (-10..=10).map(|i| f64::from(i) * 0.5) {
         for t in [0.1, 0.5, 1.0, 2.5] {
             cx.tick(1)?;
-            if out_of_time() {
-                return Ok(None);
-            }
             let pts = [x0 - t, x0, x0 + t];
             let mut ys = [0.0; 3];
             let mut ok = true;
             for (i, &v) in pts.iter().enumerate() {
-                if let Some(cd) = c.cond {
-                    let rule = h.call(h.sym(names::RULE), &[x, h.real(v)]);
-                    let r = cx.eval(h.call(h.sym("rewrite"), &[cd, rule]))?;
-                    if !cx.is_true(r) {
-                        ok = false;
-                        break;
-                    }
+                if !holds_machine(cx, b, &conds, x, v)? {
+                    ok = false;
+                    break;
                 }
                 match value_at(cx, b, fr, x, v)? {
                     Some(y) => ys[i] = y,
@@ -897,7 +1087,10 @@ fn chords_agree<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, 
             let avg = 0.5 * (ys[0] + ys[2]);
             let tol = 1e-9 * (1.0 + ys[0].abs() + ys[1].abs() + ys[2].abs());
             if (k == 1 && ys[1] > avg + tol) || (k == -1 && ys[1] < avg - tol) {
-                return Ok(Some(false));
+                return Ok(match confirmed_diff(cx, b, fr, x, &conds, &pts, 2)? {
+                    Some(s) if i64::from(s) == -k => Some(false),
+                    _ => None,
+                });
             }
         }
     }
@@ -1068,7 +1261,20 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
             }
         }
     }
-    // functions with jumps or kinks: the samples of the function itself
+    // functions with jumps or kinks: the sign (and, for a continuous one, the monotonicity) of each piece of its
+    // piecewise form, proved by refine on the piece's region
+    if !c.integers && !c.complex && order <= 1 && nonsmooth(b, c.f, x) && !has_params {
+        if let Some(r) = piecewise_shape(cx, b, c, x, order, &cs)? {
+            return Ok(Some(r));
+        }
+    }
+    // and by the rules of compositions (a nondecreasing step function of a monotonic argument, abs of an affine one)
+    if !c.integers && !c.complex && !c.strict && order >= 1 && c.cond.is_none() && cs.is_empty() && nonsmooth(b, c.f, x) && !has_params {
+        if let Some(k) = compose_shape(cx, b, c, x, c.f, order)? {
+            return Ok(Some(b.int(k)));
+        }
+    }
+    // otherwise only refuted, by the differences of the function itself
     // (with parameters there are no samples, and the derivatives miss the jumps and kinks: `c unit_step(x)` came out
     // linear; undecided)
     if shaped {
@@ -1125,71 +1331,276 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
         facts.push(k);
     }
     facts.extend(c.facts.iter().copied());
-    // a proof by refine under the domain's facts
     let fact = conj(cx, &facts)?;
+    // convexity from the sign of f'' needs f'' on the whole domain (x^(2/3) has f'' < 0 where it exists, and a cusp
+    // at 0); without it only a refutation can answer
+    let provable = order < 2 || c.integers || {
+        match conditions(cx, b, g, &c.vars, false)? {
+            Some(gc) => {
+                let mut all = true;
+                for k in gc {
+                    let r = cx.eval_assuming(&[fact], h.call(h.sym("refine"), &[k]))?;
+                    if !cx.is_true(r) {
+                        all = false;
+                        break;
+                    }
+                }
+                all
+            }
+            None => false,
+        }
+    };
+    // a proof by refine under the domain's facts
     let zero = b.zero();
     let (rge, rle) = if c.strict && order == 0 { ("greater", "less") } else { ("greater_equal", "less_equal") };
-    let ge = cx.eval_assuming(&[fact], h.call(h.sym("refine"), &[h.call(h.sym(rge), &[g, zero])]))?;
-    let le = cx.eval_assuming(&[fact], h.call(h.sym("refine"), &[h.call(h.sym(rle), &[g, zero])]))?;
-    match (cx.is_true(ge), cx.is_true(le)) {
-        (true, true) => return Ok(Some(zero)),
-        (true, false) => return Ok(Some(b.one())),
-        (false, true) => return Ok(Some(b.int(-1))),
-        _ => {}
+    if provable {
+        let ge = cx.eval_assuming(&[fact], h.call(h.sym("refine"), &[h.call(h.sym(rge), &[g, zero])]))?;
+        let le = cx.eval_assuming(&[fact], h.call(h.sym("refine"), &[h.call(h.sym(rle), &[g, zero])]))?;
+        match (cx.is_true(ge), cx.is_true(le)) {
+            (true, true) => return Ok(Some(zero)),
+            (true, false) => return Ok(Some(b.one())),
+            (false, true) => return Ok(Some(b.int(-1))),
+            _ => {}
+        }
     }
-    // sampling: only without parameters
+    // points and enclosures: only without parameters
     let mut params = rustc_hash::FxHashSet::default();
     symbols(b, g, &mut params);
     if params.iter().any(|&s| s != x) {
         return Ok(None);
     }
-    let (mut pos, mut neg, mut any) = (false, false, false);
-    // the samples near 0 first: a change of sign is found before the far (and slower) ones are evaluated
+    let mut conds = cs.clone();
+    conds.extend(c.cond);
+    let strict0 = c.strict && order == 0;
+    // a bounded set of integers: the exact values at each of them
+    if c.integers {
+        if let Some(r) = integer_points(cx, b, g, x, &conds, strict0)? {
+            return Ok(Some(r));
+        }
+    }
+    // a refutation: values of g of both signs at points of the domain (the points near 0 first, after a few spread
+    // ones: a slow function whose values near 0 are not real shows a change of sign early)
     let mut xs = samples(c.integers);
     xs.sort_by(|p, q| p.abs().total_cmp(&q.abs()));
-    // a few points spread over the line first: a slow function whose values near 0 are not real (|x| < 1 for a
-    // radial function) shows a change of sign before the budget is spent on the points near 0
     if !c.integers {
         xs = spread_first(xs);
     }
-    for v in xs {
-        cx.tick(1)?;
-        if out_of_time() {
-            return Ok(None);
-        }
-        // inside the domain and the condition
-        if let Some(k) = c.cond {
-            let rule = h.call(h.sym(names::RULE), &[x, h.real(v)]);
-            let ok = cx.eval(h.call(h.sym("rewrite"), &[k, rule]))?;
-            if !cx.is_true(ok) {
-                continue;
+    if sign_witness(cx, b, g, x, &conds, &xs, strict0, true)? {
+        return Ok(Some(indet));
+    }
+    // a proof by enclosures of g over a bounded domain (one interval for monotonicity and convexity)
+    if !c.integers && provable {
+        if let Some(pieces) = proof::bounded_pieces(cx, b, &conds, x)? {
+            if order == 0 || pieces.len() == 1 {
+                let mut ans: Option<i8> = Some(0);
+                for (lo, hi, lt, ut) in pieces {
+                    let s = proof::sign_on(cx, b, g, x, (lo, hi), Some((lt, ut)), c.strict)?;
+                    ans = match (ans, s) {
+                        (Some(a), Some(s)) if a == s || s == 0 => Some(a),
+                        (Some(0), Some(s)) => Some(s),
+                        _ => None,
+                    };
+                    if ans.is_none() {
+                        break;
+                    }
+                }
+                if let Some(a) = ans {
+                    return Ok(Some(b.int(i64::from(a))));
+                }
             }
         }
-        if value_at(cx, b, c.f, x, v)?.is_none() {
-            continue;
-        }
-        let Some(y) = value_at(cx, b, g, x, v)? else { continue };
-        any = true;
-        let tol = 1e-12 * (1.0 + y.abs());
-        if y > tol {
-            pos = true;
-        } else if y < -tol {
-            neg = true;
-        } else if c.strict && order == 0 {
-            return Ok(Some(indet));
-        }
-        if pos && neg {
-            return Ok(Some(indet));
-        }
     }
-    if !any || out_of_time() {
+    Ok(None)
+}
+
+/// The nondecreasing functions of one argument with jumps or kinks (the step functions and `ramp`).
+const NONDECREASING_STEPS: &[&str] = &["floor", "ceiling", "round", "integer_part", "unit_step", "sign", "heaviside_theta", "real_sign", "ramp"];
+
+/// The monotonicity (`order` 1) or convexity (`order` 2) on the whole line of a function with jumps or kinks, by
+/// the rules of compositions: a term free of x is constant; sums combine (terms of one direction, constants
+/// aside); a constant factor of proved sign scales; a nondecreasing step function (`floor`, `unit_step`, ...) of an
+/// argument keeps its monotonicity; `max` of nondecreasing (convex) arguments is nondecreasing (convex), `min`
+/// likewise; `abs`, `real_abs` and `ramp` of an affine argument are convex; a smooth subterm by the proofs of
+/// [`sign_of`]. `None` when a rule does not apply.
+fn compose_shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>, e: T<'h>, order: usize) -> Res<Option<i64>> {
+    let h = b.heap();
+    cx.tick(1)?;
+    if is_free(b, e, x) {
+        return Ok(Some(0));
+    }
+    if !nonsmooth(b, e, x) {
+        let ce = Call { f: e, cond: None, vars: c.vars.clone(), complex: false, integers: false, facts: c.facts.clone(), strict: false };
+        return Ok(match sign_of(cx, b, &ce, order)?.map(|r| h.view(r)) {
+            Some(View::Int(k)) if (-1..=1).contains(&k) => Some(k),
+            _ => None,
+        });
+    }
+    let View::App { head, args } = h.view(e) else { return Ok(None) };
+    let Some(s) = b.sym_of(head) else { return Ok(None) };
+    // directions of several parts: one direction (zeros aside), else none
+    let combine = |ks: &[i64]| -> Option<i64> {
+        let mut out = 0;
+        for &k in ks {
+            if k != 0 {
+                if out != 0 && out != k {
+                    return None;
+                }
+                out = k;
+            }
+        }
+        Some(out)
+    };
+    let parts = |cx: &mut NativeCx<'_, '_, 'h>, us: &[T<'h>]| -> Res<Option<Vec<i64>>> {
+        let mut ks = vec![];
+        for &u in us {
+            match compose_shape(cx, b, c, x, u, order)? {
+                Some(k) => ks.push(k),
+                None => return Ok(None),
+            }
+        }
+        Ok(Some(ks))
+    };
+    if s == b.hd.add {
+        return Ok(parts(cx, args)?.and_then(|ks| combine(&ks)));
+    }
+    if s == b.hd.mul {
+        let (consts, deps): (Vec<T<'h>>, Vec<T<'h>>) = args.iter().partition(|&&a| is_free(b, a, x));
+        let [d] = deps.as_slice() else { return Ok(None) };
+        let k = b.mul(&consts);
+        let Some(sk) = proof::closed_sign(cx, b, k)? else { return Ok(None) };
+        return Ok(compose_shape(cx, b, c, x, *d, order)?.map(|v| v * i64::from(sk)));
+    }
+    let name = h.sym_name(s);
+    match (name.as_str(), args, order) {
+        (n, [u], 1) if NONDECREASING_STEPS.contains(&n) => compose_shape(cx, b, c, x, *u, 1),
+        // max of nondecreasing ones is nondecreasing; max of convex ones is convex (and not linear when one of them is
+        // not: of linear ones only, it may be linear, as max(x, x + 1), so it is not read)
+        ("max", _, _) => Ok(parts(cx, args)?.and_then(|ks| match order {
+            1 => combine(&ks),
+            _ => (ks.iter().all(|&k| k >= 0) && ks.contains(&1)).then_some(1),
+        })),
+        ("min", _, _) => Ok(parts(cx, args)?.and_then(|ks| match order {
+            1 => combine(&ks),
+            _ => (ks.iter().all(|&k| k <= 0) && ks.contains(&-1)).then_some(-1),
+        })),
+        ("abs" | "real_abs" | "ramp", [u], 2) if sets::poly_degree(b, *u, &[x]).is_some_and(|d| d <= 1) => Ok(Some(1)),
+        _ => Ok(None),
+    }
+}
+
+/// The sign (`order` 0) or monotonicity (`order` 1) of a function with jumps or kinks from its piecewise form
+/// (`piecewise_expand`): each piece (the value, or its derivative) has a sign proved by `refine` on its region (the
+/// piece's condition and not the earlier ones, with the domain and the call's condition); the signs agree. A
+/// monotonicity needs f continuous (no step function: kinks only), so that monotone pieces join into a monotone
+/// function. `None` when a piece is not decided.
+fn piecewise_shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>, order: usize, cs: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    if order == 1 && (range::has_jumps(b, c.f) || !cs.is_empty()) {
         return Ok(None);
     }
+    let pw = cx.eval(b.call("piecewise_expand", &[c.f]))?;
+    let View::App { head, args } = h.view(pw) else { return Ok(None) };
+    if b.sym_of(head) != Some(h.sym("piecewise")) || args.is_empty() {
+        return Ok(None);
+    }
+    let Some(rows) = cx.as_list(args[0]).map(<[T<'h>]>::to_vec) else { return Ok(None) };
+    let default = args.get(1).copied().unwrap_or_else(|| b.zero());
+    let mut pieces = vec![];
+    let mut earlier: Vec<T<'h>> = vec![];
+    for r in rows {
+        let Some(&[v, k]) = cx.as_list(r) else { return Ok(None) };
+        let region = if earlier.is_empty() { k } else { b.call("and", &[k, b.call("not", &[b.call("or", &earlier)])]) };
+        pieces.push((v, region));
+        earlier.push(k);
+    }
+    pieces.push((default, if earlier.is_empty() { cx.bool(true) } else { b.call("not", &[b.call("or", &earlier)]) }));
+    let mut ans: Option<i64> = None;
+    for (v, region) in pieces {
+        cx.tick(1)?;
+        if nonsmooth(b, v, x) {
+            return Ok(None);
+        }
+        let mut facts = vec![h.call(h.sym("element"), &[x, h.sym_term(h.sym("reals"))]), region];
+        facts.extend(cs.iter().copied());
+        facts.extend(c.cond);
+        facts.extend(c.facts.iter().copied());
+        // an empty region
+        let all = cx.eval(b.call("and", &facts[1..]))?;
+        if cx.is_false(all) {
+            continue;
+        }
+        let red = cx.eval(b.call("reduce", &[all, x, h.sym_term(h.sym("reals"))]))?;
+        if cx.is_false(red) {
+            continue;
+        }
+        // the region as intervals (refine reads `-1 < x and x < 0` where `x + x^2 < 0` says nothing to it)
+        if !sets::is_head(b, red, "reduce") && !sets::is_head(b, red, names::FAILURE) {
+            facts.push(red);
+        }
+        let g = if order == 0 { v } else { cx.eval(b.call("d", &[v, x]))? };
+        // strict: every piece strictly of one sign (a constant piece is not strictly monotonic)
+        let (rge, rle) = if c.strict { ("greater", "less") } else { ("greater_equal", "less_equal") };
+        let ge = cx.eval_assuming(&facts, b.call("refine", &[b.call(rge, &[g, b.zero()])]))?;
+        let le = cx.eval_assuming(&facts, b.call("refine", &[b.call(rle, &[g, b.zero()])]))?;
+        let s = match (cx.is_true(ge), cx.is_true(le)) {
+            (true, true) => 0,
+            (true, false) => 1,
+            (false, true) => -1,
+            _ => return Ok(None),
+        };
+        ans = Some(match ans {
+            None => s,
+            Some(a) if a == s || s == 0 => a,
+            Some(0) => s,
+            Some(_) => return Ok(None),
+        });
+    }
+    Ok(ans.map(|a| b.int(a)))
+}
+
+/// The sign of `g` on a bounded set of integers (the conditions reduce to finitely many bounded intervals holding
+/// at most 2000 integers) from its exact values: `None` when the set is not bounded or a value is undecided.
+fn integer_points<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>, conds: &[T<'h>], strict: bool) -> Res<Option<T<'h>>> {
+    let Some(pieces) = proof::bounded_pieces(cx, b, conds, x)? else { return Ok(None) };
+    let mut ints = vec![];
+    for (lo, hi, _, _) in pieces {
+        let (a, c) = (lo.ceil(), hi.floor());
+        if !(a.is_finite() && c.is_finite()) || c - a > 2000.0 {
+            return Ok(None);
+        }
+        let mut k = a as i64;
+        while (k as f64) <= c {
+            ints.push(k);
+            k += 1;
+        }
+        if ints.len() > 2000 {
+            return Ok(None);
+        }
+    }
+    let (mut pos, mut neg, mut any) = (false, false, false);
+    for k in ints {
+        let q = b.int(k);
+        if !proof::holds_at(cx, b, conds, x, q)? {
+            continue;
+        }
+        any = true;
+        match proof::point_sign(cx, b, g, x, q, &[])? {
+            Some(1) => pos = true,
+            Some(-1) => neg = true,
+            Some(0) if strict => return Ok(Some(b.heap().sym_term(b.heap().sym("indeterminate")))),
+            Some(0) => {}
+            _ => return Ok(None),
+        }
+    }
+    if !any {
+        return Ok(None);
+    }
+    let h = b.heap();
     Ok(Some(match (pos, neg) {
+        (true, true) => h.sym_term(h.sym("indeterminate")),
         (true, false) => b.one(),
         (false, true) => b.int(-1),
-        (false, false) => zero,
-        _ => indet,
+        (false, false) => b.zero(),
     }))
 }
 
@@ -1203,42 +1614,9 @@ fn probe_differences<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<
     if params.iter().any(|&s| s != x) {
         return Ok(None);
     }
-    let (mut up, mut down) = (false, false);
-    for x0 in [0.5, -0.5, 1.5, -1.5, 3.1, -3.1, 7.3, -7.3, 15.2, -15.2] {
-        let mut ys = [0.0; 3];
-        let mut ok = true;
-        for (i, v) in [x0 - 0.25, x0, x0 + 0.25].into_iter().enumerate() {
-            cx.tick(1)?;
-            if let Some(k) = c.cond {
-                let rule = h.call(h.sym(names::RULE), &[x, h.real(v)]);
-                let r = cx.eval(h.call(h.sym("rewrite"), &[k, rule]))?;
-                if !cx.is_true(r) {
-                    ok = false;
-                    break;
-                }
-            }
-            match value_at(cx, b, c.f, x, v)? {
-                Some(y) => ys[i] = y,
-                None => {
-                    ok = false;
-                    break;
-                }
-            }
-        }
-        if !ok {
-            continue;
-        }
-        let tol = 1e-9 * (1.0 + ys[0].abs() + ys[1].abs() + ys[2].abs());
-        let ds: Vec<f64> = if order == 1 { vec![ys[1] - ys[0], ys[2] - ys[1]] } else { vec![ys[0] - 2.0 * ys[1] + ys[2]] };
-        for d in ds {
-            up |= d > tol;
-            down |= d < -tol;
-        }
-        if up && down {
-            return Ok(Some(h.sym_term(h.sym("indeterminate"))));
-        }
-    }
-    Ok(None)
+    let triples: Vec<[f64; 3]> = [0.5, -0.5, 1.5, -1.5, 3.1, -3.1, 7.3, -7.3, 15.2, -15.2].iter().map(|&x0| [x0 - 0.25, x0, x0 + 0.25]).collect();
+    let conds: Vec<T<'h>> = c.cond.into_iter().collect();
+    Ok(diff_witness(cx, b, c.f, x, &conds, &triples, order)?.then(|| h.sym_term(h.sym("indeterminate"))))
 }
 
 /// The probe points 0.5, 1.5, 3.1, 7.3, 15.2, 30.4 (and their negatives, then 0.1) before the samples `xs`.
@@ -1272,28 +1650,8 @@ fn witness_only<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, 
     let mut xs = samples(false);
     xs.sort_by(|p, q| p.abs().total_cmp(&q.abs()));
     let xs = spread_first(xs);
-    let (mut pos, mut neg) = (false, false);
-    for v in xs {
-        cx.tick(1)?;
-        if out_of_time() {
-            return Ok(None);
-        }
-        if let Some(k) = c.cond {
-            let rule = h.call(h.sym(names::RULE), &[x, h.real(v)]);
-            let ok = cx.eval(h.call(h.sym("rewrite"), &[k, rule]))?;
-            if !cx.is_true(ok) {
-                continue;
-            }
-        }
-        let Some(y) = value_at(cx, b, c.f, x, v)? else { continue };
-        let tol = 1e-9 * (1.0 + y.abs());
-        pos |= y > tol;
-        neg |= y < -tol;
-        if pos && neg {
-            return Ok(Some(indet));
-        }
-    }
-    Ok(None)
+    let conds: Vec<T<'h>> = c.cond.into_iter().collect();
+    Ok(sign_witness(cx, b, c.f, x, &conds, &xs, false, false)?.then_some(indet))
 }
 
 /// `f` with every `(u^2)^(1/2)` replaced by `abs(u)` (the reals).
@@ -1349,10 +1707,11 @@ fn nonsmooth<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
     false
 }
 
-/// The monotonicity (`order` 1) or convexity (`order` 2) of a function of one variable without parameters, from
-/// its samples (module comment): `1` when the differences (the slopes) never decrease, `-1` when they never
-/// increase, `0` for a constant, `indeterminate` when both happen; `None` when there are no parameter-free samples.
-/// Samples outside the domain or the condition split the line: no difference is taken across them.
+/// The monotonicity (`order` 1) or convexity (`order` 2) of a function of one variable without parameters refuted
+/// by its differences (module comment): `indeterminate` when differences (chord defects) of both signs are
+/// confirmed at exact points, `None` otherwise (samples of one sign prove nothing; with `strict`, an exactly flat
+/// step refutes strictness). Samples outside the domain or the condition split the line: no chord is taken across
+/// them (first differences are, as monotonicity compares any two points of the domain).
 fn sampled_shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>, order: usize) -> Res<Option<T<'h>>> {
     let h = b.heap();
     let mut params = rustc_hash::FxHashSet::default();
@@ -1365,9 +1724,6 @@ fn sampled_shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
     let mut gap = 0usize;
     for v in samples(false) {
         cx.tick(1)?;
-        if out_of_time() {
-            return Ok(None);
-        }
         let inside = match c.cond {
             Some(k) => {
                 let rule = h.call(h.sym(names::RULE), &[x, h.real(v)]);
@@ -1396,53 +1752,54 @@ fn sampled_shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
             None => gap += 1,
         }
     }
-    if out_of_time() {
-        return Ok(None);
-    }
-    let (mut up, mut down, mut any) = (false, false, false);
-    // monotonicity compares values across the gaps of the domain too (x < y implies f(x) <= f(y) everywhere)
+    let indet = h.sym_term(h.sym("indeterminate"));
+    let conds: Vec<T<'h>> = c.cond.into_iter().collect();
+    // the candidate differences: (machine value, tolerance, points)
+    let mut cands: Vec<(f64, f64, Vec<f64>)> = vec![];
     if order == 1 {
+        // monotonicity compares values across the gaps of the domain too (x < y implies f(x) <= f(y) everywhere)
         let ends: Vec<&Vec<(f64, f64)>> = runs.iter().filter(|r| !r.is_empty()).collect();
         for w in ends.windows(2) {
-            let (a, c2) = (w[0].last().expect("a run").1, w[1][0].1);
-            let tol = 1e-12 * (1.0 + a.abs().max(c2.abs()));
-            if c2 > a + tol {
-                up = true;
-            } else if c2 < a - tol {
-                down = true;
+            let (p, q) = (*w[0].last().expect("a run"), w[1][0]);
+            cands.push((q.1 - p.1, 1e-12 * (1.0 + p.1.abs().max(q.1.abs())), vec![p.0, q.0]));
+        }
+        for run in &runs {
+            for w in run.windows(2) {
+                cands.push((w[1].1 - w[0].1, 1e-12 * (1.0 + w[0].1.abs().max(w[1].1.abs())), vec![w[0].0, w[1].0]));
+            }
+        }
+    } else {
+        for run in &runs {
+            for w in run.windows(3) {
+                let ((p, fp), (q, fq), (r, fr)) = (w[0], w[1], w[2]);
+                let d = (r - q) * fp + (q - p) * fr - (r - p) * fq;
+                cands.push((d, 1e-9 * (r - p) * (1.0 + fp.abs() + fq.abs() + fr.abs()), vec![p, q, r]));
             }
         }
     }
-    for run in &runs {
-        // the differences with their tolerance (order 1), or the slopes' differences (order 2)
-        let d: Vec<(f64, f64)> = if order == 1 {
-            run.windows(2).map(|w| (w[1].1 - w[0].1, 1e-12 * (1.0 + w[0].1.abs().max(w[1].1.abs())))).collect()
-        } else {
-            let slopes: Vec<f64> = run.windows(2).map(|w| (w[1].1 - w[0].1) / (w[1].0 - w[0].0)).collect();
-            slopes.windows(2).map(|s| (s[1] - s[0], 1e-9 * (1.0 + s[0].abs() + s[1].abs()))).collect()
-        };
-        for (di, tol) in d {
-            any = true;
-            if di > tol {
-                up = true;
-            } else if di < -tol {
-                down = true;
-            }
-            // strict: a flat piece, relative to the size of the values (|x|^3 near 0 is not flat)
-            if c.strict && di.abs() <= 1e-12 * tol {
-                return Ok(Some(h.sym_term(h.sym("indeterminate"))));
-            }
+    let (mut up, mut down) = (false, false);
+    let mut tries = 0;
+    for (d, tol, pts) in cands {
+        let flat = c.strict && d.abs() <= 1e-12 * tol;
+        let want = (d > tol && !up) || (d < -tol && !down) || flat;
+        if !want {
+            continue;
+        }
+        tries += 1;
+        if tries > MAX_CONFIRM {
+            break;
+        }
+        match confirmed_diff(cx, b, c.f, x, &conds, &pts, order)? {
+            Some(1) => up = true,
+            Some(-1) => down = true,
+            Some(0) if c.strict => return Ok(Some(indet)),
+            _ => {}
+        }
+        if up && down {
+            return Ok(Some(indet));
         }
     }
-    if !any {
-        return Ok(None);
-    }
-    Ok(Some(match (up, down) {
-        (true, false) => b.one(),
-        (false, true) => b.int(-1),
-        (false, false) => b.zero(),
-        _ => h.sym_term(h.sym("indeterminate")),
-    }))
+    Ok(None)
 }
 
 /// Several variables: what refine proves, or `indeterminate` proved by a grid of samples ([`grid_witness`]).
@@ -1492,9 +1849,6 @@ fn grid_witness<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, 
     // the value at a point inside the domain and the condition (finite and real), else `None`
     let value = |cx: &mut NativeCx<'_, '_, 'h>, p: &[f64]| -> Res<Option<f64>> {
         cx.tick(1)?;
-        if out_of_time() {
-            return Ok(None);
-        }
         let rules: Vec<T<'h>> = c.vars.iter().zip(p).map(|(&x, &v)| h.call(h.sym(names::RULE), &[x, h.real(v)])).collect();
         let rl = cx.list(&rules);
         for &k in &cs {
@@ -1520,13 +1874,48 @@ fn grid_witness<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, 
         })
         .collect();
     let indet = h.sym_term(h.sym("indeterminate"));
+    // the value at an exact point inside the conditions
+    let exact_value_at = |cx: &mut NativeCx<'_, '_, 'h>, qs: &[T<'h>]| -> Res<Option<T<'h>>> {
+        let rules: Vec<T<'h>> = c.vars.iter().zip(qs).map(|(&x, &q)| h.call(h.sym(names::RULE), &[x, q])).collect();
+        let rl = cx.list(&rules);
+        for &k in &cs {
+            let ok = cx.eval(h.call(h.sym("rewrite"), &[k, rl]))?;
+            if !cx.is_true(ok) {
+                return Ok(None);
+            }
+        }
+        Ok(Some(cx.eval(h.call(h.sym("rewrite"), &[c.f, rl]))?))
+    };
+    let exact_of = |cx: &mut NativeCx<'_, '_, 'h>, p: &[f64]| -> Res<Vec<T<'h>>> {
+        let mut qs = vec![];
+        for &v in p {
+            qs.push(proof::exact_point(cx, b, v)?);
+        }
+        Ok(qs)
+    };
+    let exact_value = |cx: &mut NativeCx<'_, '_, 'h>, p: &[f64]| -> Res<Option<T<'h>>> {
+        let qs = exact_of(cx, p)?;
+        exact_value_at(cx, &qs)
+    };
     let (mut up, mut down) = (false, false);
+    let mut tries = 0;
     if order == 0 {
         for p in &points {
             let Some(y) = value(cx, p)? else { continue };
             let tol = 1e-9 * (1.0 + y.abs());
-            up |= y > tol;
-            down |= y < -tol;
+            if !((y > tol && !up) || (y < -tol && !down)) {
+                continue;
+            }
+            tries += 1;
+            if tries > MAX_CONFIRM {
+                break;
+            }
+            let Some(v) = exact_value(cx, p)? else { continue };
+            match proof::closed_sign(cx, b, v)? {
+                Some(1) => up = true,
+                Some(-1) => down = true,
+                _ => {}
+            }
             if up && down {
                 return Ok(Some(indet));
             }
@@ -1536,6 +1925,27 @@ fn grid_witness<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, 
     if order != 2 {
         return Ok(None);
     }
+    // a chord defect f(a) + f(b) - 2 f(m) proved, with f defined on the whole segment (an enclosure along it)
+    let t = h.sym_term(h.sym("chord·t"));
+    let confirm = |cx: &mut NativeCx<'_, '_, 'h>, p: &[f64], q: &[f64]| -> Res<Option<i8>> {
+        let (pa, qa) = (exact_of(cx, p)?, exact_of(cx, q)?);
+        let mut mid = vec![];
+        for (&a, &e) in pa.iter().zip(&qa) {
+            mid.push(cx.eval(b.div(b.add(&[a, e]), b.int(2)))?);
+        }
+        let (Some(fa), Some(fb), Some(fm)) = (exact_value_at(cx, &pa)?, exact_value_at(cx, &qa)?, exact_value_at(cx, &mid)?) else { return Ok(None) };
+        let mut rules = vec![];
+        for (j, &x) in c.vars.iter().enumerate() {
+            let (a, e) = (pa[j], qa[j]);
+            rules.push(h.call(h.sym(names::RULE), &[x, b.add(&[a, b.mul(&[b.sub(e, a), t])])]));
+        }
+        let along = cx.eval(h.call(h.sym("rewrite"), &[c.f, cx.list(&rules)]))?;
+        let along = proof::with_ball_constants(cx, b, along)?;
+        if proof::enclose(cx, b, along, t, 0.0, 1.0)?.is_none() {
+            return Ok(None);
+        }
+        proof::closed_sign(cx, b, b.add(&[fa, fb, b.mul(&[b.int(-2), fm])]))
+    };
     // neighbouring grid points: the segment sampled at eight points inside the domain, its midpoint against the chord
     for (i, p) in points.iter().enumerate() {
         for d in 0..n {
@@ -1558,8 +1968,18 @@ fn grid_witness<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, 
             let (ya, ym, yb) = (ys[0], ys[4], ys[8]);
             let tol = 1e-7 * (1.0 + ya.abs() + ym.abs() + yb.abs());
             let chord = 0.5 * (ya + yb);
-            up |= ym > chord + tol;
-            down |= ym < chord - tol;
+            if !((ym < chord - tol && !up) || (ym > chord + tol && !down)) {
+                continue;
+            }
+            tries += 1;
+            if tries > MAX_CONFIRM {
+                return Ok(None);
+            }
+            match confirm(cx, p, q)? {
+                Some(1) => up = true,
+                Some(-1) => down = true,
+                _ => {}
+            }
             if up && down {
                 return Ok(Some(indet));
             }
@@ -1681,37 +2101,44 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> 
         }
         found
     };
-    // two equal values among the samples (of a function that is not constant)
+    // the domain's conditions (the points of a witness must lie in it)
+    let mut conds = conditions(cx, b, c.f, &c.vars, false)?.unwrap_or_default();
+    conds.extend(c.cond);
+    // machine values over the search points (a guide: every conclusion below is confirmed at exact points)
     let mut vals: Vec<(f64, f64)> = vec![];
     for v in samples(c.integers).into_iter().filter(|v| v.abs() <= 50.0) {
         cx.tick(1)?;
-        if out_of_time() {
-            return Ok(None);
-        }
-        if let Some(k) = c.cond {
-            let rule = h.call(h.sym(names::RULE), &[x, h.real(v)]);
-            let ok = cx.eval(h.call(h.sym("rewrite"), &[k, rule]))?;
-            if !cx.is_true(ok) {
-                continue;
-            }
+        if !holds_machine(cx, b, &conds, x, v)? {
+            continue;
         }
         if let Some(y) = value_at(cx, b, c.f, x, v)? {
             vals.push((v, y));
         }
     }
-    if out_of_time() {
-        return Ok(None);
-    }
-    // a value taken at two samples with a different value between them (not a saturation): not injective, before
-    // the slower test of the derivative's sign
-    for i in 0..vals.len() {
-        for j in i + 2..vals.len() {
-            // a relative tolerance: tails decaying to 0 on both sides (`csch`) are not ties
-            let (yi, yj) = (vals[i].1, vals[j].1);
-            let tol = 1e-12 * yi.abs().max(yj.abs());
-            if (yi - yj).abs() <= tol && vals[i + 1..j].iter().any(|p| (p.1 - yi).abs() > 1e3 * tol.max(1e-300)) {
-                return Ok(Some(cx.bool(false)));
-            }
+    let mut tries = 0;
+    // two points with exactly the same value: not injective
+    let mut order: Vec<usize> = (0..vals.len()).collect();
+    order.sort_by(|&i, &j| vals[i].1.total_cmp(&vals[j].1));
+    for w in order.windows(2) {
+        let ((p, yp), (q, yq)) = (vals[w[0]], vals[w[1]]);
+        // a relative tolerance: tails decaying to 0 on both sides (`csch`, x exp(-x^2)) are not ties
+        if (yp - yq).abs() > 1e-12 * yp.abs().max(yq.abs()) || yp == 0.0 && yq == 0.0 {
+            continue;
+        }
+        tries += 1;
+        if tries > MAX_CONFIRM {
+            break;
+        }
+        let (ep, eq) = (proof::exact_point(cx, b, p)?, proof::exact_point(cx, b, q)?);
+        if !proof::holds_at(cx, b, &conds, x, ep)? || !proof::holds_at(cx, b, &conds, x, eq)? {
+            continue;
+        }
+        let (fp, fq) = (proof::at(cx, b, c.f, x, ep)?, proof::at(cx, b, c.f, x, eq)?);
+        // a real number (not two equal unevaluated or failed values)
+        let w = cx.eval(b.call("n", &[fp, b.int(30)]))?;
+        let real = proof::bounds(b, w).is_some() || proof::bounds(b, fp).is_some();
+        if real && proof::closed_sign(cx, b, b.sub(fp, fq))? == Some(0) {
+            return Ok(Some(cx.bool(false)));
         }
     }
     if !c.integers && !jumps {
@@ -1724,170 +2151,38 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> 
             }
         }
     }
-    // strictly monotonic samples: injective when the derivative has one sign (or the sequence is strictly monotonic)
-    let increasing = vals.windows(2).all(|w| w[1].1 > w[0].1);
-    let decreasing = vals.windows(2).all(|w| w[1].1 < w[0].1);
-    if vals.len() >= 2 && (increasing || decreasing) {
-        return Ok(Some(cx.bool(true)));
-    }
-    // monotonic with equal neighbouring machine values (a function that saturates): those neighbours at 40 digits
-    let nondecreasing = vals.windows(2).all(|w| w[1].1 >= w[0].1);
-    let nonincreasing = vals.windows(2).all(|w| w[1].1 <= w[0].1);
-    if vals.len() >= 2 && (nondecreasing || nonincreasing) && vals.windows(2).any(|w| w[1].1 != w[0].1) {
-        let rel = if nondecreasing { "less" } else { "greater" };
-        let mut strict = true;
-        for w in vals.windows(2).filter(|w| w[1].1 == w[0].1) {
-            cx.tick(1)?;
-            let (ya, yb) = (precise_value(cx, b, c.f, x, w[0].0)?, precise_value(cx, b, c.f, x, w[1].0)?);
-            let r = cx.eval(h.call(h.sym(rel), &[ya, yb]))?;
-            if !cx.is_true(r) {
-                strict = false;
+    // a turning point p < q < r (f(q) above or below both f(p) and f(r)) inside a stretch where f is continuous (no
+    // step function, and an enclosure over [p, r]: no pole there): some value is taken twice (the intermediate value
+    // theorem)
+    if !c.integers && !range::has_jumps(b, c.f) {
+        let mut tries = 0;
+        // the candidates nearest 0 first (far out, poles crowd: gamma(x^3) for x < 0)
+        let mut turns: Vec<[(f64, f64); 3]> = vals
+            .windows(3)
+            .filter(|w| {
+                let (yp, yq, yr) = (w[0].1, w[1].1, w[2].1);
+                let tol = 1e-9 * (1.0 + yp.abs() + yq.abs() + yr.abs());
+                (yq > yp + tol && yq > yr + tol) || (yq < yp - tol && yq < yr - tol)
+            })
+            .map(|w| [w[0], w[1], w[2]])
+            .collect();
+        turns.sort_by(|a, b2| a[1].0.abs().total_cmp(&b2[1].0.abs()));
+        for w in turns {
+            let ((p, _), (q, _), (r, _)) = (w[0], w[1], w[2]);
+            tries += 1;
+            if tries > 4 * MAX_CONFIRM {
                 break;
             }
-        }
-        if strict {
-            return Ok(Some(cx.bool(true)));
-        }
-    }
-    // a function with poles that is monotonic between them and takes no value twice (`1/x`, `x/(x + 1)`, `csch`)
-    if !c.integers {
-        if let Some(r) = injective_across_poles(cx, b, c, x)? {
-            return Ok(Some(cx.bool(r)));
-        }
-    }
-    let mut sorted: Vec<f64> = vals.iter().map(|p| p.1).collect();
-    sorted.sort_by(f64::total_cmp);
-    let tie = sorted.windows(2).any(|w| (w[1] - w[0]).abs() <= 1e-12 * (1.0 + w[0].abs()));
-    if tie || !(increasing || decreasing) && vals.len() >= 3 {
-        // values not monotonic along the line: some value is taken twice (intermediate values of a continuous
-        // function; a sequence that is not monotonic may still be injective: only a tie decides it)
-        if tie || !c.integers {
-            return Ok(Some(cx.bool(false)));
+            let (Some(s1), Some(s2)) = (confirmed_diff(cx, b, c.f, x, &conds, &[p, q], 1)?, confirmed_diff(cx, b, c.f, x, &conds, &[q, r], 1)?) else { continue };
+            if s1 != 0 && s2 == -s1 {
+                let (ep, er) = (proof::exact_point(cx, b, p)?, proof::exact_point(cx, b, r)?);
+                if defined_on(cx, b, c.f, x, &conds, (ep, p), (er, r), true)? {
+                    return Ok(Some(cx.bool(false)));
+                }
+            }
         }
     }
     Ok(None)
-}
-
-/// Injectivity of a function with poles (F27.7): over the samples (wide, with the points near the poles) the
-/// differences have one sign except at jumps across genuine poles (found by bisection: `|f|` grows past 10^8);
-/// the pieces between the poles are then strictly monotonic and the function is injective exactly when their value
-/// ranges do not overlap (touching ranges, as `1/x` at the infinities, are disjoint open intervals). `None` when
-/// the samples show anything else (turning points, no pole).
-fn injective_across_poles<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>) -> Res<Option<bool>> {
-    let h = b.heap();
-    let mut xs = samples(false);
-    for k in 7..=30 {
-        let p = 10f64.powi(k);
-        xs.push(p);
-        xs.push(-p);
-    }
-    xs.sort_by(f64::total_cmp);
-    xs.dedup();
-    let mut pts: Vec<(f64, f64)> = vec![];
-    let defs = conditions(cx, b, c.f, &c.vars, false)?.unwrap_or_default();
-    for v in xs {
-        cx.tick(1)?;
-        if out_of_time() {
-            return Ok(None);
-        }
-        // outside the domain (`x == 0` for `tanh(1/x)`, which a machine evaluation would take as 1)
-        let at = if v == 0.0 { b.zero() } else { h.real(v) };
-        let mut outside = false;
-        for &d in &defs {
-            let ok = cx.eval(h.call(h.sym("rewrite"), &[d, h.call(h.sym(names::RULE), &[x, at])]))?;
-            outside |= cx.is_false(ok);
-        }
-        if outside {
-            continue;
-        }
-        if let Some(k) = c.cond {
-            let rule = h.call(h.sym(names::RULE), &[x, h.real(v)]);
-            let ok = cx.eval(h.call(h.sym("rewrite"), &[k, rule]))?;
-            if !cx.is_true(ok) {
-                continue;
-            }
-        }
-        if let Some(y) = value_at(cx, b, c.f, x, v)? {
-            pts.push((v, y));
-        }
-    }
-    if pts.len() < 8 || out_of_time() {
-        return Ok(None);
-    }
-    let tol = |y: f64| 1e-12 * (1.0 + y.abs());
-    let ups = pts.windows(2).filter(|w| w[1].1 - w[0].1 > tol(w[0].1)).count();
-    let downs = pts.windows(2).filter(|w| w[0].1 - w[1].1 > tol(w[0].1)).count();
-    let dir = if ups >= downs { 1.0 } else { -1.0 };
-    let minority = ups.min(downs);
-    if minority == 0 || minority > 4 {
-        return Ok(None);
-    }
-    // pieces: split at the violations, each of which must be a pole
-    let mut pieces: Vec<(f64, f64)> = vec![];
-    let (mut lo, mut hi) = (pts[0].1, pts[0].1);
-    for w in pts.windows(2) {
-        let d = (w[1].1 - w[0].1) * dir;
-        if d < -tol(w[0].1) {
-            let pole = pole_between(cx, b, c, x, w[0].0, w[1].0)?;
-            if out_of_time() || !pole {
-                return Ok(None);
-            }
-            pieces.push((lo, hi));
-            lo = w[1].1;
-            hi = w[1].1;
-        } else {
-            lo = lo.min(w[1].1);
-            hi = hi.max(w[1].1);
-        }
-    }
-    pieces.push((lo, hi));
-    for i in 0..pieces.len() {
-        for j in i + 1..pieces.len() {
-            let overlap = pieces[i].1.min(pieces[j].1) - pieces[i].0.max(pieces[j].0);
-            let scale = 1.0 + pieces[i].0.abs().min(pieces[i].1.abs()).min(1e12);
-            if overlap > 1e-9 * scale {
-                return Ok(Some(false));
-            }
-        }
-    }
-    Ok(Some(true))
-}
-
-/// Does `|f|` blow up between the samples `a < b` (bisection towards the larger values)?
-fn pole_between<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>, a: f64, bb: f64) -> Res<bool> {
-    let h = b.heap();
-    // a point between them outside the domain (`x != 0` for `1/x`, also under a saturating `tanh(1/x)`)
-    let defs = conditions(cx, b, c.f, &c.vars, false)?.unwrap_or_default();
-    let (mut lo, mut hi) = (a, bb);
-    let mut ylo = value_at(cx, b, c.f, x, lo)?.unwrap_or(f64::INFINITY).abs();
-    let mut yhi = value_at(cx, b, c.f, x, hi)?.unwrap_or(f64::INFINITY).abs();
-    let mut best = ylo.max(yhi);
-    for _ in 0..60 {
-        cx.tick(1)?;
-        let mid = 0.5 * (lo + hi);
-        if mid <= lo || mid >= hi {
-            break;
-        }
-        for &d in &defs {
-            let at = if mid == 0.0 { b.zero() } else { h.real(mid) };
-            let ok = cx.eval(h.call(h.sym("rewrite"), &[d, h.call(h.sym(names::RULE), &[x, at])]))?;
-            if cx.is_false(ok) {
-                return Ok(true);
-            }
-        }
-        let Some(ym) = value_at(cx, b, c.f, x, mid)? else { return Ok(true) };
-        let ym = ym.abs();
-        best = best.max(ym);
-        if ylo >= yhi {
-            // the blow-up is on the side of the larger end value
-            hi = mid;
-            yhi = ym;
-        } else {
-            lo = mid;
-            ylo = ym;
-        }
-    }
-    Ok(best > 1e8)
 }
 
 /// Does `t` contain a call of `name`?

@@ -102,12 +102,12 @@ series(tan(x)^3 + x, x, pi/2, 1)
 # Possible issues
 
 #% text
-# A function that is not meromorphic stays unevaluated; the poles of gamma are the family of the non-positive integers (`c(1) >= 0`) and those of the hyperbolic tangent a family on the imaginary axis:
+# A function that is not meromorphic stays unevaluated; the poles of gamma are the family of the non-positive integers (`c(1) >= 0`). An order is given only when it is proved: the poles of the hyperbolic tangent on the imaginary axis need the limit of t tanh(i pi/2 + t), which is not found yet, so that call stays:
 
 #% cell
 [function_poles(sqrt(x), x), function_poles(gamma(x), x), function_poles(tanh(x), x)]
 #% output
-#= [function_poles(x^(1/2), x), [[conditional_expression(-c(1), element(c(1), integers) and c(1) >= 0), 1]], [[conditional_expression(-im/2*pi + im*pi*c(1), element(c(1), integers)), 1]]]
+#= [function_poles(x^(1/2), x), [[conditional_expression(-c(1), element(c(1), integers) and c(1) >= 0), 1]], function_poles(tanh(x), x)]
 
 #% section
 # See also

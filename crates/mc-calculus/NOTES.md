@@ -1640,3 +1640,81 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   G^{2,1}_{2,2}), Mellin transforms that are not gamma ratios (`cos(r)/(1 + r^2)`, Airy, elliptic), and the
   continuation of `1 - bessel_j(0, a r)` (the scaled table entry does not pass through the continuation).
   Tests: `mc-engine/tests/round42_depth.rs`.
+
+## Round 43: property answers only when proved
+
+- Decision (semantics 2.8): a property function answers only with a proof; values at points refute only, and only
+  when the value there is exact or a ball that separates. New module `props/proof.rs`: proved signs of closed
+  terms (exact, else 30 digits; 0 only for a term that simplifies to 0), exact points next to machine samples,
+  enclosures of an expression over an interval (the variable as a ball, constants as balls), `sign_on` (cells by
+  bisection, at most 400; each cell by its ball, met with the mean value forms from its two ends, so that a cell at
+  an end where g is exactly 0, as -sin(x) at 0, is settled; the outer ends are taken exactly, as sin at pi, which
+  the machine end just above pi does not show), and the bounded pieces of a condition with their exact ends.
+- Where answers came from samples, and what replaces them:
+  - `sign_of_inner` (sign, monotonicity, convexity of one variable): samples of one sign gave the answer. Now:
+    `refine` under the domain's facts, the table, the exact values on a bounded set of integers, or `sign_on` of
+    g = f, f', f'' over a domain of bounded intervals (one interval for monotonicity and convexity). Refutation:
+    values of g of both signs confirmed at exact points. Convexity from f'' needs f'' defined on the whole domain
+    (`x^(2/3)`: f'' < 0 where it exists, a cusp at 0; now refuted by chords: `indeterminate`).
+  - `sampled_shape` (functions with jumps or kinks): differences of one sign gave the monotonicity and convexity
+    (`floor(x)` increasing). Now only `indeterminate`, from first differences or chord defects of both signs
+    confirmed at exact points (a chord also needs f defined on the segment: its conditions refined there, or an
+    enclosure). Proved instead, for the sign and (continuous functions: kinks only) the monotonicity:
+    `piecewise_shape`, each piece of `piecewise_expand(f)` decided by `refine` on its region reduced to intervals
+    (`max(x, -x^2)` nondecreasing, `x - sqrt(x^2)` is
+    `-1`, nondecreasing), and `compose_shape` on the whole line: a nondecreasing step function (floor, ceiling,
+    round, integer_part, unit_step, sign, heaviside_theta, real_sign) of a monotonic argument, sums of one
+    direction, constant factors of proved sign, max/min of monotonic (convex) arguments, abs/real_abs/ramp of an
+    affine argument convex, smooth parts by the proofs above (`floor(x)`, `unit_step(x)` nondecreasing, `abs(x)`
+    convex, `x - abs(x)` concave). Not with `strict_inequalities` (a step function is not strictly monotonic);
+    pieces under strict inequalities must be strictly of one sign. Undecided convexity of one variable is refuted
+    by chords of both kinds (the cusps `x^(2/3)`, `(x^2)^(1/4)`: `indeterminate`).
+  - Table: `logistic_sigmoid` positive and increasing (1/(1 + e^-u); its derivative s (1 - s) > 0).
+  - A value at a point of the table's real set computed as a complex ball around the real axis has the sign of its
+    real part (`klein_invariant_j(1/2 + i e^x)` changes sign); without a known real domain it proves nothing.
+  - `witness_only`, `probe_differences`, `grid_witness`, `chords_agree`, `excluded_points_shape`: refutations whose
+    machine values with a tolerance were taken as proved; each witness is now confirmed (limits compared by the
+    proved sign of their difference; undecided: no answer).
+  - `injective`: strictly increasing samples, saturating samples compared at 40 digits, and the pieces between
+    sampled poles (`injective_across_poles`) gave `true`; a tie or non-monotone samples gave `false`. Now `true`
+    only from a proved sign of f' (or the table, an inverse function, or the pairs f(x) = f(x2) by quantifier
+    elimination for polynomials); `false` from two exact points with equal values or a confirmed turning point
+    inside a stretch where f is continuous (`defined_on`: no step function, and its conditions refined on the
+    stretch with every function fully described by the table, or an enclosure over it), by intermediate values.
+    Turning points nearest 0 are tried first (poles crowd far out: `gamma(x^3)` for x < 0).
+  - `function_surjective`: values growing along samples gave `true` (`x sin(x)`); strict monotonicity of the
+    pieces came from derivative samples. Now `refine` of f' on the open piece or `sign_on` over a bounded one; the
+    ends of the images and the omitted values are compared exactly; with a family of breaks (`tan`) only the
+    stretches between listed breaks are pieces. `f(g(y)) = y` checked at grid points no longer counts (simplify
+    only); a solution of `f == v` is set aside only when |f - v| is proved positive.
+  - `function_period`: f(x + p) = f(x) at six points to 30 digits accepted a period. Now the least common
+    multiple T of the candidates is a period by construction; T/k is accepted only when f(x + T/k) - f(x)
+    simplifies to 0 and rejected when a 30-digit difference is proved nonzero; neither: unevaluated. A constant
+    needs d f simplifying to 0.
+  - `function_range`: a family of critical points was sampled at c(1) = -4..4 and an oscillating limit skipped on
+    `cands.len() > 1`. Now a family only on the whole line with f proved constant along it, the skip only for f
+    proved periodic; membership of candidates and the comparison of values are exact.
+  - `function_poles`: the order from the growth of |f| at 10^-6, 10^-9, 10^-12 (`numeric_order`) and the root
+    multiplicity from 40-digit smallness are gone (exact zero by simplify or `root_reduce`, nonzero by a ball); a
+    family's order needs f periodic with its step, the gamma family (c(1) >= 0) f = gamma(u) of an affine u
+    (every pole simple, DLMF 5.2.1); a condition undecided by `refine` leaves the call. `zeta(x)` (no limit of
+    (x - 1) zeta(x) in closed form) now stays; so does `tanh(x)` (its family is periodic, proved also through
+    `function_period`, but the limits at i pi/2 are wrong, see below). Found on the way (not changed):
+    `residue(zeta(x), [x, 1])` gives 0, the residue is 1 (DLMF 25.2.4); `limit(t tanh(i pi/2 + t), t -> 0)` gives
+    0 (it is 1) and `limit(tanh(i pi/2 + t), t -> 0)` gives `i tan(pi/2)` (a pole).
+  - `sets.rs`: the kind of a piecewise boundary (pole, jump, none) came from values at e +- 10^-12, 10^-18; now from
+    the one-sided limits and the value, compared exactly. The witness that a singular set meets the region is
+    accepted only when proved (bracketed zero with an enclosure, conjuncts true on the bracket's ball).
+  - `smooth.rs`: a pole of an argument was judged removable from the growth of |u| near it; now only when
+    `limit(u, x -> p)` is finite (a family: a pole).
+- The wall-clock budget no longer decides any answer from samples. What remains (`SEARCH_BUDGET`, 2.5 s, renamed
+  from `SAMPLE_BUDGET`): it cuts the refuting searches and the 30-digit confirmations short for slow functions
+  (spheroidal functions take seconds per value; without it a call ran for minutes); a cut search gives no answer.
+  It is to become a work count once the evaluator reports the fuel spent. The searches are also bounded by their
+  points (about 400 machine samples, at most 24 confirmations each). `range::checks_out` still samples, but it
+  can only remove an answer.
+- Lost (by decision): answers that only samples supported, e.g. `function_monotonicity(floor(x), x)`,
+  `function_injective(1/x, x)`, signs of special functions on the whole line without a table entry. Gap: no tail
+  argument for unbounded domains (an enclosure needs a bounded interval); a smallest period T/n with every prime
+  factor of n above 24 is not looked for.
+  Tests: `mc-engine/tests/round43_proofs.rs`.

@@ -134,7 +134,8 @@ fn transcendental_calls<'h>(b: &Build<'h>, t: T<'h>, vars: &[T<'h>], out: &mut V
 }
 
 /// Is the pole atom `a` of `u` a pole (and not a removable point such as `x = 0` for `sin(x)/x`)? One variable:
-/// the solutions of the atom are checked by the growth of `|u|` towards them; otherwise accepted.
+/// a solution of the atom is removable when `limit(u, x -> p)` is a finite number (proved by the limit, not by
+/// values near p); a family of solutions, an infinite or undecided limit, or several variables: a pole.
 fn genuine_pole<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, vars: &[T<'h>], a: T<'h>) -> Res<bool> {
     use mc_api::names;
     let h = b.heap();
@@ -144,30 +145,34 @@ fn genuine_pole<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, vars
     if items.is_empty() {
         return Ok(true);
     }
-    let gen = h.sym("c");
-    let imu = h.sym_term(h.sym("im"));
     for it in items {
         let Some(&[r]) = cx.as_list(it) else { return Ok(true) };
         let View::App { args: &[_, p], .. } = h.view(r) else { return Ok(true) };
-        // a family (c(1)): the member 0
-        let p = cx.eval(h.call(h.sym("rewrite"), &[p, h.call(h.sym(names::RULE), &[h.call(gen, &[b.one()]), b.zero()])]))?;
-        let mut sizes = vec![];
-        for e in [-6i64, -9] {
-            let eps = b.mul(&[b.pow(b.int(10), b.int(e)), b.add(&[b.rat(4, 5), b.mul(&[b.rat(3, 5), imu])])]);
-            let pt = cx.eval(b.add(&[p, eps]))?;
-            let v = cx.eval(h.call(h.sym("rewrite"), &[u, h.call(h.sym(names::RULE), &[*x, pt])]))?;
-            let m = cx.eval(h.call(h.sym("n"), &[b.call("abs", &[v])]))?;
-            match h.view(m) {
-                View::Real(r) => sizes.push(r),
-                View::Int(k) => sizes.push(k as f64),
-                _ => return Ok(true),
-            }
+        if !crate::common::is_free(b, p, *x) || super::sets::is_head(b, p, mc_decide::CONDITIONAL) || contains_generator(b, p) {
+            return Ok(true);
         }
-        if sizes[0] > 1e3 && sizes[1] > 5.0 * sizes[0] {
+        let l = cx.eval(b.call("limit", &[u, h.call(h.sym(names::RULE), &[*x, p])]))?;
+        let ln = cx.eval(b.call("n", &[l]))?;
+        let finite = match h.view(ln) {
+            View::Real(r) => r.is_finite(),
+            View::Int(_) => true,
+            View::App { head, args } => b.sym_of(head) == Some(h.sym("complex")) && args.iter().all(|&a| matches!(h.view(a), View::Real(r) if r.is_finite()) || matches!(h.view(a), View::Int(_))),
+            _ => false,
+        };
+        if !finite {
             return Ok(true);
         }
     }
     Ok(false)
+}
+
+/// Does `t` contain the generator `c(...)` of a family of solutions?
+fn contains_generator<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    match h.view(t) {
+        View::App { head, args } => b.sym_of(head) == Some(h.sym("c")) || args.iter().any(|&a| contains_generator(b, a)),
+        _ => false,
+    }
 }
 
 /// A single component `a g` with factors `a` free of the variables that are not numbers: (`[g]`, the factors).

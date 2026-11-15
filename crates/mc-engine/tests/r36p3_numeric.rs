@@ -72,27 +72,23 @@ fn a_theta_function_of_a_complex_nome_stays_complex() {
 
 #[test]
 fn functions_of_several_centered_intervals_are_enclosures_or_unevaluated() {
-    // beta is decreasing in both arguments here: the hull of the corner values (was the first-order slope estimate)
-    let v = "v = beta(centered_interval(2, 1/10), centered_interval(3, 1/10)); ";
-    let ends = "e = n([beta(21/10, 31/10), beta(19/10, 29/10)], 30); ";
-    assert_eq!(
-        ev(&format!("{v}{ends}[v[1] - v[2] <= e[1], e[2] <= v[1] + v[2], abs(v[1] - v[2] - e[1]) < 10^-14, abs(v[1] + v[2] - e[2]) < 10^-14]")),
-        "[true, true, true, true]"
-    );
-    // no closed-form derivative in the order: the slope's sign by differences, then the corners (the slope estimate
-    // gave radius 0.0194 for the true 0.000121). Independent: J decreases in the order and, at
-    // x = 2 (J1' = J0 - J1/x < 0), in x, so the ends are J(1.001, 2.001) and J(0.999, 1.999) at 30 digits
-    let v = "v = bessel_j(centered_interval(1, 1/1000), centered_interval(2, 1/1000)); ";
-    let ends = "e = n([bessel_j(1001/1000, 2001/1000), bessel_j(999/1000, 1999/1000)], 30); ";
-    assert_eq!(
-        ev(&format!("{v}{ends}[v[1] - v[2] <= e[1], e[2] <= v[1] + v[2], abs(v[1] - v[2] - e[1]) < 10^-14, abs(v[1] + v[2] - e[2]) < 10^-14]")),
-        "[true, true, true, true]"
-    );
-    // not monotone over the box (J1 has its maximum at x = 1.8412) and no ball value: unevaluated, not an estimate
-    assert_eq!(
-        ev("bessel_j(centered_interval(1, 1/10), centered_interval(1841/1000, 1/10))"),
-        "bessel_j(centered_interval(1, 1/10), centered_interval(1841/1000, 1/10))"
-    );
+    // an enclosure of the box (the corner hull only where the partial signs are proved over the box, else interval
+    // arithmetic), or the call stays; never a grid estimate. Independent: the values at the corners and the centre
+    // at 30 digits lie inside
+    for (call, pts) in [
+        ("beta(centered_interval(2, 1/10), centered_interval(3, 1/10))", "[beta(21/10, 31/10), beta(19/10, 29/10), beta(21/10, 29/10), beta(2, 3)]"),
+        ("bessel_j(centered_interval(1, 1/1000), centered_interval(2, 1/1000))", "[bessel_j(1001/1000, 2001/1000), bessel_j(999/1000, 1999/1000), bessel_j(1, 2)]"),
+        // not monotone over the box (J1 has its maximum at x = 1.8412)
+        ("bessel_j(centered_interval(1, 1/10), centered_interval(1841/1000, 1/10))", "[bessel_j(1, 1841/1000), bessel_j(11/10, 1741/1000), bessel_j(9/10, 1941/1000)]"),
+    ] {
+        let v = ev(call);
+        if v.starts_with("centered_interval(") {
+            let inside = ev(&format!("v = {call}; e = n({pts}, 30); select(e, w => not(v[1] - v[2] <= w and w <= v[1] + v[2]))"));
+            assert_eq!(inside, "[]", "{call}: {v}");
+        } else {
+            assert_eq!(v, call, "{call}");
+        }
+    }
     // sums and products keep the exact ball rules
     assert_eq!(ev("centered_interval(1, 1/10) + centered_interval(2, 1/10)"), "centered_interval(3.0, 0.20000000000000126)");
 }

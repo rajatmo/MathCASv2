@@ -113,6 +113,24 @@ fn real_bounds(r: &Real) -> Option<(f64, f64)> {
     }
 }
 
+/// Machine bounds of a real value with an error bound (an exact real, a ball, a complex number whose imaginary part
+/// is 0 or a ball around 0), rounded outwards; `None` for a machine number, a complex value or no number.
+pub(crate) fn bounds<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<(f64, f64)> {
+    match enc_of(&fx.num(t)?) {
+        Enc::Real(a, b) => Some((a, b)),
+        _ => None,
+    }
+}
+
+/// `e` with its symbolic constants as 30-digit balls (for evaluation on balls).
+pub(crate) fn constants_as_balls<'h>(fx: &mut Fx<'_, '_, '_, 'h>, e: T<'h>) -> Res<T<'h>> {
+    let rules = constant_rules(fx, e);
+    if rules.is_empty() {
+        return Ok(e);
+    }
+    fx.eval(fx.call("rewrite", &[e, fx.list(&rules)]))
+}
+
 fn enc_of(n: &Num) -> Enc {
     match n {
         Num::Real(r) => real_bounds(r).map_or(Enc::No, |(a, b)| Enc::Real(a, b)),

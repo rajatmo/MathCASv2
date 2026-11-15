@@ -10,9 +10,13 @@
 //! - **Combination**: the candidates must be commensurable (rational ratios); their least common multiple `T` is
 //!   a period. Over the reals a candidate that is not real, or a dependence on `x` outside the periodic subterms
 //!   when `f` is a polynomial, means no period (`0`); incommensurable candidates mean no period.
-//! - **Reduction and check**: the smallest period is `T / k` for the largest `k <= 24` (over the integers the
-//!   smallest divisor `d` of the integer period) such that `f(x + T/k) == f(x)` at six points to 30 digits; `T`
-//!   itself is checked the same way before it is returned, so every answer is checked numerically.
+//! - **Reduction and proof**: `T` is a period by construction (an integer multiple of a period of every periodic
+//!   subterm). The smallest period is `T / k` for the largest `k <= 24` (over the integers the smallest divisor `d`
+//!   of the integer period) that is not refuted: a shift is refuted when f(x + p) and f(x) are proved different at a
+//!   point (30-digit balls), and accepted only when f(x + p) - f(x) simplifies to 0 (round 43: agreement at six
+//!   points is no proof); a shift neither refuted nor proved leaves the call unevaluated. A constant function (two
+//!   shifts not refuted) needs a derivative that simplifies to 0. Gap: a smallest period T/n with every prime factor
+//!   of n above 24 is not looked for.
 use super::sets::is_head;
 use super::spec::{Dom, Spec};
 use crate::common::is_free;
@@ -224,11 +228,17 @@ fn one<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<'h>,
         };
         fixed.push(p);
     }
-    // numerically constant (`sin(x)^2 + cos(x)^2`): every shift is a period, so there is no smallest one
+    // constant (`sin(x)^2 + cos(x)^2`): every shift is a period, so there is no smallest one; proved by a derivative
+    // that simplifies to 0, after two shifts that the values do not refute
     if !integers {
         let sqrt2 = cx.eval(b.call("sqrt", &[b.int(2)]))?;
-        if is_period(cx, b, s, x, others, b.rat(1357, 10000), false)? && is_period(cx, b, s, x, others, sqrt2, false)? {
-            return Ok(Some(zero));
+        if check(cx, b, s, x, others, b.rat(1357, 10000), false, false)? != Check::Refuted && check(cx, b, s, x, others, sqrt2, false, false)? != Check::Refuted {
+            let mut constant = true;
+            for &f in &s.comps {
+                let d = cx.eval_assuming(&s.facts, b.call("simplify", &[b.call("d", &[f, x])]))?;
+                constant &= d == zero;
+            }
+            return Ok(constant.then_some(zero));
         }
     }
     // commensurable: rational ratios to the first
@@ -273,25 +283,65 @@ fn one<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<'h>,
         if tn == 0 || tn > 100_000 {
             return Ok(None);
         }
+        // the integer multiple tn of T is a period by construction; a smaller divisor must be proved
         for d in 1..=tn {
             if tn % d != 0 {
                 continue;
             }
             cx.tick(1)?;
-            if is_period(cx, b, s, x, others, b.int(d), true)? {
-                return Ok(Some(b.int(d)));
+            match check(cx, b, s, x, others, b.int(d), true, d == tn)? {
+                Check::Refuted => continue,
+                Check::Proved => return Ok(Some(b.int(d))),
+                Check::Open => return Ok(None),
             }
         }
         return Ok(None);
     }
+    // T is a period by construction; T/k (the largest k first) must be proved or refuted
     for k in (1..=24).rev() {
         cx.tick(1)?;
         let p = cx.eval(b.div(t, b.int(k)))?;
-        if is_period(cx, b, s, x, others, p, false)? {
-            return Ok(Some(p));
+        match check(cx, b, s, x, others, p, false, k == 1)? {
+            Check::Refuted => continue,
+            Check::Proved => return Ok(Some(p)),
+            Check::Open => return Ok(None),
         }
     }
     Ok(None)
+}
+
+/// What is known of a shift: refuted by a value, proved, or open.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Check {
+    Refuted,
+    Proved,
+    Open,
+}
+
+/// Is `p` a period of the components? Refuted when the values at a point (the six points of [`refuted`]) differ,
+/// proved when `known` (a period by construction) or when f(x + p) - f(x) simplifies to 0.
+#[allow(clippy::too_many_arguments)]
+fn check<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<'h>, others: &[T<'h>], p: T<'h>, integers: bool, known: bool) -> Res<Check> {
+    if known {
+        return Ok(Check::Proved);
+    }
+    if refuted(cx, b, s, x, others, p, integers)? {
+        return Ok(Check::Refuted);
+    }
+    let h = b.heap();
+    let mut facts = s.facts.clone();
+    match s.dom {
+        Dom::Complexes => {}
+        _ => facts.push(h.call(h.sym("element"), &[x, h.sym_term(h.sym(if integers { "integers" } else { "reals" }))])),
+    }
+    for &f in &s.comps {
+        let shifted = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, b.add(&[x, p])])]))?;
+        let d = cx.eval_assuming(&facts, b.call("simplify", &[b.sub(shifted, f)]))?;
+        if d != b.zero() {
+            return Ok(Check::Open);
+        }
+    }
+    Ok(Check::Proved)
 }
 
 fn gcd(a: i64, b: i64) -> i64 {
@@ -310,9 +360,10 @@ fn lcm(a: i64, b: i64) -> i64 {
     }
 }
 
-/// `f(x + p) == f(x)` at six points to 30 digits (integers for a sequence; complex points over the complexes),
-/// the other variables and the parameters at fixed values; at least three points must be defined.
-fn is_period<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<'h>, others: &[T<'h>], p: T<'h>, integers: bool) -> Res<bool> {
+/// Is `f(x + p) != f(x)` proved at one of six points (integers for a sequence; complex points over the complexes;
+/// 120 points spread over the periods for a step function), the other variables and the parameters at fixed values?
+/// The difference is proved nonzero when the 30-digit ball of |f(x + p) - f(x)|^2 excludes 0.
+fn refuted<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<'h>, others: &[T<'h>], p: T<'h>, integers: bool) -> Res<bool> {
     let h = b.heap();
     let ps = super::spec::params(b, &s.comps, &s.vars);
     let imu = h.sym_term(h.sym("im"));
@@ -343,7 +394,6 @@ fn is_period<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: 
     } else {
         points
     };
-    let mut good = 0;
     for x0 in points {
         cx.tick(1)?;
         let mut rules = fixed.clone();
@@ -359,23 +409,17 @@ fn is_period<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: 
             if !numeric(h, av) || !numeric(h, cv) {
                 continue;
             }
-            // |c - a|^2 <= 10^-40 (1 + |a|^2), through the real and imaginary parts (complex balls)
-            let sq = |cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>| -> Res<T<'h>> {
-                let re = cx.eval(b.call("re", &[t]))?;
-                let im = cx.eval(b.call("im_part", &[t]))?;
-                cx.eval(b.add(&[b.powi(re, 2), b.powi(im, 2)]))
-            };
+            // |c - a|^2 through the real and imaginary parts (complex balls), proved positive
             let d = cx.eval(b.sub(cv, av))?;
-            let (dd, aa) = (sq(cx, d)?, sq(cx, av)?);
-            let tol = b.mul(&[b.add(&[b.one(), aa]), b.pow(b.int(10), b.int(-40))]);
-            let ok = cx.eval(b.call("less_equal", &[dd, tol]))?;
-            if !cx.is_true(ok) {
-                return Ok(false);
+            let re = cx.eval(b.call("re", &[d]))?;
+            let im = cx.eval(b.call("im_part", &[d]))?;
+            let dd = b.add(&[b.powi(re, 2), b.powi(im, 2)]);
+            if super::proof::closed_sign(cx, b, dd)? == Some(1) {
+                return Ok(true);
             }
-            good += 1;
         }
     }
-    Ok(good >= 3)
+    Ok(false)
 }
 
 /// `g` for `g^N`, `abs(g)` for an even `N`, when `N` is an integer of at least 64 in absolute value.

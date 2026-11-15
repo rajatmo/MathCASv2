@@ -311,8 +311,8 @@ fn surjective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps
 }
 
 /// One real variable, when the limits do not decide (F27.9): the range of `f` ([`super::range`]) against the
-/// codomain condition (`for_all(y, ycond implies range)`), or, without conditions, a continuous function whose
-/// samples are unbounded above and below with growing magnitude (`x sin(x)`: the intermediate value theorem).
+/// codomain condition (`for_all(y, ycond implies range)`); nothing else (values growing along samples, as for
+/// `x sin(x)`, prove nothing).
 fn surjective_by_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, y: T<'h>) -> Res<Option<Ans<'h>>> {
     let h = b.heap();
     let (f, x) = (s.comps[0], s.vars[0]);
@@ -335,40 +335,18 @@ fn surjective_by_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spe
         }
         return Ok(None);
     }
-    if s.ycond.is_some() || s.cond.is_some() {
-        return Ok(None);
-    }
-    // continuous on the whole line
-    let Some(atoms) = sets::atoms(cx, b, &s.comps, &s.vars, false, sets::Mode::Disc, &s.facts)? else { return Ok(None) };
-    if !atoms.is_empty() {
-        return Ok(None);
-    }
-    // the extreme samples on wider and wider windows grow in both directions
-    let mut ext: Vec<(f64, f64)> = vec![];
-    for window in [1.0e3, 1.0e6, 1.0e9] {
-        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
-        for k in -2000..=2000 {
-            cx.tick(1)?;
-            if super::out_of_time() {
-                return Ok(None);
-            }
-            let v = window * f64::from(k) / 2000.0 + 0.0123;
-            if let Some(yv) = value(cx, b, f, x, v)? {
-                lo = lo.min(yv);
-                hi = hi.max(yv);
-            }
-        }
-        ext.push((lo, hi));
-    }
-    let grows = ext.windows(2).all(|w| w[1].1 > 10.0 * w[0].1.max(1.0) && w[1].0 < 10.0 * w[0].0.min(-1.0)) && ext[2].1 > 1e5 && ext[2].0 < -1e5;
-    Ok(if grows { Some(Ans::Bool(true)) } else { None })
+    // (values unbounded above and below along samples prove nothing: the call stays)
+    Ok(None)
 }
 
-/// Real singular points of the discontinuity atoms of `f` (families enumerated for `c(1)` in -3..3), sorted.
-fn real_breaks<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<'h>) -> Res<Option<Vec<(f64, T<'h>)>>> {
+/// Real singular points of the discontinuity atoms of `f` (families enumerated for `c(1)` in -3..3), sorted, and
+/// whether a family was enumerated (then the points are not all of them).
+#[allow(clippy::type_complexity)]
+fn real_breaks<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<'h>) -> Res<Option<(Vec<(f64, T<'h>)>, bool)>> {
     let h = b.heap();
     let Some(atoms) = sets::atoms(cx, b, &s.comps, &s.vars, false, sets::Mode::Disc, &s.facts)? else { return Ok(None) };
     let c1 = b.call("c", &[b.one()]);
+    let mut families = false;
     let mut pts: Vec<(f64, T<'h>)> = vec![];
     for a in atoms {
         // the boundary of each relation of the atom
@@ -386,6 +364,7 @@ fn real_breaks<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x
                 let View::App { args: &[_, v], .. } = h.view(rule) else { return Ok(None) };
                 let vals: Vec<T<'h>> = if is_head(b, v, mc_decide::CONDITIONAL) {
                     let View::App { args, .. } = h.view(v) else { continue };
+                    families = true;
                     let mut out = vec![];
                     for k in -3..=3 {
                         out.push(cx.eval(h.call(h.sym("rewrite"), &[args[0], h.call(h.sym(names::RULE), &[c1, b.int(k)])]))?);
@@ -408,16 +387,25 @@ fn real_breaks<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x
         }
     }
     pts.sort_by(|a, c| a.0.total_cmp(&c.0));
-    pts.dedup_by(|a, c| (a.0 - c.0).abs() < 1e-12);
-    Ok(Some(pts))
+    // neighbours closer than the machine can tell: one point when exactly equal, else their order is not known
+    let mut out: Vec<(f64, T<'h>)> = vec![];
+    for p in pts {
+        if let Some(last) = out.last() {
+            if (last.0 - p.0).abs() < 1e-12 * (1.0 + p.0.abs()) {
+                if super::proof::closed_sign(cx, b, b.sub(p.1, last.1))? == Some(0) {
+                    continue;
+                }
+                return Ok(None);
+            }
+        }
+        out.push(p);
+    }
+    Ok(Some((out, families)))
 }
 
 /// The machine value of `t` at `x = v`, if real and finite.
 fn value<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, x: T<'h>, v: f64) -> Res<Option<f64>> {
     let h = b.heap();
-    if super::out_of_time() {
-        return Ok(None);
-    }
     let r = cx.eval(h.call(h.sym("rewrite"), &[t, h.call(h.sym(names::RULE), &[x, h.real(v)])]))?;
     let r = cx.eval(b.call("n", &[r]))?;
     Ok(match h.view(r) {
@@ -452,7 +440,7 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
     if s.ycond.is_some() {
         return Ok(Ans::Unknown);
     }
-    let Some(pts) = real_breaks(cx, b, s, x)? else { return Ok(Ans::Unknown) };
+    let Some((pts, families)) = real_breaks(cx, b, s, x)? else { return Ok(Ans::Unknown) };
     let inf = h.sym_term(h.sym("inf"));
     let ninf = cx.eval(b.neg(inf))?;
     // values taken at the break points themselves (sqrt(x) at 0)
@@ -461,21 +449,25 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
         let at = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, p])]))?;
         let v = cx.eval(b.call("n", &[at]))?;
         match h.view(v) {
-            View::Real(y) if y.is_finite() => attained.push(y),
-            View::Int(k) => attained.push(k as f64),
+            View::Real(y) if y.is_finite() => attained.push(at),
+            View::Int(_) => attained.push(at),
             _ => {}
         }
     }
     let mut ends: Vec<(f64, T<'h>)> = vec![(f64::NEG_INFINITY, ninf)];
     ends.extend(pts);
     ends.push((f64::INFINITY, inf));
-    // per interval: the limits at its ends and whether f is strictly monotonic on it (derivative samples)
+    // per interval: the limits at its ends and whether f is strictly monotonic on it (a proved sign of f')
     let df = cx.eval(b.call("d", &[f, x]))?;
-    let mut images: Vec<Option<(f64, f64)>> = vec![];
+    let mut images: Vec<Option<(T<'h>, T<'h>)>> = vec![];
     for w in ends.windows(2) {
         cx.tick(1)?;
         let (a, c) = (w[0], w[1]);
-        let (lo, hi) = (if a.0.is_infinite() { c.0.min(0.0) - 30.0 } else { a.0 }, if c.0.is_infinite() { a.0.max(0.0) + 30.0 } else { c.0 });
+        // with a family of breaks only the stretches between two listed breaks are known to be pieces
+        if families && (a.0.is_infinite() || c.0.is_infinite()) {
+            images.push(None);
+            continue;
+        }
         let mid = if a.0.is_infinite() && c.0.is_infinite() {
             0.5
         } else if a.0.is_infinite() {
@@ -502,56 +494,82 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
                 return Ok(Ans::Bool(true));
             }
         }
-        // strictly monotonic: the derivative of one strict sign at the samples
-        let mut sign = 0.0f64;
-        let mut mono = true;
-        for k in 1..200 {
-            if super::out_of_time() {
-                return Ok(Ans::Unknown);
-            }
-            let t = lo + (hi - lo) * (k as f64 / 200.0);
-            let Some(yv) = value(cx, b, df, x, t)? else { continue };
-            if yv == 0.0 || sign != 0.0 && yv.signum() != sign {
-                mono = false;
-                break;
-            }
-            sign = yv.signum();
+        // strictly monotonic on the open piece: f' of one strict sign, proved by refine there (or by enclosures over
+        // a bounded piece whose ends are not poles of f')
+        let mut facts = vec![b.call("element", &[x, h.sym_term(h.sym("reals"))])];
+        if a.1 != ninf {
+            facts.push(b.call("less", &[a.1, x]));
         }
-        let num = |cx: &mut NativeCx<'_, '_, 'h>, l: Option<T<'h>>| -> Res<Option<f64>> {
-            let Some(l) = l else { return Ok(None) };
-            if l == inf {
-                return Ok(Some(f64::INFINITY));
+        if c.1 != inf {
+            facts.push(b.call("less", &[x, c.1]));
+        }
+        let mut mono = false;
+        for rel in ["greater", "less"] {
+            let r = cx.eval_assuming(&facts, b.call("refine", &[b.call(rel, &[df, b.zero()])]))?;
+            mono |= cx.is_true(r);
+        }
+        if !mono && a.0.is_finite() && c.0.is_finite() {
+            mono = super::proof::sign_on(cx, b, df, x, (a.0, c.0), Some((a.1, c.1)), true)?.is_some_and(|s| s != 0);
+        }
+        // the ends of the image: the two limits, ordered (the infinities by their sign)
+        let order = |cx: &mut NativeCx<'_, '_, 'h>, p: T<'h>, q: T<'h>| -> Res<Option<(T<'h>, T<'h>)>> {
+            if p == ninf || q == inf {
+                return Ok(Some((p, q)));
             }
-            if l == ninf {
-                return Ok(Some(f64::NEG_INFINITY));
+            if p == inf || q == ninf {
+                return Ok(Some((q, p)));
             }
-            let v = cx.eval(b.call("n", &[l]))?;
-            Ok(match h.view(v) {
-                View::Real(y) => Some(y),
-                View::Int(k) => Some(k as f64),
-                _ => None,
+            Ok(match super::proof::closed_sign(cx, b, b.sub(q, p))? {
+                Some(s) if s >= 0 => Some((p, q)),
+                Some(_) => Some((q, p)),
+                None => None,
             })
         };
-        let (na, nc) = (num(cx, la)?, num(cx, lc)?);
-        images.push(match (na, nc, mono) {
-            (Some(p), Some(q), true) => Some((p.min(q), p.max(q))),
+        images.push(match (la, lc, mono) {
+            (Some(p), Some(q), true) => order(cx, p, q)?,
             _ => None,
         });
     }
-    // every image known: a value outside all of them (0, or an end of an image)
-    if super::out_of_time() || images.is_empty() || images.iter().any(|i| i.is_none()) {
+    // every image known (and every break point listed, not a family): a value outside all of them (0, or an end
+    // of an image), decided exactly
+    if images.is_empty() || images.iter().any(|i| i.is_none()) || families {
         return Ok(Ans::Unknown);
     }
-    let images: Vec<(f64, f64)> = images.into_iter().flatten().collect();
-    let mut tries = vec![0.0];
+    let images: Vec<(T<'h>, T<'h>)> = images.into_iter().flatten().collect();
+    let mut tries = vec![b.zero()];
     for &(p, q) in &images {
-        tries.extend([p, q, p - 1.0, q + 1.0].into_iter().filter(|v| v.is_finite()));
-    }
-    for v in tries {
-        if !images.iter().any(|&(p, q)| p < v && v < q) && !attained.iter().any(|&a| (a - v).abs() <= 1e-12 * (1.0 + v.abs())) {
-            let _ = y;
-            return Ok(Ans::Bool(false));
+        for e in [p, q] {
+            if e != inf && e != ninf {
+                tries.push(e);
+                tries.push(cx.eval(b.sub(e, b.one()))?);
+                tries.push(cx.eval(b.add(&[e, b.one()]))?);
+            }
         }
+    }
+    // Some(true) when v lies strictly between p and q, Some(false) when not, None when undecided
+    let between = |cx: &mut NativeCx<'_, '_, 'h>, v: T<'h>, p: T<'h>, q: T<'h>| -> Res<Option<bool>> {
+        let above = if p == ninf { Some(1) } else if p == inf { Some(-1) } else { super::proof::closed_sign(cx, b, b.sub(v, p))? };
+        let below = if q == inf { Some(1) } else if q == ninf { Some(-1) } else { super::proof::closed_sign(cx, b, b.sub(q, v))? };
+        Ok(match (above, below) {
+            (Some(s), Some(t)) => Some(s > 0 && t > 0),
+            (Some(s), _) if s <= 0 => Some(false),
+            (_, Some(t)) if t <= 0 => Some(false),
+            _ => None,
+        })
+    };
+    'tries: for v in tries {
+        for &(p, q) in &images {
+            if between(cx, v, p, q)? != Some(false) {
+                continue 'tries;
+            }
+        }
+        for &a in &attained {
+            if super::proof::closed_sign(cx, b, b.sub(v, a))?.is_none_or(|s| s == 0) {
+                continue 'tries;
+            }
+        }
+        let _ = y;
+        return Ok(Ans::Bool(false));
     }
     Ok(Ans::Unknown)
 }
@@ -598,9 +616,19 @@ fn surjective_complex<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec
         };
         // f(g(y)) == y
         let back = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, g])]))?;
+        // f(g(y)) == y must be proved (values at points only refute)
         let d = cx.eval(b.call("simplify", &[b.sub(back, ys)]))?;
-        if d != b.zero() && !inverse_on(cx, b, d, ys, s.ycond)? {
-            continue;
+        if d != b.zero() {
+            let proved = match s.ycond {
+                Some(yc) => {
+                    let r = cx.eval_assuming(&[yc], b.call("simplify", &[d]))?;
+                    r == b.zero()
+                }
+                None => false,
+            };
+            if !proved {
+                continue;
+            }
         }
         let dom = cx.eval(b.call("function_domain", &[g, ys, h.sym_term(h.sym("complexes"))]))?;
         if cx.is_true(dom) {
@@ -616,49 +644,8 @@ fn surjective_complex<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec
     Ok(Ans::Unknown)
 }
 
-/// Does `d` (`f(g(y)) - y`) vanish where `ycond` holds: at no fewer than four of the points `a + b im` of a grid
-/// (a, b from -2.3 to 2.3) inside `ycond`, to 30 digits?
-fn inverse_on<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, d: T<'h>, y: T<'h>, ycond: Option<T<'h>>) -> Res<bool> {
-    let h = b.heap();
-    let Some(yc) = ycond else { return Ok(false) };
-    let imu = h.sym_term(h.sym("im"));
-    let mut good = 0;
-    for i in -2..=2 {
-        for j in -2..=2 {
-            cx.tick(1)?;
-            let y0 = b.add(&[b.rat(23 * i + 3, 20), b.mul(&[b.rat(23 * j + 1, 20), imu])]);
-            let rule = h.call(h.sym(names::RULE), &[y, y0]);
-            let inside = cx.eval(h.call(h.sym("rewrite"), &[yc, rule]))?;
-            let inside = cx.eval(b.call("n", &[inside]))?;
-            if !cx.is_true(inside) {
-                continue;
-            }
-            let v = cx.eval(h.call(h.sym("rewrite"), &[d, rule]))?;
-            if v == b.zero() {
-                good += 1;
-                continue;
-            }
-            let v = cx.eval(b.call("n", &[v, b.int(30)]))?;
-            // zero to the working limit of the numeric evaluation (a ball around 0 below 10^-1000)
-            if is_head(b, v, names::FAILURE)
-                && matches!(h.view(v), View::App { args, .. } if args.first().is_some_and(|&a| a == h.sym_term(h.sym("precision_not_reached"))))
-            {
-                good += 1;
-                continue;
-            }
-            let re = cx.eval(b.call("re", &[v]))?;
-            let im = cx.eval(b.call("im_part", &[v]))?;
-            let small = cx.eval(b.call("less", &[b.add(&[b.powi(re, 2), b.powi(im, 2)]), b.pow(b.int(10), b.int(-40))]))?;
-            if !cx.is_true(small) {
-                return Ok(false);
-            }
-            good += 1;
-        }
-    }
-    Ok(good >= 4)
-}
-
-/// Is `v` not a value of `f`: no solution of `f == v` that checks by substitution?
+/// Is `v` not a value of `f`: no solution of `f == v` that checks by substitution? A solution is set aside only
+/// when f at it is proved different from `v` (the 30-digit ball of |f - v|^2 excludes 0).
 fn omitted<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, v: T<'h>) -> Res<bool> {
     let h = b.heap();
     let sol = cx.eval(b.call("solve", &[b.call("equal", &[f, v]), x]))?;
@@ -682,8 +669,8 @@ fn omitted<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>,
         let d = cx.eval(b.call("n", &[b.sub(at, v), b.int(30)]))?;
         let re = cx.eval(b.call("re", &[d]))?;
         let im = cx.eval(b.call("im_part", &[d]))?;
-        let small = cx.eval(b.call("less", &[b.add(&[b.powi(re, 2), b.powi(im, 2)]), b.pow(b.int(10), b.int(-30))]))?;
-        if cx.is_true(small) {
+        let sq = b.add(&[b.powi(re, 2), b.powi(im, 2)]);
+        if super::proof::closed_sign(cx, b, sq)? != Some(1) {
             return Ok(false);
         }
         // a solution that does not check (exp(2 pi im) for log(x) == 2 pi im) is no solution

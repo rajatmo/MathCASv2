@@ -13,8 +13,10 @@
 //! - `centered_interval(c, r)`: a midpoint and a radius: f(c +- r) of one spread is the hull of the proved image of
 //!   [c - r, c + r]; where that is not proved (a pole inside) the call stays, a radius 0 takes the point ball (round
 //!   41: the slope estimate f(c) +- r max |f'| at three points was not an enclosure); functions of several spreads
-//!   other than sums and products are evaluated on balls (rigorous), or stay unevaluated when the function does not
-//!   give a ball (round 36); the elementary functions of a complex spread go through the box arithmetic of
+//!   (and of several `interval`s) other than sums and products are enclosed over the box: the hull of two corners
+//!   when every partial derivative's sign is proved by its enclosure over the box, else the function of the balls
+//!   met with the mean value form (round 43: the grid of 5 or 3 points a side that decided the signs is gone), or
+//!   stay unevaluated when no enclosure is found; the elementary functions of a complex spread go through the box arithmetic of
 //!   `uncertain_boxes` (round 41); sums, products and
 //!   powers with a complex part, an `interval` mixed in or an uncertain exponent go through the rigorous box
 //!   arithmetic of `uncertain_boxes` (a complex radius rx + i ry is the box of the two parts);
@@ -335,102 +337,256 @@ fn real_at_exact_centre<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &
     Ok((nonzero == fx.sym("true")).then_some(Err(())))
 }
 
-/// `head` of several real centered intervals (at most four) as the hull of its values at two corners of the box,
-/// when every partial derivative (in closed form, else a central difference within the spread) keeps its sign on a
-/// grid over the box (5 points a side for two
-/// spreads, 3 for three or four): the function is then monotone in each argument, its least value is at the corner
-/// of the lower ends of the increasing arguments and the upper ends of the decreasing ones, its largest at the
-/// opposite corner (as [`centered_image`] for one spread). The half-width is rounded up; `None` otherwise.
+/// `head` of several real centered intervals (at most four) as a centered interval enclosing its image over the
+/// box ([`box_image`]); `None` when no enclosure is found.
 fn centered_corners<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>], unc: &[Option<T<'h>>]) -> Res<Option<T<'h>>> {
+    let Some((lo, hi)) = box_image(fx, head, centers, unc)? else { return Ok(None) };
+    let mid = 0.5 * (lo + hi);
+    let rad = (0.5 * (hi - lo) + 4.0 * f64::EPSILON * (lo.abs() + hi.abs())) * (1.0 + 4.0 * f64::EPSILON);
+    Ok(Some(fx.call("centered_interval", &[fx.real(mid), fx.real(rad)])))
+}
+
+/// A machine number as the exact binary rational it is; exact numbers stay.
+fn exact_of<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>) -> Res<T<'h>> {
+    if fx.num(t).is_some_and(|n| !n.is_exact()) {
+        return fx.eval(fx.call("set_precision", &[t, fx.inf()]));
+    }
+    Ok(t)
+}
+
+/// An enclosure of `head` over the box of several real spreads c_i +- r_i (2 to 4; the other arguments numbers),
+/// as outward-rounded machine bounds (round 43: proved, never sampled), in two stages, each on sub-boxes made by
+/// halving (at most [`MAX_BOX_CELLS`] each; every expression is tried as given and in its `function_expand` form,
+/// the enclosures met):
+/// 1. the sign of every partial derivative (in closed form) proved on sub-boxes that cover the box (a sub-box where
+///    a sign is open is halved in the widest such spread), one sign per argument: the function is monotone in
+///    each argument, its least value is at the corner of the lower ends of the increasing arguments and the upper
+///    ends of the decreasing ones, its largest at the opposite corner (the corner values enclosed on point balls);
+/// 2. otherwise interval arithmetic on sub-boxes that cover the box (a sub-box without an enclosure is halved): the
+///    natural extension (the function of the balls) met with the mean value form f(c) + sum_i f_i(B) [-r_i, r_i]
+///    (f_i the partials on the sub-box B); both enclose, so their intersection does, and so does the hull.
+///
+/// `None` when no enclosure is found (a function without a ball form, a pole or a cut inside the box).
+fn box_image<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>], unc: &[Option<T<'h>>]) -> Res<Option<(f64, f64)>> {
     let idx: Vec<usize> = (0..unc.len()).filter(|&i| unc[i].is_some()).collect();
     let k = idx.len();
     if !(2..=4).contains(&k) {
         return Ok(None);
     }
-    let mut spreads = vec![];
+    // the exact centres and radii, the exact other arguments
+    let mut exact = Vec::with_capacity(centers.len());
+    for &c in centers {
+        exact.push(exact_of(fx, c)?);
+    }
+    let mut radii = vec![];
     for &i in &idx {
-        let (Some(c), Some(d)) = (machine(fx, centers[i])?, machine(fx, unc[i].expect("uncertain"))?) else { return Ok(None) };
-        if !(c.is_finite() && d.is_finite()) {
+        let d = exact_of(fx, unc[i].expect("uncertain"))?;
+        let d = fx.eval(fx.call("abs", &[d]))?;
+        let real = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| fx.num(t).is_some_and(|n| n.as_real().is_some());
+        if !(real(fx, exact[i]) && real(fx, d)) {
             return Ok(None);
         }
-        spreads.push((c, d.abs()));
+        radii.push(d);
     }
     let vars: Vec<T<'h>> = (0..k).map(|j| fx.sym(&format!("around·t{j}"))).collect();
-    let mut xs = centers.to_vec();
+    let mut xs = exact.clone();
     for (j, &i) in idx.iter().enumerate() {
         xs[i] = vars[j];
     }
     let g = fx.h.app(head, &xs);
-    // the partial derivatives in closed form; `None` where there is none (a central difference of the values then)
-    let mut partials = vec![];
+    // an expression and its `function_expand` form (beta through gamma functions: the ball form of the expanded
+    // expression is often far tighter), their constants as balls
+    let forms = |fx: &mut Fx<'_, '_, '_, 'h>, e: T<'h>| -> Res<(T<'h>, Option<T<'h>>)> {
+        let a = crate::enclose::constants_as_balls(fx, e)?;
+        let x = fx.eval(fx.call("function_expand", &[e]))?;
+        let x = if x == e { None } else { Some(crate::enclose::constants_as_balls(fx, x)?) };
+        Ok((a, x))
+    };
+    // the partial derivatives in closed form
+    let mut dgs: Vec<Option<(T<'h>, Option<T<'h>>)>> = vec![];
     for &v in &vars {
         let dg = fx.eval(fx.call("d", &[g, v]))?;
-        partials.push((!(fx.contains(dg, "derivative") || fx.contains(dg, "d"))).then_some(dg));
+        if fx.contains(dg, "derivative") || fx.contains(dg, "d") {
+            dgs.push(None);
+        } else {
+            dgs.push(Some(forms(fx, dg)?));
+        }
     }
-    let at_point = |fx: &mut Fx<'_, '_, '_, 'h>, e: T<'h>, pt: &[f64]| -> Res<Option<f64>> {
-        let rules: Vec<T<'h>> = pt.iter().enumerate().map(|(j, &x)| fx.call("rule", &[vars[j], fx.real(x)])).collect();
+    // an expression (both forms, the enclosures met) on the balls `bs` of the spread arguments
+    let on_balls = |fx: &mut Fx<'_, '_, '_, 'h>, (e, alt): (T<'h>, Option<T<'h>>), bs: &[T<'h>]| -> Res<Option<(f64, f64)>> {
+        let rules: Vec<T<'h>> = vars.iter().zip(bs).map(|(&v, &bl)| fx.call("rule", &[v, bl])).collect();
         let rl = fx.list(&rules);
-        let v = fx.eval(fx.call("rewrite", &[e, rl]))?;
-        machine(fx, v)
+        let mut out: Option<(f64, f64)> = None;
+        for form in std::iter::once(e).chain(alt) {
+            fx.tick(1)?;
+            let v = fx.eval(fx.call("rewrite", &[form, rl]))?;
+            let v = crate::enclose::constants_as_balls(fx, v)?;
+            if let Some((a, b)) = crate::enclose::bounds(fx, v) {
+                out = Some(match out {
+                    Some((c, d)) if a.max(c) <= b.min(d) => (a.max(c), b.min(d)),
+                    Some(o) => o,
+                    None => (a, b),
+                });
+            }
+        }
+        Ok(out)
     };
-    let side: &[f64] = if k == 2 { &[-1.0, -0.5, 0.0, 0.5, 1.0] } else { &[-1.0, 0.0, 1.0] };
-    let mut signs = vec![0i32; k];
-    let total = side.len().pow(k as u32);
-    for p in 0..total {
-        let mut pt = vec![];
-        let mut q = p;
-        for &(c, d) in &spreads {
-            let t = side[q % side.len()];
-            q /= side.len();
-            pt.push(c + t * d);
-        }
-        for (j, dg) in partials.iter().enumerate() {
-            let s = match dg {
-                Some(dg) => at_point(fx, *dg, &pt)?,
-                None => {
-                    // f(x + h) - f(x - h) with h within the spread (its sign is the slope's)
-                    let h = (spreads[j].1 / 8.0).min(1e-4 * pt[j].abs().max(1.0));
-                    let (mut up, mut dn) = (pt.clone(), pt.clone());
-                    up[j] += h;
-                    dn[j] -= h;
-                    match (at_point(fx, g, &up)?, at_point(fx, g, &dn)?) {
-                        (Some(a), Some(b)) => Some(a - b),
-                        _ => None,
-                    }
-                }
-            };
-            let Some(s) = s else { return Ok(None) };
-            if !s.is_finite() {
-                return Ok(None);
-            }
-            let sg = if s > 0.0 { 1 } else if s < 0.0 { -1 } else { 0 };
-            if sg != 0 {
-                if signs[j] != 0 && signs[j] != sg {
-                    return Ok(None);
-                }
-                signs[j] = sg;
-            }
-        }
+    // the value at an exact point, enclosed
+    let at_point = |fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>]| -> Res<Option<(f64, f64)>> {
         fx.tick(1)?;
-    }
-    let mut ends = [0.0f64; 2];
-    for (e, dir) in [-1.0, 1.0].into_iter().enumerate() {
-        let mut ys = centers.to_vec();
-        for (j, &i) in idx.iter().enumerate() {
-            let (c, d) = spreads[j];
-            let s = if signs[j] < 0 { -dir } else { dir };
-            ys[i] = fx.real(c + s * d);
+        let v = fx.eval(fx.h.app(head, args))?;
+        if let Some(bd) = crate::enclose::bounds(fx, v) {
+            return Ok(Some(bd));
         }
-        let v = fx.eval(fx.h.app(head, &ys))?;
-        match machine(fx, v)? {
-            Some(y) if y.is_finite() => ends[e] = y,
-            _ => return Ok(None),
+        let w = fx.eval(fx.call("n", &[v, fx.int(30)]))?;
+        Ok(crate::enclose::bounds(fx, w))
+    };
+    let gb = forms(fx, g)?;
+    // a sub-box: the exact centre and radius of each spread
+    type SubBox<'h> = Vec<(T<'h>, T<'h>)>;
+    let root: SubBox<'h> = idx.iter().enumerate().map(|(j, &i)| (exact[i], radii[j])).collect();
+    let balls_of = |fx: &mut Fx<'_, '_, '_, 'h>, bx: &SubBox<'h>| -> Option<Vec<T<'h>>> {
+        bx.iter().map(|&(c, r)| fx.ar.ball_with_radius(c, r, CELL_BITS)).collect()
+    };
+    // halve the box in spread j
+    let split = |fx: &mut Fx<'_, '_, '_, 'h>, bx: &SubBox<'h>, j: usize| -> Res<(SubBox<'h>, SubBox<'h>)> {
+        let (c, r) = bx[j];
+        let half = fx.eval(fx.mul(&[r, fx.ar.rational(fx.int(1), fx.int(2))]))?;
+        let (mut a, mut b) = (bx.clone(), bx.clone());
+        a[j] = (fx.eval(fx.add(&[c, fx.neg(half)]))?, half);
+        b[j] = (fx.eval(fx.add(&[c, half]))?, half);
+        Ok((a, b))
+    };
+    let widest = |fx: &Fx<'_, '_, '_, 'h>, bx: &SubBox<'h>, among: &[usize]| -> usize {
+        let w = |j: usize| fx.f64_of(bx[j].1).unwrap_or(0.0);
+        among.iter().copied().max_by(|&a, &b| w(a).total_cmp(&w(b))).unwrap_or(0)
+    };
+    // the partials enclosed on a sub-box
+    let partials_on = |fx: &mut Fx<'_, '_, '_, 'h>, bs: &[T<'h>]| -> Res<Vec<Option<(f64, f64)>>> {
+        let mut parts = vec![];
+        for dg in &dgs {
+            parts.push(match dg {
+                Some(dg) => on_balls(fx, *dg, bs)?,
+                None => None,
+            });
+        }
+        Ok(parts)
+    };
+    let sign_of = |e: Option<(f64, f64)>| match e {
+        Some((a, b)) if a == 0.0 && b == 0.0 => Some(0i8),
+        Some((a, _)) if a >= 0.0 => Some(1),
+        Some((_, b)) if b <= 0.0 => Some(-1),
+        _ => None,
+    };
+    // 1. monotone in every argument: one proved sign per partial over sub-boxes that cover the box
+    if dgs.iter().all(Option::is_some) {
+        let mut signs: Vec<i8> = vec![0; k];
+        let mut stack = vec![root.clone()];
+        let mut cells = 0usize;
+        let mut monotone = true;
+        while let Some(bx) = stack.pop() {
+            cells += 1;
+            if cells > MAX_BOX_CELLS {
+                monotone = false;
+                break;
+            }
+            let Some(bs) = balls_of(fx, &bx) else { return Ok(None) };
+            let parts = partials_on(fx, &bs)?;
+            let mut open = vec![];
+            for (j, p) in parts.iter().enumerate() {
+                match sign_of(*p) {
+                    Some(0) => {}
+                    Some(s) if signs[j] == 0 || signs[j] == s => signs[j] = s,
+                    Some(_) => monotone = false,
+                    None => open.push(j),
+                }
+            }
+            if !monotone {
+                break;
+            }
+            if !open.is_empty() {
+                let j = widest(fx, &bx, &open);
+                let (a, b) = split(fx, &bx, j)?;
+                stack.push(a);
+                stack.push(b);
+            }
+        }
+        if monotone {
+            let mut ends = vec![];
+            for dir in [-1i64, 1] {
+                let mut ys = exact.clone();
+                for (j, &i) in idx.iter().enumerate() {
+                    let s = if signs[j] == -1 { -dir } else { dir };
+                    ys[i] = fx.eval(fx.add(&[exact[i], fx.mul(&[fx.int(s), radii[j]])]))?;
+                }
+                ends.push(at_point(fx, &ys)?);
+            }
+            if let [Some((l0, _)), Some((_, h1))] = ends[..] {
+                if l0 <= h1 {
+                    return Ok(Some((l0, h1)));
+                }
+            }
         }
     }
-    let (lo, hi) = (ends[0].min(ends[1]), ends[0].max(ends[1]));
-    let mid = 0.5 * (lo + hi);
-    let rad = (0.5 * (hi - lo) + 4.0 * f64::EPSILON * (lo.abs() + hi.abs())) * (1.0 + 4.0 * f64::EPSILON);
-    Ok(Some(fx.call("centered_interval", &[fx.real(mid), fx.real(rad)])))
+    // 2. interval arithmetic on sub-boxes that cover the box: the natural extension met with the mean value form
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    let mut stack = vec![root];
+    let mut cells = 0usize;
+    while let Some(bx) = stack.pop() {
+        cells += 1;
+        if cells > MAX_BOX_CELLS {
+            return Ok(None);
+        }
+        let Some(bs) = balls_of(fx, &bx) else { return Ok(None) };
+        let natural = on_balls(fx, gb, &bs)?;
+        let parts = partials_on(fx, &bs)?;
+        let mean_value = if parts.iter().all(Option::is_some) {
+            let mut mids = exact.clone();
+            for (j, &i) in idx.iter().enumerate() {
+                mids[i] = bx[j].0;
+            }
+            match at_point(fx, &mids)? {
+                Some((mut a, mut b)) => {
+                    for (j, p) in parts.iter().enumerate() {
+                        let (pa, pb) = p.expect("a partial");
+                        let Some(r) = fx.f64_of(bx[j].1) else { continue };
+                        // [pa, pb] times [-r, r] lies in [-w, w], w = max(|pa|, |pb|) r, rounded up
+                        let w = (pa.abs().max(pb.abs()) * r.next_up()).next_up();
+                        a = (a - w).next_down();
+                        b = (b + w).next_up();
+                    }
+                    (a.is_finite() && b.is_finite()).then_some((a, b))
+                }
+                None => None,
+            }
+        } else {
+            None
+        };
+        let e = match (natural, mean_value) {
+            (Some((a, b)), Some((c, d))) if a.max(c) <= b.min(d) => Some((a.max(c), b.min(d))),
+            (Some(e), _) | (None, Some(e)) => Some(e),
+            (None, None) => None,
+        };
+        match e {
+            Some((a, b)) => {
+                lo = lo.min(a);
+                hi = hi.max(b);
+            }
+            None => {
+                // no enclosure on this sub-box: halve it in its widest spread
+                let all: Vec<usize> = (0..k).collect();
+                let j = widest(fx, &bx, &all);
+                let (a, b) = split(fx, &bx, j)?;
+                stack.push(a);
+                stack.push(b);
+            }
+        }
+    }
+    // an enclosure a hundred times wider than the value at the centre says nothing useful (a loose ball form):
+    // the call stays
+    let Some((c0, c1)) = at_point(fx, &exact)? else { return Ok(None) };
+    let scale = 1.0 + c0.abs().max(c1.abs());
+    Ok((lo <= hi && hi - lo <= 1e2 * scale).then_some((lo, hi)))
 }
 
 /// `head` of several centered intervals as the function of balls: each centred interval c +- r becomes the real ball
@@ -816,10 +972,10 @@ fn interval_apply<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>]) 
     make_interval(fx, out)
 }
 
-/// A function of several intervals (one piece each, finite ends): the box is the product of the pieces, and when
-/// the function is monotone in each argument over it (the test of [`centered_corners`]: every partial derivative
-/// keeps its sign on a grid over the box) its image is spanned by two corners; the ends are moved outwards by a few
-/// ulps. `None` otherwise (the call stays).
+/// A function of several intervals (one piece each, finite numeric ends): the box is the product of the pieces (the
+/// exact centre (a + b)/2 and radius (b - a)/2 of each), and its image is enclosed by [`box_image`] (the corner hull
+/// when every partial derivative's sign is proved over the box, else interval arithmetic on the expression); the ends
+/// are rounded outwards. `None` otherwise (the call stays).
 fn several_intervals<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], at: &[usize]) -> Res<Option<T<'h>>> {
     let mut centers = args.to_vec();
     let mut unc = vec![None; args.len()];
@@ -830,8 +986,11 @@ fn several_intervals<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>
         if !(lo.is_finite() && hi.is_finite() && lo <= hi) {
             return Ok(None);
         }
-        centers[i] = fx.real(0.5 * (lo + hi));
-        unc[i] = Some(fx.real(0.5 * (hi - lo)));
+        // exact ends: numbers (machine ends as their binary values); a closed form end through 30 digits is not exact
+        let (Some(_), Some(_)) = (fx.num(a), fx.num(b)) else { return Ok(None) };
+        let (a, b) = (exact_of(fx, a)?, exact_of(fx, b)?);
+        centers[i] = fx.eval(fx.mul(&[fx.add(&[a, b]), fx.ar.rational(fx.int(1), fx.int(2))]))?;
+        unc[i] = Some(fx.eval(fx.mul(&[fx.add(&[b, fx.neg(a)]), fx.ar.rational(fx.int(1), fx.int(2))]))?);
     }
     // the other arguments must be numbers
     for (i, &c) in centers.iter().enumerate() {
@@ -839,11 +998,7 @@ fn several_intervals<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>
             return Ok(None);
         }
     }
-    let Some(r) = centered_corners(fx, head, &centers, &unc)? else { return Ok(None) };
-    let Some(&[m, d]) = fx.call_of(r, "centered_interval") else { return Ok(None) };
-    let (Some(m), Some(d)) = (machine(fx, m)?, machine(fx, d)?) else { return Ok(None) };
-    let lo = m - d;
-    let hi = m + d;
+    let Some((lo, hi)) = box_image(fx, head, &centers, &unc)? else { return Ok(None) };
     let ps = outward(fx, vec![(fx.real(lo), fx.real(hi))]);
     make_interval(fx, ps)
 }
@@ -870,6 +1025,10 @@ fn periodic_cover<'h>(fx: &mut Fx<'_, '_, '_, 'h>, name: &str, arity: usize, (a,
 // ---------------------------------------------------------------- centered intervals
 
 const BALL_BITS: i64 = 100;
+/// The precision of the balls of the sub-boxes of a box (bits; a wide ball needs no more).
+const CELL_BITS: u64 = 64;
+/// At most this many sub-boxes in each stage of [`box_image`].
+const MAX_BOX_CELLS: usize = 64;
 
 /// A ball as `centered_interval(mid, rad)` with machine numbers (the radius rounded up).
 fn from_ball<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<T<'h>> {

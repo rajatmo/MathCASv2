@@ -53,7 +53,9 @@ fn mathieu_characteristic_a_at_large_parameters() {
     // other precisions stay unevaluated instead of spiralling
     assert!(timed(&mut s, "n(mathieu_characteristic_a(1, 10^30), 30)", 3.0).starts_with("mathieu_characteristic_a"));
     // the property test that crashed the test run (allocation of 3.2e16 bytes)
-    assert_eq!(timed(&mut s, "function_injective(mathieu_characteristic_a(1, x), x)", 8.0), "false");
+    // a witness is confirmed at exact points within the search budget, or the call stays
+    let out = timed(&mut s, "function_injective(mathieu_characteristic_a(1, x), x)", 8.0);
+    assert!(out == "false" || out == "function_injective(mathieu_characteristic_a(1, x), x)", "{out}");
 }
 
 #[test]

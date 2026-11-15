@@ -10,8 +10,8 @@
 //! non-integer order). Every property reads the same entry: the domain ([`super::conditions`]), the singular sets
 //! (singularities, discontinuities, analyticity, continuity, meromorphy: [`super::sets`]), the range
 //! ([`super::range`]), surjectivity (a bounded function is not onto); the sign, monotonicity, convexity and
-//! injectivity sample the function on the domain read here. Compositions are taken apart by the callers: a
-//! subterm contributes its conditions with its own argument substituted.
+//! injectivity are proved on the domain read here (or refuted at points of it). Compositions are taken apart by
+//! the callers: a subterm contributes its conditions with its own argument substituted.
 //!
 //! Conventions: `real` is the set where the function is defined and real-valued (`""` unknown; `"~"` the
 //! complement of the real singular atoms, for functions whose only singularities are poles); a singular atom `"?"`
@@ -67,8 +67,8 @@ pub struct Entry {
     pub partial: bool,
     /// the complex atoms are some singular points only
     pub cpartial: bool,
-    /// smooth where defined, apart from the listed atoms (`false`: kinks or jumps, decided by samples of the
-    /// function itself)
+    /// smooth where defined, apart from the listed atoms (`false`: kinks or jumps, refuted by differences of the
+    /// function itself, never proved by them)
     pub smooth: bool,
     /// ranges on the reals: (condition on the parameters, condition on `$y`)
     pub ranges: &'static [(&'static str, &'static str)],
@@ -232,7 +232,7 @@ pub static TABLE: &[Entry] = &[
     // the Gudermannian function and its inverse, the logistic function (DLMF 4.23.39-4.23.42)
     Entry { name: "gudermannian", mono: &[("", 1)], ranges: &[("", "-pi/2 < $y and $y < pi/2")], bound: Bound::Both, refs: "DLMF 4.23.39", ..E },
     Entry { name: "inverse_gudermannian", real: "cos($u) > 0", sr: Some(&[("cos($u) <= 0", BR)]), sc: Some(&[("$u == pi/2", BR)]), cpartial: true, ranges: &[("", "true")], refs: "DLMF 4.23.41", ..E },
-    Entry { name: "logistic_sigmoid", complex: "1 + exp($u) != 0", ranges: &[("", "0 < $y and $y < 1")], crange: "$y - 1 != 0 and $y != 0", bound: Bound::Both, ..E },
+    Entry { name: "logistic_sigmoid", complex: "1 + exp($u) != 0", signs: &[("", 1)], mono: &[("", 1)], ranges: &[("", "0 < $y and $y < 1")], crange: "$y - 1 != 0 and $y != 0", bound: Bound::Both, refs: "1/(1 + e^-u): positive, increasing (its derivative s (1 - s) > 0)", ..E },
     // the Lambert W function: principal branch, real from -1/e, the cut (-inf, -1/e] (DLMF 4.13)
     Entry {
         name: "product_log",
@@ -1478,8 +1478,8 @@ impl<'h> Hit<'h> {
 }
 
 /// Is `name` a function the table describes as not smooth (steps, kinks), or one whose singular set on the line it
-/// does not list completely (a jump may hide between samples of the derivative)? Such functions are decided by
-/// samples of the function itself.
+/// does not list completely (a jump may hide between points of the derivative)? Such functions are refuted by
+/// differences of the function itself.
 pub fn not_smooth(name: &str) -> bool {
     let mut entries = TABLE.iter().filter(|e| e.name == name).peekable();
     entries.peek().is_some() && entries.any(|e| !e.smooth || (e.sr.is_none() || e.partial) && !e.real.is_empty())

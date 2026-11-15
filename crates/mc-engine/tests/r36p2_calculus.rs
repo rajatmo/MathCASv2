@@ -158,8 +158,9 @@ fn symbolic_series_coefficients_vanish_below_the_first_order() {
 fn convexity_where_the_domain_leaves_out_a_jump_or_a_kink() {
     assert_eq!(ev("function_convexity([heaviside_theta(x), x != 0], x)"), "indeterminate");
     assert_eq!(ev("function_convexity([sign(x), x != 0], x)"), "indeterminate");
-    assert_eq!(ev("function_convexity([abs(x), x != 0], x)"), "1");
-    assert_eq!(ev("function_convexity([-abs(x), x != 0], x)"), "-1");
+    // convex (concave), but only slopes of samples supported it: the calls stay
+    assert_eq!(ev("function_convexity([abs(x), x != 0], x)"), "function_convexity([abs(x), x != 0], x)");
+    assert_eq!(ev("function_convexity([-abs(x), x != 0], x)"), "function_convexity([-abs(x), x != 0], x)");
     assert_eq!(ev("function_convexity([x^2, x != 0], x)"), "1");
     assert_eq!(ev("limit(heaviside_theta(x), x -> 0, direction: from_above)"), "1");
     // independent: midpoints in the domain break both inequalities (above the chord of -1, 3; below that of -3, 1)
