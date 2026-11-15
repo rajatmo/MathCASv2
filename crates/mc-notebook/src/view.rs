@@ -297,19 +297,44 @@ pub struct Metrics {
     pub handle_reach: f32,
     /// the corner radius of the card of an input cell (points at 100 %)
     pub card_radius: f32,
+    /// how many times its own size a picture without a `size=` may be enlarged to fill the cell's width (1: never)
+    pub picture_fill: f32,
 }
 
 impl Metrics {
     /// A desktop window (the layout of the design).
     pub const fn desktop() -> Metrics {
-        Metrics { brackets: true, side: 0.0, right_pad: RIGHT_PAD, plus: true, handle: HANDLE, handle_reach: HANDLE_REACH, card_radius: 5.0 }
+        Metrics {
+            brackets: true,
+            side: 0.0,
+            right_pad: RIGHT_PAD,
+            plus: true,
+            handle: HANDLE,
+            handle_reach: HANDLE_REACH,
+            card_radius: 5.0,
+            picture_fill: 1.0,
+        }
     }
 
-    /// A phone or tablet.
+    /// A phone or tablet: a picture takes the width of the screen (its labels grow with it).
     pub const fn mobile() -> Metrics {
-        Metrics { brackets: false, side: 22.0, right_pad: 10.0, plus: false, handle: 12.0, handle_reach: 20.0, card_radius: 12.0 }
+        Metrics {
+            brackets: false,
+            side: 22.0,
+            right_pad: 10.0,
+            plus: false,
+            handle: 12.0,
+            handle_reach: 20.0,
+            card_radius: 12.0,
+            picture_fill: 1.5,
+        }
     }
 }
+
+/// The width (points) the kernel of a phone's notebook makes a picture without `image_size`: enlarged to the
+/// screen's width ([`Metrics::picture_fill`]) its 10 pt labels are drawn at about 15 pt. A function plot's page
+/// scales with it (400 x 250 here), so its 13 pt labels are drawn at about 12 pt on a phone 411 pt wide.
+pub const MOBILE_PLOT_WIDTH: u32 = 225;
 
 /// The caret's blink period (half on, half off), as the platform's default.
 pub const BLINK: f64 = 0.53;
@@ -727,7 +752,11 @@ impl View {
             (Some((_, s)), _) => s,
             (None, Some((w, h))) => vec2(w as f32, h as f32) * m,
             (None, None) => match self.images.borrow_mut().natural(path, self.now) {
-                Some((w, h)) => vec2(w as f32, h as f32) * m,
+                Some((w, h)) => {
+                    // a phone: enlarged towards the cell's width
+                    let own = vec2(w as f32, h as f32) * m;
+                    own * (max_w / own.x.max(1.0)).clamp(1.0, self.metrics.picture_fill.max(1.0))
+                }
                 // a frame for the path of a missing picture
                 None => return vec2(max_w.min(360.0 * m), 40.0 * m),
             },

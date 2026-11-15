@@ -799,8 +799,25 @@ User report: a power of a selection `2m` looked like `2m²`; while editing, brac
   width when it is narrower than they are (`dialog::show`).
 - The on-screen keyboard is asked for only by a caret in an editable cell (`canvas.rs` `ime`).
 - Self-test steps `calc`, `mopen`, `mhome`, `mstate` drive the screens without coordinates.
+- **Motion** (`mobile.rs`): a screen fades in over 0.22 s (`screen_alpha`, the opacity of the root `Ui`); the sheet
+  slides up from the bottom edge and back down with its scrim (`sheet_up`, the modal's area is not constrained to the
+  screen); the bar at the bottom (keys, actions) rises and sinks, drawing what it showed last while it sinks
+  (`Mobile::bottom`); the floating buttons rise and fade; the tint of a pressed control comes and goes in 0.1 s
+  (`state`). In a self-test nothing moves (`time` gives 0 seconds), so screenshots show the screens at rest.
+- **Fling** (`touch.rs`): a finger lifted while it moves leaves the content running; wheel events follow each frame,
+  the speed falling by 1/e in 0.38 s, until it is slow or a finger lands. The pointer is kept until the fling ends
+  (the wheel turns what is under it).
+- **Long press on a picture** (`App::long_press`): `Touch::take_long_press` says where a finger rested for 0.45 s;
+  on a picture that was not the selected one it selects the picture and opens the system share sheet with it. On
+  the selected picture the resting finger drags as before (turns a 3D picture, resizes by a handle).
+- **Text sizes**: interface text is 15 pt or more. Pictures: the labels of a plot are 10 pt of the plot's own units,
+  too small at arm's length when a 360 pt plot is drawn at the width of a phone. So the process is started with
+  `MC_PLOT_WIDTH=225` (`lib.rs` `run`; the kernel inherits it; `mc_graphics::page::default_width`), and a picture
+  without a `size=` is enlarged to the cell's width, by up to 1.5 (`Metrics::picture_fill`): the labels of a new
+  plot are drawn at about 14 pt. A plot made on a desktop (360 pt) keeps small labels on a phone held upright, and
+  grows when the phone is held sideways. A shared plot is rasterised from its SVG at 1600 pixels.
 
 Left out on purpose (the user's brief: minimal; open a notebook, a quick calculation, share a plot): cell styles
 and grouping, find, preferences, tabs, the status bar, the documentation window. Known gaps: no paste key; the
-per-cell running mark went with the brackets (the bar's kernel dot shows work); a long press on a list row or a cell
-does nothing (the dots and the sheet do it).
+per-cell running mark went with the brackets (the bar's kernel dot shows work); a long press on a list row or on a
+cell that is not a picture does nothing (the dots and the sheet do it).

@@ -23,9 +23,17 @@ pub(crate) struct Bar {
     pub(crate) y: Option<(f64, f64)>,
 }
 
-/// The page size in points (pixels of the PNG).
-pub(crate) const W: f64 = 640.0;
-pub(crate) const H: f64 = 400.0;
+/// The page size in points (pixels of the PNG) where nothing else sets it.
+const W: f64 = 640.0;
+const H: f64 = 400.0;
+
+/// The page of a plot without a size of its own: 640 x 400, scaled with the default width of a graphic
+/// (`mc_graphics::page::default_width`, which a process can set). The text keeps its size, so a narrower page shown
+/// at the same width has larger labels: the notebook of a phone uses that.
+pub(crate) fn page() -> (f64, f64) {
+    let k = mc_graphics::page::default_width() / mc_graphics::page::DEFAULT_WIDTH;
+    ((W * k).round(), (H * k).round())
+}
 /// Text size of tick labels, axis labels and legend entries.
 const LABEL_SIZE: f64 = 13.0;
 /// Line width of curves.
@@ -754,7 +762,7 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
     }
     let none = b.sym("none");
     let text = |s: &Option<String>| s.as_deref().map_or(none, |s| h.string(s));
-    let (w, ht) = look.size.unwrap_or((W, H));
+    let (w, ht) = look.size.unwrap_or_else(page);
     let mut opts = vec![
         b.rule("image_size", b.reals(&[w, ht])),
         b.rule("aspect_ratio", b.sym(if look.equal { "automatic" } else { "full" })),

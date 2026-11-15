@@ -10,6 +10,19 @@ use crate::{ticks, Failure};
 
 /// The default width of a graphic, in points.
 pub const DEFAULT_WIDTH: f64 = 360.0;
+
+/// The width of a graphic without `image_size`: [`DEFAULT_WIDTH`], or what the environment variable `MC_PLOT_WIDTH`
+/// (points, 120 to 2000) says for this process. The notebook of a phone sets it: its pictures are made narrower and
+/// shown enlarged to the screen's width, so their labels are of a size read at arm's length.
+pub fn default_width() -> f64 {
+    static WIDTH: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
+    *WIDTH.get_or_init(|| width_from(std::env::var("MC_PLOT_WIDTH").ok().as_deref()))
+}
+
+fn width_from(var: Option<&str>) -> f64 {
+    var.and_then(|v| v.trim().parse::<f64>().ok()).filter(|w| (120.0..=2000.0).contains(w)).unwrap_or(DEFAULT_WIDTH)
+}
+
 /// Frame, axes and tick marks.
 pub(crate) const FRAME: Rgba = Rgba::rgb(60.0 / 255.0, 60.0 / 255.0, 60.0 / 255.0);
 /// Label text: 85% black.
@@ -197,7 +210,7 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
     }
     .clamp(0.02, 50.0);
     // ticks are laid out for a first guess of the area's size, then the margins follow from their labels
-    let guess_w = o.image_size.0.unwrap_or(DEFAULT_WIDTH);
+    let guess_w = o.image_size.0.unwrap_or_else(default_width);
     let guess_h = o.image_size.1.unwrap_or(guess_w * ratio);
     let decorated = |k: usize| o.frame || o.axes[k];
     let mut tk: [Vec<(f64, Option<Label>)>; 2] = [vec![], vec![]];
@@ -313,7 +326,7 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
             (aw + mh, h, [m[0] as f64, m[1] as f64, aw, ah])
         }
         (w, None) => {
-            let w = w.unwrap_or(DEFAULT_WIDTH);
+            let w = w.unwrap_or_else(default_width);
             let aw = (w - mh).max(1.0);
             let ah = (aw * ratio).min(crate::model::MAX_SIDE);
             (w, ah + mv, [m[0] as f64, m[1] as f64, aw, ah])
@@ -881,6 +894,16 @@ fn legend(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
 #[cfg(test)]
 mod tests {
     use super::clipped_runs;
+
+    #[test]
+    fn the_default_width_takes_a_sensible_number_from_the_environment() {
+        use super::{width_from, DEFAULT_WIDTH};
+        assert_eq!(width_from(None), DEFAULT_WIDTH);
+        assert_eq!(width_from(Some(" 270 ")), 270.0);
+        for bad in ["", "wide", "20", "1e9", "NaN", "-300"] {
+            assert_eq!(width_from(Some(bad)), DEFAULT_WIDTH, "{bad}");
+        }
+    }
 
     #[test]
     fn far_segments_are_cut_at_the_rectangle() {

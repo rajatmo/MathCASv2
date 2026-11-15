@@ -1372,7 +1372,7 @@ impl Prepared {
         g.opts.aspect = Aspect::Auto;
         g.opts.padding = Some(0.03);
         g.opts.image_size = match o3.image_size {
-            (None, None) => (Some(360.0), None),
+            (None, None) => (Some(crate::page::default_width()), None),
             s => s,
         };
         g.opts.background = o3.background;

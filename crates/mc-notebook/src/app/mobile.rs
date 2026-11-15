@@ -60,7 +60,16 @@ enum Sheet {
 #[derive(Default)]
 pub(super) struct Mobile {
     screen: Screen,
+    /// when the screen was entered (seconds of the frame clock): it fades in from then
+    entered: f64,
+    /// the sheet that shows (also while it slides away)
     sheet: Option<Sheet>,
+    /// the sheet is up, or on its way up (`false`: it slides away, then `sheet` is `None`)
+    sheet_up: bool,
+    /// the height of the sheet when it was last drawn (points): how far it slides
+    sheet_height: f32,
+    /// what the bar at the bottom of the notebook last showed (it is drawn while it slides away)
+    bottom: Option<Bottom>,
     /// the notebooks of the Home list (read when Home is entered)
     files: Option<Vec<Entry>>,
     /// a rename in progress: the file and the name typed
@@ -75,6 +84,48 @@ pub(super) struct Mobile {
     picking_until: f64,
     /// the names the completion offers now (from `completion_popup`, drawn above the keys)
     pub(super) completions: Vec<String>,
+}
+
+impl Mobile {
+    /// Bring up the sheet.
+    fn show_sheet(&mut self, sheet: Sheet) {
+        self.sheet = Some(sheet);
+        self.sheet_up = true;
+    }
+
+    /// The sheet is gone at once (the screen changes).
+    fn drop_sheet(&mut self) {
+        self.sheet = None;
+        self.sheet_up = false;
+    }
+}
+
+/// What the bar at the bottom of the notebook is for.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Bottom {
+    /// the keys, while a cell is edited
+    Keys,
+    /// what can be done with the selected result or picture
+    Actions(mc_nbmodel::CellId),
+}
+
+/// How long (seconds) a screen takes to fade in, the sheet to slide, and a bar or a floating button to come and go.
+const SCREEN_TIME: f64 = 0.22;
+const SHEET_TIME: f32 = 0.26;
+const BAR_TIME: f32 = 0.16;
+
+/// The time an animation takes: `seconds`, or none in a self-test (its screenshots show the screen at rest).
+fn time(ctx: &egui::Context, seconds: f32) -> f32 {
+    if ctx.data(|d| d.get_temp::<bool>(egui::Id::unique("m-still"))).unwrap_or(false) {
+        0.0
+    } else {
+        seconds
+    }
+}
+
+/// Fast at first, then coming to rest (what enters the screen).
+fn ease(t: f32) -> f32 {
+    1.0 - (1.0 - t.clamp(0.0, 1.0)).powi(3)
 }
 
 /// How long ago `t` was, in words.
@@ -134,15 +185,17 @@ fn layer(color: Color32, alpha: f32) -> Color32 {
     Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), (alpha * 255.0).round() as u8)
 }
 
-/// The strength of the state layer of a control: pressed, under the pointer, or at rest.
+/// The strength of the state layer of a control: pressed, under the pointer, or at rest. It comes and goes over a
+/// tenth of a second.
 fn state(resp: &egui::Response) -> f32 {
-    if resp.is_pointer_button_down_on() {
+    let target = if resp.is_pointer_button_down_on() {
         0.12
     } else if resp.hovered() {
         0.08
     } else {
         0.0
-    }
+    };
+    resp.ctx.animate_value_with_time(resp.id.with("m-state"), target, 0.1)
 }
 
 /// An icon button: the icon in a 48 pt target, a round state layer behind it.
@@ -166,7 +219,7 @@ fn more_button(ui: &mut egui::Ui, tint: Color32) -> egui::Response {
 /// A button with a label, an icon before it when given: filled with `fill` (a filled or tonal button), or only
 /// its label in `ink` when there is no fill (a text button). 40 pt high in a target of the row's height.
 fn button(ui: &mut egui::Ui, icon: Option<Icon>, label: &str, fill: Option<Color32>, ink: Color32) -> bool {
-    let text = ui.painter().layout_no_wrap(label.to_string(), FontId::proportional(15.0), ink);
+    let text = ui.painter().layout_no_wrap(label.to_string(), FontId::proportional(16.0), ink);
     let pad = if fill.is_some() { 24.0 } else { 12.0 };
     let lead = if icon.is_some() { 26.0 } else { 0.0 };
     let width = text.size().x + 2.0 * pad + lead - if icon.is_some() { 8.0 } else { 0.0 };
@@ -187,7 +240,7 @@ fn button(ui: &mut egui::Ui, icon: Option<Icon>, label: &str, fill: Option<Color
 
 /// A chip: a small outlined control with a label in the code font (a name the completion offers).
 fn chip(ui: &mut egui::Ui, m: &Material, label: &str) -> bool {
-    let text = ui.painter().layout_no_wrap(label.to_string(), FontId::monospace(14.0), m.on_surface_variant);
+    let text = ui.painter().layout_no_wrap(label.to_string(), FontId::monospace(16.0), m.on_surface);
     let width = text.size().x + 32.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(width, ui.available_height()), Sense::click());
     let face = Rect::from_center_size(rect.center(), vec2(width, 32.0));
@@ -198,19 +251,35 @@ fn chip(ui: &mut egui::Ui, m: &Material, label: &str) -> bool {
         egui::Stroke::new(1.0, m.outline_variant),
         egui::StrokeKind::Inside,
     );
-    ui.painter().galley(pos2(face.left() + 16.0, face.center().y - text.size().y / 2.0), text, m.on_surface_variant);
+    ui.painter().galley(pos2(face.left() + 16.0, face.center().y - text.size().y / 2.0), text, m.on_surface);
     resp.clicked()
 }
 
 /// A floating action button with its right bottom corner at `corner`: an icon, and a label when given (the extended
-/// form), on the primary container with a shadow.
-fn fab(ctx: &egui::Context, id: &str, corner: egui::Pos2, m: &Material, icon: Icon, label: Option<&str>) -> bool {
+/// form), on the primary container with a shadow. It rises into place when `shown` turns true and sinks away when
+/// it turns false; `alpha` is the opacity of the screen it floats on.
+#[allow(clippy::too_many_arguments)]
+fn fab(
+    ctx: &egui::Context,
+    id: &str,
+    corner: egui::Pos2,
+    m: &Material,
+    icon: Icon,
+    label: Option<&str>,
+    shown: bool,
+    alpha: f32,
+) -> bool {
+    let k = ease(ctx.animate_bool_with_time(egui::Id::unique(("m-fab-shown", id)), shown, time(ctx, BAR_TIME)));
+    if k <= 0.0 {
+        return false;
+    }
     let ink = m.on_primary_container;
-    let text = label.map(|l| ctx.fonts_mut(|f| f.layout_no_wrap(l.to_string(), FontId::proportional(15.0), ink)));
+    let text = label.map(|l| ctx.fonts_mut(|f| f.layout_no_wrap(l.to_string(), FontId::proportional(16.0), ink)));
     let width = text.as_ref().map_or(56.0, |t| 16.0 + 24.0 + 12.0 + t.size().x + 20.0);
-    let at = corner - vec2(width, 56.0);
+    let at = corner - vec2(width, 56.0) + vec2(0.0, (1.0 - k) * 20.0);
     let mut clicked = false;
     egui::Area::new(egui::Id::unique(("m-fab", id))).fixed_pos(at).order(egui::Order::Middle).show(ctx, |ui| {
+        ui.set_opacity(k * alpha);
         let (rect, resp) = ui.allocate_exact_size(vec2(width, 56.0), Sense::click());
         // the shadow of a surface three levels up
         for (dy, grow, alpha) in [(1.0, 0.0, 34), (4.0, 2.0, 18), (7.0, 4.0, 8)] {
@@ -224,7 +293,7 @@ fn fab(ctx: &egui::Context, id: &str, corner: egui::Pos2, m: &Material, icon: Ic
         if let Some(t) = &text {
             ui.painter().galley(pos2(x + 12.0 + 12.0, rect.center().y - t.size().y / 2.0), t.clone(), ink);
         }
-        clicked = resp.clicked();
+        clicked = shown && resp.clicked();
     });
     clicked
 }
@@ -250,8 +319,19 @@ impl App {
         let back = ctx.input(|i| i.key_pressed(Key::BrowserBack))
             || (!self.modal_open() && self.doc.completion.is_none() && ctx.input(|i| i.key_pressed(Key::Escape)));
         let on_notebook = self.mobile.screen == Screen::Notebook;
-        if back && self.mobile.sheet.take().is_none() && on_notebook && !self.mobile_modal() {
+        if back && self.mobile.sheet_up {
+            self.mobile.sheet_up = false;
+        } else if back && on_notebook && !self.mobile_modal() {
             self.leave_notebook();
+        }
+        // a long press is the notebook's to take; one on Home is nothing
+        if !on_notebook {
+            self.touch.take_long_press();
+        }
+        // the screen that was just entered fades in
+        let alpha = self.screen_alpha(&ctx);
+        if alpha < 1.0 {
+            ui.set_opacity(alpha);
         }
         // a file the system hands over (the picker's answer, "Open with"): looked for in every frame, and a few
         // times a second while the picker is open, since its answer comes when no frame is due
@@ -267,6 +347,20 @@ impl App {
         self.rename_dialog(&ctx);
         self.delete_dialog(&ctx);
         self.autosave(&ctx);
+    }
+
+    /// How far the screen has faded in since it was entered (0 to 1); a frame follows while it is not there.
+    fn screen_alpha(&self, ctx: &egui::Context) -> f32 {
+        let still = self.selftest.is_some();
+        ctx.data_mut(|d| d.insert_temp(egui::Id::unique("m-still"), still));
+        if still {
+            return 1.0;
+        }
+        let t = ((ctx.input(|i| i.time) - self.mobile.entered) / SCREEN_TIME) as f32;
+        if t < 1.0 {
+            ctx.request_repaint();
+        }
+        ease(t)
     }
 
     /// Start a new calculation (for the self-test: what the Home screen's button does).
@@ -335,7 +429,7 @@ impl App {
                     ui.label(RichText::new("MathCAS").size(22.0).color(m.on_surface));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if more_button(ui, m.on_surface_variant).clicked() {
-                            self.mobile.sheet = Some(Sheet::More);
+                            self.mobile.show_sheet(Sheet::More);
                         }
                     });
                 });
@@ -354,14 +448,14 @@ impl App {
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         ui.add_space(16.0);
-                        ui.label(RichText::new("Notebooks").size(14.0).strong().color(m.primary));
+                        ui.label(RichText::new("Notebooks").size(15.0).strong().color(m.primary));
                     });
                     ui.add_space(8.0);
                     if files.is_empty() {
                         ui.horizontal(|ui| {
                             ui.add_space(16.0);
                             let none = "None yet. Start a calculation, or open a notebook file.";
-                            ui.label(RichText::new(none).size(14.0).color(m.on_surface_variant));
+                            ui.label(RichText::new(none).size(15.0).color(m.on_surface_variant));
                         });
                         ui.add_space(16.0);
                     }
@@ -380,20 +474,20 @@ impl App {
                             icons::paint(ui.painter(), Icon::Notebook, icon, m.on_primary_container);
                             let x = rect.left() + 72.0;
                             let name =
-                                ui.painter().layout_no_wrap(f.name.clone(), FontId::proportional(16.0), m.on_surface);
+                                ui.painter().layout_no_wrap(f.name.clone(), FontId::proportional(17.0), m.on_surface);
                             let clip = Rect::from_min_max(rect.min, pos2(rect.right() - 4.0, rect.bottom()));
-                            let top = rect.center().y - if f.modified.is_some() { 21.0 } else { 10.0 };
+                            let top = rect.center().y - if f.modified.is_some() { 22.0 } else { 10.0 };
                             ui.painter().with_clip_rect(clip).galley(pos2(x, top), name, m.on_surface);
                             if let Some(t) = f.modified {
                                 let at = pos2(x, rect.center().y + 3.0);
-                                let font = FontId::proportional(14.0);
+                                let font = FontId::proportional(15.0);
                                 ui.painter().text(at, egui::Align2::LEFT_TOP, age(t, now), font, m.on_surface_variant);
                             }
                             if resp.clicked() {
                                 open = Some(f.path.clone());
                             }
                             if more_button(ui, m.on_surface_variant).clicked() {
-                                self.mobile.sheet = Some(Sheet::File(f.path.clone()));
+                                self.mobile.show_sheet(Sheet::File(f.path.clone()));
                             }
                         });
                     }
@@ -409,7 +503,8 @@ impl App {
         });
         // the main action floats at the bottom right
         let corner = page.right_bottom() - vec2(16.0, 16.0);
-        let new = !self.modal_open() && fab(&ctx, "new", corner, &m, Icon::Plus, Some("New calculation"));
+        let alpha = self.screen_alpha(&ctx);
+        let new = fab(&ctx, "new", corner, &m, Icon::Plus, Some("New calculation"), !self.modal_open(), alpha);
         if new {
             self.new_calculation();
         } else if let Some(path) = open {
@@ -438,7 +533,9 @@ impl App {
 
     fn enter_notebook(&mut self) {
         self.mobile.screen = Screen::Notebook;
-        self.mobile.sheet = None;
+        self.mobile.entered = self.ctx.input(|i| i.time);
+        self.mobile.drop_sheet();
+        self.mobile.bottom = None;
         self.mobile.save_failed = false;
         self.mobile.saved_at = self.ctx.input(|i| i.time);
     }
@@ -511,7 +608,7 @@ impl App {
                     ui.add_space(4.0);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if more_button(ui, m.on_surface_variant).clicked() {
-                            self.mobile.sheet = Some(Sheet::More);
+                            self.mobile.show_sheet(Sheet::More);
                         }
                         // the kernel: a dot, or the stop button while it works
                         if busy {
@@ -537,27 +634,48 @@ impl App {
             });
         // what the selection calls for at the bottom
         let (editing, picked) = self.mobile_selection();
-        if editing {
-            // the keys lie on the keyboard, the completions above them
-            let completing = !self.mobile.completions.is_empty();
-            egui::Panel::bottom("m-keys")
-                .frame(Frame::new().fill(m.surface_container).inner_margin(Margin::symmetric(8, 0)))
-                .show_separator_line(false)
-                .exact_size(if completing { BAR + STRIP } else { BAR })
-                .show(ui, |ui| {
-                    ui.spacing_mut().item_spacing.y = 0.0;
-                    if completing {
-                        ui.allocate_ui(vec2(ui.available_width(), STRIP), |ui| self.completion_strip(ui));
-                    }
-                    ui.allocate_ui(vec2(ui.available_width(), BAR), |ui| self.key_row(ui));
-                });
-        } else if let Some(id) = picked {
-            egui::Panel::bottom("m-actions")
-                .frame(Frame::new().fill(m.surface_container).inner_margin(Margin::symmetric(8, 0)))
-                .show_separator_line(false)
-                .exact_size(BAR)
-                .show(ui, |ui| self.action_row(ui, id));
+        // the bar rises from the bottom edge and sinks back into it; while it sinks it shows what it showed last
+        let wanted = if editing { Some(Bottom::Keys) } else { picked.map(Bottom::Actions) };
+        if wanted.is_some() {
+            self.mobile.bottom = wanted;
         }
+        let up = ctx.animate_bool_with_time(egui::Id::unique("m-bottom-up"), wanted.is_some(), time(&ctx, BAR_TIME));
+        let up = if wanted.is_some() { ease(up) } else { 1.0 - ease(1.0 - up) };
+        if wanted.is_none() && up <= 0.0 {
+            self.mobile.bottom = None;
+        }
+        let up = up.max(0.02);
+        let frame = Frame::new().fill(m.surface_container).inner_margin(Margin::symmetric(8, 0));
+        match self.mobile.bottom {
+            Some(Bottom::Keys) => {
+                // the keys lie on the keyboard, the completions above them
+                let completing = !self.mobile.completions.is_empty();
+                let height = if completing { BAR + STRIP } else { BAR };
+                egui::Panel::bottom("m-keys").frame(frame).show_separator_line(false).exact_size(height * up).show(
+                    ui,
+                    |ui| {
+                        ui.set_clip_rect(ui.max_rect());
+                        ui.spacing_mut().item_spacing.y = 0.0;
+                        if completing {
+                            ui.allocate_ui(vec2(ui.available_width(), STRIP), |ui| self.completion_strip(ui));
+                        }
+                        ui.allocate_ui(vec2(ui.available_width(), BAR), |ui| self.key_row(ui));
+                    },
+                );
+            }
+            Some(Bottom::Actions(id)) => {
+                egui::Panel::bottom("m-actions").frame(frame).show_separator_line(false).exact_size(BAR * up).show(
+                    ui,
+                    |ui| {
+                        ui.set_clip_rect(ui.max_rect());
+                        ui.allocate_ui(vec2(ui.available_width(), BAR), |ui| self.action_row(ui, id));
+                    },
+                );
+            }
+            None => {}
+        }
+        // the picture that was selected before this frame's presses: a long press on another one shares it
+        let selected = self.doc.view.graphic;
         let mut canvas = Rect::NOTHING;
         egui::CentralPanel::default().frame(Frame::new().fill(p.bg)).show(ui, |ui| {
             // the content column: the whole width of a phone, the middle of a wider screen
@@ -565,18 +683,36 @@ impl App {
             canvas = ui.available_rect_before_wrap().shrink2(vec2(side, 0.0));
             ui.scope_builder(egui::UiBuilder::new().max_rect(canvas), |ui| self.canvas(ui));
         });
+        if let Some(at) = self.touch.take_long_press() {
+            self.long_press(&ctx, at, canvas, selected);
+        }
         // a new input at the end
-        if !editing && picked.is_none() && !self.modal_open() {
-            let corner = pos2(ui.ctx().content_rect().right(), canvas.bottom()) - vec2(16.0, 16.0);
-            if fab(&ctx, "add", corner, &m, Icon::Plus, None) {
-                let end = self.doc.nb.cells().len();
-                self.run(&ctx, Command::ClickGap(end));
-                self.run(&ctx, Command::NewCell(Style::Input));
-                self.doc.scroll_pending = true;
-            }
+        let corner = pos2(ui.ctx().content_rect().right(), canvas.bottom()) - vec2(16.0, 16.0);
+        let shown = !editing && picked.is_none() && !self.modal_open();
+        let alpha = self.screen_alpha(&ctx);
+        if fab(&ctx, "add", corner, &m, Icon::Plus, None, shown, alpha) {
+            let end = self.doc.nb.cells().len();
+            self.run(&ctx, Command::ClickGap(end));
+            self.run(&ctx, Command::NewCell(Style::Input));
+            self.doc.scroll_pending = true;
         }
         if leave {
             self.leave_notebook();
+        }
+    }
+
+    /// A finger rested at `at`: on a picture of the notebook (`canvas`) that was not the selected one (`selected`),
+    /// it is selected and handed to the system's share sheet. On the selected picture the finger drags instead (it
+    /// turns a 3D picture, or resizes by a handle), as a resting finger does everywhere.
+    pub(super) fn long_press(&mut self, ctx: &egui::Context, at: egui::Pos2, canvas: Rect, selected: Option<mc_nbmodel::CellId>) {
+        if !canvas.contains(at) || self.modal_open() {
+            return;
+        }
+        if let crate::view::Hit::Graphic(id) = self.doc.view.hit(ctx, &self.doc.nb, at) {
+            if selected != Some(id) {
+                self.doc.view.graphic = Some(id);
+                self.share_picture(id);
+            }
         }
     }
 
@@ -728,7 +864,10 @@ impl App {
     fn share_picture(&mut self, id: mc_nbmodel::CellId) {
         let Some(path) = self.doc.nb.cell(id).and_then(|c| c.graphic()) else { return };
         let path = mc_nbfile::images::resolve(&path, self.doc.view.base.as_deref());
-        // a drawing is rasterised at a size that stays sharp on a large screen
+        // a plot's PNG has its drawing beside it: the drawing is rasterised at a size that stays sharp on a large
+        // screen (the PNG is as small as the plot is on the page)
+        let drawing = path.with_extension("svg");
+        let path = if drawing.is_file() { drawing } else { path };
         let png = match mc_nbfile::images::ImageFormat::of(&path) {
             Some(mc_nbfile::images::ImageFormat::Png) => std::fs::read(&path).map_err(|e| e.to_string()),
             _ => crate::images::pixels(&path, 1600)
@@ -768,8 +907,9 @@ impl App {
         self.doc.view.graphic = None;
         self.set_notebook(Notebook::new(), None);
         self.mobile.screen = Screen::Home;
+        self.mobile.entered = self.ctx.input(|i| i.time);
         self.mobile.files = None;
-        self.mobile.sheet = None;
+        self.mobile.drop_sheet();
         self.mobile.completions.clear();
     }
 
@@ -815,6 +955,12 @@ impl App {
 
     /// The sheet: a card at the bottom of the screen with the commands that are not on it.
     fn sheet(&mut self, ctx: &egui::Context) {
+        // it slides up from the bottom edge and back down; the page behind it darkens with it
+        let up = ctx.animate_bool_with_time(egui::Id::unique("m-sheet-up"), self.mobile.sheet_up, time(ctx, SHEET_TIME));
+        let up = if self.mobile.sheet_up { ease(up) } else { 1.0 - ease(1.0 - up) };
+        if !self.mobile.sheet_up && up <= 0.0 {
+            self.mobile.sheet = None;
+        }
         let Some(sheet) = self.mobile.sheet.clone() else { return };
         let p = self.doc.view.palette.clone();
         let m = Material::of(p.dark);
@@ -824,12 +970,15 @@ impl App {
         let width = screen.width().min(640.0);
         let id = egui::Id::unique("m-sheet");
         let (_, bottom) = mc_ui::platform::bars(ctx);
-        let area = egui::Modal::default_area(id).anchor(egui::Align2::CENTER_BOTTOM, vec2(0.0, 0.0));
+        let down = (1.0 - up) * self.mobile.sheet_height.max(120.0);
+        let area =
+            egui::Modal::default_area(id).anchor(egui::Align2::CENTER_BOTTOM, vec2(0.0, down)).constrain(false);
         let corners = egui::CornerRadius { nw: 28, ne: 28, sw: 0, se: 0 };
         let frame = Frame::new().fill(m.surface_low).corner_radius(corners).inner_margin(Margin::ZERO);
         let mut close = false;
         let mut act: Option<&'static str> = None;
-        let r = egui::Modal::new(id).area(area).backdrop_color(m.scrim).frame(frame).show(ctx, |ui| {
+        let scrim = m.scrim.gamma_multiply(up);
+        let r = egui::Modal::new(id).area(area).backdrop_color(scrim).frame(frame).show(ctx, |ui| {
             ui.set_width(width);
             ui.spacing_mut().item_spacing.y = 0.0;
             let (grip, _) = ui.allocate_exact_size(vec2(width, 36.0), Sense::hover());
@@ -901,6 +1050,11 @@ impl App {
             ui.add_space(12.0 + bottom);
         });
         close |= r.should_close();
+        self.mobile.sheet_height = r.response.rect.height();
+        // a sheet on its way down takes no more commands
+        if !self.mobile.sheet_up {
+            return;
+        }
         let ctx = ctx.clone();
         match (act, &sheet) {
             (Some("all"), _) => self.run(&ctx, Command::EvaluateNotebook),
@@ -944,7 +1098,7 @@ impl App {
         }
         // the theme and the text size are changed in steps: the sheet stays for the next one
         if close || act.is_some_and(|a| !matches!(a, "theme" | "smaller" | "larger")) {
-            self.mobile.sheet = None;
+            self.mobile.sheet_up = false;
         }
     }
 

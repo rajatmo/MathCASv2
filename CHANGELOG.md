@@ -1,5 +1,12 @@
 # Changelog
 
+## Not released yet
+
+**Android.** Screens fade in, the sheet and the bars at the bottom slide, and a page that is scrolled runs on when
+the finger is lifted. A long press on a plot opens the share sheet with it; a shared plot is a sharp picture
+(1600 pixels wide) whatever its size on the page. Interface text is a little larger, and plots made in the app
+have labels of a size that reads on a phone (`MC_PLOT_WIDTH` sets the default width of a plot for a process).
+
 ## 0.15.0 (2026-11-15)
 
 Answers that are proved, and more of them: intervals, properties with parameters, limits on branch cuts.

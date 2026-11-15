@@ -1,6 +1,6 @@
 //! Curves in the plane: `parametric_plot([fx, fy], [t, a, b])` and `polar_plot(r, [theta, a, b])`, sampled
 //! adaptively in the parameter, drawn with equal units on both axes (a circle is round).
-use crate::figure::{Extra, Look, Series, H, W};
+use crate::figure::{page, Extra, Look, Series};
 use crate::{bad, finish, plot_options, real, short_name, unwrap_all};
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Kernel, Native, NativeCx, Reply, Res};
@@ -136,10 +136,11 @@ fn page_size(series: &[Series]) -> (f64, f64) {
     }
     let r = if x1 > x0 && y1 > y0 { ((y1 - y0) / (x1 - x0)).clamp(0.2, 5.0) } else { 1.0 };
     // the margins take about 60 points across and 40 down
-    if r <= (H - 40.0) / (W - 60.0) {
-        (W, ((W - 60.0) * r + 40.0).max(200.0))
+    let (pw, ph) = page();
+    if r <= (ph - 40.0) / (pw - 60.0) {
+        (pw, ((pw - 60.0) * r + 40.0).max(ph / 2.0))
     } else {
-        (((H - 40.0) / r + 60.0).max(240.0), H)
+        (((ph - 40.0) / r + 60.0).max(pw * 0.375), ph)
     }
 }
 

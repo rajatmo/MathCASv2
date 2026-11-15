@@ -37,6 +37,11 @@ pub mod rotate3d;
 /// desktop system and `android_main` on Android. The window's place and size of the last session are restored
 /// (not in a self-test).
 pub fn run(paths: Vec<std::path::PathBuf>, selftest: Option<selftest::SelfTest>) -> eframe::Result {
+    // a phone: pictures are made narrower (here and by the kernel, which is started with this environment) and
+    // shown enlarged; nothing else of the program runs yet
+    if layout::mobile() && std::env::var_os("MC_PLOT_WIDTH").is_none() {
+        std::env::set_var("MC_PLOT_WIDTH", view::MOBILE_PLOT_WIDTH.to_string());
+    }
     let settings = settings::Settings::load();
     // the application icon for the window's title bar and taskbar button (the executable's own icon, for Explorer
     // and shortcuts, is embedded by `build.rs`)

@@ -21,9 +21,13 @@ result to another app. The cells, the typeset output, the plots and the kernel a
               tab, and Run (what Shift+Enter is on a desktop). Names that complete what is typed show above the
               keys; tap one to take it. The round + adds a new input at the end.
   Results     Tap a result or a picture: Copy, Share (the system's share sheet; a picture goes as a PNG) and
-              Delete show at the bottom; a result also has LaTeX (copies it as LaTeX).
-  Touch       A finger that moves scrolls. A tap is a click. A finger that rests for half a second and then moves
-              drags as the mouse does (it selects text, turns a selected 3D picture, resizes a picture).
+              Delete show at the bottom; a result also has LaTeX (copies it as LaTeX). A long press on a picture
+              opens the share sheet with it at once.
+  Touch       A finger that moves scrolls, and the page runs on when the finger is lifted in motion. A tap is a
+              click. A finger that rests for half a second and then moves drags as the mouse does (it selects
+              text, turns a selected 3D picture, resizes a picture).
+  Plots       A plot made in the app is drawn with larger labels than on a desktop. One made on a desktop keeps
+              its small labels while the phone is upright: hold the phone sideways, or evaluate it again.
   Saving      There is no Save: every change is written within two seconds and when the notebook is left. A new
               calculation is named "Calculation N" once it has content. The files are in
               Android/data/io.github.rajatmo.mathcas/files, which a computer reaches over USB; removing the app
