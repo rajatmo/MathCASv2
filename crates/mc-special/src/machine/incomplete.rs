@@ -86,6 +86,8 @@ fn lower_sum(a: f64, x: f64) -> Option<DD> {
     let mut s = DD::ONE;
     let mut ak = DD::new(a);
     for _ in 0..MAX_ITER {
+        // a term's work, for the evaluator's fuel (mc_api::work)
+        mc_api::work::charge(16);
         ak = ak.add_f(1.0);
         t = ddiv(t.mul_f(x), ak);
         s = s.add(t);
@@ -105,6 +107,7 @@ fn upper_cf(a: f64, x: f64) -> Option<DD> {
     let mut d = ddiv(DD::ONE, b);
     let mut h = d;
     for i in 1..MAX_ITER {
+        mc_api::work::charge(32);
         let fi = i as f64;
         // a_i = -i (i - a)
         let an = DD::new(fi).sub(ad).mul_f(-fi);

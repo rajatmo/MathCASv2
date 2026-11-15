@@ -38,7 +38,7 @@ pub fn powers<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &mut Cands<'h
     }
     let mut tried = 0;
     for k in (2..=g).rev().filter(|k| g.is_multiple_of(*k)) {
-        if tried >= 2 || super::late() {
+        if tried >= 2 || super::late(cx) {
             break;
         }
         let t = super::super::fresh(b, "p", lv.depth);
@@ -83,7 +83,7 @@ pub fn decomposed<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &mut Cand
         return Ok(());
     }
     for i in 1..comps.len() {
-        if super::late() {
+        if super::late(cx) {
             break;
         }
         // the inner part h = comps[i] o ... o comps[last]
@@ -139,7 +139,7 @@ pub fn goursat<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &mut Cands<'
     let mut wk = mc_integrate::terms::Small(1 << 20);
     let mut m = Meter::new(&mut wk);
     for cc in [root.clone(), root.neg()] {
-        if super::late() {
+        if super::late(cx) {
             break;
         }
         let Ok(Some(qu)) = gs::laurent_in_u(&gs::laurent(&p, -2), &cc, &mut m) else { continue };

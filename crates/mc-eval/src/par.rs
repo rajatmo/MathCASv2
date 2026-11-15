@@ -163,7 +163,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         let mut out = Vec::with_capacity(n.min(64));
         if n < 2 || !self.may_split(cx) {
             for i in 0..n {
-                let v = f(self, cx, i)?;
+                let v = self.element(cx, i, f)?;
                 let end = seq(&v);
                 out.push(v);
                 if end {
@@ -185,6 +185,8 @@ impl<'k, 'h> Eval<'k, 'h> {
         } else {
             cx.task = self.k.cells.task();
         }
+        // the kernels' work so far is this task's, not the elements' (semantics 18.7)
+        self.absorb(cx);
         let mut rc = self.speculative(cx);
         cx.splits += 1;
         let first = size.min(n);
@@ -221,11 +223,11 @@ impl<'k, 'h> Eval<'k, 'h> {
                             }
                             _ => {
                                 cx.redos += 1;
-                                f(self, cx, i)
+                                self.element(cx, i, f)
                             }
                         }
                     }
-                    None => f(self, cx, i),
+                    None => self.element(cx, i, f),
                 };
                 // a failure ends the run: nothing after it is needed
                 let v = v.inspect_err(|_| node.cut_at(i))?;
@@ -297,7 +299,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
         let mut ec = self.speculative(rc);
         ec.cancel = Cancel::at(node, i);
-        let r = f(self, &mut ec, i);
+        let r = self.element(&mut ec, i, f);
         // a value finished after its element was cancelled may still be whole, but it is not needed now and the
         // caller recomputes it if that changes
         let r = if node.is_cut(i) { Err(Abort::Hole) } else { r };

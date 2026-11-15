@@ -21,8 +21,10 @@ use mc_eval::Res;
 use mc_poly::convert::Ring;
 use mc_poly::work::Meter;
 
-/// The seconds one closed-form attempt may take.
-pub const SECS: u64 = 20;
+/// The work (units of `mc-poly` work) one closed-form attempt may do.
+pub const WORK: u64 = 160_000;
+/// The work of the conversions that only test a form (polynomial, hypergeometric).
+pub const SHORT_WORK: u64 = 40_000;
 
 /// The ratio of `t` in `k` as a rational function in a ring with `vars` first (`None` when not hypergeometric).
 pub fn ratio_rf<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, vars: &[T<'h>], k: T<'h>, extra: &[T<'h>], m: &mut Meter) -> Res<Option<(Ring<'h>, Rf)>> {
@@ -43,7 +45,7 @@ pub fn ratio_rf<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, vars: &[T<'h>], k: T<
 /// Is `f` a polynomial in `k`?
 pub fn is_polynomial<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>) -> Res<bool> {
     let stop = sx.stop.clone();
-    let mut b = Budget::new(&stop, 5);
+    let mut b = Budget::new(&stop, SHORT_WORK);
     let mut m = Meter::new(&mut b);
     let Ok(ring) = sx.ring(&[f], &[k], &mut m) else { return Ok(false) };
     if !sx.clean(&ring, &[k]) {
@@ -171,7 +173,7 @@ pub fn tidy<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>) -> Res<T<'h>> {
     let best = sx.smallest(&cands);
     // a rational function of symbols: factored, as a closed form is usually written
     let stop = sx.stop.clone();
-    let mut b = Budget::new(&stop, 5);
+    let mut b = Budget::new(&stop, SHORT_WORK);
     let mut m = Meter::new(&mut b);
     if let Ok(ring) = sx.ring(&[best], &[], &mut m) {
         let h = sx.h();

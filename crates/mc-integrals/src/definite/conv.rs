@@ -21,7 +21,6 @@ use mc_api::{Store, View, T};
 use mc_eval::{NativeCx, Res};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// The verdict at one side of one point.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -428,7 +427,7 @@ fn numeric_exponents<'h>(b: &Build<'h>, g: T<'h>, t: T<'h>) -> bool {
 
 /// A one-sided limit at `t → 0⁺` with a small budget and no numeric check.
 fn lim<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>) -> Res<Option<Outcome<'h>>> {
-    let o = limit_with(cx, b, g, t, b.zero(), Direction::FromAbove, &Options { budget: Duration::from_millis(600), check: false })?;
+    let o = limit_with(cx, b, g, t, b.zero(), Direction::FromAbove, &Options { budget: 300_000, check: false })?;
     Ok(match o {
         Outcome::Value(_) => Some(o),
         _ => None,

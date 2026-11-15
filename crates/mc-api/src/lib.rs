@@ -13,6 +13,7 @@ pub mod conformance;
 pub mod engine;
 pub mod packed;
 mod refstore;
+pub mod work;
 pub use engine::{Engine, EngineError, EngineFactory, Evaluated, RaiseHook, StopFlag};
 pub use packed::{Elem, Packed, PACK_MIN};
 pub use packed::complex_head;

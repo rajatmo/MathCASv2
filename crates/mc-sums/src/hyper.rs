@@ -177,7 +177,7 @@ fn ratio_depth<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, k: T<'h>, depth: u32) 
 /// Is `t` a rational function of `k` (every kernel other than `k` free of `k`)?
 pub fn rational_in<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, k: T<'h>) -> Res<bool> {
     let stop = sx.stop.clone();
-    let mut b = crate::cx::Budget::new(&stop, 5);
+    let mut b = crate::cx::Budget::new(&stop, crate::sumfn::SHORT_WORK);
     let mut m = mc_poly::work::Meter::new(&mut b);
     let Ok(ring) = sx.ring(&[t], &[k], &mut m) else { return Ok(false) };
     Ok(sx.clean(&ring, &[k]))

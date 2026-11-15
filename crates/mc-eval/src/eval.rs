@@ -952,6 +952,8 @@ pub(crate) struct Cx<'h> {
     pub(crate) effects: u32,
     /// Fuel of the work this task keeps: on the frontier, what was charged to the budget.
     pub(crate) fuel: u64,
+    /// operations of the kernels counted on this task and not yet a whole unit of fuel (mc_api::work)
+    pub(crate) ops: u64,
     /// Fuel in hand (drawn from the budget on the frontier, from the share otherwise).
     avail: u64,
     /// A speculative task's remaining share (decision F.3).
@@ -1017,6 +1019,7 @@ impl<'h> Cx<'h> {
             reads: 0,
             effects: 0,
             fuel: 0,
+            ops: 0,
             avail: 0,
             share: 0,
             in_cond: 0,
@@ -1087,6 +1090,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         if ctl.halted() {
             return Err(Abort::Limit);
         }
+        crate::native::slow_down();
         // the memory budget, polled with the fuel (decision p6core.11)
         if self.heap.young_bytes() > self.k.young_cap.min(self.k.mem_cap.load(Relaxed)) {
             ctl.fail(Status::Memory);
@@ -1122,6 +1126,48 @@ impl<'k, 'h> Eval<'k, 'h> {
         Ok(())
     }
 
+    /// The kernels' work reported on this thread ([`mc_api::work`]) counted as this task's fuel, without polling:
+    /// before the task splits or starts an element, so that every part's count holds only its own work.
+    pub(crate) fn absorb(&self, cx: &mut Cx<'h>) {
+        let w = self.work_units(cx);
+        let t = w.min(cx.avail);
+        cx.avail -= t;
+        cx.fuel += w;
+    }
+
+    /// Element `i` of a group evaluated in order, its work counted as in a split group ([`Eval::own_work`]).
+    pub(crate) fn element<R>(&self, cx: &mut Cx<'h>, i: usize, f: &(impl Fn(&Self, &mut Cx<'h>, usize) -> Res<R> + ?Sized)) -> Res<R> {
+        let ops = self.own_work(cx);
+        let r = f(self, cx, i);
+        let w = self.element_work(cx, ops);
+        r.and_then(|v| self.spend(cx, w).map(|()| v))
+    }
+
+    /// Before an element of a group: the work reported so far charged to the task, and the part of a unit it left
+    /// (to be given back by [`Eval::element_work`]), so that the element's count starts from nothing.
+    pub(crate) fn own_work(&self, cx: &mut Cx<'h>) -> u64 {
+        self.absorb(cx);
+        std::mem::take(&mut cx.ops)
+    }
+
+    /// After an element: the units of its work not yet charged, a part of one counted as one, and the task's part
+    /// of a unit `ops` restored. An element's count is thus the same wherever its neighbours ran.
+    pub(crate) fn element_work(&self, cx: &mut Cx<'h>, ops: u64) -> u64 {
+        let u = self.work_units(cx) + (cx.ops > 0) as u64;
+        cx.ops = ops;
+        u
+    }
+
+    /// The whole units of fuel in the kernels' work reported on this thread since the last reading, which is this
+    /// task's; the part of a unit left over stays with the task.
+    #[inline]
+    pub(crate) fn work_units(&self, cx: &mut Cx<'h>) -> u64 {
+        cx.ops += mc_api::work::take_ops();
+        let u = cx.ops / mc_api::work::OPS_PER_TICK;
+        cx.ops %= mc_api::work::OPS_PER_TICK;
+        u
+    }
+
     /// `n` units of fuel (natives' loops, matching).
     pub(crate) fn spend(&self, cx: &mut Cx<'h>, n: u64) -> Res<()> {
         let mut n = n;
@@ -1145,6 +1191,7 @@ impl<'k, 'h> Eval<'k, 'h> {
             reads: 0,
             effects: 0,
             fuel: 0,
+            ops: 0,
             avail: 0,
             share,
             task: self.k.cells.task(),
@@ -2052,7 +2099,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         let mut cut = Cut { stop, at: None };
         if !self.may_split(cx) {
             for (i, o) in out.iter_mut().enumerate() {
-                *o = f(self, cx, i)?;
+                *o = self.element(cx, i, f)?;
                 if stop.is_some_and(|s| s(*o)) {
                     cut.at = Some(i);
                     break;
@@ -2080,7 +2127,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         let mut cut = Cut { stop, at: None };
         if cx.threads < 2 || cx.serial > 0 || cx.nest >= SPLIT_NEST {
             for (i, o) in out.iter_mut().enumerate() {
-                *o = f(self, cx, i)?;
+                *o = self.element(cx, i, f)?;
                 if stop.is_some_and(|s| s(*o)) {
                     cut.at = Some(i);
                     break;
@@ -2143,6 +2190,8 @@ impl<'k, 'h> Eval<'k, 'h> {
                 let (left, right) = out[i - lo..].split_at_mut(mid - i);
                 let (lf, rf) = fuels[i - lo..].split_at_mut(mid - i);
                 let epoch0 = cx.epoch;
+                // the kernels' work so far is this task's, not the parts' (semantics 18.7)
+                self.absorb(cx);
                 let mut rc = self.speculative(cx);
                 cx.splits += 1;
                 // cells: the speculative part may read every cell allocated so far; a speculative left part runs
@@ -2187,9 +2236,13 @@ impl<'k, 'h> Eval<'k, 'h> {
                 self.complete(cx, mid, right, rf, epoch0, rc.reads, f, cut)?;
                 return Ok(holes);
             }
+            let ops = self.own_work(cx);
             let f0 = cx.fuel;
             // a speculative cell never leaves its task (crate::cells): such a value is redone by the frontier
-            let r = match f(self, cx, i) {
+            let r = f(self, cx, i);
+            let w = self.element_work(cx, ops);
+            let r = r.and_then(|v| self.spend(cx, w).map(|()| v));
+            let r = match r {
                 Ok(v) if !cx.front && self.find_cell(v, |id| id < 0).is_some() => { Err(Abort::Hole) }
                 r => r,
             };
@@ -2246,8 +2299,12 @@ impl<'k, 'h> Eval<'k, 'h> {
                 self.spend(cx, *fu)?;
             } else {
                 cx.redos += 1;
+                let ops = self.own_work(cx);
                 let f0 = cx.fuel;
-                *o = f(self, cx, lo + j)?;
+                let r = f(self, cx, lo + j);
+                let w = self.element_work(cx, ops);
+                *o = r?;
+                self.spend(cx, w)?;
                 *fu = cx.fuel - f0;
             }
             if cut.stop.is_some_and(|s| s(*o)) {

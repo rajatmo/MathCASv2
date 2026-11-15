@@ -54,12 +54,11 @@ use mc_limit::{limit_with, Direction, Options, Outcome};
 use mc_calculus::term::Build;
 use conv::Conv;
 use mc_api::{names, Store, View, T};
-use mc_eval::{NativeCx, Res};
+use mc_eval::{Allowance, NativeCx, Res};
 use rustc_hash::FxHashMap;
 use std::cmp::Ordering;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 /// The options of one definite integral.
 #[derive(Clone, Copy, Debug)]
@@ -122,8 +121,8 @@ pub fn options_term<'h>(h: &'h mc_core::Heap, o: &Opts) -> Option<T<'h>> {
     (!rs.is_empty()).then(|| h.call(h.sym("options"), &rs))
 }
 
-/// The time the cascade may take before the remaining methods are skipped (each method polls the evaluator).
-const BUDGET: Duration = Duration::from_secs(20);
+/// The work (fuel) the cascade may do before the remaining methods are skipped (each method polls the evaluator).
+const BUDGET: u64 = 10_000_000;
 
 /// The deepest nesting of [`solve`] (linearity, pieces, reflections).
 const MAX_DEPTH: u32 = 10;
@@ -136,7 +135,7 @@ pub(crate) struct Job<'s, 'h> {
     /// a value was computed with conditions on real parts given as real conditions (decision 14D.2)
     realified: bool,
     depth: u32,
-    deadline: Instant,
+    work: Allowance,
 }
 
 impl<'h> Job<'_, 'h> {
@@ -146,8 +145,8 @@ impl<'h> Job<'_, 'h> {
         }
     }
     /// Is the budget spent?
-    pub(crate) fn late(&self) -> bool {
-        Instant::now() > self.deadline
+    pub(crate) fn late(&self, cx: &NativeCx<'_, '_, '_>) -> bool {
+        self.work.expired(cx)
     }
 }
 
@@ -164,7 +163,7 @@ pub fn integrate<'h>(
     hi: T<'h>,
     opts: Opts,
 ) -> Res<Option<T<'h>>> {
-    let mut job = Job { stop, opts, conds: vec![], realified: false, depth: 0, deadline: Instant::now() + BUDGET };
+    let mut job = Job { stop, opts, conds: vec![], realified: false, depth: 0, work: Allowance::new(cx, BUDGET) };
     let Some(v) = solve(&mut job, cx, b, f, x, lo, hi)? else { return Ok(None) };
     if is_failure(b, v) {
         return Ok(Some(v));
@@ -591,7 +590,7 @@ fn real_range_in<'h>(
     if let Some(r) = linear(job, cx, b, f, x, lo, hi)? {
         return Ok(Some(r));
     }
-    if job.late() {
+    if job.late(cx) {
         return Ok(None);
     }
     if known {
@@ -948,7 +947,7 @@ fn by_sign_of_bounds<'h>(
 ) -> Res<Option<T<'h>>> {
     let h = b.heap();
     let (Pt::Fin(lo), Pt::Fin(hi)) = (p, q) else { return Ok(None) };
-    if job.opts.inner || job.late() {
+    if job.opts.inner || job.late(cx) {
         return Ok(None);
     }
     let d = apply(cx, b, "expand", &[b.sub(hi, lo)])?;
@@ -1106,7 +1105,7 @@ fn newton_leibniz<'h>(
         None => unknown = true,
     }
     for k in 1..n {
-        if job.late() {
+        if job.late(cx) {
             return Ok(None);
         }
         let (c, critical) = cuts[k];
@@ -1162,8 +1161,11 @@ fn principal<'h>(
 
 /// The limits of Newton-Leibniz: a budget and the numeric check.
 fn limit_options() -> Options {
-    Options { budget: Duration::from_secs(3), check: true }
+    Options { budget: LIMIT_WORK, check: true }
 }
+
+/// The work of one limit of Newton-Leibniz.
+const LIMIT_WORK: u64 = 1_500_000;
 
 /// The value of `g` at `pt` approached from the side `side` (1: from above, -1: from below): substitution at a
 /// finite point that is not critical, else the limit (the walk, then Gruntz's algorithm).

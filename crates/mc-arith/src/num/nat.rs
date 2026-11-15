@@ -118,6 +118,8 @@ pub(crate) fn addmul_1(out: &mut [u64], a: &[u64], m: u64) -> u64 {
 /// out = a * b by schoolbook; out has a.len() + b.len() limbs and must be zero on entry.
 pub(crate) fn mul_school(a: &[u64], b: &[u64], out: &mut [u64]) {
     let la = a.len();
+    // one operation per limb product (mc_api::work)
+    mc_api::work::charge((la * b.len()) as u64);
     for (j, &bj) in b.iter().enumerate() {
         // bounded by the input; the long products that could take seconds go through Karatsuba or the NTT
         out[j + la] = addmul_1(&mut out[j..j + la], a, bj);
@@ -126,6 +128,7 @@ pub(crate) fn mul_school(a: &[u64], b: &[u64], out: &mut [u64]) {
 
 pub(crate) fn add_vec(a: &[u64], b: &[u64]) -> Vec<u64> {
     let (a, b) = if a.len() >= b.len() { (a, b) } else { (b, a) };
+    mc_api::work::charge(a.len() as u64 / 4 + 1);
     let mut r = Vec::with_capacity(a.len() + 1);
     r.extend_from_slice(a);
     r.push(0);
@@ -250,6 +253,8 @@ fn mul_or_square(a: &[u64], b: &[u64], al: Algo) -> Vec<u64> {
 
 /// (q, r) of u / d for a single-limb divisor d > 0.
 pub(crate) fn divrem_1(u: &[u64], d: u64) -> (Vec<u64>, u64) {
+    // a 128-by-64-bit division costs about as much as a few limb products
+    mc_api::work::charge(4 * u.len() as u64);
     let mut q = vec![0u64; u.len()];
     let mut rem = 0u128;
     for i in (0..u.len()).rev() {
@@ -288,6 +293,7 @@ fn divrem_knuth(u: &[u64], v: &[u64]) -> (Vec<u64>, Vec<u64>) {
     let mut un = shl_slice(u, s, true);
     let n = vn.len();
     let m = un.len() - n - 1;
+    mc_api::work::charge(((m + 1) * (n + 4)) as u64);
     let mut q = vec![0u64; m + 1];
     const B: u128 = 1 << 64;
     let (vtop, vnext) = (vn[n - 1] as u128, vn[n - 2] as u128);
@@ -351,6 +357,8 @@ impl Nat {
     }
     /// From limbs, least significant first (high zero limbs are removed).
     pub fn from_limbs(mut v: Vec<u64>) -> Nat {
+        // every number made costs an allocation, worth tens of limb products (mc_api::work)
+        mc_api::work::charge(32);
         trim(&mut v);
         Nat { limbs: v }
     }
@@ -433,6 +441,7 @@ impl Nat {
     }
     /// self m.
     pub fn mul_u64(&self, m: u64) -> Nat {
+        mc_api::work::charge(self.limbs.len() as u64);
         let mut r = vec![0u64; self.limbs.len() + 1];
         let c = addmul_1(&mut r, &self.limbs, m);
         let n = self.limbs.len();

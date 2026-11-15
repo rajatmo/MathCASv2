@@ -42,24 +42,23 @@ use mc_calculus::term::Build;
 use mc_api::{Store, View, T};
 use mc_arith::num::Rat;
 use mc_arith::Num;
-use mc_eval::{NativeCx, Res};
+use mc_eval::{Allowance, NativeCx, Res};
 use mc_integrate::algebraic::QPoly;
 use rustc_hash::FxHashSet;
-use std::cell::Cell;
-use std::time::{Duration, Instant};
+use std::cell::RefCell;
 
-/// The time of the whole stage (all levels).
-pub const TIME: Duration = Duration::from_millis(2000);
+/// The work (fuel) of the whole stage (all levels).
+pub const WORK: u64 = 1_000_000;
 /// The deepest nesting of substitutions.
 pub const MAX_DEPTH: u32 = 5;
 
 thread_local! {
-    static DEADLINE: Cell<Option<Instant>> = const { Cell::new(None) };
+    static BUDGET: RefCell<Option<Allowance>> = const { RefCell::new(None) };
 }
 
-/// Has the stage's time run out?
-pub(crate) fn late() -> bool {
-    DEADLINE.with(|c| c.get()).is_some_and(|d| Instant::now() >= d)
+/// Is the stage's work used up?
+pub(crate) fn late(cx: &NativeCx<'_, '_, '_>) -> bool {
+    BUDGET.with(|c| c.borrow().as_ref().is_some_and(|a| a.expired(cx)))
 }
 
 /// The outcome of the stage.
@@ -98,14 +97,14 @@ pub fn top<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>)
     if radicals(b, f, x).is_empty() {
         return Ok(Answer::default());
     }
-    let end = Instant::now() + TIME;
-    let saved = DEADLINE.with(|c| c.replace(Some(end)));
-    super::set_deadline(Some(end));
+    let work = Allowance::new(cx, WORK);
+    let saved = BUDGET.with(|c| c.replace(Some(work)));
+    super::set_budget(Some(&work));
     let budget = super::fresh_budget();
     let r = integrate(cx, b, f, x, Level { depth: 1, no_hermite: false });
     super::restore_budget(budget);
-    super::set_deadline(None);
-    DEADLINE.with(|c| c.set(saved));
+    super::set_budget(None);
+    BUDGET.with(|c| *c.borrow_mut() = saved);
     let mut r = r?;
     // the radicals of the answer written back from substitutions, tidied (an identity)
     if let Some(t) = r.found {
@@ -118,7 +117,7 @@ pub fn top<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>)
 /// method found one.
 pub fn integrate<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, lv: Level) -> Res<Answer<'h>> {
     let mut ans = Answer::default();
-    if lv.depth > MAX_DEPTH || late() || !spend(1) {
+    if lv.depth > MAX_DEPTH || late(cx) || !spend(cx, 1) {
         return Ok(ans);
     }
     cx.tick(1)?;
@@ -233,7 +232,7 @@ pub fn sub<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>,
 
 /// A sub-integral at the level `lv` (see [`sub`]), with the proof of non-elementarity when there is one.
 pub fn sub_answer<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, lv: Level) -> Res<Answer<'h>> {
-    if late() || lv.depth > MAX_DEPTH {
+    if late(cx) || lv.depth > MAX_DEPTH {
         return Ok(Answer::default());
     }
     if radicals(b, g, t).is_empty() {

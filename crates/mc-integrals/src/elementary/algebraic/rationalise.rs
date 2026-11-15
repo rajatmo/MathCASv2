@@ -21,7 +21,7 @@ pub fn run<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &mut Cands<'h>, 
     let mut tried: Vec<T<'h>> = vec![];
     // innermost radicals last in `rads`: try those first
     for r in rads.iter().rev() {
-        if tried.contains(&r.base) || tried.len() >= MAX_BASES || super::late() {
+        if tried.contains(&r.base) || tried.len() >= MAX_BASES || super::late(cx) {
             continue;
         }
         let Some((a, bb, cc, d)) = linear_fractional(cx, b, r.base, x)? else { continue };

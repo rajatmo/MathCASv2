@@ -581,6 +581,12 @@ impl<'k, 'h> Eval<'k, 'h> {
                         native.call(&mut NativeCx { ev: self, cx }, t, vals)
                     }
                 };
+                // the kernels' work in the call is charged to this task (semantics 18.7)
+                let work = self.work_units(cx);
+                let r = match r {
+                    Ok(v) => self.spend(cx, work).map(|()| v),
+                    r => r,
+                };
                 if early && matches!(r, Ok(Reply::Decline)) {
                     e.t = h.app(head, vals);
                 }

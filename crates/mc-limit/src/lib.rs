@@ -35,10 +35,9 @@ use rustc_hash::FxHashSet;
 use mc_calculus::term::Build;
 use mc_api::{names, Store, View, T};
 use mc_arith::num::StopScope;
-use mc_eval::{Native, NativeCx, Reply, Res};
+use mc_eval::{Allowance, Native, NativeCx, Reply, Res};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 /// The side a limit is taken from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -67,14 +66,14 @@ pub enum Outcome<'h> {
 #[derive(Clone, Copy, Debug)]
 pub struct Options {
     /// the time Gruntz's algorithm may take for the whole call (both sides of a two-sided limit)
-    pub budget: Duration,
+    pub budget: u64,
     /// check every limit numerically before it is returned (decision 13C.4)
     pub check: bool,
 }
 
 impl Default for Options {
     fn default() -> Options {
-        Options { budget: Duration::from_secs(8), check: true }
+        Options { budget: WORK, check: true }
     }
 }
 
@@ -104,7 +103,7 @@ pub fn limit_with<'h>(
     if is_free(b, f, x) {
         return Ok(Outcome::Value(f));
     }
-    let run = Run { deadline: Instant::now() + opts.budget, budget: opts.budget, check: opts.check };
+    let run = Run { deadline: Allowance::new(cx, opts.budget), budget: opts.budget, check: opts.check };
     // complex infinity (|x| -> inf in every direction): a rational function by the degrees of its numerator and
     // denominator (0, the ratio of the leading coefficients, or complex_infinity); otherwise not decided here
     if a == b.heap().sym_term(b.heap().sym("complex_infinity")) {
@@ -136,20 +135,27 @@ pub fn limit_with<'h>(
         if inexact(b, fe) || inexact(b, ae) {
             return Ok(Outcome::Unknown);
         }
-        return Ok(match exact_limit(cx, b, fe, x, ae, direction, run)? {
+        return Ok(match exact_limit(cx, b, fe, x, ae, direction, &run)? {
             Outcome::Value(v) => Outcome::Value(apply(cx, b, "n", &[v])?),
             o => o,
         });
     }
-    exact_limit(cx, b, f, x, a, direction, run)
+    exact_limit(cx, b, f, x, a, direction, &run)
 }
 
 /// The settings of one limit call.
-#[derive(Clone, Copy)]
 struct Run {
-    deadline: Instant,
-    budget: Duration,
+    deadline: Allowance,
+    budget: u64,
     check: bool,
+}
+
+/// The work (fuel) of one limit call by default.
+pub const WORK: u64 = 8_000_000;
+
+/// `deadline`, or a quarter of `budget` from now if that is more (Gruntz's algorithm after a long walk).
+fn at_least_quarter(cx: &NativeCx<'_, '_, '_>, deadline: &Allowance, budget: u64) -> Allowance {
+    Allowance::new(cx, deadline.left(cx).max(budget / 4))
 }
 
 /// The one-sided limit of `g` at `pt` from `side`: the walk (the fast paths), then Gruntz's algorithm where the
@@ -162,8 +168,8 @@ pub(crate) fn one_sided<'h>(
     x: T<'h>,
     pt: Pt<'h>,
     side: i8,
-    deadline: Instant,
-    budget: Duration,
+    deadline: &Allowance,
+    budget: u64,
     check: bool,
 ) -> Res<Option<Lim<'h>>> {
     let mut from_walk = true;
@@ -171,8 +177,8 @@ pub(crate) fn one_sided<'h>(
     if r.is_none() {
         from_walk = false;
         // the walk may have used much of the budget: Gruntz's algorithm gets at least a quarter of it
-        let deadline = deadline.max(Instant::now() + budget / 4);
-        r = gruntz::limit(cx, b, g, x, pt, side, deadline)?;
+        let quarter = at_least_quarter(cx, deadline, budget);
+        r = gruntz::limit(cx, b, g, x, pt, side, &quarter)?;
     }
     let Some(l) = r else { return Ok(None) };
     if !check || check::plausible(cx, b, g, x, pt, side, l)? {
@@ -218,7 +224,7 @@ fn exact_limit<'h>(
     x: T<'h>,
     a: T<'h>,
     direction: Direction,
-    run: Run,
+    run: &Run,
 ) -> Res<Outcome<'h>> {
     let inf = b.heap().sym_term(b.heap().sym("inf"));
     // a function defined by cases: its branch on the side approached (decision IOSYM.16)
@@ -233,7 +239,7 @@ fn exact_limit<'h>(
             }
             _ => g,
         };
-        one_sided(cx, b, g, x, pt, side, run.deadline, run.budget, run.check)
+        one_sided(cx, b, g, x, pt, side, &run.deadline, run.budget, run.check)
     };
     let l = match (a, direction) {
         (a, Direction::TwoSided | Direction::FromBelow) if a == inf => one(cx, Pt::PosInf, 1)?,

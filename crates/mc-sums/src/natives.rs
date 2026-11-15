@@ -182,7 +182,7 @@ impl mc_eval::Native for SumWrap {
         let _scope = StopScope::enter(Some(&self.stop));
         // the indefinite sum of a non-polynomial: Gosper
         if !self.product && matches!(h.view(spec), View::Sym(_)) && spec != h.sym_term(h.sym("inf")) {
-            let mut b = Budget::new(&self.stop, sumfn::SECS);
+            let mut b = Budget::new(&self.stop, sumfn::WORK);
             let mut m = Meter::new(&mut b);
             let mut sx = Sx::new(cx, &self.stop);
             if let Some(v) = sumfn::indefinite(&mut sx, f, spec, &mut m)? {
@@ -219,7 +219,7 @@ impl mc_eval::Native for SumWrap {
         if !matches!(h.view(k), View::Sym(_)) {
             return Ok(Reply::Decline);
         }
-        let mut b = Budget::new(&self.stop, sumfn::SECS);
+        let mut b = Budget::new(&self.stop, sumfn::WORK);
         let mut m = Meter::new(&mut b);
         let mut sx = Sx::new(cx, &self.stop);
         // an exact non-integer bound (3/2): no closed form of an integer-bounded sum applies (D23-18)
@@ -346,7 +346,7 @@ impl mc_eval::Native for RSolveWrap {
         }
         let gen = option(h, &opts, "generated_parameters");
         let _scope = StopScope::enter(Some(&self.stop));
-        let mut b = Budget::new(&self.stop, sumfn::SECS);
+        let mut b = Budget::new(&self.stop, sumfn::WORK);
         let mut m = Meter::new(&mut b);
         let mut sx = Sx::new(cx, &self.stop);
         if let [eqs, target, n] = plain.as_slice() {
@@ -627,7 +627,7 @@ impl Native {
                 if !matches!(h.view(n), View::Sym(_)) {
                     return Ok(Reply::Decline);
                 }
-                let mut b = Budget::new(&self.stop, sumfn::SECS);
+                let mut b = Budget::new(&self.stop, sumfn::WORK);
                 let mut m = Meter::new(&mut b);
                 crate::conv::convergence(&mut sx, *f, n, lo, &mut m)?
             }

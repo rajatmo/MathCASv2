@@ -142,7 +142,7 @@ fn legendre<'h>(
     }
     let (c0, c1) = (b.add(&c0), b.add(&c1));
     for &(al, be) in pairs {
-        if super::late() {
+        if super::late(cx) {
             break;
         }
         if b.is_zero(al) || (b.is_zero(be) && !b.is_zero(c1)) {
@@ -195,7 +195,7 @@ fn root_route<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &mut Cands<'h
         // x = e + sg t^2 (sg = 1, -1: the branch with x - e of the sign of sg at the points of the check);
         // P(e + sg t^2) = t^2 P1(t^2), P1(z) = S(sg z)/z
         for sg in [1i64, -1] {
-            if super::late() || !c.found.is_empty() {
+            if super::late(cx) || !c.found.is_empty() {
                 break;
             }
             let t = super::super::fresh(b, if sg > 0 { "q" } else { "w" }, lv.depth);

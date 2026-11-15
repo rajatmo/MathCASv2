@@ -38,7 +38,7 @@ pub fn integrate<'h>(
         if exotic && !unary(b, u).is_some_and(|(n, v)| (n == "log" && v == x) || n == "exp") {
             continue;
         }
-        if !spend(1) {
+        if !spend(cx, 1) {
             return Ok(None);
         }
         cx.tick(1)?;

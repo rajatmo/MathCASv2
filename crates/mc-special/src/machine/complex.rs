@@ -272,6 +272,8 @@ fn series(first: C64, ratio: impl Fn(usize) -> C64, max: usize) -> Option<C64> {
     let mut s = first;
     let mut big = abs(first);
     for k in 0..max {
+        // a term's work, for the evaluator's fuel (mc_api::work)
+        mc_api::work::charge(16);
         t = t * ratio(k);
         s = s + t;
         big = big.max(abs(t));

@@ -9,24 +9,26 @@ use mc_poly::ratfun::{self, RatFun};
 use mc_poly::work::{Halt, Meter, Work, WorkResult};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-/// The work budget of one call: the stop flag (the evaluator's interrupt) and a time limit.
+/// The work budget of one call's polynomial kernels: the stop flag (the evaluator's interrupt) and a number of
+/// units of `mc-poly` work (one unit is about 16k elementary steps), counted from the charges the kernels make.
 pub struct Budget {
     stop: Arc<AtomicBool>,
-    deadline: Instant,
+    used: u64,
+    limit: u64,
 }
 
 impl Budget {
-    /// A budget of `secs` seconds.
-    pub fn new(stop: &Arc<AtomicBool>, secs: u64) -> Budget {
-        Budget { stop: stop.clone(), deadline: Instant::now() + Duration::from_secs(secs) }
+    /// A budget of `limit` units of work.
+    pub fn new(stop: &Arc<AtomicBool>, limit: u64) -> Budget {
+        Budget { stop: stop.clone(), used: 0, limit }
     }
 }
 
 impl Work for Budget {
-    fn charge(&mut self, _units: u64) -> WorkResult<()> {
-        if self.stop.load(Ordering::Relaxed) || Instant::now() > self.deadline {
+    fn charge(&mut self, units: u64) -> WorkResult<()> {
+        self.used += units;
+        if self.stop.load(Ordering::Relaxed) || self.used > self.limit {
             return Err(Halt::Stopped);
         }
         Ok(())

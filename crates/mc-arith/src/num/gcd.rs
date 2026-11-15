@@ -86,6 +86,8 @@ fn lincomb(x: &[u64], cx: u64, y: &[u64], cy: u64, out: &mut Vec<u64>) {
 
 /// gcd(a, b) by Lehmer's algorithm.
 pub fn gcd(a: &Nat, b: &Nat) -> Nat {
+    // a Euclidean or Lehmer step per limb of the smaller operand, each over the larger (mc_api::work)
+    mc_api::work::charge(32 + 8 * (a.limbs.len() * b.limbs.len()) as u64);
     let (mut a, mut b) = if cmp(&a.limbs, &b.limbs) != Ordering::Less {
         (a.limbs.clone(), b.limbs.clone())
     } else {

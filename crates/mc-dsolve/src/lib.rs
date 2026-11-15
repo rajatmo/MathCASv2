@@ -61,10 +61,9 @@ use mc_calculus::common::is_free;
 use mc_calculus::term::Build;
 use mc_api::{names, Store, View, T};
 use mc_arith::num::StopScope;
-use mc_eval::{Native, NativeCx, Reply, Res};
+use mc_eval::{Allowance, Native, NativeCx, Reply, Res};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 /// Which function.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -92,8 +91,8 @@ pub struct DSolveNative {
 /// The highest order handled.
 pub(crate) const MAX_ORDER: usize = 12;
 
-/// The time budget of one call.
-const BUDGET: Duration = Duration::from_secs(5);
+/// The work (fuel) of one call.
+const BUDGET: u64 = 2_500_000;
 
 /// The context of one call: the evaluator, the builder, the head of the constants and the deadline.
 pub(crate) struct Cx<'a, 'b, 'c, 'k, 'h> {
@@ -101,7 +100,7 @@ pub(crate) struct Cx<'a, 'b, 'c, 'k, 'h> {
     pub(crate) b: &'b Build<'h>,
     /// the head of the constants: `c`, or the `generated_parameters` option
     pub(crate) gen: T<'h>,
-    deadline: Instant,
+    work: Allowance,
     /// nesting of the solver (methods that call it again for a reduced equation)
     pub(crate) depth: usize,
 }
@@ -273,27 +272,29 @@ impl<'h> Cx<'_, '_, '_, '_, 'h> {
     /// With `MC_DSOLVE_TRACE` set: the time left and `what` on stderr (development aid).
     pub(crate) fn trace(&self, what: &str) {
         if std::env::var_os("MC_DSOLVE_TRACE").is_some() {
-            let left = self.deadline.saturating_duration_since(Instant::now());
-            eprintln!("d_solve [{:.3}s left, depth {}] {what}", left.as_secs_f64(), self.depth);
+            eprintln!("d_solve [{} units of work left, depth {}] {what}", self.work.left(self.cx), self.depth);
         }
     }
     /// `f(0), f(1), ...` on the session's pool (roadmap item 16A), each on its own context (a builder of its own, the
     /// call's constants, deadline and depth), in order until `stop` holds of a value: the methods of a cascade, the
     /// checks of the solutions. The values are those of the sequential loop for any number of threads.
     pub(crate) fn par_until<R: Send>(&mut self, n: usize, stop: &(dyn Fn(&R) -> bool + Sync), f: &(dyn for<'a, 'b, 'c, 'k> Fn(&mut Cx<'a, 'b, 'c, 'k, 'h>, usize) -> Res<R> + Sync)) -> Res<Vec<R>> {
-        let (gen, deadline, depth) = (self.gen, self.deadline, self.depth);
+        // every part gets the work left now, counted on its own task
+        let (gen, depth) = (self.gen, self.depth);
+        let left = self.work.left(self.cx);
         let flag = self.b.stop().clone();
         self.cx.par_until(n, stop, &|cx, i| {
             let _scope = StopScope::enter(Some(&flag));
             let b = Build::new(cx.heap(), &flag);
-            let mut c = Cx { cx, b: &b, gen, deadline, depth };
+            let work = Allowance::new(cx, left);
+            let mut c = Cx { cx, b: &b, gen, work, depth };
             f(&mut c, i)
         })
     }
 
-    /// Past the time budget (or stopped)?
+    /// Past the budget of work (or stopped)?
     pub(crate) fn late(&self) -> bool {
-        Instant::now() > self.deadline || self.cx.stopped()
+        self.work.expired(self.cx) || self.cx.stopped()
     }
     /// The head symbol name of `t`.
     pub(crate) fn head_is(&self, t: T<'h>, name: &str) -> bool {
@@ -428,7 +429,8 @@ impl Native for DSolveNative {
         if !matches!(h.view(gen), View::Sym(_)) {
             return Ok(Reply::Decline);
         }
-        let mut c = Cx { cx, b: &b, gen, deadline: Instant::now() + BUDGET, depth: 0 };
+        let work = Allowance::new(cx, BUDGET);
+        let mut c = Cx { cx, b: &b, gen, work, depth: 0 };
         match self.kind {
             Kind::RSolve | Kind::RSolveValue => {
                 let [eqs, yspec, x] = plain.as_slice() else { return Ok(Reply::Decline) };

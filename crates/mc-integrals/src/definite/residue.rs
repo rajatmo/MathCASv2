@@ -39,7 +39,7 @@ pub(crate) fn by_residues<'h>(
     lo: Pt<'h>,
     hi: Pt<'h>,
 ) -> Res<Option<T<'h>>> {
-    if job.late() {
+    if job.late(cx) {
         return Ok(None);
     }
     let h = b.heap();
@@ -422,7 +422,7 @@ fn regular_at<'h>(
         x,
         r,
         mc_limit::Direction::TwoSided,
-        &mc_limit::Options { budget: std::time::Duration::from_secs(2), check: true },
+        &mc_limit::Options { budget: 1_000_000, check: true },
     )?;
     let i = b.heap().sym_term(b.heap().sym("inf"));
     let ok = matches!(o, mc_limit::Outcome::Value(v) if is_free(b, v, i) && !super::is_failure(b, v));

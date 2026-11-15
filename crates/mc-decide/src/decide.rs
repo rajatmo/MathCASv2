@@ -19,8 +19,8 @@
 //! 5. *`reduce`* for one real variable ([`Reals`]): the facts on the variable conjoined with the negated question
 //!    are reduced; an empty set proves the answer. The trait is the hook for several variables (phase 11B).
 //!
-//! **Memo and time**: every answer is kept for the life of the decider (one call), and the tiers after the first
-//! stop at a deadline ([`BUDGET`]), after which questions they would answer stay unknown.
+//! **Memo and work**: every answer is kept for the life of the decider (one call), and the tiers after the first
+//! stop when their budget of work ([`BUDGET`], fuel) is spent, after which questions they would answer stay unknown.
 use crate::basis::Basis;
 use crate::build::Bld;
 use crate::facts::{Bound, Facts, Info, Kind, Range, Syms};
@@ -29,17 +29,16 @@ use crate::sturm::{self, End, QP};
 use mc_api::{Store, View, T};
 use mc_arith::num::{Ball, Float, Int, Mag, Nat, Rat};
 use mc_arith::{Num, Real};
-use mc_eval::{NativeCx, Res};
+use mc_eval::{Allowance, NativeCx, Res};
 use mc_poly::convert::{Conv, Heads};
 use mc_poly::work::{Meter, WorkResult};
 use rustc_hash::FxHashMap;
 use std::rc::Rc;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-/// The time the tiers after the first may take in one decider.
-pub const BUDGET: Duration = Duration::from_secs(3);
+/// The work (fuel) the tiers after the first may do in one decider.
+pub const BUDGET: u64 = 1_500_000;
 /// Most variables of a quadratic form, most degree of a polynomial for root isolation and `reduce`.
 const MAX_QUAD_VARS: usize = 8;
 const MAX_DEGREE: usize = 48;
@@ -170,7 +169,7 @@ pub struct Decider<'h> {
     /// the compiled basis (`None` until asked)
     basis: Option<Option<Basis<'h>>>,
     memo: FxHashMap<T<'h>, Info<'h>>,
-    deadline: Instant,
+    deadline: Allowance,
     reals: Box<dyn Reals<'h>>,
     /// what the tiers decided
     pub stats: Stats,
@@ -210,7 +209,7 @@ impl<'h> Decider<'h> {
             eqs,
             basis: None,
             memo: FxHashMap::default(),
-            deadline: Instant::now() + BUDGET,
+            deadline: Allowance::new(cx, BUDGET),
             reals: REALS.get().map_or_else(|| Box::new(OneVariable) as Box<dyn Reals<'h>>, |f| f.make()),
             stats: Stats::default(),
             terms: facts.to_vec(),
@@ -242,7 +241,7 @@ impl<'h> Decider<'h> {
             return Ok(*i);
         }
         let mut i = self.facts.info(cx, t)?;
-        if !self.facts.decided(&i) && !self.terms.is_empty() && self.nested == 0 && Instant::now() < self.deadline {
+        if !self.facts.decided(&i) && !self.terms.is_empty() && self.nested == 0 && !self.deadline.expired(cx) {
             self.nested += 1;
             let r = self.tiers(cx, t, i);
             self.nested -= 1;
@@ -767,7 +766,7 @@ impl<'h> Decider<'h> {
             return Ok(None);
         }
         let ask = |me: &mut Self, cx: &mut NativeCx<'_, '_, 'h>, rel: &str| -> Res<Option<bool>> {
-            if Instant::now() > me.deadline {
+            if me.deadline.expired(cx) {
                 return Ok(None);
             }
             let mut cs = conds.clone();

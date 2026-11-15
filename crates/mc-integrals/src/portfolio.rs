@@ -28,18 +28,19 @@ use super::{args_of, base, classic, elementary, is_free, rational};
 use mc_calculus::term::Build;
 use mc_api::{Store, View, T};
 use mc_arith::Num;
-use mc_eval::{NativeCx, Res};
+use mc_eval::{Allowance, NativeCx, Res};
 use rustc_hash::FxHashSet;
-use std::time::Duration;
 
-/// The time of the decision procedure.
-pub const RISCH_TIME: Duration = Duration::from_millis(1500);
-/// The time of the ansatz.
-pub const NORMAN_TIME: Duration = Duration::from_millis(2500);
-/// The time of the elementary rules when nothing else answered.
-pub const ELEMENTARY_TIME: Duration = Duration::from_millis(4000);
-/// The time of the elementary rules after the engine answered.
-pub const ELEMENTARY_SHORT: Duration = Duration::from_millis(600);
+/// The work (fuel) of the decision procedure.
+pub const RISCH_WORK: u64 = 300_000;
+/// The work of the decision procedure alone (`risch_integrate`).
+pub const RISCH_ALONE_WORK: u64 = 1_200_000;
+/// The work of the ansatz.
+pub const NORMAN_WORK: u64 = 500_000;
+/// The work of the elementary rules when nothing else answered.
+pub const ELEMENTARY_WORK: u64 = 2_000_000;
+/// The work of the elementary rules after the engine answered.
+pub const ELEMENTARY_SHORT: u64 = 300_000;
 
 /// The points of the numerical check, inside (0, 1), and the values of the parameters.
 const POINTS: [(i64, i64); 3] = [(3, 7), (5, 11), (7, 13)];
@@ -78,7 +79,7 @@ pub fn integrate<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: 
     if proven || alg.proof.is_some() {
         return Ok(smallest(b, found));
     }
-    let m = if found.is_empty() { Method::Elementary(ELEMENTARY_TIME) } else { Method::Elementary(ELEMENTARY_SHORT) };
+    let m = if found.is_empty() { Method::Elementary(ELEMENTARY_WORK) } else { Method::Elementary(ELEMENTARY_SHORT) };
     let Out::Found(r, _) = method(cx, b, m, f, x)? else { unreachable!("an answer") };
     found.extend(r);
     Ok(smallest(b, found))
@@ -94,7 +95,7 @@ enum Method {
     /// the rule table
     Rules,
     /// the elementary rules under this budget
-    Elementary(Duration),
+    Elementary(u64),
 }
 
 /// What a method found: checked answers (and for the engine, whether it proved that none is elementary; for the
@@ -108,9 +109,9 @@ enum Out<'h> {
 /// Run one method from a clean state (a fresh budget of the elementary rules, no deadline), its answer checked.
 fn method<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, m: Method, f: T<'h>, x: T<'h>) -> Res<Out<'h>> {
     let saved = elementary::fresh_budget();
-    elementary::set_deadline(None);
+    elementary::set_budget(None);
     let r = run_method(cx, b, m, f, x);
-    elementary::set_deadline(None);
+    elementary::set_budget(None);
     elementary::restore_budget(saved);
     r
 }
@@ -134,12 +135,13 @@ fn run_method<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, m: Method, f: T<
             };
             Out::Found(r, false)
         }
-        Method::Elementary(time) => {
-            let t0 = std::time::Instant::now();
-            elementary::set_deadline(Some(t0 + time));
-            let r = classic(cx, b, f, x, 0)?;
-            let late = t0.elapsed() >= time;
-            elementary::set_deadline(None);
+        Method::Elementary(work) => {
+            let a = Allowance::new(cx, work);
+            elementary::set_budget(Some(&a));
+            let r = classic(cx, b, f, x, 0);
+            elementary::set_budget(None);
+            let r = r?;
+            let late = a.expired(cx);
             let r = match r {
                 Some(r) if verified(cx, b, f, r, x)? => Some(r),
                 _ => None,
@@ -193,7 +195,7 @@ fn in_parallel<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<
     }
     let elementary = if found.is_empty() && late && short.is_none() {
         // the sequence gives the elementary rules the full budget when nothing else answered
-        let Out::Found(r, _) = method(cx, b, Method::Elementary(ELEMENTARY_TIME), f, x)? else { unreachable!("an answer") };
+        let Out::Found(r, _) = method(cx, b, Method::Elementary(ELEMENTARY_WORK), f, x)? else { unreachable!("an answer") };
         r
     } else {
         short
@@ -271,7 +273,8 @@ fn unknown_derivative<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> Option<T<'h>> {
 /// answer, whether the decision procedure proved that no elementary antiderivative exists.
 fn engine<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<(Option<T<'h>>, bool)> {
     let g = elementary::normalize(b, f);
-    match mc_integrate::risch(cx, &b.ar, g, x, RISCH_TIME)? {
+    let work = Allowance::new(cx, RISCH_WORK);
+    match mc_integrate::risch(cx, &b.ar, g, x, work)? {
         mc_integrate::Outcome::Found { part, rest } => {
             if b.ar.num(rest).is_some_and(|n| n.is_exact_zero()) {
                 return Ok((Some(part), false));
@@ -280,17 +283,22 @@ fn engine<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) 
                 return Ok((Some(b.add(&[part, r])), false));
             }
         }
-        mc_integrate::Outcome::NonElementary(_) => return Ok((mc_integrate::norman(cx, &b.ar, g, x, NORMAN_TIME, true)?, true)),
+        mc_integrate::Outcome::NonElementary(_) => {
+            let work = Allowance::new(cx, NORMAN_WORK);
+            return Ok((mc_integrate::norman(cx, &b.ar, g, x, work, true)?, true));
+        }
         mc_integrate::Outcome::Unknown => {}
     }
-    Ok((mc_integrate::norman(cx, &b.ar, g, x, NORMAN_TIME, true)?, false))
+    let work = Allowance::new(cx, NORMAN_WORK);
+    Ok((mc_integrate::norman(cx, &b.ar, g, x, work, true)?, false))
 }
 
 /// The decision procedure alone, for `risch_integrate`: the antiderivative, or the reason there is no elementary
 /// one, or `None` (outside the procedure).
 pub fn risch<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<Option<Result<T<'h>, String>>> {
     let g = elementary::normalize(b, f);
-    match mc_integrate::risch(cx, &b.ar, g, x, RISCH_TIME * 4)? {
+    let work = Allowance::new(cx, RISCH_ALONE_WORK);
+    match mc_integrate::risch(cx, &b.ar, g, x, work)? {
         mc_integrate::Outcome::Found { part, rest } => {
             let r = if b.ar.num(rest).is_some_and(|n| n.is_exact_zero()) {
                 Some(part)

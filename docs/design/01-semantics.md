@@ -669,3 +669,29 @@ memo of normal forms (4.4) and the collector (plan, decision 1.4) must be safe u
 
 Whether and how a parallel-eligible computation is split into tasks is the implementation's choice and has no
 semantic effect. The session parameter `threads` (default: the number of cores) bounds the number of workers.
+
+### 18.7 Budgets of work (decision of November 2026)
+
+**The same input gives the same answer on every machine.** A method that may run long (the decision procedure of
+integration, the rule table, a limit, the search of `simplify`, `d_solve`, the decision service, closed-form sums, a
+polynomial move) gives up after a budget, and what it gives up decides whether an answer is given and which one.
+These budgets are measured in **units of work**, never in seconds:
+
+- The unit is the evaluator's fuel (4.2). The kernels below the evaluator report their work too: big-number products
+  and divisions (one operation per limb product), the construction of terms (the unit of symbolic work), the steps of
+  the polynomial kernels. They report it to a counter of the running thread, which the evaluator charges to the task
+  that ran the kernel at the end of every native call and every element of a group, one unit of fuel per 256
+  operations (about one evaluator step each). So fuel grows with the work done, whatever kind it is.
+- A budget is an *allowance*: a number of units from the task's fuel reading when the method starts
+  (`NativeCx::fuel_spent`). It belongs to that task; parts of a group that run on other tasks get the allowance that
+  was left when they were split, counted on their own task, so the count does not depend on how the parts were
+  scheduled. A search whose moves run in parallel (`simplify`) reads its allowance between levels, on its own task.
+- The clock decides only what the user asked for (`time_constrained`, `time_constraint:`, the interrupt), what
+  measures time (`timing`, `profile`, benchmarks, status lines, the default random seed) and housekeeping that does
+  not reach a result (removing old plot files).
+
+What stays: with one thread the fuel of an evaluation is a function of the input and of the session's earlier
+inputs (the memo of normal forms, 4.4, and the caches of the libraries remember earlier work). With several threads,
+speculative work that is later discarded can still fill the memo and the caches first, so a reading can differ
+slightly between runs (by up to about one per cent of a reading in the measured sample); a budget decides differently only for
+a method that ends within that margin of its budget.

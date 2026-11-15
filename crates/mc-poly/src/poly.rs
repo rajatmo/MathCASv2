@@ -192,6 +192,8 @@ impl Poly {
     fn combine(&self, o: &Poly, negate: bool) -> Poly {
         debug_assert_eq!(self.nv, o.nv);
         let nv = self.nv;
+        // a merge step per term: an exponent comparison and a coefficient (mc_api::work)
+        mc_api::work::charge(((self.len() + o.len()) * (nv + 16)) as u64);
         let mut exps = Vec::with_capacity(self.exps.len() + o.exps.len());
         let mut coefs = Vec::with_capacity(self.len() + o.len());
         let (mut i, mut j) = (0, 0);
@@ -236,6 +238,7 @@ impl Poly {
     }
     /// c * self.
     pub fn scale(&self, c: &Z) -> Poly {
+        mc_api::work::charge((self.len() * (self.nv + 16)) as u64);
         if c.is_zero() {
             return Poly::zero(self.nv);
         }
@@ -247,6 +250,7 @@ impl Poly {
     }
     /// c x^e * self.
     pub fn mul_term(&self, e: &[u32], c: &Z) -> Poly {
+        mc_api::work::charge((self.len() * (self.nv + 16)) as u64);
         if c.is_zero() {
             return Poly::zero(self.nv);
         }

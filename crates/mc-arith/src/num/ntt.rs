@@ -369,6 +369,8 @@ pub fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
     let len = a.len() + b.len();
     // la + lb - 1 coefficients; the top limb of the result comes from the carries
     let n = (len - 1).next_power_of_two();
+    // three primes, three transforms of n points each (mc_api::work)
+    mc_api::work::charge(9 * n as u64 * (n.trailing_zeros() as u64 + 1));
     let square = std::ptr::eq(a, b);
     let mut res: Vec<Vec<u64>> = Vec::with_capacity(3);
     for i in 0..3 {
@@ -418,6 +420,8 @@ fn conv_spectrum(a: &[u64], b: &Spectrum) -> Option<Vec<Vec<u64>>> {
 /// a b for b given by its spectrum, whose length must be at least a.len() + b.len() - 1: exactly `len` limbs
 /// (len >= a.len() + b.len()).
 pub fn mul_spectrum(a: &[u64], b: &Spectrum, len: usize) -> Vec<u64> {
+    let n = b.size() as u64;
+    mc_api::work::charge(6 * n * (64 - n.leading_zeros() as u64));
     let Some(res) = conv_spectrum(a, b) else { return vec![0; len] };
     let mut out = vec![0u64; len];
     let carry = reconstruct(&res, &mut out);
@@ -430,6 +434,7 @@ pub fn mul_spectrum(a: &[u64], b: &Spectrum, len: usize) -> Vec<u64> {
 /// returned as zero.
 pub fn mul_cyclic(a: &[u64], b: &Spectrum) -> Vec<u64> {
     let n = b.size();
+    mc_api::work::charge(6 * n as u64 * (64 - (n as u64).leading_zeros() as u64));
     let Some(res) = conv_spectrum(a, b) else { return vec![0; n] };
     let mut out = vec![0u64; n];
     let carry = reconstruct(&res, &mut out);

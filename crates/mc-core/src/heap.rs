@@ -749,6 +749,8 @@ impl Store for Heap {
     }
 
     fn app<'h>(&'h self, head: T<'h>, args: &[T<'h>]) -> T<'h> {
+        // building a term is the unit of symbolic work (mc_api::work): hashing, the table lookup, the copy
+        mc_api::work::charge(24 + 2 * args.len() as u64);
         if head.raw() == self.list() && !args.is_empty() {
             if let Some(t) = self.try_pack(args) {
                 return t;

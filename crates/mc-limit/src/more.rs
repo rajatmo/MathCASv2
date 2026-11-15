@@ -18,8 +18,7 @@ use crate::bounds::{sign, subst, Pt};
 use mc_calculus::common::{apply, args_of, call_of, is_failure, is_free};
 use mc_calculus::term::Build;
 use mc_api::{Store, View, T};
-use mc_eval::{NativeCx, Res};
-use std::time::{Duration, Instant};
+use mc_eval::{Allowance, NativeCx, Res};
 
 /// A limit value: finite, or an infinity.
 #[derive(Clone, Copy, Debug)]
@@ -59,7 +58,7 @@ fn at_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<
 }
 
 /// The limit of `e` as `t → +inf`: the walk, then Gruntz's algorithm.
-fn lim_inf<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, e: T<'h>, t: T<'h>, deadline: Instant) -> Res<Option<Lim<'h>>> {
+fn lim_inf<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, e: T<'h>, t: T<'h>, deadline: &Allowance) -> Res<Option<Lim<'h>>> {
     if let Some(l) = super::walk::limit(cx, b, e, t, Pt::PosInf, 1)? {
         return Ok(Some(l));
     }
@@ -75,20 +74,20 @@ pub(crate) fn extreme<'h>(
     x: T<'h>,
     a: T<'h>,
     direction: Direction,
-    budget: Duration,
+    budget: u64,
     upper: bool,
 ) -> Res<Option<T<'h>>> {
     if is_free(b, f, x) {
         return Ok(Some(f));
     }
-    let deadline = Instant::now() + budget;
+    let deadline = Allowance::new(cx, budget);
     let mut best: Option<Ext<'h>> = None;
     for (pt, side) in sides(b, a, direction) {
         let g = crate::switches::resolve_near(cx, b, f, x, pt, side)?.unwrap_or(f);
-        let e = match one_sided(cx, b, g, x, pt, side, deadline, budget, true)? {
+        let e = match one_sided(cx, b, g, x, pt, side, &deadline, budget, true)? {
             Some(Lim::Fin(v, _)) => Ext::Fin(v),
             Some(Lim::Inf(s)) => Ext::Inf(s),
-            None => match oscillation(cx, b, g, x, pt, side, deadline, upper)? {
+            None => match oscillation(cx, b, g, x, pt, side, &deadline, upper)? {
                 Some(e) => e,
                 None => return Ok(None),
             },
@@ -149,7 +148,7 @@ fn oscillation<'h>(
     x: T<'h>,
     pt: Pt<'h>,
     side: i8,
-    deadline: Instant,
+    deadline: &Allowance,
     upper: bool,
 ) -> Res<Option<Ext<'h>>> {
     let Some((gt, t)) = at_infinity(cx, b, g, x, pt, side)? else { return Ok(None) };
@@ -332,7 +331,7 @@ pub(crate) fn asymptotic<'h>(
     x: T<'h>,
     a: T<'h>,
     direction: Direction,
-    budget: Duration,
+    budget: u64,
 ) -> Res<Option<T<'h>>> {
     let h = b.heap();
     if is_free(b, f, x) {
@@ -343,10 +342,10 @@ pub(crate) fn asymptotic<'h>(
         let neg = a != inf;
         let t = h.sym_term(h.sym("t%asymptotic"));
         let g = subst(cx, b, f, x, if neg { b.neg(t) } else { t })?;
-        let deadline = Instant::now() + budget;
+        let deadline = Allowance::new(cx, budget);
         let mut results = vec![];
         for terms in [gruntz::TERMS.0, gruntz::TERMS.1] {
-            let mut gr = Gruntz::new(b, t, deadline, terms);
+            let mut gr = Gruntz::new(b, t, &deadline, terms);
             let Some(p) = gr.prepare(cx, g)? else { return Ok(None) };
             let Some(r) = leading(cx, b, &mut gr, p, 0)? else { return Ok(None) };
             let r = cx.eval(gr.unwrap_g(r))?;

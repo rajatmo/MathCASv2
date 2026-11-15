@@ -16,10 +16,12 @@
 //!   result are refined.
 //! - **Search**: breadth first to [`DEPTH`] moves, keeping the [`BEAM`] cheapest new forms per level; forms are
 //!   hash-consed, so duplicates are found by handle.
-//! - **Budgets** (gap G73): a polynomial move (`together`, `cancel`, `factor`, `expand`) runs with the internal
-//!   `time_budget:` option of item K ([`MOVE_SECONDS`]) and gives its input back past it; the whole search stops
-//!   after [`SEARCH_SECONDS`] with the cheapest form found so far; a form more than [`GROWTH`] times the input's
-//!   size (and above [`SMALL`] leaves) is not explored further.
+//! - **Budgets** (gap G73), in units of work (fuel), so that the answer is the same on every machine: a polynomial
+//!   move (`together`, `cancel`, `factor`, `expand`) runs with the internal `work_budget:` option of item K
+//!   ([`MOVE_WORK`]) and gives its input back past it; the search of one term ends between two levels once it
+//!   has spent [`SEARCH_WORK`], with the cheapest form found so far; a form more than [`GROWTH`] times the input's
+//!   size (and above [`SMALL`] leaves) is not explored further. `time_constraint:` sets a limit in seconds instead
+//!   of the call's work ([`CALL_WORK`], [`FULL_WORK`]): a limit the user asked for.
 //! - **Inside out**: the arguments of other functions are simplified first (`sin((x^2 - 1)/(x - 1))` becomes
 //!   `sin(1 + x)`), and lists element by element.
 use crate::facts::Facts;
@@ -28,17 +30,17 @@ use crate::cost::{Cost, Measure, Score};
 use crate::term::{apply, rewrite, B};
 use crate::trig::{exp_combine, normal_signs, pythagoras, to_sin_cos, trig_reduce, Pythagoras};
 use mc_api::{Store, View, T};
-use mc_eval::{NativeCx, Res};
+use mc_eval::{Allowance, NativeCx, Res};
 use rustc_hash::FxHashSet;
 
 /// Most moves from the input.
 pub const DEPTH: usize = 3;
 /// Forms kept per level of the search.
 pub const BEAM: usize = 6;
-/// Seconds one polynomial move may take (multivariate `factor` can be exponential in the degrees, gap G73).
-pub const MOVE_SECONDS: f64 = 0.25;
-/// Seconds the whole search of one term may take; past them the cheapest form found so far is the answer.
-pub const SEARCH_SECONDS: f64 = 2.0;
+/// The work (fuel) one polynomial move may do (multivariate `factor` can be exponential in the degrees, gap G73).
+pub const MOVE_WORK: u64 = 16_000;
+/// The work the whole search of one term may do; past it the cheapest form found so far is the answer.
+pub const SEARCH_WORK: u64 = 1_000_000;
 /// A form larger than this many times the input (and than [`SMALL`] leaves) is not explored further.
 pub const GROWTH: u64 = 8;
 /// Below this many leaves a form is always explored.
@@ -162,8 +164,10 @@ pub struct Config<'h> {
     pub user: Vec<T<'h>>,
     /// a user complexity measure is in use
     pub user_measure: bool,
-    /// the end of the call (`time_constraint:`)
-    pub deadline: std::time::Instant,
+    /// the end of the call in seconds (`time_constraint:`, a limit the user asked for)
+    pub deadline: Option<std::time::Instant>,
+    /// the work of the call ([`CALL_WORK`], [`FULL_WORK`]; unlimited under `time_constraint:`)
+    pub work: Allowance,
     /// the facts of the context, for the spot check
     pub facts: Vec<T<'h>>,
     /// the symbols of the decision service
@@ -174,19 +178,25 @@ pub struct Config<'h> {
 
 impl<'h> Config<'h> {
     /// The defaults of `simplify` (`full` false) or `full_simplify`.
-    pub fn new(full: bool, syms: std::sync::Arc<crate::facts::Syms>) -> Config<'h> {
-        let secs = if full { FULL_SECONDS } else { CALL_SECONDS };
+    pub fn new(cx: &NativeCx<'_, '_, 'h>, full: bool, syms: std::sync::Arc<crate::facts::Syms>) -> Config<'h> {
+        let work = Allowance::new(cx, if full { FULL_WORK } else { CALL_WORK });
         Config {
             full,
             trig: true,
             automatic: true,
             user: vec![],
             user_measure: false,
-            deadline: std::time::Instant::now() + std::time::Duration::from_secs_f64(secs),
+            deadline: None,
+            work,
             facts: vec![],
             syms,
             stop: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
+    }
+
+    /// Is the call's budget spent (its work, or the user's limit in seconds)?
+    pub fn over(&self, cx: &NativeCx<'_, '_, '_>) -> bool {
+        self.work.expired(cx) || self.deadline.is_some_and(|d| std::time::Instant::now() >= d)
     }
 
     fn moves(&self) -> Vec<Move> {
@@ -220,10 +230,10 @@ impl<'h> Config<'h> {
     }
 }
 
-/// Seconds a whole `simplify` call may take by default (`time_constraint:` changes it).
-pub const CALL_SECONDS: f64 = 4.0;
-/// Seconds a whole `full_simplify` call may take by default.
-pub const FULL_SECONDS: f64 = 5.0;
+/// The work (fuel) a whole `simplify` call may do by default (`time_constraint:` replaces it by seconds).
+pub const CALL_WORK: u64 = 2_000_000;
+/// The work a whole `full_simplify` call may do by default.
+pub const FULL_WORK: u64 = 2_500_000;
 /// Most moves from the input in `full_simplify`.
 pub const FULL_DEPTH: usize = 4;
 /// Forms kept per level in `full_simplify`.
@@ -403,10 +413,10 @@ fn log_combine<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<
     cx.eval(b.add(&rest))
 }
 
-/// `name(t, options(time_budget: MOVE_SECONDS))`: the polynomial move, `t` itself past the budget.
+/// `name(t, options(work_budget: MOVE_WORK))`: the polynomial move, `t` itself past the budget.
 fn bounded<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, name: &str, t: T<'h>) -> Res<T<'h>> {
     let h = b.heap();
-    let rule = h.call(h.sym(mc_api::names::RULE), &[h.sym_term(h.sym("time_budget")), h.real(MOVE_SECONDS)]);
+    let rule = h.call(h.sym(mc_api::names::RULE), &[h.sym_term(h.sym("work_budget")), h.int(MOVE_WORK.min(i64::MAX as u64) as i64)]);
     let opts = h.call(h.sym("options"), &[rule]);
     cx.eval(b.call_named(name, &[t, opts]))
 }
@@ -429,7 +439,10 @@ fn search<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, '_, 
     let mut best = (s0, t, false);
     let mut plain = (s0, t);
     let cap = (k.cost.size(t) * GROWTH).max(SMALL);
-    let deadline = (std::time::Instant::now() + std::time::Duration::from_secs_f64(SEARCH_SECONDS)).min(k.cfg.deadline);
+    // the search's own work, inside the call's; the user's limit in seconds, if any
+    let work = k.cfg.work.within(cx, SEARCH_WORK);
+    let user = k.cfg.deadline;
+
     let mut seen: FxHashSet<T<'h>> = FxHashSet::default();
     seen.insert(t);
     let mut level = vec![(t, false)];
@@ -442,6 +455,10 @@ fn search<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, '_, 
     // (a small term: its first level of moves runs whatever the deadline)
     let small = k.cost.size(t) <= 32;
     'search: for round in 0..depth {
+        // the budget of work, read between levels on this task (the moves of a level run in parallel)
+        if (round > 0 || !small) && work.expired(cx) {
+            break;
+        }
         let mut next: Vec<(Score, T<'h>, bool)> = Vec::new();
         // every move from every form of the level, in parallel (roadmap item 16A: the results in this order, so the
         // search is the same for any number of threads); a move not started before the deadline ends the search
@@ -450,7 +467,7 @@ fn search<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, '_, 
             // the time budget of the search: the cheapest form so far (gap G73); the moves from a small term
             // itself always run, so a very short limit still gives the identities one move away, whatever part of
             // the limit the preparation took (a race with the clock before)
-            if (round > 0 || !small) && std::time::Instant::now() >= deadline {
+            if (round > 0 || !small) && user.is_some_and(|d| std::time::Instant::now() >= d) {
                 return Ok(None);
             }
             let (u, _, m) = pairs[i];
@@ -700,7 +717,7 @@ fn inside_out<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, 
             return Ok(None);
         }
         if arith.contains(&s) {
-            if !full || node == t || k.cost.size(node) > FULL_PART || std::time::Instant::now() >= k.cfg.deadline {
+            if !full || node == t || k.cost.size(node) > FULL_PART || k.cfg.over(cx) {
                 return Ok(None);
             }
             let r = search(cx, b, k, 2, node)?;

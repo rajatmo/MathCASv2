@@ -36,11 +36,10 @@ use budget::{Budget, Stop};
 use mc_api::{Store, T};
 use mc_arith::Arith;
 use mc_core::Heap;
-use mc_eval::{NativeCx, Res};
+use mc_eval::{Allowance, NativeCx, Res};
 use mc_poly::ratfun::RatFun;
 use mc_poly::work::{Halt, Meter};
 use risch::Decision;
-use std::time::Duration;
 use tower::{Kind, Mode, Tower};
 use write::Writer;
 
@@ -60,9 +59,9 @@ pub enum Outcome<'h> {
     Unknown,
 }
 
-/// The Risch decision procedure on `f` in `x`, within `time`.
-pub fn risch<'h>(cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, f: T<'h>, x: T<'h>, time: Duration) -> Res<Outcome<'h>> {
-    let mut bud = Budget::new(cx, time);
+/// The Risch decision procedure on `f` in `x`, within the allowance `work` (made on the task of `cx`).
+pub fn risch<'h>(cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, f: T<'h>, x: T<'h>, work: Allowance) -> Res<Outcome<'h>> {
+    let mut bud = Budget::new(cx, work);
     let tw = {
         let mut m = Meter::new(&mut bud);
         tower::build(ar, f, x, Mode::Exp, &mut |_| {}, &mut m)
@@ -162,9 +161,9 @@ fn real_form<'h>(tw: &Tower<'h>, ar: &Arith<'h, Heap>, p: &RatFun) -> Option<T<'
     Some(ar.add(&out))
 }
 
-/// The ansatz on `f` in `x` within `time`, with the special-function candidates when `special`.
-pub fn norman<'h>(cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, f: T<'h>, x: T<'h>, time: Duration, special: bool) -> Res<Option<T<'h>>> {
-    let mut bud = Budget::new(cx, time);
+/// The ansatz on `f` in `x` within the allowance `work`, with the special-function candidates when `special`.
+pub fn norman<'h>(cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, f: T<'h>, x: T<'h>, work: Allowance, special: bool) -> Res<Option<T<'h>>> {
+    let mut bud = Budget::new(cx, work);
     let tw = {
         let mut m = Meter::new(&mut bud);
         tower::build(

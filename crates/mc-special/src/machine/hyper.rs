@@ -64,6 +64,8 @@ fn series(a: &[DD], b: &[DD], x: DD) -> Option<(Scaled, f64)> {
         if Some(k) == stop {
             break;
         }
+        // a term's work, for the evaluator's fuel (mc_api::work)
+        mc_api::work::charge(8 * (a.len() + b.len()) as u64 + 16);
         let kf = k as f64;
         let mut num = x;
         for ai in a {

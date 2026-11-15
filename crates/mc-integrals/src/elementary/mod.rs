@@ -32,22 +32,27 @@ use super::{apply, args_of, is_free};
 use mc_calculus::diff::{Diff, Halt};
 use mc_calculus::term::Build;
 use mc_api::{Store, View, T};
-use mc_eval::{NativeCx, Res};
+use mc_eval::{Allowance, NativeCx, Res};
 use rustc_hash::FxHashMap;
-use std::cell::Cell;
-use std::time::Instant;
+use std::cell::{Cell, RefCell};
 
 /// The attempts one top-level call of [`integrate`] may make (entries and substitution candidates).
 const BUDGET: i64 = 4000;
 
 thread_local! {
     static LEFT: Cell<i64> = const { Cell::new(BUDGET) };
-    static DEADLINE: Cell<Option<Instant>> = const { Cell::new(None) };
+    static WORK: RefCell<Option<Allowance>> = const { RefCell::new(None) };
 }
 
-/// The time the elementary rules may run until (the portfolio's budget of this method); `None` for no limit.
-pub fn set_deadline(t: Option<Instant>) {
-    DEADLINE.with(|c| c.set(t));
+/// The work the elementary rules may do (the portfolio's budget of this method, on the task that runs it); `None`
+/// for no limit.
+pub fn set_budget(a: Option<&Allowance>) {
+    WORK.with(|c| *c.borrow_mut() = a.copied());
+}
+
+/// Is the work of [`set_budget`] used up?
+pub(crate) fn out_of_work(cx: &NativeCx<'_, '_, '_>) -> bool {
+    WORK.with(|c| c.borrow().as_ref().is_some_and(|a| a.expired(cx)))
 }
 
 /// A fresh budget of attempts; the previous one is returned (for [`restore_budget`]).
@@ -60,9 +65,9 @@ pub(crate) fn restore_budget(v: i64) {
     LEFT.with(|c| c.set(v));
 }
 
-/// Spend `n` attempts of the budget; false once it is exhausted or the deadline has passed.
-pub(crate) fn spend(n: i64) -> bool {
-    if DEADLINE.with(|c| c.get()).is_some_and(|d| Instant::now() >= d) {
+/// Spend `n` attempts of the budget; false once it is exhausted or the work of [`set_budget`] is used up.
+pub(crate) fn spend(cx: &NativeCx<'_, '_, '_>, n: i64) -> bool {
+    if out_of_work(cx) {
         LEFT.with(|c| c.set(-1));
         return false;
     }
@@ -87,7 +92,7 @@ pub fn integrate<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: 
 }
 
 fn run<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, depth: u32) -> Res<Option<T<'h>>> {
-    if !spend(1) {
+    if !spend(cx, 1) {
         return Ok(None);
     }
     cx.tick(1)?;

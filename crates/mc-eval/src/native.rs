@@ -159,9 +159,17 @@ impl<'h> NativeCx<'_, '_, 'h> {
     pub fn make(&self, head: T<'h>, args: &[T<'h>]) -> T<'h> {
         self.ev.make(head, args)
     }
-    /// Charge `n` units of fuel (and poll the interrupt). Every input-dependent loop of a native must.
+    /// Charge `n` units of fuel (and poll the interrupt). Every input-dependent loop of a native must. The work the
+    /// kernels reported on this thread since the last charge ([`mc_api::work`]) is charged with it.
     pub fn tick(&mut self, n: u64) -> Res<()> {
-        self.ev.spend(self.cx, n)
+        let w = self.ev.work_units(self.cx);
+        self.ev.spend(self.cx, n + w)
+    }
+    /// The fuel this task has spent so far, the kernels' work not yet charged included: the clock of a method's
+    /// budget (semantics 18.7). It counts work, never time, so the same calls give the same reading on every
+    /// machine; only differences of two readings in one native call mean anything.
+    pub fn fuel_spent(&self) -> u64 {
+        self.cx.fuel + (self.cx.ops + mc_api::work::pending_ops()) / mc_api::work::OPS_PER_TICK
     }
     /// Evaluate `t` on this task: its reads enter the caller's read set.
     pub fn eval(&mut self, t: T<'h>) -> Res<T<'h>> {
@@ -471,8 +479,81 @@ impl<'h> NativeCx<'_, '_, 'h> {
         Ok((r?, Some(lines)))
     }
 
+    /// An identity of the running task, the same for every call on it while it lives ([`Allowance`]).
+    pub fn task_id(&self) -> usize {
+        &*self.cx as *const Cx<'h> as usize
+    }
+
     /// The number of worker threads evaluations may split over.
     pub fn threads(&self) -> usize {
         self.cx.threads as usize
+    }
+}
+
+/// A method's budget of work (semantics 18.7): `limit` units of fuel from the reading of
+/// [`NativeCx::fuel_spent`] when it was made. It replaces deadlines in wall-clock time, so a method gives up at the
+/// same point of its work on every machine. It belongs to the task that made it: read on another task (a part of a
+/// parallel group running on the same thread) it never runs out, as a deadline kept by a thread did not reach the
+/// other threads.
+#[derive(Clone, Copy, Debug)]
+pub struct Allowance {
+    start: u64,
+    limit: u64,
+    task: usize,
+}
+
+impl Allowance {
+    /// `limit` units of fuel from now.
+    pub fn new(cx: &NativeCx<'_, '_, '_>, limit: u64) -> Allowance {
+        Allowance { start: cx.fuel_spent(), limit, task: cx.task_id() }
+    }
+    /// No limit.
+    pub fn unlimited(cx: &NativeCx<'_, '_, '_>) -> Allowance {
+        Allowance::new(cx, u64::MAX)
+    }
+    /// The units spent since it was made (0 on another task).
+    pub fn spent(&self, cx: &NativeCx<'_, '_, '_>) -> u64 {
+        if cx.task_id() != self.task {
+            return 0;
+        }
+        cx.fuel_spent().saturating_sub(self.start)
+    }
+    /// The units left (0 once it is used up).
+    pub fn left(&self, cx: &NativeCx<'_, '_, '_>) -> u64 {
+        self.limit.saturating_sub(self.spent(cx))
+    }
+    /// Is it used up?
+    pub fn expired(&self, cx: &NativeCx<'_, '_, '_>) -> bool {
+        self.spent(cx) >= self.limit
+    }
+    /// The limit it was made with.
+    pub fn limit(&self) -> u64 {
+        self.limit
+    }
+    /// A budget of `limit` units from now, inside this one (at most what this one has left).
+    pub fn within(&self, cx: &NativeCx<'_, '_, '_>, limit: u64) -> Allowance {
+        Allowance::new(cx, limit.min(self.left(cx)))
+    }
+}
+
+/// Microseconds of delay per block of fuel ([`set_test_slowdown`]).
+static SLOWDOWN_US: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// A test hook: delay every block of fuel by `us` microseconds of busy waiting, on every thread (0: off). It makes
+/// the evaluation slower without changing its work, so a test can show that budgets of work give the same answers
+/// on a slower machine.
+pub fn set_test_slowdown(us: u64) {
+    SLOWDOWN_US.store(us, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The delay of [`set_test_slowdown`], taken when a task draws a block of fuel.
+#[inline]
+pub(crate) fn slow_down() {
+    let us = SLOWDOWN_US.load(std::sync::atomic::Ordering::Relaxed);
+    if us > 0 {
+        let end = std::time::Instant::now() + std::time::Duration::from_micros(us);
+        while std::time::Instant::now() < end {
+            std::hint::spin_loop();
+        }
     }
 }

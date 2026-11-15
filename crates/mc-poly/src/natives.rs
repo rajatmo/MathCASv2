@@ -22,17 +22,17 @@ pub(crate) struct Tick<'c, 'a, 'k, 'h> {
     pub abort: Option<Abort>,
 }
 
-/// A [`Tick`] with a wall-clock deadline (the internal `time_budget:` option, gap G73): past it the kernel stops
-/// and `expired` is set, so the native can give its fallback instead of an interrupt.
+/// A [`Tick`] with a budget of work (the internal `work_budget:` option, gap G73): past it the kernel stops and
+/// `expired` is set, so the native can give its fallback instead of an interrupt.
 pub(crate) struct Budgeted<'t, 'c, 'a, 'k, 'h> {
     pub tick: &'t mut Tick<'c, 'a, 'k, 'h>,
-    pub deadline: Option<std::time::Instant>,
+    pub budget: Option<mc_eval::Allowance>,
     pub expired: bool,
 }
 
 impl Work for Budgeted<'_, '_, '_, '_, '_> {
     fn charge(&mut self, units: u64) -> WorkResult<()> {
-        if self.deadline.is_some_and(|d| std::time::Instant::now() >= d) {
+        if self.budget.as_ref().is_some_and(|a| a.expired(self.tick.cx)) {
             self.expired = true;
             return Err(Halt::Stopped);
         }
@@ -40,24 +40,23 @@ impl Work for Budgeted<'_, '_, '_, '_, '_> {
     }
 }
 
-/// The trailing `options(time_budget: s)` of a polynomial function (seconds, a positive number): the arguments
-/// without it and the budget. Internal: `simplify` bounds its moves with it (gap G73).
-fn time_budget_option<'a, 'h>(h: &'h Heap, args: &'a [T<'h>]) -> (&'a [T<'h>], Option<f64>) {
+/// The trailing `options(work_budget: n)` of a polynomial function (units of fuel, a positive integer): the
+/// arguments without it and the budget. Internal: `simplify` bounds its moves with it (gap G73).
+fn work_budget_option<'a, 'h>(h: &'h Heap, args: &'a [T<'h>]) -> (&'a [T<'h>], Option<u64>) {
     let Some((&last, rest)) = args.split_last() else { return (args, None) };
     let View::App { head, args: &[r] } = h.view(last) else { return (args, None) };
     if head != h.sym_term(h.sym("options")) {
         return (args, None);
     }
     let View::App { args: &[k, v], .. } = h.view(r) else { return (args, None) };
-    if k != h.sym_term(h.sym("time_budget")) {
+    if k != h.sym_term(h.sym("work_budget")) {
         return (args, None);
     }
-    let secs = match h.view(v) {
-        View::Int(n) if n > 0 => n as f64,
-        View::Real(x) if x > 0.0 && x.is_finite() => x,
+    let units = match h.view(v) {
+        View::Int(n) if n > 0 => n as u64,
         _ => return (args, None),
     };
-    (rest, Some(secs))
+    (rest, Some(units))
 }
 
 impl Work for Tick<'_, '_, '_, '_> {
@@ -268,8 +267,8 @@ impl Native for PolyNative {
             }
         }
         let args = modulus.as_ref().map_or(args, |(rest, _)| rest.as_slice());
-        // `time_budget: s` (internal, gap G73): past the budget the first argument comes back unchanged
-        let (args, budget) = time_budget_option(h, args);
+        // `work_budget: n` (internal, gap G73): past the budget the first argument comes back unchanged
+        let (args, budget) = work_budget_option(h, args);
         let env = Env { ar: Arith::new(h).with_stop(self.stop.clone()), hd: Heads::new(h), name: self.name };
         let _scope = StopScope::enter(Some(&self.stop));
         // series: the Taylor coefficients of the functions its kernels do not know, through the evaluator
@@ -283,8 +282,8 @@ impl Native for PolyNative {
             Default::default()
         };
         let mut tick = Tick { cx, stop: &self.stop, abort: None };
-        let deadline = budget.map(|s| std::time::Instant::now() + std::time::Duration::from_secs_f64(s.min(1e6)));
-        let mut budgeted = Budgeted { tick: &mut tick, deadline, expired: false };
+        let budget = budget.map(|n| mc_eval::Allowance::new(tick.cx, n));
+        let mut budgeted = Budgeted { tick: &mut tick, budget, expired: false };
         let r = {
             let mut m = Meter::new(&mut budgeted);
             match modulus {
@@ -358,7 +357,7 @@ fn gcd_options<'h>(cx: &mut NativeCx<'_, '_, 'h>, lcm: bool, name: &'static str,
     for &r in rules {
         let View::App { args: &[k, v], .. } = h.view(r) else { return fail("options are rules") };
         match sym(k).as_deref() {
-            Some("time_budget") => return Ok(GcdOpts::None),
+            Some("work_budget") => return Ok(GcdOpts::None),
             Some("modulus") => match h.view(v) {
                 View::Int(0) => {}
                 View::Int(p) if p > 1 && crate::modp::is_prime(p as u64) => modulus = Some(p as u64),

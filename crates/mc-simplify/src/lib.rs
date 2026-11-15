@@ -278,7 +278,7 @@ impl Native for SimplifyNative {
                     Some((_, f)) => cost::Measure::User(f),
                     None => cost::Measure::Default,
                 };
-                let mut cfg = simplify::Config::new(self.f == Fun::FullSimplify, self.syms.clone());
+                let mut cfg = simplify::Config::new(cx, self.f == Fun::FullSimplify, self.syms.clone());
                 cfg.user_measure = opts.complexity.is_some();
                 cfg.trig = !opts.no_trig;
                 cfg.facts = facts.to_vec();
@@ -293,7 +293,9 @@ impl Native for SimplifyNative {
                     cfg.user = items.into_iter().filter(|&x| x != automatic).collect();
                 }
                 if let Some(secs) = opts.time.and_then(|t| seconds(&b, t)) {
-                    cfg.deadline = std::time::Instant::now() + std::time::Duration::from_secs_f64(secs);
+                    // a limit the user asked for: seconds instead of the call's default work
+                    cfg.deadline = Some(std::time::Instant::now() + std::time::Duration::from_secs_f64(secs));
+                    cfg.work = mc_eval::Allowance::unlimited(cx);
                 }
                 let (hidden, back) = match opts.excluded {
                     Some(p) => hide(cx, &b, *e, p)?,

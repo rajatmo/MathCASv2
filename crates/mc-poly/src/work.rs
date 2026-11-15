@@ -67,6 +67,8 @@ impl<'w> Meter<'w> {
         if self.steps >= Self::BLOCK {
             let units = self.steps / Self::BLOCK;
             self.steps %= Self::BLOCK;
+            // the steps are work of this thread, counted as fuel by the evaluator (mc_api::work)
+            mc_api::work::charge(units * Self::BLOCK * 4);
             self.work.charge(units)?;
         }
         Ok(())

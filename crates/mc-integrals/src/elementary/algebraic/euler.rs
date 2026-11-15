@@ -52,7 +52,7 @@ pub fn run<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &mut Cands<'h>, 
         subs.push((xt, yt, b.div(y, b.sub(x, r1)), 100));
     }
     for (xt, yt, back, w) in subs {
-        if super::late() {
+        if super::late(cx) {
             break;
         }
         let Some(dx) = deriv(cx, b, xt, t)? else { continue };

@@ -36,7 +36,7 @@ use crate::bounds::{sign as const_sign, subst};
 use mc_calculus::common::{apply, args_of, call_of, is_failure, is_free};
 use mc_calculus::term::Build;
 use mc_api::{Store, View, T};
-use mc_eval::{NativeCx, Res};
+use mc_eval::{Allowance, NativeCx, Res};
 use rustc_hash::FxHashMap;
 use std::cmp::Ordering;
 use std::sync::atomic::AtomicBool;
@@ -88,7 +88,7 @@ pub(crate) struct Gruntz<'a, 'h> {
     b: &'a Build<'h>,
     stop: Arc<AtomicBool>,
     x: T<'h>,
-    deadline: Instant,
+    deadline: Allowance,
     /// the deadline passed, or the depth bound was reached: every answer from then on is unknown
     pub expired: bool,
     depth: u32,
@@ -117,12 +117,12 @@ const ANALYTIC: &[&str] = &[
 
 impl<'a, 'h> Gruntz<'a, 'h> {
     /// A run in `x` that gives up at `deadline`, with special functions at infinity truncated after `terms` terms.
-    pub fn new(b: &'a Build<'h>, x: T<'h>, deadline: Instant, terms: usize) -> Gruntz<'a, 'h> {
+    pub fn new(b: &'a Build<'h>, x: T<'h>, deadline: &Allowance, terms: usize) -> Gruntz<'a, 'h> {
         Gruntz {
             b,
             stop: Arc::new(AtomicBool::new(false)),
             x,
-            deadline,
+            deadline: *deadline,
             expired: false,
             depth: 0,
             fresh: 0,
@@ -153,7 +153,7 @@ impl<'a, 'h> Gruntz<'a, 'h> {
     /// One step: the interrupt, the deadline and the depth. `false` when the run must give up.
     fn step(&mut self, cx: &mut NativeCx<'_, '_, 'h>) -> Res<bool> {
         cx.tick(1)?;
-        if self.expired || Instant::now() > self.deadline || self.depth > MAX_DEPTH {
+        if self.expired || self.deadline.expired(cx) || self.depth > MAX_DEPTH {
             self.expired = true;
             return Ok(false);
         }
@@ -1425,7 +1425,7 @@ pub(crate) fn limit<'h>(
     x: T<'h>,
     pt: crate::bounds::Pt<'h>,
     side: i8,
-    deadline: Instant,
+    deadline: &Allowance,
 ) -> R<Lim<'h>> {
     use crate::bounds::Pt;
     let h = b.heap();
@@ -1445,7 +1445,7 @@ pub(crate) fn limit<'h>(
 
 /// The limit of `e` as `t → +inf` (see [`limit`]). A result that used truncated asymptotic expansions is computed
 /// again with more terms and kept only when both agree (decision 13C.3).
-pub(crate) fn at_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, e: T<'h>, t: T<'h>, deadline: Instant) -> R<Lim<'h>> {
+pub(crate) fn at_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, e: T<'h>, t: T<'h>, deadline: &Allowance) -> R<Lim<'h>> {
     let mut g = Gruntz::new(b, t, deadline, TERMS.0);
     let Some(p) = g.prepare(cx, e)? else { return Ok(None) };
     let r = g.limit(cx, p)?;

@@ -1,6 +1,6 @@
 //! The interpreter: `int(u)` by linearity, the caller's quick methods, then the first rule whose pattern and
 //! condition match; right sides are built by canonical arithmetic and their `int(...)` calls recursed into.
-//! Bounded: depth, number of rule applications, a deadline, the evaluator's fuel; a cycle (an integrand met again
+//! Bounded: depth, number of rule applications, a budget of work (fuel), the evaluator's fuel; a cycle (an integrand met again
 //! while it is being integrated) fails that branch.
 use crate::cond::{function, holds, value};
 use crate::syntax::N;
@@ -9,9 +9,16 @@ use crate::util::{call_of, free_of, replace};
 use mc_api::{Store, View, T};
 use mc_arith::Arith;
 use mc_core::{Heap, Raw};
-use mc_eval::{pat, Binds, NativeCx, Pat, Pattern, Res, Val};
+use mc_eval::{pat, Allowance, Binds, NativeCx, Pat, Pattern, Res, Val};
 use rustc_hash::FxHashMap;
 use std::time::{Duration, Instant};
+
+/// The work (fuel) of one call by default.
+pub const WORK: u64 = 750_000;
+/// The work of the decision procedure on an integrand a rule led to (within the call's).
+const ENGINE_RISCH: u64 = 60_000;
+/// The work of the ansatz on it (within the call's).
+const ENGINE_NORMAN: u64 = 80_000;
 
 /// The quick methods of the caller, tried on every integrand before the rules (`(cx, u, x)`).
 pub type Fallback<'f, 'h> = dyn FnMut(&mut NativeCx<'_, '_, 'h>, T<'h>, T<'h>) -> Res<Option<T<'h>>> + 'f;
@@ -26,8 +33,8 @@ const METHOD_SIZE: usize = 400;
 /// Limits of one call.
 #[derive(Clone, Copy, Debug)]
 pub struct Limits {
-    /// wall-clock time
-    pub time: Duration,
+    /// work (fuel)
+    pub work: u64,
     /// nesting of `int`
     pub depth: u32,
     /// rule applications
@@ -36,7 +43,7 @@ pub struct Limits {
 
 impl Default for Limits {
     fn default() -> Limits {
-        Limits { time: Duration::from_millis(1500), depth: 24, steps: 400 }
+        Limits { work: WORK, depth: 24, steps: 400 }
     }
 }
 
@@ -64,7 +71,7 @@ pub struct Run<'a, 'f, 'c, 'k, 'h> {
     x: T<'h>,
     fallback: &'a mut Fallback<'f, 'h>,
     table: &'static Table,
-    deadline: Instant,
+    deadline: Allowance,
     limits: Limits,
     depth: u32,
     steps: u32,
@@ -88,13 +95,14 @@ impl<'a, 'f, 'c, 'k, 'h> Run<'a, 'f, 'c, 'k, 'h> {
     ) -> Result<Run<'a, 'f, 'c, 'k, 'h>, &'static str> {
         let table = table()?;
         let ar = Arith::new(cx.heap()).with_stop(cx.stop_flag().clone());
+        let deadline = Allowance::new(cx, limits.work);
         Ok(Run {
             cx,
             ar,
             x,
             fallback,
             table,
-            deadline: Instant::now() + limits.time,
+            deadline,
             limits,
             depth: 0,
             steps: 0,
@@ -133,7 +141,7 @@ impl<'a, 'f, 'c, 'k, 'h> Run<'a, 'f, 'c, 'k, 'h> {
     pub fn int(&mut self, u: T<'h>) -> Res<Option<T<'h>>> {
         self.cx.tick(4)?;
         self.stats.integrands += 1;
-        if self.depth >= self.limits.depth || self.steps >= self.limits.steps || Instant::now() > self.deadline {
+        if self.depth >= self.limits.depth || self.steps >= self.limits.steps || self.deadline.expired(self.cx) {
             self.stats.exhausted = true;
             return Ok(None);
         }
@@ -201,7 +209,7 @@ impl<'a, 'f, 'c, 'k, 'h> Run<'a, 'f, 'c, 'k, 'h> {
         self.stats.candidates += cands.len() as u64;
         let mut answer = None;
         for &id in &cands {
-            if Instant::now() > self.deadline {
+            if self.deadline.expired(self.cx) {
                 self.stats.exhausted = true;
                 break;
             }
@@ -342,10 +350,9 @@ impl<'a, 'f, 'c, 'k, 'h> Run<'a, 'f, 'c, 'k, 'h> {
 
 impl<'h> Run<'_, '_, '_, '_, 'h> {
     /// The tower engine on `u` (an exponential-logarithmic integrand a rule or a substitution led to), with a short
-    /// budget inside the run's deadline: the decision procedure, then the ansatz.
+    /// budget inside the run's: the decision procedure, then the ansatz.
     pub(crate) fn engine(&mut self, u: T<'h>) -> Res<Option<T<'h>>> {
-        let left = self.deadline.saturating_duration_since(Instant::now());
-        if left.is_zero() {
+        if self.deadline.expired(self.cx) {
             return Ok(None);
         }
         let h = self.cx.heap();
@@ -360,10 +367,11 @@ impl<'h> Run<'_, '_, '_, '_, 'h> {
         let _ = pow;
         let x = self.x;
         if self.trace {
-            eprintln!("engine left {:?} on {}", left, crate::util::show(h, v, 200));
+            eprintln!("engine left {} on {}", self.deadline.left(self.cx), crate::util::show(h, v, 200));
         }
         let ar = Arith::new(h);
-        match mc_integrate::risch(self.cx, &ar, v, x, left.min(Duration::from_millis(300)))? {
+        let work = self.deadline.within(self.cx, ENGINE_RISCH);
+        match mc_integrate::risch(self.cx, &ar, v, x, work)? {
             mc_integrate::Outcome::Found { part, rest } => {
                 if self.trace {
                     eprintln!(
@@ -380,11 +388,11 @@ impl<'h> Run<'_, '_, '_, '_, 'h> {
             }
             mc_integrate::Outcome::NonElementary(_) | mc_integrate::Outcome::Unknown => {}
         }
-        let left = self.deadline.saturating_duration_since(Instant::now());
-        if left.is_zero() {
+        if self.deadline.expired(self.cx) {
             return Ok(None);
         }
-        mc_integrate::norman(self.cx, &ar, v, x, left.min(Duration::from_millis(400)), true)
+        let work = self.deadline.within(self.cx, ENGINE_NORMAN);
+        mc_integrate::norman(self.cx, &ar, v, x, work, true)
     }
 }
 
