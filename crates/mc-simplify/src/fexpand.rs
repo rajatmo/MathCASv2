@@ -146,6 +146,80 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
         ("beta", [a, c]) => b.div(b.mul(&[g(*a), g(*c)]), g(b.add(&[*a, *c]))),
         ("pochhammer", [a, n]) => b.div(g(b.add(&[*a, *n])), g(*a)),
         ("harmonic_number", [x]) => b.add(&[h.sym_term(h.sym("euler_gamma")), b.call_named("digamma", &[b.add(&[*x, one])])]),
+        // H(r, m) = binomial(m + r - 1, r - 1) (H(m + r - 1) - H(r - 1)) (Conway and Guy, The Book of Numbers, 1996,
+        // p. 258), continued by gamma and digamma
+        ("hyper_harmonic_number", [r, m]) => {
+            let ratio = b.div(g(b.add(&[*m, *r])), b.mul(&[g(b.add(&[*m, one])), g(*r)]));
+            // a small integer m: digamma(m + r) - digamma(r) is the finite sum of 1/(r + j), j < m
+            let diff = match h.view(*m) {
+                View::Int(k) if (1..=20).contains(&k) => b.add(&(0..k).map(|j| b.powi(b.add(&[*r, b.int(j)]), -1)).collect::<Vec<_>>()),
+                _ => b.sub(b.call_named("digamma", &[b.add(&[*m, *r])]), b.call_named("digamma", &[*r])),
+            };
+            b.mul(&[ratio, diff])
+        }
+        // Gauss's digamma theorem at p/q, q = 2, 3, 4, 6 (DLMF 5.4.19), with the recurrence for the integer part
+        // (DLMF 5.5.2)
+        ("digamma", [x]) => {
+            let View::Rational { .. } = h.view(*x) else { return None };
+            let (num, den) = small_fraction(h, *x)?;
+            if ![2, 3, 4, 6].contains(&den) || num.abs() > 50 * den {
+                return None;
+            }
+            let p = num.rem_euclid(den);
+            let n = (num - p) / den;
+            let frac = b.rat(p, den);
+            let arg = |k: i64| b.mul(&[pi, b.rat(k, den)]);
+            let mut terms = vec![
+                b.neg(h.sym_term(h.sym("euler_gamma"))),
+                b.neg(b.call_named("log", &[b.int(2 * den)])),
+                b.neg(b.mul(&[b.rat(1, 2), pi, b.call_named("cot", &[b.mul(&[pi, frac])])])),
+            ];
+            for k in 1..=(den - 1) / 2 {
+                terms.push(b.mul(&[b.int(2), b.call_named("cos", &[arg(2 * k * p)]), b.call_named("log", &[b.call_named("sin", &[arg(k)])])]));
+            }
+            // psi(f + n) = psi(f) + sum_(j < n) 1/(f + j); psi(f - n) = psi(f) - sum_(j = 1..n) 1/(f - j)
+            if n > 0 {
+                for j in 0..n {
+                    terms.push(b.powi(b.add(&[frac, b.int(j)]), -1));
+                }
+            } else {
+                for j in 1..=-n {
+                    terms.push(b.neg(b.powi(b.sub(frac, b.int(j)), -1)));
+                }
+            }
+            b.add(&terms)
+        }
+        // m! - (m - 1)! + ... the continuation e gamma(m + 2) gamma(-m - 1, 1) - cos(pi m) (1 + e Ei(-1))
+        ("alternating_factorial", [m]) => {
+            let e = h.sym_term(h.sym("e"));
+            let cos = b.call_named("cos", &[b.mul(&[pi, *m])]);
+            let first = b.mul(&[e, g(b.add(&[*m, b.int(2)])), b.call_named("gamma", &[b.sub(b.int(-1), *m), one])]);
+            let ei = b.mul(&[e, cos, b.call_named("exp_integral_ei", &[b.int(-1)])]);
+            b.sub(b.sub(first, cos), ei)
+        }
+        // the sum of (-1)^(k + 1)/k^r up to m by the digamma or polygamma functions of (m + 1)/2 and (m + 2)/2
+        // (DLMF 25.11.12 for zeta(r, a) at an integer r >= 2)
+        ("alternating_harmonic_number", [m]) => b.call_named("alternating_harmonic_number", &[*m, one]),
+        ("alternating_harmonic_number", [m, r]) => {
+            let sign = b.pow(b.int(-1), *m);
+            let a1 = b.div(b.add(&[*m, one]), b.int(2));
+            let a2 = b.div(b.add(&[*m, b.int(2)]), b.int(2));
+            if *r == one {
+                let d = b.sub(b.call_named("digamma", &[a2]), b.call_named("digamma", &[a1]));
+                b.sub(b.call_named("log", &[b.int(2)]), b.mul(&[b.rat(1, 2), sign, d]))
+            } else {
+                let View::Int(k) = h.view(*r) else { return None };
+                if !(2..=40).contains(&k) {
+                    return None;
+                }
+                let fact: i64 = (1..k).product();
+                let pg = |a: T<'h>| b.call_named("polygamma", &[b.int(k - 1), a]);
+                let c = b.rat(if k % 2 == 0 { 1 } else { -1 }, fact);
+                let zeta = b.mul(&[b.sub(one, b.pow(b.int(2), b.int(1 - k))), b.call_named("zeta", &[*r])]);
+                let tail = b.mul(&[sign, b.pow(b.int(2), b.int(-k)), c, b.sub(pg(a1), pg(a2))]);
+                b.sub(zeta, tail)
+            }
+        }
         ("erfc", [x]) => b.sub(one, b.call_named("erf", &[*x])),
         ("sinc", [x]) => b.div(b.call_named("sin", &[*x]), *x),
         ("sec" | "csc" | "cot" | "sech" | "csch" | "coth", _) if !reciprocals => return None,
@@ -263,4 +337,13 @@ fn heaviside_shapes<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> R
     }
     let r = cx.eval(r)?;
     crate::term::apply(cx, b, "expand", r)
+}
+
+/// A rational number with small numerator and denominator as (num, den).
+fn small_fraction<'h>(h: &'h mc_core::Heap, x: T<'h>) -> Option<(i64, i64)> {
+    let View::Rational { num, den } = h.view(x) else { return None };
+    match (h.view(num), h.view(den)) {
+        (View::Int(n), View::Int(d)) if d > 0 => Some((n, d)),
+        _ => None,
+    }
 }

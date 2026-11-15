@@ -351,3 +351,22 @@ field and the degree-42 norm.
   term; the library's placeholder `calc_rs_z` (used to build a summand from a computed body) is written back as a
   slot.
 - Checked numerically against sums over `root(p, k)` at 30 digits for several parameter points.
+
+## Round 44: root counts of meromorphic and special functions
+
+- `count_roots(f, [x, a, b])` on a bounded range (width at most 1000) of an f with poles: tan, cot, sec, csc are
+  written with sin and cos, and gamma(u) of an affine u with a real slope as gamma(u + m)/(u (u + 1) ... (u + m - 1))
+  with the least m that puts re(u + m) >= 1/2 on the range; f = N/D by `together`, D factored. The zeros of f are those
+  of N once N and D are proved to have no common zero on the range: a cover by boxes on each of which the enclosure of
+  D or of N excludes 0 (D first: it is cheap, N is needed only near the zeros of D). N is then counted as before.
+- Library functions: gamma, digamma, polygamma, bessel_j, bessel_i, airy_ai, airy_bi may appear (their ball forms are
+  enclosures by the library's contract and quick on wide boxes); others (erfc of a complex box took minutes) still
+  decline. A real interval is cut at the integers inside it where f is exactly 0, each such root counted from its
+  exact derivatives at the end of both sides and once in the total (`bessel_j(2, x) - sin(x^2)` has a double root at
+  0). Counts: `bessel_j(2, x) - sin(x^2)` on [-3, 3] is 8, `gamma(x) + exp(x) - 7 x` on [-3, 3] is 6,
+  `tan(z) - log(z + 3) - z^2` on the square of corners -2 - 2i, 2 + 2i is 4, `gamma(z) - z - 1` there is 3 (about 12 s:
+  the complex gamma ball costs milliseconds per box).
+- Gaps: fresnel_c of a complex box (no enclosure; the erf form does not help, erf's complex ball declines on wide
+  boxes), the whole line for functions with an unbounded tail.
+- `root_reduce` of a product with factors that are not algebraic (pi) reduces its algebraic factors together:
+  `root_reduce(2 i pi root(...))` is `pi root(...)` of one polynomial.

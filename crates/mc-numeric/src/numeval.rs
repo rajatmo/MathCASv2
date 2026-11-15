@@ -216,6 +216,17 @@ impl<'h> Graph<'h> {
         is.order.iter().any(|&i| matches!(self.nodes[i as usize], Node::Lib(..)))
     }
 
+    /// The names of the library functions the island calls.
+    pub fn library_names(&self, is: &Island) -> Vec<&'static str> {
+        is.order
+            .iter()
+            .filter_map(|&i| match &self.nodes[i as usize] {
+                Node::Lib(f, _) => Some(f.0.name()),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Does the island take an absolute value (which is not analytic)?
     pub fn has_abs(&self, is: &Island) -> bool {
         is.order.iter().any(|&i| matches!(self.nodes[i as usize], Node::Abs(_)))

@@ -300,6 +300,114 @@ pub fn sin_pi<'h>(sx: &mut Sx<'_, '_, '_, 'h>, u: T<'h>) -> Res<T<'h>> {
     Ok(s)
 }
 
+/// `g = A (1 - z Q^k)` with A, z, Q free of k (g = A + B q^(a k + b), a a nonzero integer: Q = q^a,
+/// z = -(B/A) q^b), as (A, z, Q).
+fn q_factor<'h>(sx: &mut Sx<'_, '_, '_, 'h>, g: T<'h>, k: T<'h>) -> Res<Option<(T<'h>, T<'h>, T<'h>)>> {
+    let h = sx.h();
+    let View::App { head, args } = h.view(g) else { return Ok(None) };
+    if head != sx.sym(names::ADD) || args.len() != 2 {
+        return Ok(None);
+    }
+    let (a, t) = match (sx.free(args[0], k), sx.free(args[1], k)) {
+        (true, false) => (args[0], args[1]),
+        (false, true) => (args[1], args[0]),
+        _ => return Ok(None),
+    };
+    // t = B q^e: the one factor holding k is a power with a base free of k
+    let parts: Vec<T<'h>> = match h.view(t) {
+        View::App { head, args } if head == sx.sym(names::MUL) => args.to_vec(),
+        _ => vec![t],
+    };
+    let mut coef = vec![];
+    let mut power = None;
+    for p in parts {
+        if sx.free(p, k) {
+            coef.push(p);
+        } else if power.is_none() {
+            power = Some(p);
+        } else {
+            return Ok(None);
+        }
+    }
+    let Some(p) = power else { return Ok(None) };
+    let View::App { head, args: &[q, e] } = h.view(p) else { return Ok(None) };
+    if head != sx.sym(names::POW) || !sx.free(q, k) {
+        return Ok(None);
+    }
+    let slope = sx.ev("d", &[e, k])?;
+    let Some(sa) = sx.as_int(slope).filter(|&s| s != 0) else { return Ok(None) };
+    let e0 = sx.subst(e, k, sx.int(0))?;
+    if !sx.free(e0, k) || a == sx.int(0) {
+        return Ok(None);
+    }
+    let bq = sx.mul(&coef)?;
+    let qa = sx.pow(q, sx.int(sa))?;
+    let z = sx.div(bq, a)?;
+    let qb = sx.pow(q, e0)?;
+    let z = sx.mul(&[sx.int(-1), z, qb])?;
+    Ok(Some((a, z, qa)))
+}
+
+/// `prod_{k=lo}^{hi}` of a product of factors free of k and one factor `A (1 - z Q^k)` (Gasper and Rahman, Basic
+/// Hypergeometric Series, 2nd ed., section 1.2): `C^N A^N q_pochhammer(z Q^lo, Q, N)` with N = hi - lo + 1, and to
+/// infinity (A = C = 1 only; it converges for |Q| < 1) `q_pochhammer(z Q^lo, Q)`, written for a numeric z and a
+/// small lo >= 1 as `q_pochhammer(z, Q) / prod_(j < lo) (1 - z Q^j)` when 1 - z is not 0.
+fn q_product<'h>(sx: &mut Sx<'_, '_, '_, 'h>, factors: &[T<'h>], k: T<'h>, lo: T<'h>, hi: Option<T<'h>>) -> Res<Option<T<'h>>> {
+    let mut consts = vec![];
+    let mut qf = None;
+    for &g in factors {
+        if sx.free(g, k) {
+            consts.push(g);
+        } else if qf.is_none() {
+            qf = Some(some!(q_factor(sx, g, k)?));
+        } else {
+            return Ok(None);
+        }
+    }
+    let Some((a, z, q)) = qf else { return Ok(None) };
+    if q == sx.int(1) || !sx.free(lo, k) {
+        return Ok(None);
+    }
+    let c = sx.mul(&consts)?;
+    match hi {
+        None => {
+            if a != sx.int(1) || c != sx.int(1) {
+                return Ok(None);
+            }
+            let small = sx.as_int(lo).filter(|l| (1..=8).contains(l));
+            let rational = matches!(sx.h().view(z), View::Int(_) | View::BigInt { .. } | View::Rational { .. });
+            if let (Some(l), true) = (small, rational) {
+                let mz = sx.mul(&[sx.int(-1), z])?;
+                let first = sx.add(&[sx.int(1), mz])?;
+                if first != sx.int(0) {
+                    let mut den = vec![];
+                    for j in 0..l {
+                        let qj = sx.pow(q, sx.int(j))?;
+                        let t = sx.mul(&[sx.int(-1), z, qj])?;
+                        den.push(sx.add(&[sx.int(1), t])?);
+                    }
+                    let d = sx.mul(&den)?;
+                    let qp = sx.ev("q_pochhammer", &[z, q])?;
+                    return Ok(Some(sx.div(qp, d)?));
+                }
+            }
+            let ql = sx.pow(q, lo)?;
+            let zl = sx.mul(&[z, ql])?;
+            Ok(Some(sx.ev("q_pochhammer", &[zl, q])?))
+        }
+        Some(hi) => {
+            let mlo = sx.mul(&[sx.int(-1), lo])?;
+            let n = sx.add(&[hi, mlo, sx.int(1)])?;
+            let ql = sx.pow(q, lo)?;
+            let zl = sx.mul(&[z, ql])?;
+            let qp = sx.ev("q_pochhammer", &[zl, q, n])?;
+            let ca = sx.mul(&[c, a])?;
+            let can = sx.pow(ca, n)?;
+            Ok(Some(sx.mul(&[can, qp])?))
+        }
+    }
+}
+
 /// The closed form of `prod_{k=lo}^{hi} f(k)` for a product of factors: rational factors together, the others
 /// (`c^g(k)`, ...) through `product` itself; `None` when one stays unevaluated.
 pub fn product<'h>(
@@ -338,6 +446,11 @@ pub fn product<'h>(
             rational.push(g);
         } else {
             other.push(g);
+        }
+    }
+    if rational.is_empty() || rational.iter().all(|&g| sx.free(g, k)) {
+        if let Some(v) = q_product(sx, &factors, k, lo, hi)? {
+            return Ok(Some(v));
         }
     }
     if rational.is_empty() {

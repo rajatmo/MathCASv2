@@ -53,6 +53,11 @@ pub fn poles<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>) -> 
     if !others.is_empty() && !matches!(sets::meets(cx, b, &s2, &others, s.cond)?, sets::Meet::No) {
         return Ok(None);
     }
+    match composed(cx, b, s, x)? {
+        Comp::Done(t) => return Ok(Some(t)),
+        Comp::Decline => return Ok(None),
+        Comp::Other => {}
+    }
     let f = s.f;
     let c1 = b.call("c", &[b.one()]);
     let bounded = s.cond.is_some_and(|c| bounds(b, c, x));
@@ -85,7 +90,19 @@ pub fn poles<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>) -> 
                     continue;
                 }
                 let d = sets::poly_degree(b, u, &[x]).unwrap_or(1000);
-                ((0..=40).map(|k| b.call("equal", &[u, b.int(-k)])).collect(), d)
+                // the poles u = -k inside the condition have k <= max |u| over its disc: that bound must be proved
+                // and small, or the list could miss poles beyond the ones enumerated
+                let Some(c) = s.cond else { return Ok(None) };
+                let Some(kmax) = (match disc(cx, b, c, x)? {
+                    Some((a, r, _)) => abs_bound(cx, b, u, x, a, r)?,
+                    None => None,
+                }) else {
+                    return Ok(None);
+                };
+                if kmax > 40.0 {
+                    return Ok(None);
+                }
+                ((0..=kmax.floor() as i64).map(|k| b.call("equal", &[u, b.int(-k)])).collect(), d)
             }
             None => return Ok(None),
         };
@@ -214,12 +231,413 @@ pub fn poles<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>) -> 
             continue;
         }
         let key = if c.family { (0.0, 0.0) } else { numeric_key(cx, b, c.p)? };
-        let degree = if sets::real_rational(b, c.p) { 1 } else { c.degree };
+        let degree = if c.family { c.degree } else { point_degree(cx, b, c.p, c.degree)? };
         out.push((degree, key, c.p, m));
     }
-    out.sort_by(|a, c| a.0.cmp(&c.0).then(a.1 .1.total_cmp(&c.1 .1)).then(a.1 .0.total_cmp(&c.1 .0)));
+    Ok(Some(sorted_list(cx, b, out)))
+}
+
+/// The list `[[p1, m1], ...]` of points (degree of the point, (re, im), point, order), ordered by the degree, then
+/// by the modulus, the imaginary and the real part (moduli equal to 9 digits count as equal).
+fn sorted_list<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, mut out: Vec<(u32, (f64, f64), T<'h>, i64)>) -> T<'h> {
+    let modulus = |k: &(f64, f64)| {
+        let a = k.0.hypot(k.1);
+        if a == 0.0 {
+            0
+        } else {
+            (a.ln() * 1e9).round() as i64
+        }
+    };
+    out.sort_by(|a, c| {
+        a.0.cmp(&c.0)
+            .then((a.1 .0.hypot(a.1 .1) != 0.0).cmp(&(c.1 .0.hypot(c.1 .1) != 0.0)))
+            .then(modulus(&a.1).cmp(&modulus(&c.1)))
+            .then(a.1 .1.total_cmp(&c.1 .1))
+            .then(a.1 .0.total_cmp(&c.1 .0))
+    });
     let items: Vec<T<'h>> = out.iter().map(|(_, _, p, m)| cx.list(&[*p, b.int(*m)])).collect();
-    Ok(Some(cx.list(&items)))
+    cx.list(&items)
+}
+
+/// The degree used to order a point: 1 for a Gaussian rational, else the degree of its minimal polynomial over Q
+/// when it is an algebraic number, else `fallback` (the degree of the equation it solves).
+fn point_degree<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, p: T<'h>, fallback: u32) -> Res<u32> {
+    let h = b.heap();
+    let rational = |t: T<'h>| matches!(h.view(t), View::Int(_) | View::BigInt { .. } | View::Rational { .. });
+    let re = cx.eval(b.call("re", &[p]))?;
+    let im = cx.eval(b.call("im_part", &[p]))?;
+    if rational(re) && rational(im) {
+        return Ok(1);
+    }
+    let t = h.sym_term(h.sym("t$pole"));
+    let mp = cx.eval(b.call("minimal_polynomial", &[p, t]))?;
+    if sets::is_head(b, mp, "minimal_polynomial") || sets::is_head(b, mp, names::FAILURE) {
+        return Ok(fallback);
+    }
+    Ok(sets::poly_degree(b, mp, &[t]).filter(|&d| d >= 1).unwrap_or(fallback))
+}
+
+/// The disc of a condition `abs(x - a) <= r` (`<`, `>=`, `>` with the sides exchanged): (a, r, strict), with a
+/// and r numbers.
+fn disc<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: T<'h>, x: T<'h>) -> Res<Option<(T<'h>, T<'h>, bool)>> {
+    let h = b.heap();
+    let View::App { head, args: &[l, r] } = h.view(c) else { return Ok(None) };
+    let Some(hs) = b.sym_of(head) else { return Ok(None) };
+    let (ab, rad, strict) = match h.sym_name(hs).as_str() {
+        "less" => (l, r, true),
+        "less_equal" => (l, r, false),
+        "greater" => (r, l, true),
+        "greater_equal" => (r, l, false),
+        _ => return Ok(None),
+    };
+    let View::App { head: ha, args: &[inner] } = h.view(ab) else { return Ok(None) };
+    if b.sym_of(ha) != Some(h.sym("abs")) || !is_free(b, rad, x) {
+        return Ok(None);
+    }
+    // inner = x - a with a free of x
+    let slope = cx.eval(b.call("d", &[inner, x]))?;
+    let a = cx.eval(b.call("expand", &[b.sub(x, inner)]))?;
+    if slope != b.one() || !is_free(b, a, x) {
+        return Ok(None);
+    }
+    let numeric = |cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>| -> Res<bool> {
+        let v = cx.eval(b.call("n", &[t]))?;
+        Ok(b.ar.num(v).is_some())
+    };
+    if !numeric(cx, a)? || !numeric(cx, rad)? {
+        return Ok(None);
+    }
+    Ok(Some((a, rad, strict)))
+}
+
+/// An upper bound of |u(x)| over the disc |x - a| <= r for a polynomial u: sum |d_j| r^j over the coefficients of
+/// u(a + t), each term bounded above from its 30-digit value; `None` when u is not such a polynomial.
+fn abs_bound<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, x: T<'h>, a: T<'h>, r: T<'h>) -> Res<Option<f64>> {
+    let h = b.heap();
+    let a = cx.eval(a)?;
+    if !is_free(b, a, x) || sets::poly_degree(b, u, &[x]).is_none() {
+        return Ok(None);
+    }
+    let t = h.sym_term(h.sym("t$pole"));
+    let shifted = cx.eval(b.call("expand", &[h.call(h.sym("rewrite"), &[u, h.call(h.sym(names::RULE), &[x, b.add(&[a, t])])])]))?;
+    let cl = cx.eval(b.call("coefficient_list", &[shifted, t]))?;
+    let Some(cs) = cx.as_list(cl).map(|c| c.to_vec()) else { return Ok(None) };
+    let mut total = 0.0f64;
+    for (j, c) in cs.into_iter().enumerate() {
+        let term = b.mul(&[b.call("abs", &[c]), b.powi(r, j as i64)]);
+        let v = cx.eval(b.call("n", &[term, b.int(30)]))?;
+        let y = match h.view(v) {
+            View::Int(k) => k as f64,
+            _ => match super::proof::bounds(b, v) {
+                Some((_, hi)) => hi,
+                None => return Ok(None),
+            },
+        };
+        if !y.is_finite() || y < 0.0 {
+            return Ok(None);
+        }
+        total += y * (1.0 + 1e-12) + 1e-300;
+    }
+    Ok(Some(total * (1.0 + 1e-12) + 1e-12))
+}
+
+/// The answer with the parameters `c(j)` of its families renamed by the option `generated_parameters: g` (a
+/// function of j, as `j => subscript(k, j)`).
+pub fn with_parameters<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>], r: Option<T<'h>>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let Some(r) = r else { return Ok(None) };
+    let Some(&last) = args.last() else { return Ok(Some(r)) };
+    let View::App { head, args: rules } = h.view(last) else { return Ok(Some(r)) };
+    if b.sym_of(head) != Some(h.sym("options")) {
+        return Ok(Some(r));
+    }
+    for &rule in rules {
+        let View::App { args: &[k, g], .. } = h.view(rule) else { continue };
+        if k != h.sym_term(h.sym("generated_parameters")) {
+            continue;
+        }
+        let mut subs = vec![];
+        for j in 1..=4 {
+            let cj = b.call("c", &[b.int(j)]);
+            if !is_free(b, r, cj) {
+                let v = cx.eval(h.app(g, &[b.int(j)]))?;
+                subs.push(h.call(h.sym(names::RULE), &[cj, v]));
+            }
+        }
+        if subs.is_empty() {
+            return Ok(Some(r));
+        }
+        return Ok(Some(cx.eval(h.call(h.sym("rewrite"), &[r, cx.list(&subs)]))?));
+    }
+    Ok(Some(r))
+}
+
+/// The outcome of [`composed`].
+enum Comp<'h> {
+    /// the poles
+    Done(T<'h>),
+    /// the form is recognised but no answer is proved: the call stays
+    Decline,
+    /// not this form
+    Other,
+}
+
+/// Where a library function has its poles (all simple): gamma at the integers `c <= 0`, the circular functions at
+/// `pi (c + h)` and the hyperbolic ones at `i pi (c + h)` (h = 1/2 for tan, sec, tanh, sech; 0 for the others).
+#[derive(Clone, Copy)]
+enum PoleSet {
+    Gamma,
+    Periodic { half: bool, imaginary: bool },
+}
+
+impl PoleSet {
+    fn of(name: &str) -> Option<PoleSet> {
+        Some(match name {
+            "gamma" => PoleSet::Gamma,
+            "tan" | "sec" => PoleSet::Periodic { half: true, imaginary: false },
+            "cot" | "csc" => PoleSet::Periodic { half: false, imaginary: false },
+            "tanh" | "sech" => PoleSet::Periodic { half: true, imaginary: true },
+            "coth" | "csch" => PoleSet::Periodic { half: false, imaginary: true },
+            _ => return None,
+        })
+    }
+    /// The pole for the integer (or the symbol) c.
+    fn value<'h>(self, b: &Build<'h>, c: T<'h>) -> T<'h> {
+        let h = b.heap();
+        match self {
+            PoleSet::Gamma => c,
+            PoleSet::Periodic { half, imaginary } => {
+                let off = if half { b.add(&[c, b.rat(1, 2)]) } else { c };
+                let pi = h.sym_term(h.sym("pi"));
+                if imaginary {
+                    b.mul(&[h.sym_term(h.sym("im")), pi, off])
+                } else {
+                    b.mul(&[pi, off])
+                }
+            }
+        }
+    }
+}
+
+/// The poles of `g(u)` for g with a known set of simple poles ([`PoleSet`]) and u a polynomial in x with rational
+/// coefficients (degree 2 or more; degree 1 with a bounded condition for gamma): the points where u takes a pole
+/// of g. The order at such a point x0 is the multiplicity of x0 as a root of u - v, v the pole of g:
+///
+/// - for the circular and hyperbolic functions every nonzero pole v is a nonzero rational multiple of pi (or i pi),
+///   a transcendental number (Lindemann 1882), while the critical values u(xi), u'(xi) = 0, of a polynomial with
+///   rational coefficients are algebraic: every root of u - v is simple. At v = 0 the roots of u must be simple
+///   (gcd(u, u') constant), else the call stays;
+/// - for gamma a root of u + k is multiple exactly when -k is a critical value: without a condition the critical
+///   values (the roots of the resultant of u - y and u' in y) must not be integers <= 0; inside a disc each root's
+///   multiplicity is decided exactly.
+///
+/// Without a condition the answer is the family of the solutions of `u == v(c(1))` (with `c(1) <= 0` for gamma);
+/// a square root of `kappa L` with kappa > 0 and L linear in c(1) with coprime integer coefficients is written
+/// `sqrt(kappa) sqrt(L)` (and `i sqrt(-L)` when L < 0 on the whole family). Inside a disc `abs(x - a) <= r` the
+/// poles v with |v| <= max |u| on the disc (a proved bound: the sum of |d_j| r^j over the coefficients of
+/// u(a + t)) are enumerated and each root of u - v kept when its distance to a is proved at most r.
+fn composed<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<'h>) -> Res<Comp<'h>> {
+    let h = b.heap();
+    let View::App { head, args: &[u] } = h.view(s.f) else { return Ok(Comp::Other) };
+    let Some(set) = b.sym_of(head).and_then(|g| PoleSet::of(&h.sym_name(g))) else { return Ok(Comp::Other) };
+    let Some(deg) = sets::poly_degree(b, u, &[x]) else { return Ok(Comp::Other) };
+    if deg == 0 || !s.facts.is_empty() {
+        return Ok(Comp::Other);
+    }
+    let cl = cx.eval(b.call("coefficient_list", &[u, x]))?;
+    let rational = |t: T<'h>| matches!(h.view(t), View::Int(_) | View::BigInt { .. } | View::Rational { .. });
+    if !cx.as_list(cl).is_some_and(|cs| cs.iter().all(|&c| rational(c))) {
+        return Ok(Comp::Other);
+    }
+    let gamma = matches!(set, PoleSet::Gamma);
+    let c1 = b.call("c", &[b.one()]);
+    let du = cx.eval(b.call("d", &[u, x]))?;
+    // the roots of u at a pole 0 of the circular and hyperbolic functions must be simple
+    let zero_pole = matches!(set, PoleSet::Periodic { half: false, .. });
+    if zero_pole && deg >= 2 {
+        let g = cx.eval(b.call("polynomial_gcd", &[u, du]))?;
+        if !is_free(b, g, x) {
+            return Ok(Comp::Decline);
+        }
+    }
+    match s.cond {
+        None => {
+            if deg < 2 {
+                return Ok(Comp::Other);
+            }
+            // a family in closed form: the two square roots of a quadratic (both roots whatever the branch);
+            // the radical forms of a cubic or quartic pair their roots by branch choices not proved for every c
+            if deg > 2 {
+                return Ok(Comp::Decline);
+            }
+            if gamma {
+                // no critical value of u is an integer <= 0
+                let y = h.sym_term(h.sym("y$pole"));
+                let res = cx.eval(b.call("resultant", &[b.sub(u, y), du, x]))?;
+                let sol = cx.eval(b.call("solve", &[b.call("equal", &[res, b.zero()]), y]))?;
+                let Some(rows) = cx.as_list(sol).map(|r| r.to_vec()) else { return Ok(Comp::Decline) };
+                for row in rows {
+                    let Some(&[rule]) = cx.as_list(row) else { return Ok(Comp::Decline) };
+                    let View::App { args: &[_, v], .. } = h.view(rule) else { return Ok(Comp::Decline) };
+                    match h.view(v) {
+                        View::Int(k) if k <= 0 => return Ok(Comp::Decline),
+                        View::BigInt { .. } => return Ok(Comp::Decline),
+                        _ => {}
+                    }
+                }
+            }
+            // solved in a plain symbol, renamed c(1) at the end
+            let cs = h.sym_term(h.sym("c$pole"));
+            let sol = cx.eval(b.call("solve", &[b.call("equal", &[u, set.value(b, cs)]), x]))?;
+            let Some(rows) = cx.as_list(sol).map(|r| r.to_vec()) else { return Ok(Comp::Decline) };
+            let ints = b.call("element", &[c1, h.sym_term(h.sym("integers"))]);
+            let cond = if gamma { b.call("and", &[ints, b.call("less_equal", &[c1, b.zero()])]) } else { ints };
+            let mut items = vec![];
+            for row in rows {
+                cx.tick(1)?;
+                let Some(&[rule]) = cx.as_list(row) else { return Ok(Comp::Decline) };
+                let View::App { args: &[_, v], .. } = h.view(rule) else { return Ok(Comp::Decline) };
+                if !is_free(b, v, x) || sets::is_head(b, v, mc_decide::CONDITIONAL) {
+                    return Ok(Comp::Decline);
+                }
+                let v = split_roots(cx, b, v, cs, gamma)?;
+                let v = cx.eval(h.call(h.sym("rewrite"), &[v, h.call(h.sym(names::RULE), &[cs, c1])]))?;
+                let fam = cx.eval(h.call(h.sym(mc_decide::CONDITIONAL), &[v, cond]))?;
+                if !items.contains(&fam) {
+                    items.push(fam);
+                }
+            }
+            let items: Vec<T<'h>> = items.into_iter().map(|p| cx.list(&[p, b.one()])).collect();
+            Ok(Comp::Done(cx.list(&items)))
+        }
+        Some(c) => {
+            if deg < 2 && !gamma {
+                return Ok(Comp::Other);
+            }
+            let Some((a, r, strict)) = disc(cx, b, c, x)? else { return Ok(Comp::Other) };
+            let Some(kmax) = abs_bound(cx, b, u, x, a, r)? else { return Ok(Comp::Decline) };
+            // the poles v of g with |v| <= kmax
+            let range: Vec<i64> = if gamma {
+                if kmax > 40.0 {
+                    return Ok(Comp::Decline);
+                }
+                (0..=kmax.floor() as i64).map(|k| -k).collect()
+            } else {
+                let m = (kmax / std::f64::consts::PI).ceil() as i64 + 1;
+                if m > 40 {
+                    return Ok(Comp::Decline);
+                }
+                (-m..=m).collect()
+            };
+            let mut out: Vec<(u32, (f64, f64), T<'h>, i64)> = vec![];
+            for k in range {
+                cx.tick(1)?;
+                let v = cx.eval(set.value(b, b.int(k)))?;
+                let p = cx.eval(b.sub(u, v))?;
+                let sol = cx.eval(b.call("solve", &[b.call("equal", &[p, b.zero()]), x]))?;
+                let Some(rows) = cx.as_list(sol).map(|r| r.to_vec()) else { return Ok(Comp::Decline) };
+                for row in rows {
+                    cx.tick(1)?;
+                    let Some(&[rule]) = cx.as_list(row) else { return Ok(Comp::Decline) };
+                    let View::App { args: &[_, z], .. } = h.view(rule) else { return Ok(Comp::Decline) };
+                    if !is_free(b, z, x) || sets::is_head(b, z, mc_decide::CONDITIONAL) {
+                        return Ok(Comp::Decline);
+                    }
+                    if out.iter().any(|q| q.2 == z) {
+                        continue;
+                    }
+                    // |z - a|^2 - r^2: negative inside, 0 on the circle
+                    let w = b.sub(z, a);
+                    let d2 = b.sub(b.add(&[b.powi(b.call("re", &[w]), 2), b.powi(b.call("im_part", &[w]), 2)]), b.powi(r, 2));
+                    let inside = match super::proof::closed_sign(cx, b, d2)? {
+                        Some(-1) => true,
+                        Some(0) => !strict,
+                        Some(_) => false,
+                        None => return Ok(Comp::Decline),
+                    };
+                    if !inside {
+                        continue;
+                    }
+                    // the multiplicity of z as a root of u - v (simple for a transcendental v)
+                    let m = if gamma || v == b.zero() {
+                        match rational_order(cx, b, p, x, z)? {
+                            Some(m) if m >= 1 => m,
+                            _ => return Ok(Comp::Decline),
+                        }
+                    } else {
+                        1
+                    };
+                    let key = numeric_key(cx, b, z)?;
+                    let degree = point_degree(cx, b, z, deg)?;
+                    out.push((degree, key, z, m));
+                }
+            }
+            Ok(Comp::Done(sorted_list(cx, b, out)))
+        }
+    }
+}
+
+/// `v` with each square root of `kappa L` (kappa > 0, L = n c + m with coprime integers, n > 0) written
+/// `sqrt(kappa) sqrt(L)`, and `sqrt(L)` as `i sqrt(-L)` when `nonpos` (c <= 0) makes L negative on the family.
+fn split_roots<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'h>, c: T<'h>, nonpos: bool) -> Res<T<'h>> {
+    let h = b.heap();
+    let mut roots = vec![];
+    collect_sqrt(b, v, &mut roots);
+    let mut rules = vec![];
+    for rt in roots {
+        let View::App { args: &[radicand, _], .. } = h.view(rt) else { continue };
+        if is_free(b, radicand, c) {
+            continue;
+        }
+        // linear in c: a nonzero derivative free of c
+        let alpha = cx.eval(b.call("d", &[radicand, c]))?;
+        if alpha == b.zero() || !is_free(b, alpha, c) {
+            continue;
+        }
+        let beta = cx.eval(h.call(h.sym("rewrite"), &[radicand, h.call(h.sym(names::RULE), &[c, b.zero()])]))?;
+        let q = cx.eval(b.call("simplify", &[b.div(beta, alpha)]))?;
+        let (num, den) = match h.view(q) {
+            View::Int(k) => (k, 1),
+            View::Rational { .. } => {
+                let n = cx.eval(b.call("numerator", &[q]))?;
+                let d = cx.eval(b.call("denominator", &[q]))?;
+                match (h.view(n), h.view(d)) {
+                    (View::Int(n), View::Int(d)) if d > 0 => (n, d),
+                    _ => continue,
+                }
+            }
+            _ => continue,
+        };
+        let kappa = cx.eval(b.call("simplify", &[b.div(alpha, b.int(den))]))?;
+        if super::proof::closed_sign(cx, b, kappa)? != Some(1) {
+            continue;
+        }
+        let l = b.add(&[b.mul(&[b.int(den), c]), b.int(num)]);
+        let half = b.rat(1, 2);
+        // L <= num < 0 for every c <= 0
+        let root_l = if nonpos && num < 0 { b.mul(&[h.sym_term(h.sym("im")), b.pow(b.neg(l), half)]) } else { b.pow(l, half) };
+        let new = b.mul(&[b.pow(kappa, half), root_l]);
+        rules.push(h.call(h.sym(names::RULE), &[rt, new]));
+    }
+    if rules.is_empty() {
+        return Ok(v);
+    }
+    cx.eval(h.call(h.sym("rewrite"), &[v, cx.list(&rules)]))
+}
+
+fn collect_sqrt<'h>(b: &Build<'h>, t: T<'h>, out: &mut Vec<T<'h>>) {
+    let h = b.heap();
+    if let View::App { head, args } = h.view(t) {
+        if b.sym_of(head) == Some(b.hd.pow) && args.len() == 2 && args[1] == b.rat(1, 2) {
+            if !out.contains(&t) {
+                out.push(t);
+            }
+            return;
+        }
+        for &a in args {
+            collect_sqrt(b, a, out);
+        }
+    }
 }
 
 fn clone_spec<'h>(s: &Spec<'h>) -> Spec<'h> {

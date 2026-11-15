@@ -605,3 +605,11 @@ by the decision service:
   domain of numbers (`element(inf, complexes)`).
 Gaps: `mod(a, -b) + mod(-a, b) == 0` (no transformation for `mod` of a negated modulus); `quotient(4 n + 5, 2)` is
 `2 + 2 n` where the documented form is `2 (1 + n)` (a form only).
+## Round 44: harmonic-type numbers in function_expand
+
+- `hyper_harmonic_number(r, m)` is `gamma(m + r)/(gamma(m + 1) gamma(r)) (digamma(m + r) - digamma(r))` (Conway and
+  Guy, The Book of Numbers, p. 258), the difference as the finite sum of 1/(r + j) for an integer m up to 20;
+  `alternating_factorial(m)` its continuation `e gamma(m + 2) gamma(-m - 1, 1) - cos(pi m) (1 + e Ei(-1))`;
+  `alternating_harmonic_number(m, r)` by digamma (r = 1) or polygamma of order r - 1 (integer r up to 40) at
+  (m + 1)/2 and (m + 2)/2 (DLMF 25.11.12). `digamma(p/q)` for q = 2, 3, 4, 6 by Gauss's theorem (DLMF 5.4.19) with
+  the recurrence for the integer part. Each checked against the numeric values.

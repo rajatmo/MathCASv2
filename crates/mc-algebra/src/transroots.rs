@@ -44,6 +44,8 @@ use std::sync::Arc;
 
 /// The highest derivative used for a root at an end.
 const MAX_ORDER: usize = 5;
+/// The library functions a count may use.
+const COUNT_LIBRARY: &[&str] = &["gamma", "digamma", "polygamma", "bessel_j", "bessel_i", "airy_ai", "airy_bi"];
 /// The most boxes one count may examine.
 const MAX_BOXES: u64 = 400_000;
 /// The working precisions tried in turn (bits).
@@ -71,12 +73,6 @@ pub(crate) fn count_roots<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBo
     if !matches!(h.view(x), View::Sym(_)) || !env.contains(*f, x) {
         return Ok(Reply::Decline);
     }
-    // f and its first derivatives (the evaluator differentiates)
-    let mut ds = vec![*f];
-    for _ in 0..MAX_ORDER {
-        let last = *ds.last().unwrap_or(f);
-        ds.push(cx.eval(env.call("d", &[last, x]))?);
-    }
     let read_end = |t: T<'h>| -> Option<EndT<'h>> {
         if t == env.sym("inf") {
             return Some(EndT::PosInf);
@@ -95,37 +91,295 @@ pub(crate) fn count_roots<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBo
             _ => return Ok(Reply::Decline),
         },
     };
-    // exact values of f, f', ... at the finite ends: whether each is exactly zero
-    // (only where an enclosure of f at the end does not exclude 0: exact values may be huge, x^1000000 at 1 + 10^-6)
-    let mut zeros: Vec<Vec<bool>> = vec![];
-    for e in [&ends.0, &ends.1] {
-        let mut z = vec![];
-        if let EndT::Num(a) = e {
-            if nonzero_at(&env, *f, x, *a) {
-                zeros.push(z);
-                continue;
-            }
-            for &dj in &ds {
-                let v = cx.eval(env.call("rewrite", &[dj, env.call(names::RULE, &[x, *a])]))?;
-                z.push(matches!(env.ar.num(v), Some(Num::Real(Real::Exact(r))) if r.is_zero()));
-                if !z.last().copied().unwrap_or(false) {
-                    break;
+    // a meromorphic f on a bounded range: its zeros are those of the numerator N of f = N/D, once N and D are proved
+    // to have no common zero there
+    let (f, den) = match &ends {
+        (EndT::Num(a), EndT::Num(b)) => match clear_poles(cx, &env, *f, x, *a, *b)? {
+            Some((n, d)) => (n, d),
+            None => (*f, None),
+        },
+        _ => (*f, None),
+    };
+    // f and its first derivatives (the evaluator differentiates)
+    let mut ds = vec![f];
+    for _ in 0..MAX_ORDER {
+        let last = *ds.last().unwrap_or(&f);
+        ds.push(cx.eval(env.call("d", &[last, x]))?);
+    }
+    // a real interval is cut at the integers inside it where f is exactly 0 (a multiple root there counts by its
+    // exact derivatives, at the end of each side, and once in the total)
+    let mut pieces: Vec<(EndT<'h>, EndT<'h>)> = vec![ends.clone()];
+    let mut shared = 0u64;
+    if let (EndT::Num(a), EndT::Num(b)) = &ends {
+        match interior_zeros(cx, &env, &ds, x, *a, *b)? {
+            Some(cuts) if !cuts.is_empty() => {
+                let mut pts = vec![*a];
+                for (c, k) in cuts {
+                    pts.push(c);
+                    shared += k;
                 }
+                pts.push(*b);
+                pieces = pts.windows(2).map(|w| (EndT::Num(w[0]), EndT::Num(w[1]))).collect();
             }
+            Some(_) => {}
+            None => return Ok(Reply::Decline),
         }
-        zeros.push(z);
+    }
+    let mut zeros_of: Vec<Vec<Vec<bool>>> = vec![];
+    for piece in &pieces {
+        zeros_of.push(end_zeros(cx, &env, &ds, x, piece)?);
     }
     // one budget of boxes for all precisions: a count that runs out of boxes is not retried
     let bud = Cell::new(MAX_BOXES);
     let r = crate::natives::run(cx, stop, name, |env, m| {
-        for &p in &PRECISIONS {
-            if let Some(n) = count_at(env, x, &ds, &ends, &zeros, Prec { p, bud: &bud }, m)? {
-                return Ok(Out::Done(env.int(n as i64)));
+        if let Some(d) = den {
+            let mut proved = false;
+            for &p in &PRECISIONS {
+                if no_common_zero(env, x, f, d, &ends, Prec { p, bud: &bud }, m)? == Some(true) {
+                    proved = true;
+                    break;
+                }
+            }
+            if !proved {
+                return Ok(Out::Decline);
             }
         }
-        Ok(Out::Decline)
+        let mut total = 0u64;
+        for (piece, zeros) in pieces.iter().zip(&zeros_of) {
+            let mut got = None;
+            for &p in &PRECISIONS {
+                if let Some(n) = count_at(env, x, &ds, piece, zeros, Prec { p, bud: &bud }, m)? {
+                    got = Some(n);
+                    break;
+                }
+            }
+            let Some(n) = got else { return Ok(Out::Decline) };
+            total += n;
+        }
+        // each cut point was counted at the end of both of its sides
+        if total < shared {
+            return Ok(Out::Decline);
+        }
+        Ok(Out::Done(env.int((total - shared) as i64)))
     })?;
     Ok(r)
+}
+
+/// Whether f is exactly 0 at the number a, and the exact zeros of f, f', ... there (as `count_at` reads them).
+fn exact_zeros<'h>(cx: &mut NativeCx<'_, '_, 'h>, env: &Env<'h>, ds: &[T<'h>], x: T<'h>, a: T<'h>) -> Res<Vec<bool>> {
+    let mut z = vec![];
+    if nonzero_at(env, ds[0], x, a) {
+        return Ok(z);
+    }
+    for &dj in ds {
+        let v = cx.eval(env.call("rewrite", &[dj, env.call(names::RULE, &[x, a])]))?;
+        z.push(matches!(env.ar.num(v), Some(Num::Real(Real::Exact(r))) if r.is_zero()));
+        if !z.last().copied().unwrap_or(false) {
+            break;
+        }
+    }
+    Ok(z)
+}
+
+/// The exact zeros of f, f', ... at the finite ends of a piece.
+fn end_zeros<'h>(cx: &mut NativeCx<'_, '_, 'h>, env: &Env<'h>, ds: &[T<'h>], x: T<'h>, piece: &(EndT<'h>, EndT<'h>)) -> Res<Vec<Vec<bool>>> {
+    let mut zeros = vec![];
+    for e in [&piece.0, &piece.1] {
+        match e {
+            EndT::Num(a) => zeros.push(exact_zeros(cx, env, ds, x, *a)?),
+            _ => zeros.push(vec![]),
+        }
+    }
+    Ok(zeros)
+}
+
+/// The integers strictly inside the real interval (a, b) where f is exactly 0, in increasing order, each with its
+/// multiplicity (the number of leading exact zeros of f, f', ...); `Some(vec![])` for a complex range or none,
+/// `None` when a multiplicity exceeds the derivatives at hand.
+fn interior_zeros<'h>(cx: &mut NativeCx<'_, '_, 'h>, env: &Env<'h>, ds: &[T<'h>], x: T<'h>, a: T<'h>, b: T<'h>) -> Res<Option<Vec<(T<'h>, u64)>>> {
+    let real = |cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>| -> Res<Option<f64>> {
+        let v = cx.eval(env.call("n", &[t]))?;
+        Ok(match env.ar.num(v) {
+            Some(Num::Real(r)) => Some(r.to_f64()),
+            _ => None,
+        })
+    };
+    let (Some(fa), Some(fb)) = (real(cx, a)?, real(cx, b)?) else { return Ok(Some(vec![])) };
+    let (lo, hi) = if fa < fb { (fa, fb) } else { (fb, fa) };
+    if !(hi - lo).is_finite() || hi - lo > 64.0 {
+        return Ok(Some(vec![]));
+    }
+    let mut out = vec![];
+    let mut k = lo.ceil() as i64;
+    while (k as f64) <= hi {
+        let kt = env.int(k);
+        // strictly inside, decided exactly
+        let inside = cx.eval(env.call("less", &[env.call("min", &[a, b]), kt]))?;
+        let inside2 = cx.eval(env.call("less", &[kt, env.call("max", &[a, b])]))?;
+        if inside == env.sym("true") && inside2 == env.sym("true") {
+            let z = exact_zeros(cx, env, ds, x, kt)?;
+            let mult = z.iter().take_while(|&&b| b).count();
+            if mult > 0 {
+                if mult >= z.len() || mult > MAX_ORDER {
+                    return Ok(None);
+                }
+                out.push((kt, mult as u64));
+            }
+        }
+        k += 1;
+    }
+    Ok(Some(out))
+}
+
+/// f written as N/D with the poles of gamma and the circular functions in D: tan, cot, sec, csc as quotients of sin
+/// and cos, and gamma(u) of an affine u with a real slope as gamma(u + m)/(u (u + 1) ... (u + m - 1)) with m the least
+/// shift that puts re(u + m) >= 1/2 on the range (so gamma(u + m) has no pole there). `None` when D is free of x
+/// (nothing to clear) or a gamma's argument has another form.
+fn clear_poles<'h>(cx: &mut NativeCx<'_, '_, 'h>, env: &Env<'h>, f: T<'h>, x: T<'h>, a: T<'h>, b: T<'h>) -> Res<Option<(T<'h>, Option<T<'h>>)>> {
+    let mut failed = false;
+    // a long range holds many poles, and the boxes between them cost time to no purpose: f is left as it is there
+    let width = cx.eval(env.call("n", &[env.call("abs", &[env.ar.add(&[b, env.ar.mul(&[env.int(-1), a])])])]))?;
+    if !matches!(env.ar.num(width), Some(Num::Real(r)) if r.to_f64() <= 1000.0) {
+        return Ok(None);
+    }
+    let g = rewrite_poles(cx, env, f, x, a, b, &mut failed)?;
+    if failed {
+        return Ok(None);
+    }
+    let t = cx.eval(env.call("together", &[g]))?;
+    let n = cx.eval(env.call("numerator", &[t]))?;
+    let d = cx.eval(env.call("denominator", &[t]))?;
+    if !env.contains(d, x) {
+        return Ok(Some((g, None)));
+    }
+    // factored, D has tight enclosures away from its zeros (the expanded polynomial loses them to cancellation)
+    let fd = cx.eval(env.call("factor", &[d]))?;
+    Ok(Some((n, Some(fd))))
+}
+
+fn rewrite_poles<'h>(cx: &mut NativeCx<'_, '_, 'h>, env: &Env<'h>, t: T<'h>, x: T<'h>, a: T<'h>, b: T<'h>, failed: &mut bool) -> Res<T<'h>> {
+    let h = env.h();
+    let View::App { head, args } = h.view(t) else { return Ok(t) };
+    if !env.contains(t, x) {
+        return Ok(t);
+    }
+    let mut na = Vec::with_capacity(args.len());
+    for &u in args {
+        na.push(rewrite_poles(cx, env, u, x, a, b, failed)?);
+    }
+    let name = match h.view(head) {
+        View::Sym(s) => h.sym_name(s),
+        _ => String::new(),
+    };
+    if let [u] = na.as_slice() {
+        let u = *u;
+        let sin = || env.call("sin", &[u]);
+        let cos = || env.call("cos", &[u]);
+        let one = env.int(1);
+        let q = |n: T<'h>, d: T<'h>| env.ar.mul(&[n, env.ar.pow(d, env.int(-1))]);
+        match name.as_str() {
+            "tan" => return Ok(q(sin(), cos())),
+            "cot" => return Ok(q(cos(), sin())),
+            "sec" => return Ok(q(one, cos())),
+            "csc" => return Ok(q(one, sin())),
+            "gamma" => {
+                let slope = cx.eval(env.call("d", &[u, x]))?;
+                let real_slope = matches!(env.ar.num(slope), Some(Num::Real(Real::Exact(_))));
+                if !real_slope || env.contains(slope, x) {
+                    *failed = true;
+                    return Ok(t);
+                }
+                let mut least = f64::INFINITY;
+                for e in [a, b] {
+                    let v = cx.eval(env.call("n", &[env.call("re", &[env.call("rewrite", &[u, env.call(names::RULE, &[x, e])])])]))?;
+                    match env.ar.num(v) {
+                        Some(Num::Real(r)) => least = least.min(r.to_f64()),
+                        _ => {
+                            *failed = true;
+                            return Ok(t);
+                        }
+                    }
+                }
+                let m = (0.5 - least).ceil().max(0.0);
+                if !m.is_finite() || m > 60.0 {
+                    *failed = true;
+                    return Ok(t);
+                }
+                let m = m as i64;
+                if m == 0 {
+                    return Ok(env.call("gamma", &[u]));
+                }
+                let mut den = vec![];
+                for j in 0..m {
+                    den.push(env.ar.add(&[u, env.int(j)]));
+                }
+                let shifted = env.call("gamma", &[env.ar.add(&[u, env.int(m)])]);
+                return Ok(q(shifted, env.ar.mul(&den)));
+            }
+            _ => {}
+        }
+    }
+    Ok(if na.as_slice() == args { t } else { env.rebuild(head, &na) })
+}
+
+/// Proves that N and D have no common zero on the range (the real interval or the rectangle of its ends): a cover
+/// by boxes on each of which the enclosure of N or that of D excludes 0. `Some(true)` when proved, `None` when not
+/// at this precision.
+fn no_common_zero<'h>(env: &Env<'h>, x: T<'h>, n: T<'h>, d: T<'h>, range: &(EndT<'h>, EndT<'h>), w: Prec, m: &mut Meter) -> WorkResult<Option<bool>> {
+    let (p, bud) = (w.p, w.bud);
+    let h = env.h();
+    let View::Sym(xs) = h.view(x) else { return Ok(None) };
+    let (EndT::Num(a), EndT::Num(b)) = range else { return Ok(None) };
+    let nm = Names::new(h);
+    let both = env.list(&[n, d]);
+    let g = Graph::build_with_vars(h, &env.ar, &nm, both, &[xs]);
+    let (Some(i_n), Some(i_d)) = (g.node(n), g.node(d)) else { return Ok(None) };
+    let (isn, isd) = (g.island(i_n), g.island(i_d));
+    let num = |t: T<'h>| -> Option<CBall> {
+        let gg = Graph::build(h, &env.ar, &nm, t);
+        let i = gg.node(t)?;
+        gg.eval_complex(&gg.island(i), p + 16)
+    };
+    let (Some(za), Some(zb)) = (num(*a), num(*b)) else { return Ok(None) };
+    // the hull of the two ends (balls widened to their ends)
+    let lohi = |u: &Ball, v: &Ball| -> (Float, Float) {
+        let (ul, uh) = self::ends(u);
+        let (vl, vh) = self::ends(v);
+        let lo = if ul.cmp_exact(&vl) == Ordering::Greater { vl } else { ul };
+        let hi = if uh.cmp_exact(&vh) == Ordering::Less { vh } else { uh };
+        (lo, hi)
+    };
+    let (x0, x1) = lohi(&za.re, &zb.re);
+    let (y0, y1) = lohi(&za.im, &zb.im);
+    let size = x1.sub_exact(&x0).top().max(y1.sub_exact(&y0).top());
+    let mut stack = vec![(x0, x1, y0, y1)];
+    while let Some((xl, xr, yl, yr)) = stack.pop() {
+        m.step(4)?;
+        if !take(bud) {
+            return Ok(None);
+        }
+        let z = CBall::new(span(&xl, &xr), span(&yl, &yr));
+        let excl = |is: &Island| g.eval_complex_at(is, p, std::slice::from_ref(&z)).is_some_and(|v| !v.contains_zero());
+        // D first: a polynomial or a few circular functions, cheap; N only near the zeros of D
+        if excl(&isd) || excl(&isn) {
+            continue;
+        }
+        let (wx, wy) = (xr.sub_exact(&xl), yr.sub_exact(&yl));
+        let scale = xl.top().max(xr.top()).max(yl.top()).max(yr.top()).max(size);
+        if wx.top().max(wy.top()) < (size - 40).max(scale - p as i64 + 12) {
+            return Ok(None);
+        }
+        if wx.cmp_exact(&wy) != Ordering::Less {
+            let s = split_point(&xl, &xr, 8);
+            stack.push((xl, s.clone(), yl.clone(), yr.clone()));
+            stack.push((s, xr, yl, yr));
+        } else {
+            let s = split_point(&yl, &yr, 8);
+            stack.push((xl.clone(), xr.clone(), yl, s.clone()));
+            stack.push((xl, xr, s, yr));
+        }
+    }
+    Ok(Some(true))
 }
 
 /// Is f proved nonzero at the number a (an enclosure at 128 bits)?
@@ -195,7 +449,9 @@ fn count_at<'h>(
         match g.node(d) {
             Some(i) => {
                 let island = g.island(i);
-                if g.has_library(&island) {
+                // library functions whose enclosures over wide real intervals and complex boxes are quick (others,
+                // erfc of a complex box, can take minutes per box)
+                if g.library_names(&island).iter().any(|n| !COUNT_LIBRARY.contains(n)) {
                     return Ok(None);
                 }
                 is.push(island);

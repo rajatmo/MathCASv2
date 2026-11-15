@@ -1784,3 +1784,27 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   the bounds of the cylindrical decomposition (algebraic numbers such as `1 - sqrt(2)`) become numbers the arithmetic
   decides; with `nand`, `nor` and `xor` of several formulas in `mc-cad`, the areas of every Boolean combination of
   two discs come out (`-1 + pi`, `1 + 2 pi`, `17 - pi`, `15 - 2 pi`, `2 + pi`, `15`).
+## Round 44: poles of a function of a polynomial
+
+- `function_poles(g(u), x)` for g = gamma, tan, sec, cot, csc, tanh, sech, coth, csch and u a polynomial in x with
+  rational coefficients (`props/poles.rs`, `composed`): the poles are the points where u takes a pole v of g, each of
+  order equal to the multiplicity of the root of u - v (g's poles are simple). For the circular and hyperbolic
+  functions every nonzero pole is a nonzero rational multiple of pi (or i pi), transcendental (Lindemann 1882), while
+  the critical values of u are algebraic: every root is simple; at v = 0 the roots of u must be simple (gcd(u, u')
+  constant). For gamma a root of u + k is multiple exactly when -k is a critical value: without a condition no root
+  of the resultant of u - y and u' may be an integer <= 0, inside a disc each multiplicity is decided exactly.
+- Without a condition (degree 2 only: the two square roots are both roots whatever the branch; the radical forms of
+  cubics pair their roots by branch choices not proved for every c) the answer is the family of the solutions of
+  u == v(c(1)) (c(1) <= 0 for gamma); sqrt(kappa L), kappa > 0 and L = n c + m with coprime integers, is written
+  sqrt(kappa) sqrt(L), and i sqrt(-L) when L < 0 on the family. `function_poles(gamma(x^2 + 1), x)`,
+  `function_poles(tan(x^2), x)`.
+- Inside a disc `abs(x - a) <= r`: the poles v with |v| <= sum |d_j| r^j (d_j the coefficients of u(a + t), a proved
+  bound of |u| on the disc) are enumerated, at most 40 values, and a root is kept when the sign of |z - a|^2 - r^2
+  is proved (exactly 0 on the circle). The old path for gamma inside a bounded condition enumerated u = 0, ..., -40
+  without a bound; it now needs the same proved bound (a disc condition, at most 40).
+- Order of the list: the degree of the point (1 for a Gaussian rational, else that of its minimal polynomial), then
+  the modulus, the imaginary and the real part (before: degree of the equation, imaginary and real part).
+- `generated_parameters: g` renames c(j) in the answer to g(j).
+- Gap: the family of a cubic or quartic u without a condition stays unevaluated; points are root objects, not
+  `algebraic_number` forms.
+  Tests: `mc-engine/tests/round44_calculus.rs`.

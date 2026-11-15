@@ -113,6 +113,26 @@ fn contains_head<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
     false
 }
 
+/// The base q of the infinite q-Pochhammer symbols `q_pochhammer(a, q)` in `t`, when they all share one.
+fn q_base<'h>(h: &'h mc_core::Heap, t: T<'h>) -> Option<T<'h>> {
+    let mut found: Option<T<'h>> = None;
+    let mut stack = vec![t];
+    let qp = h.sym_term(h.sym("q_pochhammer"));
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if head == qp && args.len() == 2 {
+                match found {
+                    Some(q) if q != args[1] => return None,
+                    _ => found = Some(args[1]),
+                }
+            }
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    found
+}
+
 impl mc_eval::Native for SumWrap {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
@@ -129,6 +149,22 @@ impl mc_eval::Native for SumWrap {
             if opts.len() == 1 && option(h, &opts, "generate_conditions").is_some() {
                 let wants = option(h, &opts, "generate_conditions") == Some(h.sym_term(h.sym("true")));
                 let inf = h.sym_term(h.sym("inf"));
+                // an infinite product in q-Pochhammer symbols converges for |q| < 1
+                if let (true, true, [_, spec]) = (wants, self.product, plain.as_slice()) {
+                    let to_inf = matches!(cx.as_list(*spec), Some(&[_, hi]) | Some(&[_, _, hi]) if hi == inf);
+                    if to_inf {
+                        let v = cx.eval(h.call(h.sym(name), &plain))?;
+                        if let Some(q) = q_base(h, v) {
+                            let cond = h.call(h.sym("less"), &[h.call(h.sym("abs"), &[q]), h.int(1)]);
+                            let implied = cx.eval(h.call(h.sym("refine"), &[cond]))?;
+                            if cx.is_true(implied) {
+                                return Ok(Reply::Done(v));
+                            }
+                            return Ok(Reply::Again(h.call(h.sym("conditional_expression"), &[v, cond])));
+                        }
+                        return Ok(Reply::Done(v));
+                    }
+                }
                 if let (true, false, [f, spec]) = (wants, self.product, plain.as_slice()) {
                     // [k, inf] runs from k = 1
                     let range = match cx.as_list(*spec) {

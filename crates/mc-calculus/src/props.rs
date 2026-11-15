@@ -202,7 +202,10 @@ impl Native for PropNative {
                 Some(smooth::free_of(cx, &b, &sp, sets::Mode::Sing, true)?)
             }
             Prop::Period => Some(period::period(cx, &b, &sp)?),
-            Prop::Poles => Some(poles::poles(cx, &b, &sp)?),
+            Prop::Poles => {
+                let r = poles::poles(cx, &b, &sp)?;
+                Some(poles::with_parameters(cx, &b, args, r)?)
+            }
             Prop::Surjective => Some(onto::decide(cx, &b, &sp, onto::Want::Surjective)?),
             Prop::Bijective => {
                 let r = onto::decide(cx, &b, &sp, onto::Want::Bijective)?;

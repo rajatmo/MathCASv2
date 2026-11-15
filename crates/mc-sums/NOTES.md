@@ -326,3 +326,12 @@ differences and ratios, generating functions and convergence, interruption.
   `e` itself for a symbolic `k` (the closed-form and convergence tests see the summand). The monitor lives in a
   registry by call number, not in the term (a closure `n => ...` with the index's name would be substituted into);
   the first failure it gives is recorded there and is the result.
+
+## Round 44: q-products
+
+- `product(f, [k, lo, hi])` with f a product of factors free of k and one factor A + B q^(a k + b) (a a nonzero
+  integer): `(C A)^N q_pochhammer(z Q^lo, Q, N)`, Q = q^a, z = -(B/A) q^b, N = hi - lo + 1; to infinity (A = C = 1)
+  `q_pochhammer(z Q^lo, Q)`, for a rational z and lo from 1 to 8 written `q_pochhammer(z, Q)/prod_(j < lo)(1 - z Q^j)`
+  when 1 - z is not 0 (Gasper and Rahman, Basic Hypergeometric Series, section 1.2). With `generate_conditions: true`
+  an infinite product in q-Pochhammer symbols of one base Q gets |Q| < 1 unless the assumptions imply it.
+  Checked against the factors multiplied out (200 terms at 30 digits). Tests: `mc-engine/tests/round44_calculus.rs`.

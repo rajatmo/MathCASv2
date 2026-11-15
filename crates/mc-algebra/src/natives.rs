@@ -873,6 +873,25 @@ fn root_reduce_parts<'h>(env: &Env<'h>, t: T<'h>, m: &mut Meter) -> WorkResult<T
     if let Some(r) = root_reduce_one(env, t, m)? {
         return Ok(r);
     }
+    if head == env.hd.mul {
+        // a product with factors that are not algebraic numbers (pi): the algebraic factors are one number,
+        // reduced together (2 i root(p, k) is one root object)
+        let mut alg = vec![];
+        let mut rest = vec![];
+        for &u in args {
+            if root_reduce_one(env, u, m)?.is_some() {
+                alg.push(u);
+            } else {
+                rest.push(root_reduce_parts(env, u, m)?);
+            }
+        }
+        if alg.len() >= 2 && !rest.is_empty() {
+            if let Some(r) = root_reduce_one(env, env.ar.mul(&alg), m)? {
+                rest.push(r);
+                return Ok(env.ar.mul(&rest));
+            }
+        }
+    }
     let mut na = Vec::with_capacity(args.len());
     for &u in args {
         na.push(root_reduce_parts(env, u, m)?);
