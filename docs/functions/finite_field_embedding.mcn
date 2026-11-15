@@ -45,7 +45,7 @@ e = finite_field_embedding(K, F)
 #% cell
 e
 #% output
-#= finite_field_embedding(finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [0, 1]) -> finite_field_element(finite_field(3, &(2 + 2*&1^3 + &1^4), "Polynomial"), [1, 0, 2, 2]))
+#= finite_field_embedding(finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), polynomial), [0, 1]) -> finite_field_element(finite_field(3, &(2 + 2*&1^3 + &1^4), polynomial), [1, 0, 2, 2]))
 
 #% cell
 y = e(K(5))
@@ -53,7 +53,7 @@ y = e(K(5))
 #% cell
 e("Projection")(y)
 #% output
-#= finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [2, 1])
+#= finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), polynomial), [2, 1])
 
 #% subsection
 # Scope
@@ -73,7 +73,7 @@ r = finite_field_embedding(g -> e(g))
 #% cell
 finite_field_embedding(finite_field(3, 1), F)(2)
 #% output
-#= finite_field_element(finite_field(3, &(2 + 2*&1^3 + &1^4), "Polynomial"), [2])
+#= finite_field_element(finite_field(3, &(2 + 2*&1^3 + &1^4), polynomial), [2])
 
 #% text
 # Fields of different characteristics have no embedding:
@@ -81,7 +81,7 @@ finite_field_embedding(finite_field(3, 1), F)(2)
 #% cell
 finite_field_embedding(finite_field(2, 2), finite_field(3, 2))
 #% output
-#= finite_field_embedding(finite_field(2, &(1 + &1 + &1^2), "Polynomial"), finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"))
+#= finite_field_embedding(finite_field(2, &(1 + &1 + &1^2), polynomial), finite_field(3, &(2 + 2*&1 + &1^2), polynomial))
 
 #% text
 # Fields in the exponential representation, and an embedding with the image of the generator given:
@@ -89,7 +89,7 @@ finite_field_embedding(finite_field(2, 2), finite_field(3, 2))
 #% cell
 [finite_field_embedding(finite_field(3, 2, "Exponential"), finite_field(3, 4, "Exponential"))(finite_field(3, 2, "Exponential")(5)), finite_field_embedding(finite_field(2, 2, "Exponential"), finite_field(2, 4, "Exponential"))]
 #% output
-#= [finite_field_element(finite_field(3, &(2 + 2*&1^3 + &1^4), "Exponential"), 41), finite_field_embedding(finite_field_element(finite_field(2, &(1 + &1 + &1^2), "Exponential"), 2) -> finite_field_element(finite_field(2, &(1 + &1 + &1^4), "Exponential"), 6))]
+#= [finite_field_embedding(finite_field(3, 2, "Exponential"), finite_field(3, 4, "Exponential"))(finite_field(3, 2, "Exponential")(5)), finite_field_embedding(finite_field(2, 2, "Exponential"), finite_field(2, 4, "Exponential"))]
 
 #% subsection
 # Properties and relations
@@ -140,7 +140,7 @@ t = finite_field_embedding(K2([0, 1]) -> e2(K2([0, 1]))^3)
 #% cell
 [finite_field_embedding(finite_field(3, 4), K2), finite_field_embedding(finite_field(3, 4), F6), e2(7), e2(F6(3))]
 #% output
-#= [finite_field_embedding(finite_field(3, &(2 + 2*&1^3 + &1^4), "Polynomial"), finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial")), finite_field_embedding(finite_field(3, &(2 + 2*&1^3 + &1^4), "Polynomial"), finite_field(3, &(2 + 2*&1 + &1^2 + 2*&1^4 + &1^6), "Polynomial")), finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2 + 2*&1^4 + &1^6), "Polynomial"), [1]), finite_field_embedding(finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [0, 1]) -> finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2 + 2*&1^4 + &1^6), "Polynomial"), [2, 2, 1, 2, 0, 2]))(finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2 + 2*&1^4 + &1^6), "Polynomial"), [0, 1]))]
+#= [finite_field_embedding(finite_field(3, &(2 + 2*&1^3 + &1^4), polynomial), finite_field(3, &(2 + 2*&1 + &1^2), polynomial)), finite_field_embedding(finite_field(3, &(2 + 2*&1^3 + &1^4), polynomial), finite_field(3, &(2 + 2*&1 + &1^2 + 2*&1^4 + &1^6), polynomial)), finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2 + 2*&1^4 + &1^6), polynomial), [1]), finite_field_embedding(finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), polynomial), [0, 1]) -> finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2 + 2*&1^4 + &1^6), polynomial), [2, 2, 1, 2, 0, 2]))(finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2 + 2*&1^4 + &1^6), polynomial), [0, 1]))]
 
 #% text
 # A generator mapped to an element that is no root of the defining polynomial makes an embedding that cannot be applied:
