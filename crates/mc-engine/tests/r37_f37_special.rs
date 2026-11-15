@@ -231,7 +231,9 @@ fn pfq_complex() {
     let direct2 = "n(sum(pochhammer(1/2, k)*pochhammer(1/3, k)*pochhammer(1/4, k)/(pochhammer(1/5, k)*pochhammer(1/6, k))*(1/2 + im/3)^k/factorial(k), [k, 0, 400]), 30)";
     small(&format!("n(hypergeometric_pfq([1/2, 1/3, 1/4], [1/5, 1/6], 1/2 + im/3), 25) - {direct2}"), 1e-23);
     small(&format!("hypergeometric_pfq([0.5, 1/3, 1/4], [1/5, 1/6], 0.5 + 0.5*im/1.5) - {direct2}"), 1e-13);
-    assert!(ev("n(hypergeometric_pfq([1/2, 1/3, 1/4], [1/5, 1/6], 2 + im/3), 25)").contains("hypergeometric_pfq"));
+    // beyond the unit circle: the continuation, at 25 digits and in machine arithmetic, agree
+    assert!(!ev("n(hypergeometric_pfq([1/2, 1/3, 1/4], [1/5, 1/6], 2 + im/3), 25)").contains("hypergeometric_pfq"));
+    small("hypergeometric_pfq([0.5, 1/3, 1/4], [1/5, 1/6], 2.0 + im/3) - n(hypergeometric_pfq([1/2, 1/3, 1/4], [1/5, 1/6], 2 + im/3), 25)", 1e-10);
 }
 
 // ---------------------------------------------------------------- closed forms: Lommel, Mittag-Leffler

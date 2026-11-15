@@ -54,10 +54,12 @@ fn hankel_transform_of_erfc_and_exponential_integral() {
 }
 
 #[test]
-fn hankel_transform_with_a_jump_declines() {
-    // the transform of sin(r)/r is 1/sqrt(1 - s^2) for s < 1 and 0 for s > 1: one residue series cannot give it
-    assert_eq!(ev("head(hankel_transform(sin(r)/r, r, s))"), "hankel_transform");
-    assert_eq!(ev("head(hankel_transform(sin(2*r)/r, r, s))"), "hankel_transform");
+fn hankel_transform_with_a_jump() {
+    // the transform of sin(r)/r is 1/sqrt(1 - s^2) for s < 1 and 0 for s > 1: both sides of the jump
+    close("rewrite(hankel_transform(sin(r)/r, r, s), s -> 1/2)", "2/sqrt(3)", 1e-12);
+    assert_eq!(ev("rewrite(hankel_transform(sin(r)/r, r, s), s -> 2)"), "0");
+    close("rewrite(hankel_transform(sin(2*r)/r, r, s), s -> 1)", "1/sqrt(3)", 1e-12);
+    assert_eq!(ev("rewrite(hankel_transform(sin(2*r)/r, r, s), s -> 3)"), "0");
 }
 
 #[test]

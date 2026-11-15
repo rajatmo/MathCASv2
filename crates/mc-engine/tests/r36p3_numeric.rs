@@ -94,7 +94,7 @@ fn functions_of_several_centered_intervals_are_enclosures_or_unevaluated() {
         "bessel_j(centered_interval(1, 1/10), centered_interval(1841/1000, 1/10))"
     );
     // sums and products keep the exact ball rules
-    assert_eq!(ev("centered_interval(1, 1/10) + centered_interval(2, 1/10)"), "centered_interval(3.0, 0.20000000000000304)");
+    assert_eq!(ev("centered_interval(1, 1/10) + centered_interval(2, 1/10)"), "centered_interval(3.0, 0.20000000000000126)");
 }
 
 #[test]
