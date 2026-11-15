@@ -607,6 +607,11 @@ pub const OPAQUE: &[(&str, usize, usize)] = &[
     ("appell_f4", 6, 1),
     ("appell_f4", 6, 2),
     ("appell_f4", 6, 3),
+    ("harmonic_number", 2, 1),
+    ("whittaker_m", 3, 0),
+    ("whittaker_m", 3, 1),
+    ("whittaker_w", 3, 0),
+    ("whittaker_w", 3, 1),
 ];
 
 /// Can `derivative(orders)(name)` be resolved into a term (a known function, no order in an [`OPAQUE`] argument)?
@@ -1201,6 +1206,102 @@ pub const RULES: &[(&str, usize, Rule)] = &[
             let l = b.div(b.add(&[b.one(), b.call("log", &[b.mul(&[b.int(2), pi(b)])])]), b.int(2));
             b.mul(&[b.call("barnes_g", a), b.add(&[b.mul(&[b.sub(z, b.one()), psi]), b.neg(z), l])])
         }]),
+    ),
+    // log G(z): the same logarithmic derivative
+    (
+        "log_barnes_g",
+        1,
+        Rule::Partials(&[|b, a| {
+            let z = a[0];
+            let psi = b.call("digamma", &[z]);
+            let l = b.div(b.add(&[b.one(), b.call("log", &[b.mul(&[b.int(2), pi(b)])])]), b.int(2));
+            b.add(&[b.mul(&[b.sub(z, b.one()), psi]), b.neg(z), l])
+        }]),
+    ),
+    // C(x) = 4^x Gamma(x + 1/2)/(sqrt(pi) Gamma(x + 2)): C'/C = 2 log 2 + digamma(x + 1/2) - digamma(x + 2)
+    (
+        "catalan_number",
+        1,
+        Rule::Partials(&[|b, a| {
+            let x = a[0];
+            let l = b.add(&[
+                b.mul(&[b.int(2), b.call("log", &[b.int(2)])]),
+                b.call("digamma", &[b.add(&[x, b.rat(1, 2)])]),
+                b.neg(b.call("digamma", &[b.add(&[x, b.int(2)])])),
+            ]);
+            b.mul(&[b.call("catalan_number", a), l])
+        }]),
+    ),
+    // x!! = 2^((1 + 2x - cos(pi x))/4) pi^((cos(pi x) - 1)/4) Gamma(1 + x/2), so (x!!)'/x!! = (2 + pi sin(pi x)) log(2)/4
+    // - pi sin(pi x) log(pi)/4 + digamma(1 + x/2)/2
+    (
+        "factorial2",
+        1,
+        Rule::Partials(&[|b, a| {
+            let x = a[0];
+            let s = b.mul(&[pi(b), b.call("sin", &[b.mul(&[pi(b), x])])]);
+            let l = b.add(&[
+                b.mul(&[b.rat(1, 4), b.add(&[b.int(2), s]), b.call("log", &[b.int(2)])]),
+                b.mul(&[b.rat(-1, 4), s, b.call("log", &[pi(b)])]),
+                b.mul(&[b.rat(1, 2), b.call("digamma", &[b.add(&[b.one(), b.mul(&[b.rat(1, 2), x])])])]),
+            ]);
+            b.mul(&[b.call("factorial2", a), l])
+        }]),
+    ),
+    // binomial(n, k) = Gamma(n + 1)/(Gamma(k + 1) Gamma(n - k + 1))
+    (
+        "binomial",
+        2,
+        Rule::Partials(&[
+            |b, a| {
+                let d = b.sub(b.call("digamma", &[b.add(&[a[0], b.one()])]), b.call("digamma", &[b.add(&[a[0], b.neg(a[1]), b.one()])]));
+                b.mul(&[b.call("binomial", a), d])
+            },
+            |b, a| {
+                let d = b.sub(b.call("digamma", &[b.add(&[a[0], b.neg(a[1]), b.one()])]), b.call("digamma", &[b.add(&[a[1], b.one()])]));
+                b.mul(&[b.call("binomial", a), d])
+            },
+        ]),
+    ),
+    // H(x, r) = zeta(r) - zeta(r, x + 1): d/dx = r zeta(r + 1, x + 1); the order derivative stays an operator
+    (
+        "harmonic_number",
+        2,
+        Rule::Partials(&[
+            |b, a| b.mul(&[a[1], b.call("zeta", &[b.add(&[a[1], b.one()]), b.add(&[a[0], b.one()])])]),
+            |b, a| opaque_partial(b, "harmonic_number", a, 1),
+        ]),
+    ),
+    // the Whittaker functions in z (DLMF section 13.15): z M' = (z/2 - k) M + (1/2 + m + k) M_(k+1, m),
+    // z W' = (z/2 - k) W - W_(k+1, m); the parameter derivatives stay operators
+    (
+        "whittaker_m",
+        3,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "whittaker_m", a, 0),
+            |b, a| opaque_partial(b, "whittaker_m", a, 1),
+            |b, a| {
+                let (k, m, z) = (a[0], a[1], a[2]);
+                let up = b.call("whittaker_m", &[b.add(&[k, b.one()]), m, z]);
+                let t1 = b.mul(&[b.sub(b.mul(&[b.rat(1, 2), z]), k), b.call("whittaker_m", a)]);
+                let t2 = b.mul(&[b.add(&[b.rat(1, 2), m, k]), up]);
+                b.div(b.add(&[t1, t2]), z)
+            },
+        ]),
+    ),
+    (
+        "whittaker_w",
+        3,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "whittaker_w", a, 0),
+            |b, a| opaque_partial(b, "whittaker_w", a, 1),
+            |b, a| {
+                let (k, m, z) = (a[0], a[1], a[2]);
+                let up = b.call("whittaker_w", &[b.add(&[k, b.one()]), m, z]);
+                let t1 = b.mul(&[b.sub(b.mul(&[b.rat(1, 2), z]), k), b.call("whittaker_w", a)]);
+                b.div(b.sub(t1, up), z)
+            },
+        ]),
     ),
     // the other Jacobi elliptic functions, by the quotient rule over sn, cn, dn
     ("jacobi_cd", 2, Rule::Partials(&[|b, a| jac_ratio(b, "jacobi_cd", a), |b, a| jac_ratio_m(b, "jacobi_cd", a)])),

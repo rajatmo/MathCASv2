@@ -149,6 +149,69 @@ pub fn zeta_ball(s: &Ball, wp: u64) -> Option<Ball> {
     Some(int(2).mul(&tp, wp).mul(&sn, wp).mul(&g, wp).mul(&z, wp))
 }
 
+/// The Hurwitz zeta function zeta(s, a) on balls, a > 0 and s > -1 excluding 1, by Euler-Maclaurin with the terms
+/// shifted by a: sum_{k<N} (k + a)^-s + (N + a)^(1-s)/(s - 1) + (N + a)^-s/2 + sum_j B_2j/(2j)! (s)_{2j-1}
+/// (N + a)^(-s-2j+1) - R, |R| <= 4 |(s)_2M|/(2 pi)^2M (N + a)^(1 - sigma - 2M)/(sigma + 2M - 1) (Johansson 2015,
+/// theorem 1, which holds for Re(N + a) > 0). N and M are chosen as for a = 0 (the bound only falls as N + a grows).
+pub fn hurwitz_ball(s: &Ball, a: &Ball, wp: u64) -> Option<Ball> {
+    let one = int(1);
+    s.cmp3(&one)?;
+    if !super::is_pos(a) || super::f64_of(&lower(s)) <= -1.0 {
+        return None;
+    }
+    let sigma = super::f64_of(&lower(s));
+    let sa = super::f64_of(&s.mid).abs() + super::f64_of(&s.rad.to_float());
+    let (n, m) = choose(sigma, sa, wp as f64 + 8.0)?;
+    let pw = |x: &Ball, e: &Ball| -> Option<Ball> { el::exp(&el::log(x, wp)?.mul(e, wp), wp) };
+    let ns = s.neg();
+    let mut sum = int(0);
+    for k in 0..n {
+        if k % 32 == 0 && stopped() {
+            return None;
+        }
+        sum = sum.add(&pw(&a.add(&int(k as i64), wp), &ns)?, wp);
+    }
+    let na = a.add(&int(n as i64), wp);
+    let n_s = pw(&na, &ns)?;
+    sum = sum.add(&na.mul(&n_s, wp).div(&s.sub(&one, wp), wp)?, wp);
+    sum = sum.add(&n_s.mul(&Ball::from_ratio(1, 2, wp), wp), wp);
+    let r = one.div(&na, wp)?;
+    let r2 = r.mul(&r, wp);
+    let mut poch = s.clone();
+    let mut pwr = n_s.mul(&r, wp);
+    let mut fact = Rat::from_i64(2);
+    for j in 1..=m {
+        if stopped() {
+            return None;
+        }
+        let c = b2n(j)?.mul(&fact.recip()?);
+        sum = sum.add(&rat_ball(&c, wp).mul(&poch, wp).mul(&pwr, wp), wp);
+        poch = poch.mul(&s.add(&int(2 * j as i64 - 1), wp), wp).mul(&s.add(&int(2 * j as i64), wp), wp);
+        pwr = pwr.mul(&r2, wp);
+        fact = fact.mul(&Rat::from_i64(((2 * j + 1) * (2 * j + 2)) as i64));
+    }
+    let poch2m = poch_2m(s, m, wp);
+    let sig = Ball::exact(lower(s));
+    let e = one.sub(&sig, wp).sub(&int(2 * m as i64), wp);
+    // (N + a)^e with e < 0 is largest at the lower end of N + a
+    let npow = pw(&Ball::exact(lower(&na)), &e)?;
+    let den = sig.add(&int(2 * m as i64 - 1), wp);
+    if !super::is_pos(&den) {
+        return None;
+    }
+    let twopi = pi(wp)?.mul(&int(2), wp);
+    let tp = el::pow_int(&twopi, &Int::from_u64(2 * m), wp)?;
+    let bound = int(4).mul(&poch2m, wp).mul(&npow, wp).div(&tp.mul(&den, wp), wp)?;
+    Some(widen(sum, &mag_up(&bound)))
+}
+
+/// zeta(s, a) to p bits (real s > -1 excluding 1, real a > 0).
+pub fn hurwitz(s: &Real, a: &Real, p: u64) -> Option<CBall> {
+    let b = super::real_ball(s, p)?;
+    let guard = log2_up(&b).max(0.0) as u64 + 24;
+    refine(p, guard, |wp| Some(real(hurwitz_ball(&super::real_ball(s, wp)?, &super::real_ball(a, wp)?, wp)?)))
+}
+
 /// zeta(s) to p bits.
 pub fn zeta(s: &Real, p: u64) -> Option<CBall> {
     let b = super::real_ball(s, p)?;

@@ -95,7 +95,7 @@ fn unknown_functions_and_the_operator() {
         ("d(f(x, y), x, y)", "derivative(1, 1)(f)(x, y)"),
         ("d(f(x, x), x)", "derivative(0, 1)(f)(x, x) + derivative(1, 0)(f)(x, x)"),
         ("d(derivative(2, 1)(f)(x, y), y)", "derivative(2, 2)(f)(x, y)"),
-        ("d(factorial2(x), x)", "factorial2'(x)"),
+        ("d(subfactorial(x), x)", "subfactorial'(x)"),
         ("d(g(1)(x), x)", "derivative(1)(g(1))(x)"),
         // the operator on a known function resolves when differentiated
         ("d(sin'(x), x)", "-sin(x)"),

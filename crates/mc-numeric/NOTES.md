@@ -685,3 +685,42 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
   and products are decided by `centered_corners`, which takes the function as monotone in each argument when every
   partial derivative keeps its sign on a grid over the box (5 points a side for two arguments, 3 for three or four);
   `several_intervals` uses the same test. `around` keeps its documented first-order propagation.
+
+## Round 42: proved images on wide intervals
+
+- Why the images declined or were slow: no derivative in closed form (catalan_number, binomial, factorial2,
+  log_barnes_g, whittaker_w, harmonic_number, riemann_siegel_z, elliptic_theta in q) left only branch and bound on
+  the values, and the ball forms of these functions enclose a cell of width w only to about K w with K up to 90
+  (riemann_siegel_z: radius 0.043 on a cell of width 0.001), so the 2^-44 target of branch and bound was never met
+  within its budget; a constant the function's own formula brings in (sqrt(pi) in catalan_number) stayed symbolic
+  next to the ball; the special functions themselves declined on a wide ball (Hurwitz zeta of a ball, Fresnel
+  integrals of a ball, 2F1 of a ball across 1/2) or ran for many seconds there.
+- `enclose.rs`: the derivative of the `function_expand` form when the function's own has no closed form (binomial,
+  catalan_number through gamma); the constants of a value made balls; branch and bound returns the proved least lower
+  bound of its cells after 60 enclosures per end (looser than asked, never wrong; a cell without a bound makes that
+  end infinite). With the new derivative rules of `mc-calculus` most of these images are now settled by monotone
+  cells and are tight; riemann_siegel_z, harmonic_number in its order and elliptic_theta in q go through branch and
+  bound (excess about 40 times the width of the last cells: [-0.6578, -0.6524] for the range [-0.65525, -0.65497]).
+- A pole inside the interval: the cell without an enclosure is searched for an exact pole q (a rational with a
+  denominator up to 12 or such a multiple of pi, where the value is infinite, or where the function stays
+  unevaluated and `limit(abs(f), x -> q)` is infinite, as tan at pi/2); the interval splits at q and the image is
+  the union of the two sides, each with the pole at an end (the round 41 rule for ends). acsch(interval([-4,
+  csch(2)])) is `interval([-inf, -acsch(4)], [2, inf])`, gamma over [-0.5, 0.5] the two rays beyond -2 sqrt(pi)
+  and sqrt(pi), tan over [1, 2] (-inf, tan 2] and [tan 1, inf). Up to 8 poles; more cells than the budget (tan
+  over [1, 5]) still give the whole line. A centered interval with a pole inside stays (its hull is unbounded).
+  An end where the function stays unevaluated at a pole (tan(pi/2), whose `n` is 1.6e16) counts as infinite: the
+  image of tan over [1, pi/2] was `[tan(1), tan(pi/2)]`.
+- `less` between a real infinity and a closed real term is decided in the interval helpers (-inf < tan(1) stayed a
+  relation, so a union of rays could not be sorted).
+- Rounding of centered intervals: sums and products of several centered intervals took the midpoints and radii as
+  machine numbers and added only 4 eps |c| to the radius; centre and radius rounded from exact numbers (1/3 + (-1/3 +
+  10^-10)) and every float operation now widen the radius by |x| eps, the radii by (1 + 4 (k + 1) eps). The complex
+  mantissa-exponent constructor now adds half an ulp of each rounded midpoint. Checked: `from_ball`, the box
+  arithmetic of `uncertain_boxes` (ends moved out by 4 eps), `centered_image` and `centered_corners` (radius
+  covers the midpoint rounding).
+- Sweep: 67 special functions on centered_interval(3/2, r), r = 1/100, 1/10, 1 (201 calls): 192 give a centered
+  interval. Still declining: spheroidal_s1 (no ball form), inverse_gamma_regularized (no ball form on a spread),
+  mathieu_c at r = 1, harmonic_number(1/2, s) across s = 1 (removable there; the Hurwitz ball declines at s = 1),
+  and log_integral, zeta, zeta(s, a) across their poles (correct). Slow at r = 1: barnes_g (11 s), kelvin_ber (6 s).
+- Gap: `interval_member_q` answers false when a comparison of a symbolic end with a ball is undecided
+  (whittaker_w(1, 2, 4) <= a 30-digit 3 stays a relation); the tests compare with `n` of the interval.

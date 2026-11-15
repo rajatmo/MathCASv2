@@ -225,6 +225,10 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
         if let View::Sym(sy) = fx.h.view(head) {
             let name = fx.h.sym_name(sy);
             if name == names::ADD || name == names::MUL {
+                // every centre and radius rounded to a machine number (an exact 1/3, a radius 1/100) and every
+                // midpoint operation widens the radius by the rounding: |x| eps each (half an ulp is |x| eps/2 at most),
+                // the float operations on the radii by the factor (1 + 4 (k + 1) eps) at the end
+                let eps = f64::EPSILON;
                 let mut acc: Option<(f64, f64)> = None;
                 for (i, d) in unc.iter().enumerate() {
                     let (Some(c), r) = (machine(fx, centers[i])?, match d {
@@ -232,15 +236,24 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
                         None => Some(0.0),
                     }) else { return Ok(None) };
                     let Some(r) = r else { return Ok(None) };
+                    let exact_c = fx.num(centers[i]).is_some_and(|n| !n.is_exact()) || fx.int_of(centers[i]).is_some_and(|v| v.unsigned_abs() < 1 << 53);
+                    let r = r.abs() * (1.0 + eps) + if exact_c { 0.0 } else { c.abs() * eps };
                     acc = Some(match acc {
                         None => (c, r),
-                        Some((c0, r0)) if name == names::ADD => (c0 + c, r0 + r),
-                        Some((c0, r0)) => (c0 * c, c0.abs() * r + c.abs() * r0 + r0 * r),
+                        Some((c0, r0)) if name == names::ADD => {
+                            let s = c0 + c;
+                            (s, r0 + r + s.abs() * eps)
+                        }
+                        Some((c0, r0)) => {
+                            let p = c0 * c;
+                            (p, c0.abs() * r + c.abs() * r0 + r0 * r + p.abs() * eps)
+                        }
                     });
                 }
                 if let Some((c, r)) = acc {
                     if c.is_finite() && r.is_finite() {
-                        let r = (r + 4.0 * f64::EPSILON * c.abs()) * (1.0 + 8.0 * f64::EPSILON);
+                        let k = unc.len() as f64;
+                        let r = r * (1.0 + 4.0 * (k + 1.0) * eps) + f64::from_bits(1);
                         return Ok(Some(fx.call(kind, &[fx.real(c), fx.real(r)])));
                     }
                 }
@@ -468,9 +481,14 @@ fn centered_image<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>
     // the spread as machine ends that contain it (c -+ d rounded outwards)
     let (a, b) = ((c - d).next_down(), (c + d).next_up());
     let Some(ps) = image(fx, head, centers, i, (fx.real(a), fx.real(b)))? else { return Ok(None) };
-    let (Some(&(l, _)), Some(&(_, h))) = (ps.first(), ps.last()) else { return Ok(None) };
-    let (Some(lo), Some(hi)) = (machine(fx, l)?, machine(fx, h)?) else { return Ok(None) };
-    if !(lo.is_finite() && hi.is_finite()) {
+    // the hull of the pieces (a union of rays across a pole is unbounded: the call stays)
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for &(l, h) in &ps {
+        let (Some(l), Some(h)) = (machine(fx, l)?, machine(fx, h)?) else { return Ok(None) };
+        lo = lo.min(l);
+        hi = hi.max(h);
+    }
+    if !(lo.is_finite() && hi.is_finite() && lo <= hi) {
         return Ok(None);
     }
     let mid = 0.5 * (lo + hi);
@@ -554,6 +572,12 @@ fn pieces<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<Vec<(T<'h>, T<'h>)>> 
 
 /// a < b for real numbers or closed real terms (by refinement), `None` when undecided.
 fn less<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: T<'h>, b: T<'h>) -> Res<Option<bool>> {
+    // a real infinity against a closed real term (-inf < tan(1) stays unevaluated as a relation)
+    match (fx.infinity(a), fx.infinity(b)) {
+        (Some(2), Some(2)) | (Some(0), _) | (_, Some(2)) => return Ok(Some(false)),
+        (Some(2), _) | (_, Some(0)) => return Ok(Some(true)),
+        _ => {}
+    }
     let v = fx.eval(fx.call("less", &[a, b]))?;
     Ok(if v == fx.bool(true) {
         Some(true)
@@ -961,7 +985,8 @@ fn centered_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>
                 let r = fx.eval(fx.mul(&[rm, fx.pow(two, re)]))?;
                 let (Some(c), Some(r)) = (fx.f64_of(c), fx.f64_of(r)) else { return Ok(None) };
                 mids.push(fx.real(c));
-                rads.push(fx.real(r * (1.0 + 4.0 * f64::EPSILON) + f64::from_bits(1)));
+                // the midpoint rounded to a machine number: half an ulp of it belongs to the radius
+                rads.push(fx.real((r + 0.5 * c.abs() * f64::EPSILON) * (1.0 + 4.0 * f64::EPSILON) + f64::from_bits(1)));
             }
             let c = fx.ar.complex(mids[0], mids[1]);
             let r = fx.ar.complex(rads[0], rads[1]);

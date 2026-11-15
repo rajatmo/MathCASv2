@@ -21,6 +21,14 @@
 //! and at the algebraic and logarithmic branch points of the library. Complex values, or more cells than the budget,
 //! give no image (the call stays).
 //!
+//! Round 42: a cell without an enclosure inside the interval at an exact pole q (a rational with a small denominator
+//! or such a multiple of pi, where f is infinite, or stays unevaluated with |f| tending to infinity by `limit`)
+//! splits the interval at q, and the image is the union of the images of the two sides (two rays for a simple
+//! pole: acsch over [-4, csch 2] is (-inf, -acsch 4] and [2, inf)). A function whose derivative has no closed form
+//! takes that of its `function_expand` form; a constant brought into a value by the function's own formula is made
+//! a ball too. Branch and bound on values has a budget of enclosures per end and then returns the least lower bound
+//! of its cells, proved but looser than asked (a ball form whose enclosure shrinks only in proportion to the width).
+//!
 //! Literature: R. E. Moore, R. B. Kearfott, M. J. Cloud, "Introduction to Interval Analysis", SIAM 2009, chapters 5
 //! and 6 (monotonicity test, subdivision); F. Johansson, "Arb: efficient arbitrary-precision midpoint-radius interval
 //! arithmetic", IEEE Transactions on Computers 66 (2017) 1281-1292 (ball arithmetic).
@@ -40,6 +48,8 @@ const CELL_BITS: u64 = 64;
 const MAX_DEPTH: u32 = 30;
 /// At most this many cells are settled.
 const MAX_CELLS: usize = 600;
+/// At most this many enclosures for each end in branch and bound.
+const BOUNDS_CELLS: usize = 60;
 
 /// An enclosure of a real value set: lower and upper machine bounds, or complex values, or none.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -194,6 +204,18 @@ struct Ctx<'h> {
     constants_as_balls: HashMap<T<'h>, T<'h>>,
 }
 
+/// The rules that replace the symbolic constants of `e` by balls of 30 digits.
+fn constant_rules<'h>(fx: &Fx<'_, '_, '_, 'h>, e: T<'h>) -> Vec<T<'h>> {
+    ["pi", "euler_gamma", "catalan", "golden_ratio", "degree", "glaisher", "khinchin", "e"]
+        .iter()
+        .filter(|s| fx.contains(e, s))
+        .map(|s| {
+            let c = fx.sym(s);
+            fx.call("rule", &[c, fx.call("n", &[c, fx.int(30)])])
+        })
+        .collect()
+}
+
 fn enc<'h>(fx: &mut Fx<'_, '_, '_, 'h>, cx: &mut Ctx<'h>, e: T<'h>, lo: f64, hi: f64) -> Res<Enc> {
     fx.tick(1)?;
     cx.cells += 1;
@@ -202,20 +224,21 @@ fn enc<'h>(fx: &mut Fx<'_, '_, '_, 'h>, cx: &mut Ctx<'h>, e: T<'h>, lo: f64, hi:
     let e = match cx.constants_as_balls.get(&e) {
         Some(&c) => c,
         None => {
-            let rules: Vec<T<'h>> = ["pi", "euler_gamma", "catalan", "golden_ratio", "degree", "glaisher", "khinchin", "e"]
-                .iter()
-                .filter(|s| fx.contains(e, s))
-                .map(|s| {
-                    let c = fx.sym(s);
-                    fx.call("rule", &[c, fx.call("n", &[c, fx.int(30)])])
-                })
-                .collect();
+            let rules = constant_rules(fx, e);
             let c = if rules.is_empty() { e } else { fx.eval(fx.call("rewrite", &[e, fx.list(&rules)]))? };
             cx.constants_as_balls.insert(e, c);
             c
         }
     };
-    let v = fx.eval(fx.call("rewrite", &[e, fx.call("rule", &[cx.var, b])]))?;
+    let mut v =fx.eval(fx.call("rewrite", &[e, fx.call("rule", &[cx.var, b])]))?;
+    // a symbolic constant brought in by the function's own formula (catalan_number of a ball is a ball over
+    // sqrt(pi)): the constants as balls in the value too
+    if fx.num(v).is_none() {
+        let rules = constant_rules(fx, v);
+        if !rules.is_empty() {
+            v = fx.eval(fx.call("rewrite", &[v, fx.list(&rules)]))?;
+        }
+    }
     Ok(match fx.num(v) {
         Some(n) => enc_of(&n),
         None => Enc::No,
@@ -359,7 +382,87 @@ fn image_by_cells<'h>(
     head: T<'h>,
     args: &[T<'h>],
     i: usize,
+    ab: (T<'h>, T<'h>),
+) -> Res<Option<Vec<(T<'h>, T<'h>)>>> {
+    image_split(fx, head, args, i, ab, 0, (false, false))
+}
+
+/// At most this many poles inside an interval are split off.
+const MAX_POLES: u32 = 8;
+
+/// An exact point inside the cell [l, r] (a rational with a denominator up to 12, or such a multiple of pi), strictly
+/// between the ends a and b, where the function is infinite: a pole found exactly.
+fn exact_pole<'h>(
+    fx: &mut Fx<'_, '_, '_, 'h>,
+    head: T<'h>,
+    args: &[T<'h>],
+    i: usize,
     (a, b): (T<'h>, T<'h>),
+    (l, r): (f64, f64),
+) -> Res<Option<T<'h>>> {
+    let w = (r - l).max(f64::EPSILON * l.abs().max(r.abs()));
+    let mut seen: Vec<T<'h>> = vec![];
+    for by_pi in [false, true] {
+        let unit = if by_pi { std::f64::consts::PI } else { 1.0 };
+        for d in 1..=12i64 {
+            let n = ((l + r) * 0.5 * d as f64 / unit).round();
+            if n.abs() > 1e12 {
+                continue;
+            }
+            let q = n * unit / d as f64;
+            if !(q >= l - w && q <= r + w) {
+                continue;
+            }
+            let qt = fx.rat(n as i64, d);
+            let qt = if by_pi { fx.eval(fx.mul(&[qt, fx.sym("pi")]))? } else { qt };
+            if seen.contains(&qt) {
+                continue;
+            }
+            seen.push(qt);
+            let inside = |fx: &mut Fx<'_, '_, '_, 'h>, x: T<'h>, y: T<'h>| -> Res<bool> {
+                Ok(fx.eval(fx.call("less", &[x, y]))? == fx.bool(true))
+            };
+            if !(inside(fx, a, qt)? && inside(fx, qt, b)?) {
+                continue;
+            }
+            let mut ys = args.to_vec();
+            ys[i] = qt;
+            let v = fx.eval(fx.h.app(head, &ys))?;
+            if infinite(fx, v)? || unevaluated_pole(fx, head, args, i, qt, v)? {
+                return Ok(Some(qt));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Is the value `v` of the function at the exact point `q` the call itself, left unevaluated at a pole (tan(pi/2),
+/// whose `n` is a large finite number): |f| tends to infinity at q from both sides (by `limit`)?
+fn unevaluated_pole<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], i: usize, q: T<'h>, v: T<'h>) -> Res<bool> {
+    let mut ys = args.to_vec();
+    ys[i] = q;
+    if fx.num(v).is_some() || v != fx.h.app(head, &ys) {
+        return Ok(false);
+    }
+    // only a value whose numeric approximation is huge is asked about (the limit is the proof)
+    if approx(fx, v)?.is_some_and(|w| w.abs() < 1e10) {
+        return Ok(false);
+    }
+    let x = fx.sym("interval·p");
+    ys[i] = x;
+    let f = fx.call("abs", &[fx.h.app(head, &ys)]);
+    let l = fx.eval(fx.call("limit", &[f, fx.call("rule", &[x, q])]))?;
+    Ok(fx.infinity(l) == Some(0))
+}
+
+fn image_split<'h>(
+    fx: &mut Fx<'_, '_, '_, 'h>,
+    head: T<'h>,
+    args: &[T<'h>],
+    i: usize,
+    (a, b): (T<'h>, T<'h>),
+    depth: u32,
+    pole_ends: (bool, bool),
 ) -> Res<Option<Vec<(T<'h>, T<'h>)>>> {
     let (Some(fa), Some(fb)) = (approx(fx, a)?, approx(fx, b)?) else { return Ok(None) };
     if fa > fb {
@@ -396,7 +499,17 @@ fn image_by_cells<'h>(
     }
     let g = cx.g;
     let closed = |fx: &Fx<'_, '_, '_, 'h>, e: T<'h>| !(fx.contains(e, "derivative") || fx.contains(e, "d"));
-    let dg = fx.eval(fx.call("d", &[g, var]))?;
+    let mut dg = fx.eval(fx.call("d", &[g, var]))?;
+    // no derivative in closed form: that of the function's closed form (binomial through gamma), if it has one
+    if !closed(fx, dg) {
+        let e = fx.eval(fx.call("function_expand", &[g]))?;
+        if e != g {
+            let de = fx.eval(fx.call("d", &[e, var]))?;
+            if closed(fx, de) {
+                dg = de;
+            }
+        }
+    }
     cx.dg = closed(fx, dg).then_some(dg);
     cx.d2g = match cx.dg {
         Some(dg) => {
@@ -406,8 +519,16 @@ fn image_by_cells<'h>(
         None => None,
     };
     // the values at the ends (exact for exact ends)
-    let ga = at(fx, a)?;
-    let gb = at(fx, b)?;
+    // (an end split off at a pole found by its limit, as tan at pi/2, stands for the infinity there)
+    // (so is an end where the function stays unevaluated at a pole)
+    let mut ga = if pole_ends.0 { fx.sym("complex_infinity") } else { at(fx, a)? };
+    let mut gb = if pole_ends.1 { fx.sym("complex_infinity") } else { at(fx, b)? };
+    if unevaluated_pole(fx, head, args, i, a, ga)? {
+        ga = fx.sym("complex_infinity");
+    }
+    if unevaluated_pole(fx, head, args, i, b, gb)? {
+        gb = fx.sym("complex_infinity");
+    }
     // the values at the ends must be real numbers or infinite (a pole): otherwise the function is not a real
     // numeric function there (a symbolic parameter, a complex value) and nothing is claimed
     for v in [ga, gb] {
@@ -428,8 +549,9 @@ fn image_by_cells<'h>(
         });
     }
     // no derivative in closed form: the least and greatest values by branch and bound on the values
+    // (a pole at an end leaves the cells next to it without a bound, so that end of the image is infinite)
     if cx.dg.is_none() {
-        return if pole_end { Ok(None) } else { by_bounds(fx, &mut cx, lo, hi) };
+        return by_bounds(fx, &mut cx, lo, hi);
     }
     // the cells, left to right
     let mut cells: Vec<Cell> = vec![];
@@ -531,6 +653,20 @@ fn image_by_cells<'h>(
         memo.insert(x.to_bits(), c);
         Ok(Some(c))
     };
+    // a cell without an enclosure inside the interval at an exact pole: the interval splits there, and the image is
+    // the union of the images of the two sides (each with the pole at an end: acsch over [-4, csch 2] is the two rays
+    // (-inf, acsch(-4)] and [2, inf))
+    if depth < MAX_POLES {
+        let fails: Vec<(f64, f64)> = runs.iter().filter_map(|c| if let Cell::Fail(l, r) = *c { Some((l, r)) } else { None }).collect();
+        for (l, r) in fails {
+            if let Some(q) = exact_pole(fx, head, args, i, (a, b), (l, r))? {
+                let Some(mut left) = image_split(fx, head, args, i, (a, q), depth + 1, (pole_ends.0, true))? else { return Ok(None) };
+                let Some(right) = image_split(fx, head, args, i, (q, b), depth + 1, (true, pole_ends.1))? else { return Ok(None) };
+                left.extend(right);
+                return Ok(Some(left));
+            }
+        }
+    }
     // a cell without an enclosure is a singularity only when f has enclosures on narrow balls elsewhere (else the
     // function has no ball form there, and nothing is claimed)
     let mut ball_form = true;
@@ -639,7 +775,9 @@ fn image_by_cells<'h>(
 /// derivative needed; Moore, Kearfott and Cloud, chapter 6.1, the Moore-Skelboe algorithm): the cell with the least
 /// lower bound is split until that bound is within 2^-44 (relative) of a value attained at a point, so the result's
 /// lower end is the least lower bound of the remaining cells (and alike for the upper end). A cell of the smallest
-/// width without an enclosure makes that end infinite; complex values or more cells than the budget give `None`.
+/// width without an enclosure makes that end infinite; complex values give `None`. After [`BOUNDS_CELLS`]
+/// enclosures for one end, that end is the least lower bound (greatest upper bound) of the cells left, infinite when
+/// one of them has none.
 fn by_bounds<'h>(fx: &mut Fx<'_, '_, '_, 'h>, cx: &mut Ctx<'h>, lo: f64, hi: f64) -> Res<Option<Vec<(T<'h>, T<'h>)>>> {
     let g = cx.g;
     let tiny = (hi - lo) * 0.5f64.powi(MAX_DEPTH as i32);
@@ -663,9 +801,26 @@ fn by_bounds<'h>(fx: &mut Fx<'_, '_, '_, 'h>, cx: &mut Ctx<'h>, lo: f64, hi: f64
             return Ok(None);
         }
         let mut cells: Vec<(f64, f64, Option<f64>)> = vec![(lo, hi, bound(first))];
+        let start = cx.cells;
         loop {
-            if cx.cells > MAX_CELLS {
-                return Ok(None);
+            // the budget spent: the least lower bound of the cells is proved (every cell has a bound), only looser
+            // than asked (a ball form whose enclosures shrink only in proportion to the width of the cell)
+            if cx.cells - start > BOUNDS_CELLS {
+                let mut v = if max { f64::NEG_INFINITY } else { f64::INFINITY };
+                // (a cell still without a bound, next to a pole, makes that end infinite)
+                for c in &cells {
+                    v = match c.2 {
+                        Some(b) if max => v.max(b),
+                        Some(b) => v.min(b),
+                        None if max => f64::INFINITY,
+                        None => f64::NEG_INFINITY,
+                    };
+                    if v.is_infinite() && c.2.is_none() {
+                        break;
+                    }
+                }
+                ends[k] = v;
+                break;
             }
             // the cell with the extreme bound (no bound counts as infinite)
             let key = |c: &(f64, f64, Option<f64>)| match c.2 {

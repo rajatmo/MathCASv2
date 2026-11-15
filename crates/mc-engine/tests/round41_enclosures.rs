@@ -115,9 +115,9 @@ fn real_intervals_enclose_their_images() {
 #[test]
 fn reported_images_with_a_pole_or_an_extremum() {
     let mut e = CoreEngine::new();
-    // a pole inside: the whole line
-    assert_eq!(ev(&mut e, "gamma(interval([-0.5, 0.5]))"), "interval([-inf, inf])");
-    assert_eq!(ev(&mut e, "tan(interval([1, 2]))"), "interval([-inf, inf])");
+    // a pole inside: the two rays on its sides (round 42; the whole line before)
+    assert_eq!(ev(&mut e, "gamma(interval([-0.5, 0.5]))"), "interval([-inf, -3.5449077018110318], [1.7724538509055159, inf])");
+    assert_eq!(ev(&mut e, "tan(interval([1, 2]))"), "interval([-inf, tan(2)], [tan(1), inf])");
     // the value at 0 is the least value: J_2(0) = 0 exactly
     let j = ev(&mut e, "j = bessel_j(2, interval([-3, 3])); j");
     assert!(j.starts_with("interval([0, 0.486091260585891"), "{j}");
@@ -126,7 +126,7 @@ fn reported_images_with_a_pole_or_an_extremum() {
     // variations: a pole inside for zeta and for the digamma function, a pole at an end (csch at 0), the maximum of
     // J_0 on [2, 5] at its end 2 and the minimum inside at the zero 3.8317... of J_1
     assert_eq!(ev(&mut e, "zeta(interval([0.5, 1.5]))"), "interval([-inf, inf])");
-    assert_eq!(ev(&mut e, "polygamma(interval([-0.5, 0.5]))"), "interval([-inf, inf])");
+    assert_eq!(ev(&mut e, "polygamma(interval([-0.5, 0.5]))"), "interval([-inf, -1.9635100260214233], [0.03648997397857651, inf])");
     assert_eq!(ev(&mut e, "csch(interval([0, log(3)]))"), "interval([3/4, inf])");
     let r = ev(&mut e, "r = bessel_j(0, interval([2, 5])); r");
     assert!(r.starts_with("interval([-0.40275"), "{r}");

@@ -1088,3 +1088,18 @@ small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
 
 - `fresnel_s` and `fresnel_c` of a ball whose complex erf declines (a ball of nonzero radius) returned the formula with
   erf left in it; evaluating that ran without end. The call now stays when the formula gives no number.
+
+## Round 42: ball forms on wide balls
+
+- Hurwitz zeta of real balls (`ball::zeta::hurwitz`): Euler-Maclaurin with the terms shifted by a, s > -1 excluding
+  1, a > 0, the remainder bound of Johansson (2015, theorem 1) with N + a; `harmonic_number(x, r)` of a ball is
+  zeta(r) - zeta(r, x + 1) and was left with zeta(r, x + 1) unevaluated.
+- Fresnel integrals of a real ball of nonzero radius: the mean value form S(m) + sin(pi z^2/2)(z - m) (cos for C)
+  with S at the midpoint as a point ball (the complex erf declines on a ball, the 1F2 series in z^4 adds the radii
+  of its cancelling terms: radius 3900 at z = 3 +- 0.006).
+- 2F1 of a real ball across 1/2 (0.49 to 0.51): no transformation covered the whole ball and the call fell through to
+  a path of 16 seconds; the series converges on the ball and is used for |z| < 0.95.
+- The complex 2F1 in the degenerate case (c - a - b an integer) with a ball z took the value at the midpoint widened
+  by twice |F'| times the radius, an estimate: elliptic_k of a ball containing m = 1 came out finite
+  (11.29 +- 2.26). A ball within four radii of z = 1 now has no value; the estimate elsewhere stays a gap (a proved
+  bound of F' over the ball needs F on a larger disc).

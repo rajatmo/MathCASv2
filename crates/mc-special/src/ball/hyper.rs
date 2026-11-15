@@ -13,7 +13,8 @@
 //!   connection formula in 1 - z (DLMF 15.8.4) when c - a - b is a ball without integers, otherwise (an integer
 //!   c-a-b, the degenerate case) the series itself, convergent for |z| < 1 (ratio about z: wp / log2(1/z) terms;
 //!   no limit formula); z < -1 Pfaff's transformation, then the same in w = z/(z-1) with 1 - w = 1/(1-z) (b - a
-//!   decides the degenerate case); z = 1 Gauss's Gamma(c)Gamma(c-a-b)/(Gamma(c-a)Gamma(c-b)) for c-a-b > 0.
+//!   decides the degenerate case); z = 1 Gauss's Gamma(c)Gamma(c-a-b)/(Gamma(c-a)Gamma(c-b)) for c-a-b > 0; a ball
+//!   that no transformation covers whole (across 1/2) the series itself when |z| < 0.95.
 //! - **1F1**: z >= 0 the series (positive terms for a, b > 0; about z terms: arguments above 2^20 have no value);
 //!   z < 0 Kummer's e^z M(b - a, b, -z) unless the series is finite.
 //! - **0F1**: the series, with about 2.9 sqrt|z| extra bits for z < 0 (the terms reach e^(2 sqrt|z|)).
@@ -329,6 +330,11 @@ fn f21(a: &Ball, b: &Ball, c: &Ball, z: &Ball, wp: u64) -> Option<Ball> {
             f21_upper(a, &cb, c, &w, &w_omz, wp)?
         };
         return Some(pre.mul(&f, wp));
+    }
+    // a ball across 1/2 (or across 0 beyond -1/2): no transformation covers all of it, but the series converges on
+    // the whole ball (ratio about |z| < 1; its tail is bounded rigorously)
+    if za < 0.95 {
+        return pfq_sum(&[a.clone(), b.clone()], std::slice::from_ref(c), z, wp);
     }
     None
 }

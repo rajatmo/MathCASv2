@@ -116,6 +116,14 @@ fn hurwitz<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, s: T<'h>, a: T<'h>) -> Option<
             let real = matches!(x, Num::Real(_)) && matches!(y, Num::Real(_)) && za.re > 0.0;
             return Some(mach_term(ar, if real { Mach::Real(v.re) } else { Mach::Complex(v) }));
         }
+        // real balls (s > -1, a > 0): Euler-Maclaurin on the balls, every point of them enclosed
+        if let (Num::Real(rs), Num::Real(ra)) = (x, y) {
+            if x.kind() == mc_arith::Kind::Ball || y.kind() == mc_arith::Kind::Ball {
+                let p = rs.prec().unwrap_or(0).max(ra.prec().unwrap_or(0)).max(53);
+                let v = crate::ball::zeta::hurwitz(rs, ra, p)?;
+                return Some(ar.number(&Num::Real(Real::Ball(v.re, p))));
+            }
+        }
     }
     let q = na.as_ref().and_then(Num::as_rat)?;
     if q.is_int() {

@@ -75,6 +75,10 @@ const FORMULA: &[&str] = &[
     // round 37: formula-defined (anger_j, weber_e) and integration-defined (Mathieu) values; the rows
     // are checked by central differences at 30-40 digits in crates/mc-engine/tests/r37_f37_special.rs
     "anger_j", "weber_e", "mathieu_c", "mathieu_c_prime",
+    // round 42: these functions of exact arguments have no 40-digit ball value (formulas evaluated for inexact
+    // arguments); the rules are checked by central differences at 30 digits in
+    // crates/mc-engine/tests/round42_balls.rs
+    "log_barnes_g", "factorial2", "binomial", "catalan_number", "whittaker_m", "whittaker_w",
 ];
 
 #[test]

@@ -1600,3 +1600,12 @@ Source in `lib/calculus.mc` (helpers `r38_`).
 - `polynomial_reduce(..., coefficient_domain: integers)` divides a term only when the quotient has integer
   coefficients in every symbol; `rational_functions` is the default behaviour (symbols other than xs are
   coefficients).
+
+## Round 42: derivatives of the counting and Whittaker functions
+
+- New rules: log_barnes_g' = (z - 1) digamma(z) - z + (1 + log 2 pi)/2 (DLMF 5.17.4 differentiated);
+  catalan_number' = C (2 log 2 + digamma(x + 1/2) - digamma(x + 2)); factorial2' from the gamma form
+  2^((1 + 2x - cos pi x)/4) pi^((cos pi x - 1)/4) Gamma(1 + x/2); binomial in both arguments by digamma;
+  harmonic_number(x, r) in x = r zeta(r + 1, x + 1) (the order derivative stays an operator); whittaker_m and
+  whittaker_w in z (DLMF section 13.15), parameters opaque. Checked by central differences (the rule test of
+  `tests/numeric.rs` at 25 digits, and at 30 digits in the engine tests).

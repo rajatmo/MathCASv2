@@ -1596,6 +1596,19 @@ fn fresnel<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], sine: bool) -> R<'h> {
         Some(p) => fx.eval(fx.call("n", &[fx.sym("pi"), fx.int((p as f64 * std::f64::consts::LOG10_2) as i64 + 8)]))?,
         None => fx.sym("pi"),
     };
+    // a real ball of nonzero radius: the complex erf of a ball declines, and the series in z^4 cancels its terms
+    // (their radii add up to e^(pi z^2/2) times the radius). The mean value form S(z) in S(m) + S'(z) (z - m) with
+    // S' = sin(pi z^2/2) (C' = cos) over the ball, S(m) at the midpoint as a point ball
+    if let Some(Num::Real(Real::Ball(bz, p))) = fx.num(z) {
+        if !bz.rad.is_zero() {
+            let m = fx.ar.number(&Num::Real(Real::Ball(mc_arith::num::Ball::exact(bz.mid.clone()), p)));
+            let vm = fx.eval(fx.call(me, &[m]))?;
+            let ang = fx.mul(&[fx.rat(1, 2), pi_t, z, z]);
+            let dv = fx.eval(fx.call(if sine { "sin" } else { "cos" }, &[ang]))?;
+            let v = fx.eval(fx.add(&[vm, fx.mul(&[dv, fx.sub(z, m)])]))?;
+            return Ok(matches!(fx.num(v), Some(Num::Real(_))).then_some(v));
+        }
+    }
     let sp = fx.sqrt(pi_t);
     let up = fx.call("erf", &[fx.mul(&[fx.rat(1, 2), fx.add(&[fx.int(1), i]), sp, z])]);
     let dn = fx.call("erf", &[fx.mul(&[fx.rat(1, 2), fx.sub(fx.int(1), i), sp, z])]);

@@ -264,6 +264,13 @@ pub fn hyp2f1(a: &CBall, b: &CBall, cc: &CBall, z: &CBall, p: u64) -> Option<CBa
         // bits for 2F1(2, 2; 5; z), round 28 gap). The value at the midpoint, widened by twice |F'(z)| rad(z) with
         // F' = (a b/c) 2F1(a + 1, b + 1; c + 1; z) at the midpoint (first order, an estimate as below)
         let mid = |x: &CBall| CBall::new(Ball::exact(x.re.mid.clone()), Ball::exact(x.im.mid.clone()));
+        // the singular point z = 1 inside (or next to) the ball: the function is unbounded or not analytic there, and
+        // no value at the midpoint widened by a slope encloses it (elliptic_k of a ball reaching m = 1 was finite)
+        let rad_f = |x: &Ball| super::f64_of(&super::mag_up(&Ball { mid: mc_arith::num::Float::zero(), rad: x.rad }).to_float());
+        let (rr, ri) = (rad_f(&z.re), rad_f(&z.im));
+        if ((1.0 - zr).powi(2) + zi * zi).sqrt() <= 4.0 * (rr + ri) + 1e-300 {
+            return None;
+        }
         let zm = mid(z);
         let v = hyp2f1(a, b, cc, &zm, p + 8)?;
         let one = c(1);
