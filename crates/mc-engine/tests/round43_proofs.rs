@@ -92,7 +92,7 @@ fn periods_are_proved_by_simplification() {
 fn grid_inside(e: &mut CoreEngine, f: &str, (a1, b1): (&str, &str), (a2, b2): (&str, &str), r: &str) -> bool {
     let src = format!(
         "rn = n({r}, 40); vs = flatten(table(n({}, 30), [i, 0, 4], [j, 0, 4])); \
-         length(select(vs, v => not(interval_member_q(rn, v))))",
+         length(select(vs, v => not(is_interval_member(rn, v))))",
         f.replace('X', &format!("({a1} + ({b1} - ({a1})) i/4)")).replace('Y', &format!("({a2} + ({b2} - ({a2})) j/4)"))
     );
     ev(e, &src) == "0"
