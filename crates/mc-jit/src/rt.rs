@@ -598,7 +598,14 @@ pub mod math {
             }
         )*};
     }
-    wrap!(exp, log, sin, cos, tan, atan, asin, acos, sinh, cosh, tanh, sqrt, log1p, expm1);
+    wrap!(exp, log, sin, cos, tan, atan, asin, acos, sinh, cosh, tanh, log1p, expm1);
+
+    /// The square root as the interpreter's `sqrt` of a machine real gives it: the correctly rounded root, and
+    /// `+0.0` at both zeros (the interpreter computes `-0.0^(1/2)` as the power, `+0.0`, where IEEE `sqrt` keeps
+    /// the sign). `x + 0.0` is `x` for every other value, NaN included.
+    pub extern "C" fn sqrt(x: f64) -> f64 {
+        (x + 0.0).sqrt()
+    }
 }
 
 /// The C entry of an elementary function.

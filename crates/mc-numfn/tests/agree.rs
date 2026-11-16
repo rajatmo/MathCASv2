@@ -26,7 +26,7 @@ impl Rng {
     }
 }
 
-const POINTS: &[f64] = &[0.0, -0.0, 1.0, -1.0, 0.5, -2.5, 3.0, 0.1, 1e300, -1e-300, 7.25, -0.75, 1e-8, 40.0, 2.0];
+const POINTS: &[f64] = &[0.0, -0.0, 1.0, -1.0, 0.5, -2.5, 3.0, 0.1, 1e300, -1e-300, 7.25, -0.75, 1e-8, 40.0, 2.0, 10.650000000000002, 5e-324, -5e-324];
 
 fn vars_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, spec: T<'h>) -> Option<Vec<Var>> {
     let h = cx.heap();
@@ -195,6 +195,38 @@ fn random_expressions_agree_on_both_backends() {
     // most expressions compile; both outcomes of a compiled call are well represented
     assert!(refused < n / 5, "{refused} refused");
     assert!(done > 2000 && declined > 200, "{done} done, {declined} declined, {refused} refused");
+}
+
+/// Roots and their powers at signed zeros, infinities and the other points: `sqrt` of a machine real is the
+/// correctly rounded root with `+0.0` at both zeros, `x^(1/2)` the machine power, and a power of a root is the
+/// root raised (never folded into `x^(3/2)`).
+#[test]
+fn roots_powers_of_roots_and_signed_zeros_agree() {
+    let mut e = engine();
+    let srcs = [
+        "sqrt(x)",
+        "sqrt(y[2]) ^ 3",
+        "sqrt(y[1]) ^ 2 - y[1]",
+        "sqrt(x) ^ -1",
+        "sqrt(x) ^ 0.5",
+        "x ^ (1/2)",
+        "x ^ (3/2) - sqrt(x) ^ 3",
+        "sqrt(x) * sqrt(z)",
+        "sqrt(x * z)",
+        "sin(y[1]) * sqrt(y[2]) ^ 3",
+        "0.0 * x",
+        "-1.5 * sqrt(z)",
+        "sqrt(0.5 * 3.25) + sqrt(z)",
+        "1 / (1 + sqrt(abs(x)))",
+        "sqrt(x - z)",
+        "[sqrt(x), sqrt(-x), sqrt(y[3]) ^ 2]",
+    ];
+    for (k, src) in srcs.iter().enumerate() {
+        let out = eval(&mut e, &format!("numfn_check({src}, [x, [y, 3], z], {}, 400)", k + 1));
+        let [d, _, bad] = parse(&out);
+        assert_eq!(bad, 0, "{src}: {out}");
+        assert!(d > 0, "{src}: {out}");
+    }
 }
 
 #[test]
