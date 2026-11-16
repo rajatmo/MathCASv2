@@ -2491,7 +2491,7 @@ fn mittag_leffler<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     // (a symbolic z, or an exact one off the real line: real exact values keep the series, a real number)
     if fx.num(z).is_none_or(|n| n.kind() == Kind::Exact && matches!(n, Num::Complex(..))) {
         let m = fx.int_of(al).filter(|&m| m >= 1);
-        if let (Some(m), Some(bi)) = (m, fx.int_of(b)) {
+        if let (Some(m), Some(bi)) = (m, fx.int_of(b).filter(|b| b.abs() <= 1000)) {
             let w = |fx: &Fx<'_, '_, '_, 'h>, k: i64| fx.call("exp", &[fx.mul(&[fx.rat(2 * k, m), fx.i(), fx.sym("pi")])]);
             let root = fx.pow(z, fx.rat(1, m));
             let mut terms = Vec::with_capacity(m as usize);
@@ -2503,7 +2503,19 @@ fn mittag_leffler<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
                 terms.push(fx.mul(&[c, fx.call("exp", &[fx.mul(&[w(fx, k), root])])]));
             }
             let pre = fx.mul(&[fx.rat(1, m), fx.pow(z, fx.rat(1 - bi, m))]);
-            return Ok(Some(fx.mul(&[pre, fx.add(&terms)])));
+            // for b >= 2 the kept powers j = b - 1 mod m of the exponential series include j < b - 1, the terms
+            // z^((j + 1 - b)/m)/j! of negative index that the series of E does not have (round 44: E_(1,2)(z) was
+            // e^z/z, it is (e^z - 1)/z)
+            let mut extra = vec![];
+            for j in 0..(bi - 1).max(0) {
+                if (j - (bi - 1)).rem_euclid(m) == 0 {
+                    let f = fx.call("factorial", &[fx.int(j)]);
+                    extra.push(fx.neg(fx.div(fx.pow(z, fx.rat(j + 1 - bi, m)), f)));
+                }
+            }
+            let mut all = vec![fx.mul(&[pre, fx.add(&terms)])];
+            all.extend(extra);
+            return Ok(Some(fx.add(&all)));
         }
         if m == Some(1) && fx.num(b).is_none() {
             let a1 = fx.sub(b, fx.int(1));

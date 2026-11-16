@@ -955,8 +955,12 @@ impl<'a, 'h> Gruntz<'a, 'h> {
             }
             let Some((ex, cs)) = best else { return Ok(None) };
             let c = self.ev(cx, b.add(&cs))?;
-            // a cancellation needs the next terms, which this form does not have
-            return Ok(if c == b.zero() { None } else { Some(WLead::Term(c, ex)) });
+            // a cancellation needs the next terms, which this form does not have (also one not seen: an undecided
+            // constant)
+            return Ok(match self.zero_coefficient(cx, c)? {
+                Some(false) => Some(WLead::Term(c, ex)),
+                _ => None,
+            });
         }
         if let Some((name, &[u])) = call_of(b, f).as_ref().map(|(n, a)| (n.as_str(), *a)) {
             if name == "log" {
@@ -992,8 +996,10 @@ impl<'a, 'h> Gruntz<'a, 'h> {
                 if !is_free(b, c, w) {
                     return Ok(None);
                 }
-                if c == b.zero() || self.zero_coefficient(cx, c)? {
-                    continue;
+                match self.zero_coefficient(cx, c)? {
+                    Some(true) => continue,
+                    Some(false) => {}
+                    None => return Ok(None),
                 }
                 let k = ex.val + i as i64;
                 let e = b.rat(k, ex.den);
@@ -1007,14 +1013,39 @@ impl<'a, 'h> Gruntz<'a, 'h> {
         Ok(None)
     }
 
-    /// Is the coefficient `c` (a function of x) zero, by a common denominator? (The kernels' zero test is
-    /// polynomial in their kernels; quotients that cancel need more.)
-    fn zero_coefficient(&mut self, cx: &mut NativeCx<'_, '_, 'h>, c: T<'h>) -> Res<bool> {
-        if self.free(c) || leaves(self.b, c) > 400 {
-            return Ok(false);
+    /// Is the coefficient `c` zero? A function of x: by a common denominator (the kernels' zero test is polynomial
+    /// in their kernels; quotients that cancel need more). A closed numeric constant (round 44): by its sign, decided
+    /// by the decision service or an enclosure, else by `simplify`; `None` when that is not decided, since a
+    /// coefficient that is zero but not seen to be (-sinh(2) - e^-2/2 + e^2/2 in the series of sinh(x) - sinh(2) at
+    /// 2) taken as the leading term made `limit((fresnel_c(x) - fresnel_c(2))/(sinh(x) - sinh(2)), x -> 2)` 0. A
+    /// constant with parameters is taken as nonzero unless its common denominator is 0, as before.
+    fn zero_coefficient(&mut self, cx: &mut NativeCx<'_, '_, 'h>, c: T<'h>) -> Res<Option<bool>> {
+        let b = self.b;
+        if c == b.zero() {
+            return Ok(Some(true));
         }
-        let t = apply(cx, self.b, "together", &[c])?;
-        Ok(t == self.b.zero())
+        if b.ar.num(c).is_some() {
+            return Ok(Some(false));
+        }
+        if self.free(c) {
+            let h = b.heap();
+            let c = self.unwrap_g(c);
+            if cx.eval(b.call("is_numeric", &[c]))? != h.sym_term(h.sym(mc_api::names::TRUE)) {
+                return Ok(Some(false));
+            }
+            if let Some(s) = const_sign(cx, b, c)? {
+                return Ok(Some(s == 0));
+            }
+            if leaves(b, c) <= 400 && apply(cx, b, "simplify", &[c])? == b.zero() {
+                return Ok(Some(true));
+            }
+            return Ok(None);
+        }
+        if leaves(b, c) > 400 {
+            return Ok(Some(false));
+        }
+        let t = apply(cx, b, "together", &[c])?;
+        Ok(Some(t == b.zero()))
     }
 
     /// `e` in the exp-log form the algorithm takes (module comment), or `None` when a part has no such form here.
@@ -1078,7 +1109,15 @@ impl<'a, 'h> Gruntz<'a, 'h> {
             na.push(p);
         }
         let r = match b.sym_of(head) {
-            Some(s) if s == b.hd.add => Some(b.add(&na)),
+            Some(s) if s == b.hd.add => {
+                // constant hyperbolic terms of a sum in the exp form of the others, so that the series kernels see
+                // cancellations: sinh(x) - sinh(2) at x = 2 (round 44)
+                let mut terms = Vec::with_capacity(na.len());
+                for &a in &na {
+                    terms.push(if self.free(a) { self.hyperbolic_as_exp(cx, a)? } else { a });
+                }
+                Some(b.add(&terms))
+            }
             Some(s) if s == b.hd.mul => Some(b.mul(&na)),
             Some(s) if s == b.hd.pow && na.len() == 2 => {
                 let (base, p) = (na[0], na[1]);
@@ -1106,6 +1145,42 @@ impl<'a, 'h> Gruntz<'a, 'h> {
         };
         memo.insert(t, r);
         Ok(r)
+    }
+
+    /// A constant with its hyperbolic functions written by exponentials (sinh(u) = (e^u - e^-u)/2, ...), evaluated;
+    /// the constant itself when it has none.
+    fn hyperbolic_as_exp(&mut self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<T<'h>> {
+        fn walk<'h>(b: &Build<'h>, t: T<'h>, changed: &mut bool) -> T<'h> {
+            let h = b.heap();
+            let View::App { head, args } = h.view(t) else { return t };
+            let na: Vec<T<'h>> = args.iter().map(|&a| walk(b, a, changed)).collect();
+            let ex = |u: T<'h>| b.call("exp", &[u]);
+            let half = b.rat(1, 2);
+            if let (Some(s), [u]) = (b.sym_of(head), na.as_slice()) {
+                let u = *u;
+                let r = match h.sym_name(s).as_str() {
+                    "sinh" => Some(b.mul(&[half, b.sub(ex(u), ex(b.neg(u)))])),
+                    "cosh" => Some(b.mul(&[half, b.add(&[ex(u), ex(b.neg(u))])])),
+                    "tanh" => Some(b.div(b.sub(ex(u), ex(b.neg(u))), b.add(&[ex(u), ex(b.neg(u))]))),
+                    "coth" => Some(b.div(b.add(&[ex(u), ex(b.neg(u))]), b.sub(ex(u), ex(b.neg(u))))),
+                    "sech" => Some(b.div(b.int(2), b.add(&[ex(u), ex(b.neg(u))]))),
+                    "csch" => Some(b.div(b.int(2), b.sub(ex(u), ex(b.neg(u))))),
+                    _ => None,
+                };
+                if let Some(r) = r {
+                    *changed = true;
+                    return r;
+                }
+            }
+            b.app(head, &na)
+        }
+        let mut changed = false;
+        let r = walk(self.b, t, &mut changed);
+        if changed {
+            cx.eval(r)
+        } else {
+            Ok(t)
+        }
     }
 
     /// The exp-log form of the call `name(args)` (arguments prepared).

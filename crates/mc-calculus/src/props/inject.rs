@@ -140,7 +140,21 @@ pub(super) fn by_pieces<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'
         }
         let d = cx.eval(b.call("d", &[f, x]))?;
         if interval::shape_on_domain(cx, b, f, d, x, &cs, 1, true)?.is_none() {
-            return Ok(None);
+            // the strict monotonicity of the piece as a property call on its open interval (a proof by the sign of
+            // f' under the piece's facts: -sech(1/x)^2/x^2 < 0 for tanh(1/x), whose enclosures near 0 do not settle)
+            let mut region = conds.to_vec();
+            if let Some((l, _)) = p.lo {
+                region.push(b.call("greater", &[x, l]));
+            }
+            if let Some((u, _)) = p.hi {
+                region.push(b.call("less", &[x, u]));
+            }
+            let k = conj(cx, &region)?;
+            let piece = super::Call { f, cond: Some(k), vars: vec![x], complex: false, integers: false, facts: vec![], strict: true };
+            let m = super::sign_of(cx, b, &piece, 1)?;
+            if !matches!(m.map(|m| h.view(m)), Some(mc_api::View::Int(1 | -1))) {
+                return Ok(None);
+            }
         }
     }
     // pairwise disjoint: one image entirely below the other (a shared end attained by at most one)

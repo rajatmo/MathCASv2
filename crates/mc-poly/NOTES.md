@@ -417,3 +417,10 @@ factor by factor and stay products.
   (`expand((1 + x + y + z)^120)`) sorted for over 3 s without polling. `Writer::sorted` sorts runs of 4096 and merges
   them in pairs (a stable merge sort: the order of the stable sort), polling the stop flag between runs; `to_term`
   gives `Halt::Stopped`. A stop now ends within about 100 ms. Test `round44_interrupts.rs`.
+## Round 44: no series at the jumps of periodic waves
+
+- The Taylor rules take derivatives, which miss the jumps of `sawtooth_wave` (derivative 1), `square_wave`
+  (derivative 0) and `mod(x, m)` in x: `series(sawtooth_wave(x), x, 0, 3)` was `x`, the series of the right side
+  only (on the left the function is 1 + x). `periodic_jump` treats their jumps (integers, multiples of 1/2,
+  multiples of m) like those of the step functions: a series only for a side given by the assumptions, none
+  otherwise. Found by the series generator of `mc-engine/tests/round44_soundness.rs`.

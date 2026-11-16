@@ -45,8 +45,7 @@ fn f64_of(f: &Float) -> f64 {
 fn real_bounds(r: &Real) -> Option<(f64, f64)> {
     match r {
         Real::Ball(bl, _) => {
-            let rad = bl.rad.to_float();
-            let (l, h) = (bl.mid.sub_exact(&rad), bl.mid.add_exact(&rad));
+            let (l, h) = bl.ends();
             let (lo, hi) = (f64_of(&l), f64_of(&h));
             let exact = |v: f64, f: &Float| float_of(v).cmp_exact(f) == std::cmp::Ordering::Equal;
             let lo = if exact(lo, &l) { lo } else { lo.next_down() };

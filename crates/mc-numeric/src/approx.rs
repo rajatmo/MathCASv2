@@ -318,7 +318,7 @@ fn below(r: &Real, delta: &Rat) -> bool {
             return q.cmp_value(delta) == Ordering::Less;
         }
         Real::Ball(b, _) => {
-            let upper = b.mid.abs().add_exact(&b.rad.to_float());
+            let upper = Ball { mid: b.mid.abs(), rad: b.rad }.ends().1;
             let top = if upper.is_zero() { i64::MIN } else { upper.top() };
             (upper, top)
         }

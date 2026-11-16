@@ -191,3 +191,11 @@ dev-dependencies only. Build, clippy (all targets) and tests pass offline with n
   of radius 8.1e-31 below the bound 1.59e-30, stayed undecided. The modulus of the difference exceeds |big| -
   2^top(small) >= |big| - 2^e, e = max(top(small), exp(big) - 64), and that bound is formed exactly with an
   alignment of at most 64 bits beyond the mantissa. Test: `tests/numbers.rs`.
+
+## Round 44: ends of a ball
+
+- `Ball::ends` gives `mid -+ rad`, exactly when the exponents of the two are within 4,096 bits of each other and
+  otherwise the ends of a slightly wider ball (the smaller replaced by a power of two 4,096 bits below the larger),
+  so that no mantissa is shifted by the whole gap. Callers that only need the ends for bounds or ordering use it
+  (`number::Real::ends`, `mc-calculus` proof bounds, `mc-numeric` enclose and chop, `mc-algebra` transcendental
+  roots): the enclosure of exp(-1/x^2) near 0 had a gap of about 10^12 bits, and `sub_exact` asked for 180 GB.

@@ -1922,7 +1922,8 @@ fn taylor_table_with<'h>(
         }
         // a step function whose argument sits on a jump at x0: constant on each side, so a series only for a side
         // given by the assumptions (and a known side of the argument); otherwise no entry and no series
-        if all && fargs.len() == 1 && on_jump(h, &h.sym_name(fs), u0) {
+        let wave_jump = periodic_jump(cx, &h.sym_name(fs), fargs, *i, u0)?;
+        if all && (wave_jump || fargs.len() == 1 && on_jump(h, &h.sym_name(fs), u0)) {
             if let Some(s) = arg_side(cx, *x, *x0, arg)? {
                 if let Some(sub) = step_value(h, &h.sym_name(fs), arg, u0, s) {
                     stack.push((sub, want));
@@ -2139,6 +2140,22 @@ fn side_marker<'h>(cx: &mut mc_eval::NativeCx<'_, '_, 'h>, table: &mut TaylorTab
         }
     }
     Ok(())
+}
+
+/// Is `u0` (the value at x0 of the argument `i` of `f(args)`) a jump of a periodic function that is not constant
+/// between its jumps: an integer for `sawtooth_wave`, a multiple of 1/2 for `square_wave` (their last argument), a
+/// multiple of the modulus for `mod` (its first)? Their derivatives (1 for the sawtooth, 0 for the square wave) miss
+/// the jump, so the Taylor rules gave a series of one side only: `sawtooth_wave(x)` at 0 was `x` for both sides
+/// (round 44). No series is given there.
+fn periodic_jump<'h>(cx: &mut mc_eval::NativeCx<'_, '_, 'h>, f: &str, args: &[T<'h>], i: usize, u0: T<'h>) -> mc_eval::Res<bool> {
+    let h = cx.heap();
+    let q = match f {
+        "sawtooth_wave" if i + 1 == args.len() => u0,
+        "square_wave" if i + 1 == args.len() => cx.eval(h.call(h.sym(mc_api::names::MUL), &[h.int(2), u0]))?,
+        "mod" if i == 0 && args.len() == 2 => cx.eval(h.call(h.sym(mc_api::names::MUL), &[u0, h.call(h.sym(mc_api::names::POW), &[args[1], h.int(-1)])]))?,
+        _ => return Ok(false),
+    };
+    Ok(matches!(h.view(q), View::Int(_)))
 }
 
 /// Is `u0` a jump of the step function `f` of one argument: an integer for `floor`, `ceiling`, `integer_part`,

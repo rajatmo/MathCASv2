@@ -779,3 +779,17 @@ negative) reduced into (-pi, pi] (`arg(exp(9 i pi/8)) = -7 pi/8`, `arg((-5)^(1/5
 a unit or a complex coefficient is `sqrt(re^2 + im^2)` of the distributed parts; a power 2..6 of such a sum is
 expanded first (`im_part((e + i pi)^3) = 3 pi e^2 - pi^3`). Gap (a form only): `re(exp(3 i pi/8))` is `cos(3 pi/8)`
 where `sin(pi/8)` is the documented form (no reduction of the angle to the first octant).
+## Round 44: images across jumps
+
+- `enclose::image` decides an image by the monotonicity test of cells (f' of one sign over a cell), which assumes
+  f continuous on the cell. Three functions jump where their derivative stays bounded and continuous: `acot` at 0
+  (acot' = -1/(1 + x^2); acot goes from -pi/2 to pi/2), `fractional_part` at the integers other than 0 (its
+  derivative is 1), `mod(x, m)` at the multiples of m. `acot(interval([-5, 5]))` was `[-acot 5, acot 5]`,
+  `fractional_part(interval([0.5, 1.5]))` the point 1/2, `fractional_part(centered_interval(1, 0.25))` 0.5 -+ 0.25.
+  `jumps_inside` now leaves the call unevaluated when a jump lies in the interval, except at an end where the
+  function is continuous from the inside (acot from the right at 0; fractional_part from the right at positive
+  and from the left at negative integers; mod from the right for m > 0, from the left for m < 0). The other
+  functions with jumps are constant between them (`uncertain::STEP_FUNCTIONS`) or complex on one side. Found by
+  the enclosure generator of `mc-engine/tests/round44_soundness.rs`.
+- `approx::below` (chop) takes the upper end of |m| -+ r through `Ball::ends` (mc-arith), which no longer aligns
+  exponents that are far apart.

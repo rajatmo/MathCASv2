@@ -369,7 +369,11 @@ impl<'a, 'h> More<'a, 'h> {
                 if self.is(a[0], 0) {
                     return self.val(self.n(1));
                 }
-                if a[0] == a[1] {
+                // 1F1(a; a; z) = e^z, except at a negative integer a = b = -n, where the series terminates after the
+                // term z^n/n! like every 1F1 with a = -n (as the numerical value and 2F1(-n, b; -n; z) take it; round
+                // 44: 1F1(-2; -2; 3) was e^3 here and 17/2 numerically)
+                let negative_integer = self.rat(a[0]).is_some_and(|q| q.is_int() && q.cmp_value(&Rat::from_i64(0)).is_lt());
+                if a[0] == a[1] && !negative_integer {
                     return self.val(self.call("exp", &[a[2]]));
                 }
                 // b - a a nonpositive integer -n at a symbolic argument: Kummer's transformation 1F1(a; b; z) =

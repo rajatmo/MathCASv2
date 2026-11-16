@@ -91,8 +91,7 @@ pub(crate) fn ball_mid_rad<'h>(fx: &Fx<'_, '_, '_, 'h>, c: f64, r: f64) -> T<'h>
 fn real_bounds(r: &Real) -> Option<(f64, f64)> {
     match r {
         Real::Ball(b, _) => {
-            let rad = b.rad.to_float();
-            let (l, h) = (b.mid.sub_exact(&rad), b.mid.add_exact(&rad));
+            let (l, h) = b.ends();
             let (lo, hi) = (f64_of(&l), f64_of(&h));
             // a bound that is a machine number exactly stays; others move outwards past the rounding
             let exact = |v: f64, f: &Float| float_of(v).cmp_exact(f) == std::cmp::Ordering::Equal;
@@ -297,6 +296,9 @@ pub(crate) fn image<'h>(
     i: usize,
     (a, b): (T<'h>, T<'h>),
 ) -> Res<Option<Vec<(T<'h>, T<'h>)>>> {
+    if jumps_inside(fx, head, args, i, (a, b))? {
+        return Ok(None);
+    }
     let known = match fx.h.view(head) {
         mc_api::View::Sym(s) if args.len() == 1 => {
             let name = fx.h.sym_name(s);
@@ -392,6 +394,79 @@ pub(crate) fn image<'h>(
     let Some(lo_t) = pick(fx, &lows, false)? else { return Ok(None) };
     let Some(hi_t) = pick(fx, &highs, true)? else { return Ok(None) };
     Ok(Some(vec![(lo_t, hi_t)]))
+}
+
+/// Does the function jump inside [a, b] (round 44)? acot, fractional_part and mod (in its first argument) have a
+/// derivative that stays continuous and bounded across their jumps (acot' = -1/(1 + x^2) across 0, where acot goes
+/// from -pi/2 to pi/2; fractional_part' = 1 across the integers other than 0), so the monotonicity test of the cells
+/// would join the two sides: acot over [-5, 5] gave [-acot 5, acot 5], fractional_part over [1/2, 3/2] the point
+/// 1/2. A jump at an end where the function is continuous from the inside does not count: acot is continuous from
+/// the right at 0, fractional_part from the right at the positive integers and from the left at the negative ones,
+/// mod(x, m) from the right at the multiples of m > 0 and from the left at those of m < 0. The call then stays
+/// unevaluated (no image is proved). The other functions with jumps are constant between them (the step functions
+/// of `uncertain`) or take complex values on one side.
+fn jumps_inside<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], i: usize, (a, b): (T<'h>, T<'h>)) -> Res<bool> {
+    let mc_api::View::Sym(s) = fx.h.view(head) else { return Ok(false) };
+    let name = fx.h.sym_name(s);
+    let less = |fx: &mut Fx<'_, '_, '_, 'h>, x: T<'h>, y: T<'h>| -> Res<Option<bool>> {
+        let v = fx.eval(fx.call("less", &[x, y]))?;
+        Ok(if v == fx.bool(true) {
+            Some(true)
+        } else if v == fx.bool(false) {
+            Some(false)
+        } else {
+            None
+        })
+    };
+    // the integers k with lo <= k <= hi other than those in `allowed` (exact comparisons; undecided: a jump)
+    let integers_besides = |fx: &mut Fx<'_, '_, '_, 'h>, lo: T<'h>, hi: T<'h>, allowed: &[T<'h>]| -> Res<bool> {
+        let (c, f) = (fx.eval(fx.call("ceiling", &[lo]))?, fx.eval(fx.call("floor", &[hi]))?);
+        let (Some(c), Some(f)) = (fx.int_of(c), fx.int_of(f)) else { return Ok(true) };
+        if c > f {
+            return Ok(false);
+        }
+        let mut count = (f as i128) - (c as i128) + 1;
+        let mut seen = vec![];
+        for &k in allowed {
+            // an exact integer, or a machine number that is one
+            let k = match fx.int_of(k) {
+                Some(k) => k,
+                None => match fx.machine_of(k) {
+                    Some(v) if v.fract() == 0.0 && v.abs() < 9.0e15 => v as i64,
+                    _ => continue,
+                },
+            };
+            if c <= k && k <= f && !seen.contains(&k) {
+                seen.push(k);
+                count -= 1;
+            }
+        }
+        Ok(count > 0)
+    };
+    match (name.as_str(), args.len(), i) {
+        ("acot", 1, 0) => Ok(less(fx, a, fx.int(0))? != Some(false) && less(fx, b, fx.int(0))? != Some(true)),
+        ("fractional_part", 1, 0) => {
+            let mut allowed = vec![fx.int(0)];
+            if less(fx, fx.int(0), a)? == Some(true) {
+                allowed.push(a);
+            }
+            if less(fx, b, fx.int(0))? == Some(true) {
+                allowed.push(b);
+            }
+            integers_besides(fx, a, b, &allowed)
+        }
+        ("mod", 2, 0) => {
+            let m = args[1];
+            let Some(Num::Real(_)) = fx.num(m) else { return Ok(true) };
+            let (qa, qb) = (fx.eval(fx.div(a, m))?, fx.eval(fx.div(b, m))?);
+            match less(fx, fx.int(0), m)? {
+                Some(true) => integers_besides(fx, qa, qb, &[qa]),
+                Some(false) => integers_besides(fx, qb, qa, &[qb]),
+                None => Ok(true),
+            }
+        }
+        _ => Ok(false),
+    }
 }
 
 /// The image of [a, b] settled by cells (the module comment).

@@ -461,6 +461,38 @@ pub struct Ball {
 }
 
 impl Ball {
+    /// The largest exponent gap between the midpoint and the radius that [`Ball::ends`] aligns exactly.
+    pub const ENDS_GAP: i64 = 4096;
+
+    /// The ends `mid - rad` and `mid + rad`, exactly when the magnitudes of `mid` and `rad` are within
+    /// [`Ball::ENDS_GAP`] bits of each other; otherwise the ends of a slightly wider ball, the smaller of the two
+    /// replaced by the power of two `ENDS_GAP` bits below the larger, so that no mantissa is shifted by the whole
+    /// gap (round 44: the ball of exp(-1/x^2) near 0 has a midpoint near 2^-(10^12) and a radius near 2^-(10^12 +
+    /// 64), or a midpoint 0 and a tiny radius beside a large one; their exact ends took 180 GB). Every point of the
+    /// ball lies between the ends.
+    pub fn ends(&self) -> (Float, Float) {
+        if self.rad.is_zero() {
+            return (self.mid.clone(), self.mid.clone());
+        }
+        let r = self.rad.to_float();
+        if self.mid.is_zero() {
+            return (r.neg(), r);
+        }
+        let (tm, tr) = (self.mid.top(), r.top());
+        if tm - tr > Self::ENDS_GAP {
+            // the radius below the midpoint's last kept bits: widen it to 2^(tm - GAP)
+            let w = Float::new(false, Nat::from_u64(1), tm - Self::ENDS_GAP);
+            return (self.mid.sub_exact(&w), self.mid.add_exact(&w));
+        }
+        if tr - tm > Self::ENDS_GAP {
+            // the midpoint negligible beside the radius: the ball lies in [-(r + w), r + w]
+            let w = Float::new(false, Nat::from_u64(1), tr - Self::ENDS_GAP);
+            let rw = r.add_exact(&w);
+            return (rw.neg(), rw);
+        }
+        (self.mid.sub_exact(&r), self.mid.add_exact(&r))
+    }
+
     /// An exact ball (zero radius).
     pub fn exact(mid: Float) -> Ball {
         Ball { mid, rad: Mag::ZERO }

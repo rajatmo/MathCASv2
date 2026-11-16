@@ -1205,3 +1205,31 @@ enclosures; a prelude form of the closed expression would lose the dependence be
 loose enclosure), a tight ball form of the inverse nome over (-1, 1) (the theta quotient of
 a wide ball is loose), function_range and function_singularities of special functions (property code), the
 half-integer Bessel orders evaluated automatically (a change of the automatic forms everywhere).
+## Round 44: exact forms against numbers
+
+The exact-against-approximate and precision generators of `mc-engine/tests/round44_soundness.rs` compare an exact
+form at an exceptional parameter with the function evaluated at 30-digit arguments, and a value's claimed precision
+with a value at more digits. Defects found and fixed:
+- `hypergeometric_1f1(-2, -2, 3)` was e^3 (the rule 1F1(a; a; z) = e^z and the cancellation of equal parameters
+  in `meijer::named_pfq`) while its numerical value and `hypergeometric_2f1(-2, b, -2, z)` take the terminating
+  polynomial (17/2). A negative integer upper parameter now ends the series and is not cancelled.
+- `legendre_p(n, m, x)` at x > 1 (type 2): integer degrees use (1 - x^2)^(m/2) d^m P/dx^m, other degrees
+  ((1 + x)/(1 - x))^(m/2) 2F1~, whose branch at x = 3 differs: `legendre_p(2, 1, 3)` was -18 sqrt(2) i exactly and at
+  machine precision, +18 sqrt(2) i at 30 digits. For an integer order the factor is now (1 + x)^(m/2) (1 - x)^(-m/2).
+- Laguerre, Gegenbauer and Jacobi functions at an inexact natural degree (`3.`, or 3 at 30 digits) went through
+  binomial(n + a, n) 1F1(-n; a + 1; x), 0 times a pole at a = -2: `laguerre_l(n(3, 30), n(-2, 30), n(1/3, 30))` was 0
+  and `laguerre_l(3., -2., 1/3.)` indeterminate (4/81). They are now the polynomial of the exact degree times an
+  inexact 1 that carries the degree's precision (`with_exact_degree`); the Hermite, Chebyshev and Legendre
+  polynomials at an arbitrary-precision natural degree likewise (`hermite_h` at 40-digit 1 and 3/4 stayed a form
+  with 1/gamma(0.)).
+- The closed form of E_(m,b)(z) for integers m >= 1 and b (`cover::mittag_leffler`, the sum over the m-th roots of
+  unity) keeps the powers j = b - 1 mod m of the exponential series, which for b >= 2 include j < b - 1, terms of
+  negative index that E does not have: `mittag_leffler_e(1, 2, z)` was e^z/z (it is (e^z - 1)/z), E_(1,3) lacked
+  -1/z^2 - 1/z, E_(2,3) lacked -1/z. They are subtracted now (b at most 1,000 for the closed form).
+- `legendre_p(l, m, x)` with integers and m < -l was 0 (true of P_l^m with m > l, the m-th derivative of a
+  polynomial of degree l, not of P_l^-m): `legendre_p(0, -1, 1/3)` is 2^(-1/2), as at machine precision. It is now
+  the hypergeometric form (1 + x)^(m/2) (1 - x)^(-m/2) 2F1~(-l, l + 1; 1 - m; (1 - x)/2).
+
+Found, not fixed: `n(erf(10^8), 30)` and `n(exp(-10^40), 30)` fail with `precision_not_reached`; `erf` of a wide
+interval far out stays unevaluated; `legendre_q(2, 1/3)` and `zeta(-1, 4)` (Hurwitz) at 30-digit arguments stay
+unevaluated; `zeta(-1., 4.)` is -6.083333333333286 (about 35 units in the last place).

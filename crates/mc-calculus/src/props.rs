@@ -1386,6 +1386,12 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
             }
         }
     }
+    // monotonicity and convexity from the sign of f' or f'' need a domain of one piece: tan on x > 0 and -1/x on
+    // x != 0 have f' > 0 on their domains and are not monotonic (round 44: both were 1); on a domain of several
+    // pieces only the values themselves can answer (a refutation across the gaps)
+    if order > 0 && !c.integers && !one_interval(cx, b, c, x, &cs)? {
+        return sampled_shape(cx, b, c, x, order);
+    }
     let mut facts = cs.clone();
     facts.push(h.call(h.sym("element"), &[x, h.sym_term(h.sym(if c.integers { "integers" } else { "reals" }))]));
     if let Some(k) = c.cond {
@@ -1912,6 +1918,39 @@ fn nonsmooth<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
         }
     }
     false
+}
+
+/// Is the domain of the call one interval: the whole line (no condition: a domain that is not the whole line was
+/// answered before), or the region of the condition when the function's domain conditions `cs` hold on all of it
+/// and the condition reduces to one interval (a relation of x with a term free of x, or two of them, or `true`)?
+/// `false` when that is not shown.
+fn one_interval<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>, cs: &[T<'h>]) -> Res<bool> {
+    let h = b.heap();
+    let Some(region) = c.cond else { return Ok(true) };
+    let mut pf = c.facts.clone();
+    pf.extend(cx.assumptions().iter().copied());
+    pf.push(region);
+    pf.push(h.call(h.sym("element"), &[x, h.sym_term(h.sym("reals"))]));
+    for &k in cs {
+        let r = cx.eval_assuming(&pf, h.call(h.sym("refine"), &[k]))?;
+        if !cx.is_true(r) {
+            return Ok(false);
+        }
+    }
+    let r = cx.eval(h.call(h.sym("reduce"), &[region, x, h.sym_term(h.sym("reals"))]))?;
+    let relation = |t: T<'h>| -> bool {
+        let View::App { head, args: &[l, r] } = h.view(t) else { return false };
+        let Some(s) = b.sym_of(head) else { return false };
+        matches!(h.sym_name(s).as_str(), "less" | "greater" | "less_equal" | "greater_equal" | "equal")
+            && ((l == x && is_free(b, r, x)) || (r == x && is_free(b, l, x)))
+    };
+    if cx.is_true(r) || relation(r) {
+        return Ok(true);
+    }
+    match h.view(r) {
+        View::App { head, args } if b.sym_of(head) == Some(h.sym("and")) => Ok(args.len() == 2 && args.iter().all(|&a| relation(a))),
+        _ => Ok(false),
+    }
 }
 
 /// The monotonicity (`order` 1) or convexity (`order` 2) of a function of one variable without parameters refuted

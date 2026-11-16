@@ -555,10 +555,13 @@ fn even_sqrt<'h>(fx: &Fx<'_, '_, '_, 'h>, y: T<'h>) -> T<'h> {
 
 /// pFq(upper; lower; w) with equal parameters cancelled, as a named function where one is known (module comment).
 fn named_pfq<'h>(fx: &mut Fx<'_, '_, '_, 'h>, mut upper: Vec<T<'h>>, mut lower: Vec<T<'h>>, w: T<'h>) -> R<'h> {
+    // a non-positive integer upper parameter ends the series; it is not cancelled against an equal lower one
+    // (round 44: pFq([-2], [-2], z) is 1 + z + z^2/2, as its numerical value, not e^z)
+    let ends_series = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| rat(fx, t).is_some_and(|q| q.is_int() && !q.cmp_value(&Rat::from_i64(0)).is_gt());
     'outer: loop {
         for i in 0..upper.len() {
             for j in 0..lower.len() {
-                if upper[i] == lower[j] {
+                if upper[i] == lower[j] && !ends_series(fx, upper[i]) {
                     upper.remove(i);
                     lower.remove(j);
                     continue 'outer;

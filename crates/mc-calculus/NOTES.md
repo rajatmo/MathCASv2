@@ -1814,3 +1814,21 @@ Source in `lib/calculus.mc` (helpers `r38_`).
 Gamma(a, z)) + z^a/a^2 2F2(a, a; a + 1, a + 1; -z), the term-by-term derivative of the series of the lower function
 (DLMF 8.7.1). Every part has a ball form, so enclosures of expressions in gamma(a, z) (the alternating factorial's
 closed form, for one) can prove monotonicity in a. Checked against central differences at 40 digits.
+## Round 44: domains of several pieces, honest numerical derivatives
+
+- Monotonicity and convexity proved by the sign of f' (or f'') under the domain's facts hold only on a domain of
+  one interval. `function_monotonicity([tan(x), x > 0], x)` and `function_monotonicity([-1/x, x != 0], x)` were 1
+  (f' > 0 on every piece, values falling across the gaps). `one_interval` now requires the domain conditions to
+  hold on the whole region of the condition (refine) and the condition to reduce to one interval; otherwise only
+  the differences of the values answer (`sampled_shape`: a refutation across the gaps, or unevaluated). The sign
+  (order 0) is unaffected. Injectivity read "strictly monotonic on the domain" from the same sign: `1/x - x`
+  (f' < 0 on x != 0, f(1) = f(-1)) relied on a refutation coming first. It now goes to the images of the pieces
+  (`inject::by_pieces`), whose strict monotonicity per piece is the property call on the piece's open interval when
+  the enclosures do not settle it (tanh(1/x): -sech(1/x)^2/x^2 < 0 under x > 0).
+- `numdiff`: the value was the ball of the Richardson table rounded to the target, whose radius bounds only the
+  rounding of the arithmetic: `n(zeta'(sqrt(5)), 40)` claimed 49 digits and had 44 (the truncation of the table and
+  the uncertainty of the point itself are not in it). The result now claims `digits - 3` digits.
+- `proof::real_bounds` takes the ends of a ball through `Ball::ends` (mc-arith): the enclosures of exp(-1/x^2)
+  near 0 (midpoint near 2^-(10^12)) asked for 180 GB in the exact alignment and ended the process
+  (`function_injective(erf(1/x), x)`).
+- Found by the property and precision generators of `mc-engine/tests/round44_soundness.rs`.

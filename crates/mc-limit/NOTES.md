@@ -93,3 +93,15 @@ sum is `root_sum(p, t => lim g)` when the summand's own limit is a finite value;
   `limit(t tanh(i pi/2 + t), t -> 0)` is 1 (it was 0) and `limit(tanh(i pi/2 + t), t -> 0)` has no limit (it was
   `i tan(pi/2)`). atan takes the fast path only off its branch points and cuts (a real point, one off the imaginary
   axis, or one on it strictly between -i and i). Tests `mc-engine/tests/round43b_proofs.rs`.
+
+## Round 44: zero constants in leading terms
+
+- `limit((fresnel_c(x) - fresnel_c(2))/(sinh(x) - sinh(2)), x -> 2)` was 0 (it is C'(2)/cosh 2 = 1/cosh 2). The
+  exp-log form wrote sinh(x) by exponentials and left the constant sinh(2), so the series of the denominator had
+  the constant term -sinh(2) - e^-2/2 + e^2/2, zero but not seen to be; `zero_coefficient` took every constant as
+  nonzero, and that constant (a pole of 1/denominator) became the leading term. Two changes: the constant terms of
+  a sum are put in the exp form of their hyperbolic functions too (`hyperbolic_as_exp`), so the cancellation is
+  exact; and a closed numeric constant is now tested (the sign by the decision service or an enclosure, else
+  `simplify`): zero is skipped, undecided gives up the leading term (the limit stays unevaluated) instead of
+  taking it as nonzero. Constants with parameters keep the old test (common denominator). The sum case of
+  `lead_w` uses the same test. Found by the limit generator of `mc-engine/tests/round44_soundness.rs`.

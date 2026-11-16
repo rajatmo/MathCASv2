@@ -709,11 +709,7 @@ fn take(bud: &Cell<u64>) -> bool {
 
 /// The ends of a ball, exactly.
 fn ends(b: &Ball) -> (Float, Float) {
-    if b.rad.is_zero() {
-        return (b.mid.clone(), b.mid.clone());
-    }
-    let r = b.rad.to_float();
-    (b.mid.sub_exact(&r), b.mid.add_exact(&r))
+    b.ends()
 }
 
 /// The sign of a range [lo, hi] (given by a ball for each end) when it excludes zero: `Some(true)` for positive.

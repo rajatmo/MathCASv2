@@ -370,3 +370,6 @@ field and the degree-42 norm.
   boxes), the whole line for functions with an unbounded tail.
 - `root_reduce` of a product with factors that are not algebraic (pi) reduces its algebraic factors together:
   `root_reduce(2 i pi root(...))` is `pi root(...)` of one polynomial.
+## Round 44: ball ends
+
+- `transroots::ends` uses `Ball::ends` (mc-arith), which does not align exponents that are far apart.

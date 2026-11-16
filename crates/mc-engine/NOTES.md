@@ -289,3 +289,33 @@ and `prime_zeta_p` to `lib/special.mc`.
 - A shown value's text ends at 256 MB (`SHOWN_LIMIT`): `nest(x => [x, x], 1, 40)` (a tree of 2^40 leaves) printed
   until a stop and grew without bound.
 - Walkers that visit shared subterms once: `machine_constants` and `exact_sign` of `arith.rs`.
+## Round 44: soundness checkers
+
+`tests/round44_soundness.rs` holds generators with fixed seeds that check answers claiming to be proved against
+high-precision numbers, a short version of each in the suite and a long campaign by hand (`campaign_*`, ignored;
+`MC_SOUNDNESS_INPUTS`, `MC_SOUNDNESS_SECONDS`, `MC_SOUNDNESS_SEED`, `MC_SOUNDNESS_LOG` for a log written as it
+grows, `MC_STATUS_DIR` for progress):
+- properties: sign, monotonicity, convexity, injectivity of the table's functions and random compositions (inner
+  polynomials, sums, products, outer functions, restrictions), checked at about 70 exact points of the domain
+  (equally spaced, random, 2^-10 to 2^-40 from the ends, near integers, far out) at 30 digits; equal values for
+  injectivity confirmed at 150 digits;
+- enclosures: `interval` and `centered_interval` images of about 130 functions and complex boxes of 30, with
+  random widths from 10^-9 to 10, at domain ends, poles and jumps; 33 samples at 40 digits against the pieces of
+  the result at 60 digits;
+- calculus: limits (both sides, 0/0 forms, logarithms), series (the remainder at 10^-6 and 10^-9 at 90 digits),
+  definite integrals against `n_integrate`, sums and products against partial sums and `n_sum`, residues against
+  the integral over a circle, `d_solve` solutions put back at three points;
+- exact: exact forms at exceptional parameters against 40-digit arguments; precision: the digits a 20-, 30- or
+  45-digit value claims against a value at twice the digits plus 10;
+- threads: property answers on 1, 4 and 16 threads and with every block of fuel delayed are the same.
+
+Values come back from the session through parts of a list kept there (`real_samples`): a decimal literal of 34
+digits is read as a machine number, so a checker that printed values and parsed them again compared machine
+roundings. Defects found by these generators are listed in the NOTES of the crates fixed (mc-numeric, mc-limit,
+mc-poly, mc-calculus, mc-arith, mc-special). Found and not fixed:
+- `n_integrate((1 - x)^(-2/3), [x, 0, 1])` is 2.9999879 (3) and is returned as converged; `x^(-2/3)` on the same
+  range is right. The double-exponential nodes cannot come nearer to a singular right end than the last machine
+  number below it, and the mass beyond, 3 (2^-53)^(1/3) or about 1.2e-5, is not in the error estimate (mc-quad).
+- `sum(p^k/k, [k, 1, inf])` is `-log(1 - p)` and `sum(1/k^p, [k, 1, inf])` is `zeta(p)` without the condition of
+  convergence (formal values, as documented for sums).
+- Gaps rather than wrong values: `zeta(-1, 4)` and `legendre_q(2, 1/3)` at 40-digit arguments, `n(erf(10^8), 30)`.

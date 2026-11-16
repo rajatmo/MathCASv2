@@ -237,10 +237,15 @@ pub fn value<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, orders: &[i64], args: 
     if abs_f64(&gap) > 1e-3 * size.max(scale * unit) {
         return Ok(None);
     }
-    // the value at the target precision: a machine number, or the ball rounded to `digits` digits
+    // the value at the target precision: a machine number, or the ball rounded to `digits` digits and claiming
+    // `digits - 3` digits (round 44: the ball's own radius bounds only the rounding of the arithmetic, not the
+    // truncation of the table, which the test above puts below 10^-(digits + 2) relative, nor the uncertainty of
+    // the point itself, known to `digits` digits and taken exact here: zeta'(sqrt(5)) at 40 digits claimed 49 and
+    // was right to 44)
     Ok(Some(if machine {
         ar.number(&v.to_kind(Kind::Machine, 53))
     } else {
-        cx.eval(h.call(h.sym("n"), &[last, h.int(digits as i64)]))?
+        let r = cx.eval(h.call(h.sym("n"), &[last, h.int(digits as i64)]))?;
+        cx.eval(h.call(h.sym("set_precision"), &[r, h.int(digits.saturating_sub(3).max(2) as i64)]))?
     }))
 }

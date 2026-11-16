@@ -234,8 +234,8 @@ impl Real {
     fn ends(&self) -> (Val, Val) {
         match self {
             Real::Ball(b, _) if !b.rad.is_zero() => {
-                let r = b.rad.to_float();
-                (Val::of_float(&b.mid.sub_exact(&r)), Val::of_float(&b.mid.add_exact(&r)))
+                let (l, h) = b.ends();
+                (Val::of_float(&l), Val::of_float(&h))
             }
             _ => (self.value(), self.value()),
         }

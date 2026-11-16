@@ -29,6 +29,37 @@ fn small_nat<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<u64> {
     fx.int_of(t).filter(|v| (0..=100_000).contains(v)).map(|v| v as u64)
 }
 
+/// A degree that is a natural number, exact or inexact (`3.` or 3 at 30 digits): the families with parameters are
+/// polynomials there, evaluated by their recurrences (round 44: `laguerre_l(3., -2, 1/3)` went through
+/// binomial(n + a, n) 1F1(-n; a + 1; x), 0 times a pole at a = -2, and gave 0 or indeterminate for 4/81).
+fn integral_degree<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<u64> {
+    small_nat(fx, t).or_else(|| {
+        let v = fx.f64_of(t)?;
+        let exact_ball = match fx.num(t)? {
+            Num::Real(Real::Machine(_)) => true,
+            Num::Real(Real::Ball(b, _)) => b.rad.is_zero(),
+            _ => false,
+        };
+        (exact_ball && v.fract() == 0.0 && (0.0..=100_000.0).contains(&v)).then_some(v as u64)
+    })
+}
+
+/// `f(a)` with an inexact natural degree `a[0]` (see [`integral_degree`]) replaced by the exact one, the result
+/// multiplied by (n + 1)/(k + 1), an inexact 1 that carries the degree's precision into the value. `None` when the
+/// degree is exact or not a natural number.
+fn with_exact_degree<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], f: fn(&mut Fx<'_, '_, '_, 'h>, &[T<'h>]) -> R<'h>) -> R<'h> {
+    let n = a[0];
+    if small_nat(fx, n).is_some() {
+        return Ok(None);
+    }
+    let Some(k) = integral_degree(fx, n) else { return Ok(None) };
+    let mut b = a.to_vec();
+    b[0] = fx.int(k as i64);
+    let Some(v) = f(fx, &b)? else { return Ok(None) };
+    let unit = fx.div(fx.add(&[n, fx.int(1)]), fx.int(k as i64 + 1));
+    Ok(Some(fx.eval(fx.mul(&[v, unit]))?))
+}
+
 /// An integer argument (any size) as an `i64` in [-10^5, 10^5].
 fn small_int<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<i64> {
     fx.int_of(t).filter(|v| v.unsigned_abs() <= 100_000)
@@ -398,6 +429,13 @@ fn family<'h>(fx: &mut Fx<'_, '_, '_, 'h>, f: Family, a: &[T<'h>]) -> R<'h> {
             return Ok(Some(poly_at(fx, &coefficients(f, k as u64), xm)));
         }
     }
+    // an arbitrary-precision degree with an integer value: the polynomial too, times an inexact 1 of the degree's
+    // precision (round 44: hermite_h at 40-digit 1 and 3/4 stayed a form with 1/gamma(0.))
+    if let Some(k) = integral_degree(fx, n).filter(|k| *k <= 10_000) {
+        let v = poly_at(fx, &coefficients(f, k), x);
+        let unit = fx.div(fx.add(&[n, fx.int(1)]), fx.int(k as i64 + 1));
+        return Ok(Some(fx.eval(fx.mul(&[v, unit]))?));
+    }
     let half_1mx = fx.mul(&[fx.rat(1, 2), fx.sub(fx.int(1), x)]);
     Ok(Some(match f {
         // a real x > 1: cosh(n acosh x) and sinh((n + 1) acosh x)/sqrt(x^2 - 1) are real (cos(n acos x) is a complex ball
@@ -549,8 +587,17 @@ fn legendre_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         if !any_inexact(fx, a) || a.iter().any(|&t| fx.num(t).is_none()) || absurd(fx, a) {
             return Ok(None);
         }
-        // any degree and order:((1 + x)/(1 - x))^(m/2) 2F1~(-l, l + 1; 1 - m; (1 - x)/2) (type 2)
-        let w = fx.pow(fx.div(fx.add(&[fx.int(1), x]), fx.sub(fx.int(1), x)), fx.mul(&[m, fx.rat(1, 2)]));
+        // any degree and order:((1 + x)/(1 - x))^(m/2) 2F1~(-l, l + 1; 1 - m; (1 - x)/2) (type 2); for an integer
+        // order the factor is taken as (1 + x)^(m/2) (1 - x)^(-m/2), so that with the (1 - x)^m inside 2F1~ it is
+        // the (1 - x^2)^(m/2) of the definition by derivatives used for integer degrees (round 44: at x = 3,
+        // legendre_p(2, 1, x) was -18 sqrt(2) i exactly and at machine precision, +18 sqrt(2) i at 30 digits)
+        let half_m = fx.mul(&[m, fx.rat(1, 2)]);
+        let integral = fx.f64_of(m).is_some_and(|v| v.fract() == 0.0 && v.abs() < 1e6);
+        let w = if integral {
+            fx.mul(&[fx.pow(fx.add(&[fx.int(1), x]), half_m), fx.pow(fx.sub(fx.int(1), x), fx.neg(half_m))])
+        } else {
+            fx.pow(fx.div(fx.add(&[fx.int(1), x]), fx.sub(fx.int(1), x)), half_m)
+        };
         let f = fx.call(
             "hypergeometric_2f1_regularized",
             &[fx.neg(l), fx.add(&[l, fx.int(1)]), fx.sub(fx.int(1), m), fx.mul(&[fx.rat(1, 2), fx.sub(fx.int(1), x)])],
@@ -558,6 +605,18 @@ fn legendre_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         return Ok(Some(fx.mul(&[w, f])));
     };
     let am = m.unsigned_abs();
+    if am > l && m < 0 {
+        // P_l^-m with m > l is not 0 (only P_l^m is, the m-th derivative of a polynomial of degree l): the
+        // hypergeometric form (1 + x)^(-m/2) (1 - x)^(m/2) 2F1~(-l, l + 1; 1 + m; (1 - x)/2) (round 44:
+        // legendre_p(0, -1, 1/3) was 0; it is ((1 - x)/(1 + x))^(1/2) = 2^(-1/2), as at machine precision)
+        let half_m = fx.rat(m, 2);
+        let w = fx.mul(&[fx.pow(fx.add(&[fx.int(1), x]), half_m), fx.pow(fx.sub(fx.int(1), x), fx.neg(half_m))]);
+        let f = fx.call(
+            "hypergeometric_2f1_regularized",
+            &[fx.int(-(l as i64)), fx.int(l as i64 + 1), fx.int(1 - m), fx.mul(&[fx.rat(1, 2), fx.sub(fx.int(1), x)])],
+        );
+        return Ok(Some(fx.mul(&[w, f])));
+    }
     if am > l {
         return Ok(Some(fx.int(0)));
     }
@@ -687,6 +746,9 @@ fn laguerre_l<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if a.len() == 2 {
         return family(fx, Family::Laguerre, a);
     }
+    if let Some(v) = with_exact_degree(fx, a, laguerre_l)? {
+        return Ok(Some(v));
+    }
     let (n, al, x) = (a[0], a[1], a[2]);
     if let (Some(k), Some(ps)) = (small_nat(fx, n).filter(|k| *k <= EXACT_RECURRENCE_MAX), rats_of(fx, &[al, x])) {
         if let Some(v) = exact_recurrence(fx, 0, k, &ps)? {
@@ -729,6 +791,9 @@ fn gegenbauer_c<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         let (n, x) = (a[0], a[1]);
         let Some(k) = small_nat(fx, n).filter(|k| *k >= 1) else { return Ok(None) };
         return Ok(Some(fx.mul(&[fx.rat(2, k as i64), poly_at(fx, &coefficients(Family::ChebyshevT, k), x)])));
+    }
+    if let Some(v) = with_exact_degree(fx, a, gegenbauer_c)? {
+        return Ok(Some(v));
     }
     let (n, al, x) = (a[0], a[1], a[2]);
     if let (Some(k), Some(ps)) = (small_nat(fx, n).filter(|k| *k <= EXACT_RECURRENCE_MAX), rats_of(fx, &[al, x])) {
@@ -806,6 +871,9 @@ fn binom_poly<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>, k: u64) -> T<'h> {
 }
 
 fn jacobi_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if let Some(v) = with_exact_degree(fx, a, jacobi_p)? {
+        return Ok(Some(v));
+    }
     let (n, al, be, x) = (a[0], a[1], a[2], a[3]);
     if let (Some(k), Some(ps)) = (small_nat(fx, n).filter(|k| *k <= EXACT_RECURRENCE_MAX), rats_of(fx, &[al, be, x])) {
         if let Some(v) = exact_recurrence(fx, 2, k, &ps)? {
