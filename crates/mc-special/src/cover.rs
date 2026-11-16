@@ -726,7 +726,15 @@ fn klein_j_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if a[0] == fx.i() {
         return Ok(Some(fx.int(1)));
     }
+    // J(tau + n) = J(tau) for an integer n (J is a modular function, DLMF 23.15.2 with tau -> tau + 1): a symbolic
+    // argument sheds its exact integer term
     if !numeric(fx, a) {
+        if let Some(args) = fx.call_of(a[0], "add") {
+            if let Some(k) = args.iter().position(|&t| fx.rat_of(t).is_some_and(|q| q.is_int())) {
+                let rest: Vec<T<'h>> = args.iter().enumerate().filter(|&(j, _)| j != k).map(|(_, &t)| t).collect();
+                return Ok(Some(fx.call("klein_invariant_j", &[fx.add(&rest)])));
+            }
+        }
         return Ok(None);
     }
     if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
@@ -750,6 +758,18 @@ fn inverse_nome<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     }
     if !numeric(fx, a) {
         return Ok(None);
+    }
+    // a real q in (-1, 1): the real series 16 q A^4/B^4 on balls (ball::nome), an enclosure over every point of a
+    // ball argument and real for negative q
+    if let Some((wk, xs)) = work(fx, a, 16) {
+        if let Some(Num::Real(Real::Ball(qb, _))) = fx.num(xs[0]) {
+            if let Some(v) = crate::ball::nome::inverse_nome(&qb, wk.w) {
+                let t = fx.ar.number(&Num::Real(Real::Ball(v, wk.w)));
+                if let Some(out) = wk.out(fx, t, true) {
+                    return Ok(Some(out));
+                }
+            }
+        }
     }
     let [t2, t3, _] = theta_consts(fx, q);
     Ok(Some(fx.pow(fx.div(t2, t3), fx.int(4))))
@@ -1171,7 +1191,18 @@ fn jacobi_epsilon<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 
 // ---------------------------------------------------------------- Bessel relatives
 
+/// The Hankel functions (ordinary and spherical) are singular at z = 0 for every order (DLMF 10.7.7, 10.7.2 and
+/// H_-nu = e^(+-nu pi i) H_nu, 10.4.6; h_n = sqrt(pi/(2z)) H_(n+1/2)): complex infinity at an exact 0 with an exact
+/// order, so that a series at 0 is a Laurent expansion and not a Taylor series of infinite values.
+pub(crate) fn hankel_at_zero<'h>(fx: &Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Option<T<'h>> {
+    let ok = fx.is_int(a[1], 0) && fx.num(a[0]).is_some_and(|n| n.is_exact());
+    ok.then(|| fx.sym("complex_infinity"))
+}
+
 fn hankel<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], sign: i64) -> R<'h> {
+    if let Some(v) = hankel_at_zero(fx, a) {
+        return Ok(Some(v));
+    }
     if !numeric(fx, a) {
         return Ok(None);
     }

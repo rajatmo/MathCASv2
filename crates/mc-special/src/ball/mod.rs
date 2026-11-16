@@ -9,6 +9,7 @@
 //! rounded at each working precision rather than once.
 pub mod bessel;
 pub mod bessel_j;
+pub mod boxes;
 pub mod complex;
 pub mod cseries;
 pub mod cspecial;
@@ -18,6 +19,7 @@ pub mod expint;
 pub mod gamma;
 pub mod hyper;
 pub mod incomplete;
+pub mod nome;
 pub mod polylog;
 pub mod zeta;
 

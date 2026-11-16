@@ -10,7 +10,7 @@
 //! | beta | the quotient of exact gammas (0 where only a + b is a pole) |
 //! | zeta | zeta(0) = -1/2, zeta(2n) = (-1)^(n+1) B_2n (2 pi)^2n / (2 (2n)!), zeta(-n) = (-1)^n B_(n+1)/(n+1) |
 //! | bessel_k | K_(n+1/2)(x) = sqrt(pi/(2x)) e^-x sum_(k<=n) (n+k)!/(k! (n-k)!) (2x)^-k, also for symbolic x |
-//! | bessel_i | I_nu(0); I_(1/2)(x) = sqrt(2/(pi x)) sinh x, I_(-1/2)(x) = sqrt(2/(pi x)) cosh x |
+//! | bessel_i | I_nu(0); at half-integer orders |nu| <= 201/2 in sinh x and cosh x (DLMF 10.49.12-13) |
 //!
 //! Sizes are capped (integers up to 2^20 for factorials, 10^4 terms for harmonic numbers and sums, B_k up to
 //! k = 500, half-integer Bessel orders up to 200); beyond, the call stays unevaluated and `n` gives its value.
@@ -348,15 +348,7 @@ impl<'a, 'h> Rules<'a, 'h> {
         if self.ar.num(x).is_some_and(|v| !v.is_exact() || v.as_real().is_some_and(|r| r.is_negative())) {
             return None;
         }
-        let k = half_int(nu)?;
-        let f = match k {
-            0 => "sinh",
-            -1 => "cosh",
-            _ => return None,
-        };
-        // sqrt(2/(pi x)) = (pi x / 2)^(-1/2)
-        let arg = self.ar.mul(&[self.q(&rat(Int::from_i64(1), Int::from_i64(2))), self.sym("pi"), x]);
-        let pre = self.ar.pow(arg, self.q(&rat(Int::from_i64(-1), Int::from_i64(2))));
-        Some(Exact::Value(self.ar.mul(&[pre, self.call(f, &[x])])))
+        // every half-integer order in sinh and cosh (DLMF 10.49.12-13)
+        crate::exact_more::More::new(self.h, self.ar).half_order_i(nu, x).map(Exact::Value)
     }
 }

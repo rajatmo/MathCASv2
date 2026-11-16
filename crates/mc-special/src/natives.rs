@@ -115,14 +115,23 @@ fn hurwitz<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, s: T<'h>, a: T<'h>) -> Option<
         let int_value = match x {
             Num::Real(Real::Exact(q)) if q.is_int() => q.num.to_i64(),
             Num::Real(Real::Machine(v)) if v.fract() == 0.0 => Some(*v as i64),
+            // an arbitrary-precision integer of radius 0 (n(-1, 40)): the same polynomial, evaluated at the precision
+            Num::Real(r @ Real::Ball(..)) => crate::ball::exact_int(r).and_then(|v| v.to_i64()),
             _ => None,
         };
         if let Some(sv) = int_value.filter(|v| (-60..=0).contains(v)) {
             let n1 = 1 - sv;
             let b = h.call(h.sym("bernoulli_b"), &[h.int(n1), a]);
             let v = ar.mul(&[ar.rational(h.int(-1), h.int(n1)), b]);
-            // a machine s keeps the result a machine number
-            return Some(if x.kind() == mc_arith::Kind::Machine { h.call(h.sym("n"), &[v]) } else { v });
+            // a machine s keeps the result a machine number, a ball s gives a ball at its precision
+            return Some(match x {
+                Num::Real(Real::Machine(_)) => h.call(h.sym("n"), &[v]),
+                Num::Real(Real::Ball(_, p)) => {
+                    let digits = ((*p as f64) * std::f64::consts::LOG10_2).floor().max(1.0) as i64;
+                    h.call(h.sym("n"), &[v, h.int(digits)])
+                }
+                _ => v,
+            });
         }
     }
     if let (Some(x), Some(y)) = (&ns, &na) {
@@ -497,6 +506,13 @@ impl Native for Pfq {
         if args.len() != 3 {
             return Ok(Reply::Decline);
         }
+        // an uncertain argument (interval, centered interval, around): the proved image as for the other functions
+        // (the parameter lists of numbers are constants there)
+        if mc_numeric::uncertain::any(cx.heap(), args) {
+            if let Some(v) = mc_numeric::uncertain::apply(cx, t, args)? {
+                return Ok(Reply::Again(v));
+            }
+        }
         let (Some(a), Some(b)) = (cx.as_list(args[0]), cx.as_list(args[1])) else { return Ok(Reply::Decline) };
         if let Some(zs) = cx.as_list(args[2]) {
             // a list of z threads
@@ -674,6 +690,8 @@ impl Native for Pfq {
 /// Registers the natives (one per name) and the library functions of numerical evaluation (one per name and
 /// arity).
 pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
+    // centered intervals with complex parts: the complex-ball enclosures of this crate
+    mc_numeric::uncertain_cball::set_hook(crate::ball::boxes::complex_box_d);
     let mut names: Vec<&str> = vec![];
     for f in &crate::functions::ALL {
         mc_numeric::library::register(f);

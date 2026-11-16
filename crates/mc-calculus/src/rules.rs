@@ -544,6 +544,10 @@ pub const OPAQUE: &[(&str, usize, usize)] = &[
     ("laguerre_l", 3, 0),
     ("laguerre_l", 3, 1),
     ("legendre_q", 2, 0),
+    ("legendre_p", 3, 0),
+    ("legendre_p", 3, 1),
+    ("legendre_q", 3, 0),
+    ("legendre_q", 3, 1),
     ("hypergeometric_0f1_regularized", 2, 0),
     ("hypergeometric_1f1_regularized", 3, 0),
     ("hypergeometric_1f1_regularized", 3, 1),
@@ -663,6 +667,16 @@ pub fn resolvable(name: &str, orders: &[i64]) -> bool {
 }
 
 /// (f(nu - 1, z) - f(nu + 1, z))/2, the derivative in z of the Anger and Weber functions (DLMF 11.10.33-34).
+/// d/dx of the Ferrers function f(nu, mu, x): (nu x f(nu, mu, x) - (nu + mu) f(nu - 1, mu, x))/(x^2 - 1)
+/// (DLMF 14.10.5; it holds for P and Q of type 2 alike).
+fn legendre_x<'h>(b: &Build<'h>, f: &str, a: &[T<'h>]) -> T<'h> {
+    let (nu, mu, x) = (a[0], a[1], a[2]);
+    let w = b.call(f, a);
+    let lower = b.call(f, &[b.sub(nu, b.one()), mu, x]);
+    let num = b.sub(b.mul(&[nu, x, w]), b.mul(&[b.add(&[nu, mu]), lower]));
+    b.div(num, b.sub(pw(b, x, 2), b.one()))
+}
+
 fn order_step<'h>(b: &Build<'h>, f: &str, a: &[T<'h>]) -> T<'h> {
     let lo = b.call(f, &[b.sub(a[0], b.one()), a[1]]);
     let hi = b.call(f, &[b.add(&[a[0], b.one()]), a[1]]);
@@ -1121,6 +1135,17 @@ pub const RULES: &[(&str, usize, Rule)] = &[
             let q = b.sub(b.mul(&[a[1], b.call("legendre_q", a)]), b.call("legendre_q", &[b.sub(a[0], b.one()), a[1]]));
             b.div(b.mul(&[a[0], q]), b.sub(pw(b, a[1], 2), b.one()))
         }]),
+    ),
+    // the associated (Ferrers) functions of order mu: (1 - x^2) w' = (nu + mu) w_(nu-1) - nu x w_nu (DLMF 14.10.5)
+    (
+        "legendre_p",
+        3,
+        Rule::Partials(&[|b, a| opaque_partial(b, "legendre_p", a, 0), |b, a| opaque_partial(b, "legendre_p", a, 1), |b, a| legendre_x(b, "legendre_p", a)]),
+    ),
+    (
+        "legendre_q",
+        3,
+        Rule::Partials(&[|b, a| opaque_partial(b, "legendre_q", a, 0), |b, a| opaque_partial(b, "legendre_q", a, 1), |b, a| legendre_x(b, "legendre_q", a)]),
     ),
     (
         "hypergeometric_0f1_regularized",

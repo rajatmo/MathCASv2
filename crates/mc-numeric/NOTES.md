@@ -793,3 +793,14 @@ where `sin(pi/8)` is the documented form (no reduction of the angle to the first
   the enclosure generator of `mc-engine/tests/round44_soundness.rs`.
 - `approx::below` (chop) takes the upper end of |m| -+ r through `Ball::ends` (mc-arith), which no longer aligns
   exponents that are far apart.
+## Round 45: centered intervals through complex balls
+
+`uncertain_cball`: a function of `centered_interval` arguments with a complex centre or radius (and, after the real
+image fails, of real spreads whose value is complex, as `elliptic_k(centered_interval(4, 1/100))`) is evaluated on
+the rectangular boxes as complex balls (a ball per part) by an enclosure registered with `set_hook` (the special
+functions install theirs). Ball arithmetic is inclusion-isotone, so the natural evaluation encloses every point of the
+boxes; with one spread argument it is met with the mean value form f(c) + f'(B)(B - c) (the hook also gives f' on
+the boxes), which is tight to second order where the series of the natural form widens by dependency
+(`pochhammer(centered_interval(5 + 3 i, (1 + i)/1000), 3/5)` has the radius 4.2e-4, the natural form 0.25). No natural
+enclosure (a pole or a cut in a box) leaves the call unevaluated: the mean value form needs analyticity on the box.
+Radii above 1/4 are not taken. Literature: Moore, Kearfott and Cloud (2009) ch. 5-6; Johansson, Arb (2017).

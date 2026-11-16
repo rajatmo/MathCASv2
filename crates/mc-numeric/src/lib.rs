@@ -105,6 +105,7 @@ pub mod more;
 pub mod quantity;
 pub mod uncertain;
 mod uncertain_boxes;
+pub mod uncertain_cball;
 mod natives;
 mod numbers;
 pub mod numeval;

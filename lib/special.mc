@@ -107,6 +107,10 @@ rule ds_at(bessel_k(nu_, u_), 2, 0, k_) := {
   (-1)^(nu + 1)*(log(u) - log(2))*ds_bj(nu, u, k, 1) +
   (-1)^nu*(u/2)^nu/2*ds_sum(j => (ds_psi1(j) + ds_psi1(nu + j))*(u^2/4)^j/(factorial(j)*factorial(nu + j)), 0, k)
 } when is_integer(nu) and nu >= 0
+# Hankel functions of integer order: J +- i Y with the two expansions above (DLMF 10.4.3), so that a Laurent series
+# with log(u) is given and not a Taylor series with the infinite values H(n, 0)
+rule ds_at(hankel_h1(nu_, u_), 2, 0, k_) := ds_at(bessel_j(nu, u), 2, 0, k) + im*ds_at(bessel_y(nu, u), 2, 0, k) when is_integer(nu) and nu >= 0
+rule ds_at(hankel_h2(nu_, u_), 2, 0, k_) := ds_at(bessel_j(nu, u), 2, 0, k) - im*ds_at(bessel_y(nu, u), 2, 0, k) when is_integer(nu) and nu >= 0
 # Kelvin functions of order 0 (DLMF 10.65.1, 10.65.3)
 fn ds_ber(u, k) = ds_sum(j => (-1)^j*(u^2/4)^(2*j)/factorial(2*j)^2, 0, k)
 fn ds_bei(u, k) = ds_sum(j => (-1)^j*(u^2/4)^(2*j + 1)/factorial(2*j + 1)^2, 0, k)
@@ -835,6 +839,10 @@ rule hypergeometric_2f1(a_, b_, c_, 1) := gamma(c)*gamma(c - a - b)/(gamma(c - a
 rule hypergeometric_2f1(a_, b_, c_, z_) := complex_infinity when is_integer(c) and c <= 0 and not (is_integer(a) and a <= 0) and not (is_integer(b) and b <= 0)
 rule hypergeometric_1f1(1/2, 1, x_) := exp(x/2)*bessel_i(0, x/2)
 rule hypergeometric_1f1_regularized(1/2, 1, x_) := exp(x/2)*bessel_i(0, x/2)
+# a = n + 1/2: 1F1(a; 2a; x) = n! e^(x/2) (x/4)^-n I_n(x/2) (DLMF 13.6.9), and by the derivative (13.3.15) with
+# I_n' = I_(n+1) + (n/t) I_n, 1F1(a; 2a - 1; x) = (n - 1)! e^(x/2) (x/4)^(1 - n) (I_(n-1)(x/2) + I_n(x/2)) (n <= 20)
+rule hypergeometric_1f1(a_, b_, x_) := factorial(a - 1/2)*exp(x/2)*(x/4)^(1/2 - a)*bessel_i(a - 1/2, x/2) when is_integer(a - 1/2) and a >= 3/2 and a <= 41/2 and b === 2*a and not (is_numeric(x) and x == 0)
+rule hypergeometric_1f1(a_, b_, x_) := factorial(a - 3/2)*exp(x/2)*(x/4)^(3/2 - a)*(bessel_i(a - 3/2, x/2) + bessel_i(a - 1/2, x/2)) when is_integer(a - 1/2) and a >= 3/2 and a <= 41/2 and b === 2*a - 1 and not (is_numeric(x) and x == 0)
 rule hypergeometric_1f1(1, 1/2, x_) := 1 + exp(x)*sqrt(pi)*sqrt(x)*erf(sqrt(x))
 rule hypergeometric_1f1(a_, b_, x_) := exp(x)*ds_terminating([b - a], [b], -x) when is_integer(a - b) and a - b > 0 and is_integer(b) and b > 0 and a - b <= 60
 # (not at x = 0: x^(1 - b) gamma(b - 1, x) is 0 times an infinity there, U(1, b, 0) = 1/(1 - b) for b < 1)
@@ -858,13 +866,30 @@ rule hypergeometric_pfq(as_, bs_, z_) := ds_terminating(as, bs, z) when is_list(
 
 fn ds_inexact(xs) = every(xs, x => is_numeric(x)) and some(xs, x => is_machine_number(x)) and every(xs, x => is_exact(x) or is_machine_number(x))
 
-# Ferrers Q from P off the integers (DLMF 14.9.10 at x in (-1, 1)): Q = pi/(2 sin((nu + mu) pi)) (cos((nu + mu) pi) P(x) - P(-x))
+# Ferrers Q from P off the integers (DLMF 14.9.10 at x in (-1, 1)): Q = pi/(2 sin((nu + mu) pi)) (cos((nu + mu) pi) P(x) - P(-x));
+# also for arbitrary-precision arguments (balls: the combination keeps the enclosures of P), with exact degree and order
+fn ds_approx(xs) = every(xs, x => is_numeric(x)) and some(xs, x => not is_exact(x)) and every(xs, x => is_exact(x) or is_machine_number(x) or im_part(x) == 0)
+fn ds_sin_pi_nonzero(t) = not is_integer(t) and (is_exact(t) or (sin(t*pi) != 0) === true)
+fn ds_ferrers_q_ok(nu, mu, x) = (ds_inexact([nu, mu, x]) or ds_approx([nu, mu, x])) and im_part(x) == 0 and -1 < x and x < 1 and ds_sin_pi_nonzero(nu + mu)
 rule legendre_q(nu_, x_) := {
   pi/(2*sin(nu*pi))*(cos(nu*pi)*legendre_p(nu, x) - legendre_p(nu, -x))
-} when ds_inexact([nu, x]) and im_part(x) == 0 and -1 < x and x < 1 and not is_integer(nu)
+} when ds_ferrers_q_ok(nu, 0, x)
 rule legendre_q(nu_, mu_, x_) := {
   pi/(2*sin((nu + mu)*pi))*(cos((nu + mu)*pi)*legendre_p(nu, mu, x) - legendre_p(nu, mu, -x))
-} when ds_inexact([nu, mu, x]) and im_part(x) == 0 and -1 < x and x < 1 and not is_integer(nu + mu)
+} when ds_ferrers_q_ok(nu, mu, x)
+# where nu + mu is an integer and mu is not, by P of orders +-mu (DLMF 14.9.2):
+# Q = pi/(2 sin(mu pi)) (cos(mu pi) P^mu(x) - Gamma(nu + mu + 1)/Gamma(nu - mu + 1) P^-mu(x))
+# (also for balls nu + mu that hold an integer, where sin((nu + mu) pi) has no sign)
+fn ds_ferrers_q2_ok(nu, mu, x) = (ds_inexact([nu, mu, x]) or ds_approx([nu, mu, x])) and im_part(x) == 0 and -1 < x and x < 1 and not ds_sin_pi_nonzero(nu + mu) and ds_sin_pi_nonzero(mu)
+rule legendre_q(nu_, mu_, x_) := {
+  let v = pi/(2*sin(mu*pi))*(cos(mu*pi)*legendre_p(nu, mu, x) - gamma(nu + mu + 1)/gamma(nu - mu + 1)*legendre_p(nu, -mu, x))
+  # exact complex parameters leave gamma(nu - mu + 1) exact: the value at the machine arguments' precision
+  if some([nu, mu, x], t => is_machine_number(t)) then n(v) else v
+} when ds_ferrers_q2_ok(nu, mu, x)
+# Ferrers Q of integer degree n >= 0 and order 1 <= m <= 20 (where the form above divides by sin(4 pi) = 0):
+# Q_n^m(x) = (-1)^m (1 - x^2)^(m/2) d^m Q_n(x)/dx^m (DLMF 14.6.2), Q_n in logarithms; symbolic x or a real x in (-1, 1)
+fn ds_ferrers_qm(n, m, x) = (-1)^m*(1 - x^2)^(m/2)*rewrite(d(legendre_q(n, ds_qm_t), [ds_qm_t, m]), ds_qm_t -> x)
+rule legendre_q(nu_, mu_, x_) := ds_ferrers_qm(nu, mu, x) when is_integer(nu) and nu >= 0 and is_integer(mu) and mu >= 1 and mu <= 20 and (not is_numeric(x) or (im_part(x) == 0 and -1 < x and x < 1))
 
 # Ferrers functions of order 1/2 and -1/2 at a degree nu with nu + 1/2 = +-n an integer (DLMF 14.5.11, 14.5.12 at
 # x = cos t, with cos(n t) = T_n(x) and sin(n t) = sin(t) U_(n-1)(x); both even in nu + 1/2)

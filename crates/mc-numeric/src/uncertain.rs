@@ -96,6 +96,12 @@ fn apply_in<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Op
     if let Some(r) = crate::uncertain_boxes::function(fx, t, args)? {
         return Ok(Some(r));
     }
+    // other functions of centered intervals with a complex part: the registered complex-ball enclosures
+    if kind == 2 {
+        if let Some(r) = crate::uncertain_cball::apply(fx, t, args, true)? {
+            return Ok(Some(r));
+        }
+    }
     // one kind at a time; other arguments must be numbers or closed numeric terms
     if kinds.iter().flatten().any(|&k| k != kind) {
         return Ok(None);
@@ -109,7 +115,12 @@ fn apply_in<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Op
     match kind {
         0 => around_apply(fx, head, args),
         1 => interval_apply(fx, head, args),
-        2 => centered_apply(fx, head, args),
+        2 => match centered_apply(fx, head, args)? {
+            Some(r) => Ok(Some(r)),
+            // real spreads without a proved real image (a complex value: elliptic_k(centered_interval(4, 1/100))):
+            // the complex-ball enclosure of the box
+            None => crate::uncertain_cball::apply(fx, t, args, false),
+        },
         _ => {
             let View::Sym(s) = fx.h.view(head) else { return Ok(None) };
             let name = fx.h.sym_name(s);

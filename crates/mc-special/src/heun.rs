@@ -269,7 +269,94 @@ enum Kind {
     T,
 }
 
+/// Is `t` an exact integer <= 0?
+fn nonpositive_int<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> bool {
+    fx.rat_of(t).is_some_and(|q| q.is_int() && (q.is_zero() || q.num.neg))
+}
+
+/// Does `a - b` evaluate to an exact 0 (or a machine 0.0: equal machine numbers)?
+fn same<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: T<'h>, b: T<'h>) -> Res<bool> {
+    if a == b {
+        return Ok(true);
+    }
+    let d = fx.eval(fx.sub(a, b))?;
+    Ok(match fx.num(d) {
+        Some(n) => n.is_exact_zero() || (fx.f64_of(d) == Some(0.0) && fx.machine_of(d).is_some()),
+        None => false,
+    })
+}
+
+/// The points where a Heun function has no value: `indeterminate` (a) when its defining local solution does not
+/// exist or is not unique: gamma a nonpositive integer for the functions normalized at the regular singularity 0
+/// (G, C, B: the Frobenius recurrence k (k - 1 + gamma) c_k = ... has a zero factor at k = 1 - gamma, DLMF 31.3.1),
+/// a = 0 for the general function (the singularities 0 and a coincide); (b) at a singular point other than the
+/// normalization point (G: z = 1, z = a; C: z = 1; D: z = 0), a branch point (or, for D, an irregular singular point)
+/// of the continuation where the function is not defined.
+fn undefined_at<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>], kind: Kind) -> Res<bool> {
+    let z = *args.last().unwrap();
+    Ok(match kind {
+        Kind::G => {
+            let (a, ga) = (args[0], args[4]);
+            fx.is_int(a, 0) || nonpositive_int(fx, ga) || fx.is_int(z, 1) || same(fx, z, a)?
+        }
+        Kind::C | Kind::B => nonpositive_int(fx, args[2]) || (kind == Kind::C && fx.is_int(z, 1)),
+        Kind::D => fx.is_int(z, 0),
+        Kind::T => false,
+    })
+}
+
+/// Heun functions that are hypergeometric functions (any parameters, symbolic ones too):
+/// - Hl(1, alpha beta; alpha, beta, gamma, delta; z) = 2F1(alpha, beta; gamma; z): with a = 1 and q = alpha beta the
+///   equation has the factor z - 1 and is the hypergeometric equation (DLMF 31.2.1 against 15.10.1);
+/// - Hl(2, alpha beta; alpha, beta, gamma, alpha + beta - 2 gamma + 1; z) = 2F1(alpha/2, beta/2; gamma; z (2 - z)),
+///   the quadratic reduction of Maier (J. Differential Equations 213 (2005), 171-203, table 2);
+/// - HeunB(q, 0, gamma, delta, 0, z): z y'' + (gamma + delta z) y' - q y = 0, Kummer's equation in -delta z:
+///   1F1(-q/delta; gamma; -delta z) for delta != 0, and 0F1(; gamma; q z) for delta = 0 (DLMF 13.2.1, 16.2.1).
+fn hypergeometric_case<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>], kind: Kind) -> R<'h> {
+    let z = *args.last().unwrap();
+    match kind {
+        Kind::G => {
+            let [a, q, al, be, ga, de, _] = args[..] else { return Ok(None) };
+            if !same(fx, q, fx.mul(&[al, be]))? {
+                return Ok(None);
+            }
+            if fx.is_int(a, 1) {
+                return Ok(Some(fx.call("hypergeometric_2f1", &[al, be, ga, z])));
+            }
+            let de2 = fx.add(&[al, be, fx.mul(&[fx.int(-2), ga]), fx.int(1)]);
+            if fx.is_int(a, 2) && same(fx, de, de2)? {
+                // 1 - (1 - z)^2 = z (2 - z)
+                let w = fx.mul(&[z, fx.sub(fx.int(2), z)]);
+                let h = fx.rat(1, 2);
+                return Ok(Some(fx.call("hypergeometric_2f1", &[fx.mul(&[h, al]), fx.mul(&[h, be]), ga, w])));
+            }
+            Ok(None)
+        }
+        Kind::B => {
+            let [q, al, ga, de, ep, _] = args[..] else { return Ok(None) };
+            if !(fx.is_int(al, 0) && fx.is_int(ep, 0)) {
+                return Ok(None);
+            }
+            if fx.is_int(de, 0) {
+                return Ok(Some(fx.call("hypergeometric_0f1", &[ga, fx.mul(&[q, z])])));
+            }
+            // delta must be a number (a symbolic delta could be 0)
+            if fx.num(de).is_none_or(|n| n.is_exact_zero()) {
+                return Ok(None);
+            }
+            Ok(Some(fx.call("hypergeometric_1f1", &[fx.neg(fx.div(q, de)), ga, fx.neg(fx.mul(&[de, z]))])))
+        }
+        _ => Ok(None),
+    }
+}
+
 fn heun<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>], kind: Kind) -> R<'h> {
+    if undefined_at(fx, args, kind)? {
+        return Ok(Some(fx.sym("indeterminate")));
+    }
+    if let Some(v) = hypergeometric_case(fx, args, kind)? {
+        return Ok(Some(v));
+    }
     let z = *args.last().unwrap();
     // the normalization point
     let (start, regular) = match kind {

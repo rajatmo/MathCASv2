@@ -2,7 +2,7 @@
 //!
 //! - **erf** by Kummer's positive-term form erf(x) = 2x/sqrt(pi) e^(-x^2) sum_k (2x^2)^k / (1 3 ... (2k+1)) =
 //!   2x/sqrt(pi) e^(-x^2) 1F1(1; 3/2; x^2) ([`pfq_sum`] bounds the tail), so there is no cancellation at any x;
-//!   for 1.44 x^2 > wp + 20 as 1 - erfc(x) with the asymptotic erfc.
+//!   for 1.44 x^2 > wp + 20 the ball sign(x) +- 2^-(wp+20), which holds erf(x) since erfc(|x|) < e^(-x^2) there.
 //! - **erfc** = 1 - erf for x <= 0 or moderate x, the erf series computed with about 1.45 x^2 + 10 extra bits (the
 //!   size of 1/erfc(x)), estimated up front; for x > 0 with 1.44 x^2 > wp + 20 the asymptotic expansion
 //!   erfc(x) = e^(-x^2)/(x sqrt(pi)) (sum_{k<n} (-1)^k (2k-1)!!/(2x^2)^k + R_n), |R_n| <= (2k-1)!!/(2x^2)^n at k = n
@@ -91,16 +91,16 @@ pub fn erf_ball(x: &Ball, wp: u64) -> Option<Ball> {
     if x.mid.is_zero() && x.rad.is_zero() {
         return Some(int(0));
     }
+    // there 0 < erfc(|x|) <= e^(-x^2)/(|x| sqrt(pi)) <= e^(-x^2) < 2^-(wp+20) (DLMF 7.8.2 with |x| > 3.7), so
+    // erf(x) = sign(x) (1 - erfc(|x|)) lies in the ball sign(x) +- 2^-(wp+20) without evaluating e^(-x^2), which
+    // for x = 10^8 has an exponent of about -1.4 10^16 bits
+    let tiny = Mag::from_float_up(&Float::new(false, mc_arith::num::Nat::from_u64(1), -(wp as i64) - 20));
     if asym_ok(x, wp) {
-        if let Some(c) = erfc_asym(x, wp) {
-            return Some(int(1).sub(&c, wp));
-        }
+        return Some(widen(int(1), &tiny));
     }
     let nx = x.neg();
     if asym_ok(&nx, wp) {
-        if let Some(c) = erfc_asym(&nx, wp) {
-            return Some(c.sub(&int(1), wp));
-        }
+        return Some(widen(int(-1), &tiny));
     }
     erf_series(x, wp)
 }

@@ -320,11 +320,15 @@ pub fn hyp2f1(a: C64, b: C64, cc: C64, z: C64) -> Option<C64> {
         if !(is_pole(cc) && -cc.re < n as f64) {
             let f = term(a, b, z);
             let (mut t, mut s) = (r(1.0), r(1.0));
+            let mut big = 1.0f64;
             for k in 0..n {
                 t = t * f(k);
                 s = s + t;
+                big = big.max(abs(t));
             }
-            return finite(s);
+            // cancellation: at most 4 digits lost, as for the series (2F1(-23, 24; -4 + i; 1/4) of a spherical harmonic
+            // lost 8 digits); the callers take the ball enclosure otherwise
+            return (big <= 1e4 * abs(s).max(1e-300)).then_some(s).and_then(finite);
         }
     }
     if is_pole(cc) {

@@ -233,7 +233,7 @@ simplify(function_expand(pochhammer(a, 3)))
 #% cell
 function_expand(bessel_j(3/2, x))
 #% output
-#= -cos(x)*2^(1/2)*(1/(pi*x))^(1/2) + 2^(1/2)*(1/(pi*x))^(1/2)*sin(x)/x
+#= (-cos(x) + sin(x)/x)*2^(1/2)/(pi*x)^(1/2)
 
 #% cell
 function_expand(sin(3*x))
@@ -259,7 +259,7 @@ function_expand(sqrt(x^2), assumptions: x > 0)
 #% cell
 function_expand(bessel_j(3/2, x))
 #% output
-#= -cos(x)*2^(1/2)*(1/(pi*x))^(1/2) + 2^(1/2)*(1/(pi*x))^(1/2)*sin(x)/x
+#= (-cos(x) + sin(x)/x)*2^(1/2)/(pi*x)^(1/2)
 
 #% cell
 function_expand(bessel_k(5/2, x))

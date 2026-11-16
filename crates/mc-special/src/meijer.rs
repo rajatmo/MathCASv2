@@ -614,6 +614,23 @@ fn named_pfq<'h>(fx: &mut Fx<'_, '_, '_, 'h>, mut upper: Vec<T<'h>>, mut lower: 
             let arg = fx.negated(hw).unwrap_or(hw);
             return Ok(Some(fx.mul(&[fx.call("exp", &[hw]), fx.call("bessel_i", &[fx.int(0), arg])])));
         }
+        ([a], [c]) if bessel_1f1(q(fx, *a), q(fx, *c)).is_some() => {
+            // a = n + 1/2: 1F1(a; 2a; w) = n! e^(w/2) (w/4)^-n I_n(w/2) (DLMF 13.6.9 at nu = n), and with its
+            // derivative (13.3.15: d/dw 1F1(a; b; w) = a/b 1F1(a + 1; b + 1; w)) and I_n' = I_(n+1) + (n/x) I_n,
+            // 1F1(a; 2a - 1; w) = (n - 1)! e^(w/2) (w/4)^(1-n) (I_(n-1)(w/2) + I_n(w/2))
+            let (n, lower_odd) = bessel_1f1(q(fx, *a), q(fx, *c)).unwrap_or((0, true));
+            let hw = fx.mul(&[half, w]);
+            let e = fx.call("exp", &[hw]);
+            let quarter = fx.mul(&[fx.rat(1, 4), w]);
+            let i = |k: i64| fx.call("bessel_i", &[fx.int(k), hw]);
+            return Ok(Some(if lower_odd {
+                let f = fx.call("factorial", &[fx.int(n)]);
+                fx.mul(&[f, e, fx.pow(quarter, fx.int(-n)), i(n)])
+            } else {
+                let f = fx.call("factorial", &[fx.int(n - 1)]);
+                fx.mul(&[f, e, fx.pow(quarter, fx.int(1 - n)), fx.add(&[i(n - 1), i(n)])])
+            }));
+        }
         ([a, b], [c]) if fx.is_int(*c, 1) => {
             let (qa, qb) = (q(fx, *a), q(fx, *b));
             let h = Some(r(1, 2));
@@ -629,6 +646,25 @@ fn named_pfq<'h>(fx: &mut Fx<'_, '_, '_, 'h>, mut upper: Vec<T<'h>>, mut lower: 
         _ => {}
     }
     Ok(Some(fx.call("hypergeometric_pfq", &[fx.list(&upper), fx.list(&lower), w])))
+}
+
+/// 1F1(a; c) with a = n + 1/2 (0 < n <= 20) and c = 2a (`true`) or c = 2a - 1 (`false`, n >= 1): Bessel functions
+/// of integer order (the case n = 0, c = 1 has its own rule).
+fn bessel_1f1(a: Option<Rat>, c: Option<Rat>) -> Option<(i64, bool)> {
+    let (a, c) = (a?, c?);
+    let n = a.sub(&Rat::new(Int::from_i64(1), Int::from_i64(2)));
+    if !n.is_int() || !c.is_int() {
+        return None;
+    }
+    let n = n.num.to_i64().filter(|n| (1..=20).contains(n))?;
+    let c = c.num.to_i64()?;
+    if c == 2 * n + 1 {
+        Some((n, true))
+    } else if c == 2 * n {
+        Some((n, false))
+    } else {
+        None
+    }
 }
 
 /// The definition of this module.

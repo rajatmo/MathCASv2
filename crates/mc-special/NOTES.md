@@ -1233,3 +1233,54 @@ with a value at more digits. Defects found and fixed:
 Found, not fixed: `n(erf(10^8), 30)` and `n(exp(-10^40), 30)` fail with `precision_not_reached`; `erf` of a wide
 interval far out stays unevaluated; `legendre_q(2, 1/3)` and `zeta(-1, 4)` (Hurwitz) at 30-digit arguments stay
 unevaluated; `zeta(-1., 4.)` is -6.083333333333286 (about 35 units in the last place).
+## Round 45: special functions in depth, second part
+
+Groups by cause and the method built for each (tests: `mc-engine/tests/round45_special.rs`, each new form against an
+independent value):
+
+- **Half-integer Bessel orders** (`exact_more.rs`, `half_order_jy`, `half_order_i`): J, Y and I of every order
+  +-(n + 1/2), n <= 100, in sin, cos (sinh, cosh) and powers of 1/x, for symbolic x and exact x > 0 (DLMF 10.49.2-3,
+  10.49.12-13 with a_k(n + 1/2) = (n + k)!/(2^k k! (n - k)!); the negative orders by 10.2.3). K had them already.
+  Checked against the ball kernels at ball orders (the series) at 20 digits.
+- **Heun functions** (`heun.rs`): `indeterminate` where the defining local solution does not exist or is not unique
+  (gamma a nonpositive integer for G, C, B: the Frobenius recurrence has the factor k (k - 1 + gamma); a = 0 for G) and
+  at the singular points other than the normalization point (G: z = 1, z = a; C: z = 1; D: z = 0), which are branch
+  points (D: an irregular singular point) of the continuation. Hypergeometric cases for numeric parameters too:
+  Hl(1, alpha beta; ...) = 2F1 (the prelude had it for symbolic ones), Maier's quadratic reduction
+  Hl(2, alpha beta; alpha, beta, gamma, alpha + beta - 2 gamma + 1; z) = 2F1(alpha/2, beta/2; gamma; 1 - (1 - z)^2)
+  (J. Differential Equations 213, 2005), HeunB(q, 0, gamma, delta, 0, z) = 1F1(-q/delta; gamma; -delta z) or
+  0F1(; gamma; q z). Checked against the Heun solver with q moved off the reduction by 1e-13.
+- **1F1 with a = n + 1/2 and c = 2a or 2a - 1** (lib/special.mc and `meijer::named_pfq`): n! e^(z/2) (z/4)^-n
+  I_n(z/2) (DLMF 13.6.9) and, by the derivative 13.3.15, (n - 1)! e^(z/2) (z/4)^(1-n) (I_(n-1)(z/2) + I_n(z/2));
+  1F1(3/2; 2; z) for the calculus package. Checked against the series summed term by term.
+- **Complex boxes** (`ball/boxes.rs`, registered with `mc_numeric::uncertain_cball`): centered intervals with complex
+  parts, and real spreads with complex values, through the complex-ball kernels of `Special` and Fresnel S, C, f, g
+  (by erf), H1, H2 (J +- i Y), spherical Hankel functions, the Pochhammer symbol and the subfactorial; with the
+  derivative of each (where known) for the mean value form. Checked by sampling every box at 30 digits.
+- **Ferrers Q of order mu**: on balls (the 14.9.10 rule of the prelude now takes arbitrary-precision arguments), by
+  14.9.2 where nu + mu is an integer and mu is not, and at integer degree and order as (-1)^m (1 - x^2)^(m/2) d^m Q_n
+  (14.6.2); a native arity 3 hands interval arguments to the proved images. Checked by Wronskians (14.2.4).
+- **Inverse nome on real balls** (`ball/nome.rs`): 16 q A^4/B^4 with the theta series A, B real for every real q
+  and rigorous tails; negative nomes are real now (the theta quotient left a zero imaginary ball), and intervals over
+  (-1, 1) get images.
+- **Zernike polynomials off the integers** (`more.rs`, and the same form in `function_expand`, whose derivative lets
+  the enclosures prove images of intervals): cos(k pi) r^m binomial((n + m)/2, k) 2F1(-k, (n + m)/2 + 1; m + 1; r^2),
+  k = (n - m)/2: the Jacobi form with (-1)^k continued as cos(k pi), equal to the polynomial at integers.
+- **Spherical harmonics of any numeric degree and order** (`more.rs`): the normalised Ferrers function times
+  e^(i m phi) (DLMF 14.30.1 off the integers).
+- **Cancellation in terminating complex 2F1 sums** (`machine/complex.rs`): the polynomial branch had no check;
+  2F1(-23, 24; -4 + i; 1/4) (inside `spherical_harmonic_y(23, 5 - i, ...)`) has terms 10^8 times its value and lost
+  8 digits at machine precision. It now declines past 4 digits of cancellation, as the series branch does, and the
+  ball enclosure gives the value.
+- **J(tau + n) = J(tau)** for a symbolic tau and an exact integer n (`cover.rs`).
+- **Smaller**: erf(x) for 1.44 x^2 > wp + 20 is the ball sign(x) +- 2^-(wp+20) (erfc(|x|) < e^(-x^2)), so
+  `n(erf(10^8), 30)` no longer asks for e^(-10^16); zeta(-n, a) at an arbitrary-precision integer -n by the Bernoulli
+  polynomial; the Hankel functions are complex infinity at 0, so `series(hankel_h1(2, x), x, 0, 3)` is the Laurent
+  series (it was a Taylor series of the infinite values hankel_h1(k, 0)); `hypergeometric_pfq` of uncertain arguments.
+
+Not reached: ball forms of the alternating factorial (the image through the closed form's derivative took 87 s for
+interval([2.1, 2.9]) and was loose: a kernel of its own is needed); the forms at infinity (most inputs need expansions
+that do not exist yet: Struve, Kelvin, inverse Jacobi in m, Mittag-Leffler, Lommel; the rest compare by printed form);
+complex boxes of the modular, Weierstrass, Coulomb and Legendre functions of type 3 (no complex-ball kernels); Lerch
+Phi beyond the unit disc; the Taylor fallback of `series` at a point where a function stays unevaluated but is
+infinite (fixed here for the Hankel functions only).

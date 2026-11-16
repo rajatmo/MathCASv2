@@ -12,7 +12,7 @@
 //! | exp_integral_e | E_0(x) = e^-x/x; E_n(0) = 1/(n-1) for n > 1, a pole otherwise |
 //! | polylog | Li_s(0) = 0; Li_1(z) = -log(1-z); Li_0(z) = z/(1-z); Li_-1(z) = z/(1-z)^2; Li_s(1) = zeta(s) (s > 1); Li_s(-1) = (2^(1-s) - 1) zeta(s); Li_2(1/2) = pi^2/12 - log(2)^2/2 |
 //! | hypergeometric | 1 at z = 0; 1F1(a; a; z) = e^z; 2F1(a, b; c; 1) = Gauss's product of gammas (c - a - b > 0) |
-//! | bessel_j, bessel_y | J_0(0) = 1, J_nu(0) = 0 (nu > 0 or a non-zero integer); Y_nu(0) a pole (integer nu); orders ±1/2 by sin and cos |
+//! | bessel_j, bessel_y | J_0(0) = 1, J_nu(0) = 0 (nu > 0 or a non-zero integer); Y_nu(0) a pole (integer nu); half-integer orders |nu| <= 201/2 by sin and cos (DLMF 10.49.2-3) |
 //! | airy | Ai(0), Bi(0), Ai'(0), Bi'(0) through gamma(1/3), gamma(2/3) |
 //! | elliptic | K(0) = E(0) = pi/2, K(1) a pole, E(1) = 1; F(0, m) = E(0, m) = 0, F(phi, 0) = E(phi, 0) = phi; Pi(0, m) = K(m) |
 //! | jacobi | sn(0) = 0, cn(0) = dn(0) = 1; m = 0: sin, cos, 1; m = 1: tanh, sech, sech; inverse_jacobi_sn(0, m) = 0 |
@@ -40,6 +40,21 @@ impl<'a, 'h> More<'a, 'h> {
 
 fn half() -> Rat {
     Rat::new(Int::from_i64(1), Int::from_i64(2))
+}
+
+/// The largest |order| n + 1/2 written in elementary functions automatically (the closed form has n + 1 terms).
+const HALF_ORDER_MAX: u64 = 100;
+
+/// nu = +-(n + 1/2) with 0 <= n <= HALF_ORDER_MAX: n and whether nu is negative.
+fn half_order(nu: &Rat) -> Option<(u64, bool)> {
+    let twice = nu.mul(&Rat::from_i64(2));
+    if nu.is_int() || !twice.is_int() {
+        return None;
+    }
+    // nu = (2m + 1)/2: n = (|2 nu| - 1)/2
+    let twice = twice.num.to_i64()?;
+    let n = (twice.unsigned_abs() - 1) / 2;
+    (n <= HALF_ORDER_MAX).then_some((n, twice < 0))
 }
 
 impl<'a, 'h> More<'a, 'h> {
@@ -173,6 +188,71 @@ impl<'a, 'h> More<'a, 'h> {
         let arg = self.ar.mul(&[self.q(&half()), self.sym("pi"), x]);
         self.ar.pow(arg, self.q(&half().neg()))
     }
+    /// J_nu(x) (`y` false) or Y_nu(x) at a half-integer order |nu| = n + 1/2 <= HALF_ORDER_MAX in sin x and cos x
+    /// (DLMF 10.49.2-3 for the spherical functions j_n = sqrt(pi/(2x)) J_(n+1/2), y_n likewise, with
+    /// a_k(n + 1/2) = (n + k)!/(2^k k! (n - k)!) of 10.49.1; the negative orders by Y_(n+1/2) = (-1)^(n+1) J_(-n-1/2)
+    /// and J_(n+1/2) = (-1)^n Y_(-n-1/2), 10.2.3 at nu = n + 1/2):
+    /// J_(n+1/2) = (pi x/2)^(-1/2) (A sin(x - n pi/2) + B cos(x - n pi/2)),
+    /// Y_(n+1/2) = (pi x/2)^(-1/2) (-A cos(x - n pi/2) + B sin(x - n pi/2)),
+    /// A = sum_(k even) (-1)^(k/2) a_k x^-k, B = sum_(k odd) (-1)^((k-1)/2) a_k x^-k.
+    fn half_order_jy(&self, y: bool, nu: &Rat, x: T<'h>) -> Option<T<'h>> {
+        let (n, neg) = half_order(nu)?;
+        let (a, b) = self.half_order_ab(n, x, true);
+        // sin(x - n pi/2) and cos(x - n pi/2) as +-sin x, +-cos x
+        let (s, c) = (self.call("sin", &[x]), self.call("cos", &[x]));
+        let (sv, cv) = match n % 4 {
+            0 => (s, c),
+            1 => (self.ar.neg(c), s),
+            2 => (self.ar.neg(s), self.ar.neg(c)),
+            _ => (c, self.ar.neg(s)),
+        };
+        let j = self.ar.add(&[self.ar.mul(&[a, sv]), self.ar.mul(&[b, cv])]);
+        let yv = self.ar.add(&[self.ar.neg(self.ar.mul(&[a, cv])), self.ar.mul(&[b, sv])]);
+        // which of j_n, y_n and the sign: J_(n+1/2) = j, Y_(n+1/2) = y, J_(-n-1/2) = (-1)^(n+1) y, Y_(-n-1/2) = (-1)^n j
+        let (v, minus) = match (y, neg) {
+            (false, false) => (j, false),
+            (true, false) => (yv, false),
+            (false, true) => (yv, n % 2 == 0),
+            (true, true) => (j, n % 2 == 1),
+        };
+        let v = self.ar.mul(&[self.half_order_pre(x), v]);
+        Some(if minus { self.ar.neg(v) } else { v })
+    }
+
+    /// I_nu(x) at a half-integer order |nu| = n + 1/2 <= HALF_ORDER_MAX in sinh x and cosh x (DLMF 10.49.12-13 for
+    /// the modified spherical functions i^(1)_n, i^(2)_n = sqrt(pi/(2x)) I_(+-(n+1/2))): with A, B the sums of a_k x^-k
+    /// over even and odd k, I_(n+1/2) = (pi x/2)^(-1/2) (A sinh x - B cosh x) for even n, (A cosh x - B sinh x) for odd
+    /// n; I_(-n-1/2) has sinh and cosh exchanged.
+    pub fn half_order_i(&self, nu: &Rat, x: T<'h>) -> Option<T<'h>> {
+        let (n, neg) = half_order(nu)?;
+        let (a, b) = self.half_order_ab(n, x, false);
+        let (s, c) = (self.call("sinh", &[x]), self.call("cosh", &[x]));
+        let (p, q) = if (n % 2 == 0) != neg { (s, c) } else { (c, s) };
+        let v = self.ar.sub(self.ar.mul(&[a, p]), self.ar.mul(&[b, q]));
+        Some(self.ar.mul(&[self.half_order_pre(x), v]))
+    }
+
+    /// The sums A = sum_(k even) s_k a_k(n + 1/2) x^-k and B = sum_(k odd) s_k a_k x^-k, s_k = (-1)^(floor(k/2)) when
+    /// `alternate`, else 1.
+    fn half_order_ab(&self, n: u64, x: T<'h>, alternate: bool) -> (T<'h>, T<'h>) {
+        let (mut even, mut odd) = (vec![], vec![]);
+        // a_k = (n + k)!/(2^k k! (n - k)!), by a_(k+1) = a_k (n + k + 1)(n - k)/(2 (k + 1))
+        let mut ak = Rat::from_i64(1);
+        for k in 0..=n {
+            let sign = alternate && (k / 2) % 2 == 1;
+            let c = if sign { ak.neg() } else { ak.clone() };
+            let term = self.ar.mul(&[self.q(&c), self.ar.pow(x, self.n(-(k as i64)))]);
+            if k % 2 == 0 {
+                even.push(term);
+            } else {
+                odd.push(term);
+            }
+            let num = Rat::new(Int::from_i64(((n + k + 1) * (n - k)) as i64), Int::from_i64(2 * (k as i64 + 1)));
+            ak = ak.mul(&num);
+        }
+        (self.ar.add(&even), self.ar.add(&odd))
+    }
+
     fn third(&self, num: i64, den: i64) -> T<'h> {
         self.q(&Rat::new(Int::from_i64(num), Int::from_i64(den)))
     }
@@ -457,16 +537,7 @@ impl<'a, 'h> More<'a, 'h> {
                 if self.ar.num(x).is_some_and(|v| !v.is_exact() || v.as_real().is_some_and(|r| r.is_negative())) {
                     return None;
                 }
-                let h = half();
-                let (fun, neg) = match f {
-                    S::BesselJ if nu.cmp_value(&h).is_eq() => ("sin", false),
-                    S::BesselJ if nu.cmp_value(&h.neg()).is_eq() => ("cos", false),
-                    S::BesselY if nu.cmp_value(&h).is_eq() => ("cos", true),
-                    S::BesselY if nu.cmp_value(&h.neg()).is_eq() => ("sin", false),
-                    _ => return None,
-                };
-                let v = self.ar.mul(&[self.half_order_pre(x), self.call(fun, &[x])]);
-                self.val(if neg { self.ar.neg(v) } else { v })
+                self.half_order_jy(f == S::BesselY, &nu, x).and_then(|v| self.val(v))
             }
             S::AiryAi | S::AiryBi | S::AiryAiPrime | S::AiryBiPrime => {
                 if !self.is(a[0], 0) {

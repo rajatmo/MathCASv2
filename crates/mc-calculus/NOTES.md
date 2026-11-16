@@ -1846,3 +1846,9 @@ closed form, for one) can prove monotonicity in a. Checked against central diffe
 - `generating_function(squares_r(k, n), n, x) = elliptic_theta(3, 0, x)^k` and the Z transform at 1/z (Hardy and
   Wright 20.13).
 - Gap: `pi < pi` stays unevaluated (the order of equal exact constants is not decided by `less`).
+## Round 45: derivatives of the Ferrers functions of order mu
+
+`d(legendre_p(nu, mu, x), x)` and the same for `legendre_q` were opaque; they are now
+(nu x w_nu - (nu + mu) w_(nu-1))/(x^2 - 1) (DLMF 14.10.5), the degree and order partials opaque. Checked against the
+Wronskian of P and Q (DLMF 14.2.4) at 30 digits in `mc-engine/tests/round45_special.rs`; it lets the enclosures of
+`mc-numeric` prove images of intervals of `legendre_q(nu, mu, x)`.

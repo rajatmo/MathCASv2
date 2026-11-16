@@ -381,6 +381,15 @@ fn special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
             let ei = b.mul(&[e, c, b.call_named("exp_integral_ei", &[b.int(-1)])]);
             b.add(&[b.neg(c), main, b.neg(ei)])
         }
+        // the radial Zernike function of numeric orders that are not both integers: cos(k pi) r^m binomial(s, k)
+        // 2F1(-k, s + 1; m + 1; r^2), k = (n - m)/2, s = (n + m)/2 (the Jacobi form of the polynomial, Born and Wolf
+        // 9.2.1, with (-1)^k continued as cos(k pi), as its numerical evaluation)
+        ("zernike_r", [n, m, r]) if b.ar.num(*n).is_some() && b.ar.num(*m).is_some() && !(is_integer(b, *n) && is_integer(b, *m)) => {
+            let k = b.mul(&[half, b.sub(*n, *m)]);
+            let s = b.mul(&[half, b.add(&[*n, *m])]);
+            let f = b.call_named("hypergeometric_2f1", &[b.neg(k), b.add(&[s, one]), b.add(&[*m, one]), b.pow(*r, b.int(2))]);
+            b.mul(&[b.call_named("cos", &[b.mul(&[k, pi])]), b.pow(*r, *m), b.call_named("binomial", &[s, k]), f])
+        }
         ("subfactorial", [x]) if !is_integer(b, *x) => {
             let e = h.sym_term(h.sym("e"));
             b.div(b.call_named("gamma", &[b.add(&[one, *x]), b.int(-1)]), e)

@@ -645,6 +645,10 @@ fn falling_ratio(l: u64, m: u64) -> Rat {
 }
 
 fn legendre_q<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    // legendre_q(nu, mu, x) is a library rule (lib/special.mc); the native only takes its uncertain arguments
+    if a.len() != 2 {
+        return Ok(None);
+    }
     let (n, x) = (a[0], a[1]);
     if let Some(k) = small_nat(fx, n) {
         if let Some(v) = legendre_q_machine(fx, k, x)? {
@@ -919,7 +923,23 @@ fn jacobi_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 
 fn zernike_r<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     // R_n^m(r) = sum_k (-1)^k (n - k)!/(k! ((n + m)/2 - k)! ((n - m)/2 - k)!) r^(n - 2k) for n - m even
-    let (Some(n), Some(m)) = (small_nat(fx, a[0]), small_int(fx, a[1])) else { return Ok(None) };
+    let (Some(n), Some(m)) = (small_nat(fx, a[0]), small_int(fx, a[1])) else {
+        // other numbers (one inexact): the Jacobi form R_n^m(r) = (-1)^k r^m P_k^(m,0)(1 - 2 r^2), k = (n - m)/2
+        // (Born and Wolf, Principles of Optics, 7th ed., 9.2.1 and appendix VII), with P_k^(m,0) by its 2F1 (DLMF 18.5.7)
+        // and (-1)^k continued as cos(k pi), which is the polynomial at integers (0 for an odd n - m) and real for real
+        // arguments: cos(k pi) r^m binomial((n + m)/2, k) 2F1(-k, (n + m)/2 + 1; m + 1; r^2)
+        if !(a.iter().all(|&t| fx.num(t).is_some()) && any_inexact(fx, a)) {
+            return Ok(None);
+        }
+        let (n, m, r) = (a[0], a[1], a[2]);
+        let k = fx.mul(&[fx.rat(1, 2), fx.sub(n, m)]);
+        let s = fx.mul(&[fx.rat(1, 2), fx.add(&[n, m])]);
+        let pi = fx.sym("pi");
+        let f = fx.call("hypergeometric_2f1", &[fx.neg(k), fx.add(&[s, fx.int(1)]), fx.add(&[m, fx.int(1)]), fx.pow(r, fx.int(2))]);
+        let v = fx.mul(&[fx.call("cos", &[fx.mul(&[k, pi])]), fx.pow(r, m), fx.call("binomial", &[s, k]), f]);
+        let v = fx.eval(v)?;
+        return Ok(fx.num(v).map(|_| v));
+    };
     let m = m.unsigned_abs();
     if m > n || (n - m) % 2 == 1 {
         return Ok(Some(fx.int(0)));
@@ -976,7 +996,24 @@ fn normalized_legendre_machine(l: u64, m: u64, theta: f64) -> Option<f64> {
 
 fn spherical_harmonic_y<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let (th, ph) = (a[2], a[3]);
-    let (Some(l), Some(m)) = (small_nat(fx, a[0]), small_int(fx, a[1])) else { return Ok(None) };
+    let (Some(l), Some(m)) = (small_nat(fx, a[0]), small_int(fx, a[1])) else {
+        // other numbers (one inexact): sqrt((2l + 1)/(4 pi) Gamma(l - m + 1)/Gamma(l + m + 1)) P_l^m(cos theta) e^(i m phi)
+        // with the Ferrers function of any degree and order (DLMF 14.30.1 read off the integers)
+        if !(a.iter().all(|&t| fx.num(t).is_some()) && any_inexact(fx, a)) {
+            return Ok(None);
+        }
+        let (l, m) = (a[0], a[1]);
+        let g = |t: T<'h>| fx.call("gamma", &[t]);
+        let ratio = fx.div(g(fx.add(&[l, fx.neg(m), fx.int(1)])), g(fx.add(&[l, m, fx.int(1)])));
+        let norm = fx.sqrt(fx.mul(&[fx.add(&[fx.mul(&[fx.int(2), l]), fx.int(1)]), fx.rat(1, 4), fx.pow(fx.sym("pi"), fx.int(-1)), ratio]));
+        let p = fx.call("legendre_p", &[l, m, fx.call("cos", &[th])]);
+        let e = fx.call("exp", &[fx.mul(&[fx.i(), m, ph])]);
+        let machine = a.iter().any(|&t| fx.num(t).is_some_and(|n| n.kind() == mc_arith::Kind::Machine));
+        let v = fx.mul(&[norm, p, e]);
+        // exact parts (gamma of an exact complex order) are evaluated at the machine precision of the arguments
+        let v = fx.eval(if machine { fx.call("n", &[v]) } else { v })?;
+        return Ok(fx.num(v).map(|_| v));
+    };
     let am = m.unsigned_abs();
     if am > l {
         return Ok(Some(fx.int(0)));
@@ -1780,6 +1817,9 @@ fn spherical_bessel_y<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 }
 
 fn hankel<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], s: i64) -> R<'h> {
+    if let Some(v) = crate::cover::hankel_at_zero(fx, a) {
+        return Ok(Some(v));
+    }
     if !(a.iter().all(|&t| fx.num(t).is_some()) && any_inexact(fx, a)) {
         return Ok(None);
     }
@@ -2026,7 +2066,7 @@ pub static DEFS: &[Def] = &[
     def!("chebyshev_t", &[2], Some(chebyshev_t), None, "chebyshev_t(n, x): the Chebyshev polynomial of the first kind T_n(x) = cos(n acos(x))"),
     def!("chebyshev_u", &[2], Some(chebyshev_u), None, "chebyshev_u(n, x): the Chebyshev polynomial of the second kind U_n(x)"),
     def!("legendre_p", &[2, 3, 4], Some(legendre_p), None, "legendre_p(n, x): the Legendre polynomial P_n(x); legendre_p(n, m, x): the associated Legendre function P_n^m(x) (any degree and order for numbers); legendre_p(n, m, a, z): of type a (2 as legendre_p(n, m, z), 3 on the plane cut along (-inf, 1])"),
-    def!("legendre_q", &[2], Some(legendre_q), None, "legendre_q(n, x): the Legendre function of the second kind Q_n(x) at integer n"),
+    def!("legendre_q", &[2, 3], Some(legendre_q), None, "legendre_q(n, x): the Legendre function of the second kind Q_n(x) at integer n"),
     def!("hermite_h", &[2], Some(hermite_h), None, "hermite_h(n, x): the Hermite polynomial H_n(x) (physicists' normalization)"),
     def!("laguerre_l", &[2, 3], Some(laguerre_l), None, "laguerre_l(n, x): the Laguerre polynomial L_n(x); laguerre_l(n, a, x): the generalized Laguerre polynomial"),
     def!("gegenbauer_c", &[2, 3], Some(gegenbauer_c), None, "gegenbauer_c(n, a, x): the Gegenbauer polynomial C_n^(a)(x); gegenbauer_c(n, x) = (2/n) T_n(x)"),
