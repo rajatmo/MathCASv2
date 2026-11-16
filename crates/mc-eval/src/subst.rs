@@ -172,6 +172,44 @@ pub(crate) fn contains_sym<'h>(h: &'h Heap, t: T<'h>, s: Sym) -> bool {
     false
 }
 
+/// Does symbol `s` occur free in `t`: outside every `fn` and `for` of `t` that binds it?
+fn free_in<'h>(h: &'h Heap, sc: &Scopes, t: T<'h>, s: Sym) -> bool {
+    let st = h.sym_term(s);
+    let bit = h.mask(st);
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        if h.mask(u) & bit == 0 {
+            continue;
+        }
+        match h.view(u) {
+            View::Sym(_) if u == st => return true,
+            View::App { head, args } => {
+                let binds = match h.view(head) {
+                    View::Sym(f) if f == sc.fn_ && args.len() == 2 => match h.view(args[0]) {
+                        View::App { args: ps, .. } => ps.iter().any(|&p| sc.binder_name(h, p) == Some(s)),
+                        _ => false,
+                    },
+                    View::Sym(f) if f == sc.for_ && args.len() == 3 => {
+                        // the list iterated over is outside the loop's scope
+                        if sc.binder_name(h, args[0]) == Some(s) {
+                            stack.push(args[1]);
+                            continue;
+                        }
+                        false
+                    }
+                    _ => false,
+                };
+                if !binds {
+                    stack.push(head);
+                    stack.extend_from_slice(args);
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 /// `t` with each symbol `pairs[i].0` replaced by `pairs[i].1`, hygienically (see the module documentation).
 pub(crate) fn substitute<'h>(h: &'h Heap, sc: &Scopes, t: T<'h>, pairs: &[(Sym, T<'h>)]) -> T<'h> {
     let keys = pairs.iter().fold(0u64, |m, (s, _)| m | h.mask(h.sym_term(*s)));
@@ -331,15 +369,12 @@ struct Env<'h> {
     pairs: Vec<(Sym, T<'h>)>,
     /// mask of the names substituted
     keys: u64,
-    /// mask of the values
-    vals: u64,
 }
 
 impl<'h> Env<'h> {
     fn new(h: &'h Heap, pairs: Vec<(Sym, T<'h>)>) -> Env<'h> {
         let keys = pairs.iter().fold(0u64, |m, (s, _)| m | h.mask(h.sym_term(*s)));
-        let vals = pairs.iter().fold(0u64, |m, (_, v)| m | h.mask(*v));
-        Env { pairs, keys, vals }
+        Env { pairs, keys }
     }
 }
 
@@ -497,13 +532,22 @@ impl<'h> Sub<'_, 'h> {
         let h = self.h;
         let env = &self.envs[e as usize];
         let bit = |s: Sym| h.mask(h.sym_term(s));
+        // a value captures `y` only where `y` is free in it (the slot of a pure function inside the value is bound
+        // there and is not the slot of this form)
+        let sc = *self.sc;
         let captures = |pairs: &[(Sym, T<'h>)], vals: u64, y: Sym| {
-            vals & bit(y) != 0 && pairs.iter().any(|&(_, v)| contains_sym(h, v, y))
+            vals & bit(y) != 0 && pairs.iter().any(|&(_, v)| free_in(h, &sc, v, y))
         };
-        if names.iter().all(|&y| env.keys & bit(y) == 0 && !captures(&env.pairs, env.vals, y)) {
+        // only the names substituted inside this form can be captured by it: a value whose name does not occur in the
+        // form is not put there, so it renames nothing (the masks that let the walk enter the form are hashes of the
+        // symbols and can collide, so whether a name occurs is decided here, not by the mask)
+        let live: Vec<(Sym, T<'h>)> =
+            env.pairs.iter().copied().filter(|&(k, _)| !names.contains(&k) && contains_sym(h, scope, k)).collect();
+        let live_vals = live.iter().fold(0u64, |m, (_, v)| m | h.mask(*v));
+        if names.iter().all(|&y| env.keys & bit(y) == 0 && !captures(&live, live_vals, y)) {
             return e;
         }
-        let mut pairs: Vec<(Sym, T<'h>)> = env.pairs.iter().copied().filter(|(k, _)| !names.contains(k)).collect();
+        let mut pairs: Vec<(Sym, T<'h>)> = live;
         let vals = pairs.iter().fold(0u64, |m, (_, v)| m | h.mask(*v));
         let mut renames: Vec<(Sym, T<'h>)> = vec![];
         for &y in names {
@@ -565,5 +609,34 @@ mod tests {
         }
         let r = substitute(h, &sc, c(h, "fn", &[c(h, "list", &[y]), deep]), &[(h.sym("x"), y)]);
         assert!(contains_sym(h, r, h.sym("y$1")));
+    }
+
+    /// A form in which no substituted name occurs is left as it is, also when the symbol masks of the name and the
+    /// form collide (they are hashes): `&(foo(&1))` under `k := g(&(&1))` keeps its slot.
+    #[test]
+    fn a_form_without_the_substituted_name_is_not_renamed() {
+        let h = &Heap::new(Config::no_collect());
+        let sc = Scopes::new(h);
+        fn call<'h>(h: &'h Heap, n: &str, a: &[T<'h>]) -> T<'h> {
+            h.call(h.sym(n), a)
+        }
+        let s = |n: &str| h.sym_term(h.sym(n));
+        let slot = s("&1");
+        let foo = s("foo");
+        // a name whose mask bit is that of `foo` (and not that of the slot)
+        let k = (0..10_000)
+            .map(|i| h.sym(&format!("k{i}")))
+            .find(|&k| h.mask(h.sym_term(k)) & h.mask(foo) != 0 && h.mask(h.sym_term(k)) & h.mask(slot) == 0)
+            .expect("a colliding name");
+        let lam = call(h, "fn", &[call(h, "list", &[slot]), call(h, "foo", &[slot])]);
+        let value = call(h, "g", &[call(h, "fn", &[call(h, "list", &[slot]), slot])]);
+        assert_eq!(substitute(h, &sc, lam, &[(k, value)]), lam);
+        // where the name occurs: the value's slot is bound in the value, so the form keeps its slot
+        let used = call(h, "fn", &[call(h, "list", &[slot]), call(h, "foo", &[slot, h.sym_term(k)])]);
+        let want = call(h, "fn", &[call(h, "list", &[slot]), call(h, "foo", &[slot, value])]);
+        assert_eq!(substitute(h, &sc, used, &[(k, value)]), want);
+        // a free slot in the value is captured: the form's slot is renamed
+        let free = call(h, "g", &[slot]);
+        assert!(contains_sym(h, substitute(h, &sc, used, &[(k, free)]), h.sym("&1$1")));
     }
 }

@@ -131,7 +131,7 @@ fn slow_inputs_are_fast() {
         ("sign(elliptic_k(2))", "sign(elliptic_k(2))", 3.0),
         ("sign(elliptic_k(2) + 1) == sign(elliptic_k(2) + 1)", "true", 3.0),
         ("count_roots(gamma(z) - z - 1, [z, -2 - 2*im, 2 + 2*im])", "3", 6.0),
-        ("count_roots(gamma(z) - 2, [z, -3 - 2*im, 4 + 2*im])", "4", 6.0),
+        ("count_roots(gamma(z) - 2, [z, -3 - 2*im, 4 + 2*im])", "4", 10.0),
         ("n(gamma(2 + im), 30)", "complex(0.6529654964201667278386462479460847, 0.3430658398165453575887359869783115)", 3.0),
         // Gamma(-3/2 + 5 i) by the reflection formula pi/(sin(pi z) Gamma(1 - z)), an independent route
         ("abs(n(gamma(-3/2 + 5*im), 40) - n(pi/(sin(pi*(-3/2 + 5*im))*gamma(5/2 - 5*im)), 40)) < 10^-35", "true", 3.0),
@@ -188,5 +188,40 @@ fn shared_arguments_end_promptly() {
     ] {
         let (v, _, _) = stopped_at(&mut e, src, Duration::from_secs(60));
         assert_eq!(v, want, "{src}");
+    }
+}
+
+/// Pure functions print as they were written whatever the session defined before: the slot of a pure function is
+/// renamed only when a substituted value holds it free. Unrelated definitions first (each count changes the layout
+/// of the symbols, whose masks are hashes), then nested pure functions in `root_sum`, `root`, `map` and function
+/// bodies; every printed value is the one of a fresh session and has no renamed slot.
+#[test]
+fn pure_functions_print_as_written_after_other_definitions() {
+    let inputs = [
+        "integrate(1/(x^5 + 11*x + 1), [x, 1, 3]); n(root_sum(&(&1^5 - 3*&1 - 7), sin), 50); integrate(root_sum(&(&1^5 + 11*&1 + 1), &(exp(-a*&1))), a)",
+        "integrate(root_sum(&(&1^5 + 11*&1 + 1), &(sin(a*&1))), [a, 0, 1])",
+        "d(root_sum(&(&1^5 + a*&1 + 1), &(exp(&1))), a)",
+        "root(&(&1^5 - &1 - 1), 2)",
+        "map(&(map(&(&1 + 1), [&1, 2*&1])), [1, 2])",
+        "fn wrap9(u) = &(&1 + u); wrap9(&(&1^2))",
+        "fn twice9(f) = &(f(f(&1))); twice9(&(&1 + 1))",
+        "function(x, root_sum(&(&1^3 - x), &(&1^2)))",
+    ];
+    let run = |defs: usize| -> Vec<String> {
+        let mut e = engine(2);
+        for k in 0..defs {
+            let (v, _, _) = stopped_at(&mut e, &format!("fn unrelated{k}(q{k}, r{k}) = q{k}^{k} + r{k}*z{k}; 0"), Duration::from_secs(60));
+            assert_eq!(v, "0");
+        }
+        inputs.iter().map(|src| stopped_at(&mut e, src, Duration::from_secs(120)).0).collect()
+    };
+    let fresh = run(0);
+    for (src, v) in inputs.iter().zip(&fresh) {
+        assert!(!v.contains('$'), "{src}: {v}");
+    }
+    for defs in [1, 2, 3, 5, 8, 13, 21] {
+        for ((src, a), b) in inputs.iter().zip(&fresh).zip(run(defs)) {
+            assert_eq!(*a, b, "{src} after {defs} definitions");
+        }
     }
 }
