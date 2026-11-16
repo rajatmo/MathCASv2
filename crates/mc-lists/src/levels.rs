@@ -476,6 +476,12 @@ impl Native for MapMore {
                 _ => Ok(Reply::Decline),
             };
         }
+        // a numeric body over a long packed vector: compiled once
+        if let [f, x] = *args {
+            if let Some(v) = crate::construct::compiled_map(&self.lib, cx, f, x)? {
+                return Ok(Reply::Done(v));
+            }
+        }
         match *args {
             [f, x, spec] => match level_spec(h, spec) {
                 Some(levels) => map_at_levels(cx, f, x, levels),

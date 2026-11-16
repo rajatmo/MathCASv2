@@ -73,6 +73,8 @@ pub fn read_failure<'h>(h: &'h Heap, file: T<'h>, e: ReadError) -> T<'h> {
 
 /// The bytes of the file `path`, or `failure(io, file, message)`.
 pub fn read_file<'h>(h: &'h Heap, file: T<'h>, path: &str) -> Result<Vec<u8>, T<'h>> {
+    // a picture whose files are written when first read
+    mc_graphics::deferred::ensure(Path::new(path));
     std::fs::read(path).map_err(|e| failure(h, "io", &[file, h.string(&e.to_string())]))
 }
 

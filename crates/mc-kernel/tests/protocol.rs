@@ -330,8 +330,54 @@ fn hello_announces_the_notebook_additions() {
     assert_eq!(hello["protocol"], 1);
     assert_eq!(
         hello["capabilities"],
-        json!(["values_each", "numbered", "history", "display", "display_svg", "message", "names", "shutdown_interrupt"])
+        json!(["values_each", "numbered", "history", "display", "display_svg", "message", "names", "shutdown_interrupt", "pictures"])
     );
+}
+
+#[test]
+fn pictures_are_written_as_the_client_asks() {
+    let started = std::time::Instant::now();
+    let exists = |png: &str, ext: &str| std::path::Path::new(png).with_extension(ext).is_file();
+    let mut k = Kernel::start();
+    // a client that reads the PNG and the data description gets those with the display, nothing else
+    let ask = |id: u64, src: &str, pictures: Value| {
+        json!({"type": "eval", "id": id, "cell": format!("c{id}"), "src": src, "values": "each", "numbered": true, "pictures": pictures})
+    };
+    let rs = k.ask(ask(1, "plot(sin(t), [t, 0, 1])\ngraphics3d(sphere())", json!(["png", "json"])));
+    let (d, d3) = (&rs[0], &rs[1]);
+    assert_eq!((d["type"].as_str(), d["kind"].as_str()), (Some("display"), Some("image")), "{d}");
+    assert_eq!((d["width"].as_u64(), d["height"].as_u64()), (Some(640), Some(400)));
+    assert_eq!(d3["type"].as_str(), Some("display"), "{d3}");
+    for d in [d, d3] {
+        let png = d["path"].as_str().unwrap();
+        assert!(exists(png, "png") && exists(png, "json"), "{d}");
+        assert!(!exists(png, "svg") && !exists(png, "pdf") && !exists(png, "scene3d") && !exists(png, "column.svg"), "{d}");
+    }
+    // the others when asked for
+    let png3 = d3["path"].as_str().unwrap().to_string();
+    let rs = k.ask(json!({"type": "picture", "id": 2, "path": png3, "formats": ["svg", "scene3d"]}));
+    assert_eq!(rs.last().unwrap()["status"], "ok", "{rs:?}");
+    assert!(exists(&png3, "svg") && exists(&png3, "scene3d") && !exists(&png3, "pdf"));
+    let rs = k.ask(json!({"type": "picture", "id": 3, "path": png3}));
+    assert_eq!(rs.last().unwrap()["status"], "ok", "{rs:?}");
+    // (a shown graphic has no column twin; a plot of the default size has one)
+    assert!(exists(&png3, "pdf") && !exists(&png3, "column.svg"));
+    // a client that reads no file: the picture's value and size as before, no file
+    let rs = k.ask(ask(4, "p = plot(cos(t), [t, 0, 1]); print(p)\np", json!([])));
+    let printed = rs[0]["text"].as_str().unwrap().to_string();
+    assert_eq!(rs[1]["type"], "display", "{}", rs[1]);
+    let png = rs[1]["path"].as_str().unwrap().to_string();
+    assert_eq!(printed, format!("image(\"{png}\")"));
+    assert!(!exists(&png, "png") && !exists(&png, "svg"));
+    // a picture the kernel does not know
+    let rs = k.ask(json!({"type": "picture", "id": 5, "path": "no/such/picture.png"}));
+    assert_eq!((rs[0]["type"].as_str(), rs[1]["status"].as_str()), (Some("error"), Some("error")), "{rs:?}");
+    // a client without the field: every file of the picture at once, as before
+    let rs = k.ask(cell(6, "plot(sin(t), [t, 0, 2])"));
+    let png = rs[0]["path"].as_str().unwrap();
+    assert!(exists(png, "png") && exists(png, "svg") && exists(png, "json") && exists(png, "column.svg"));
+    assert_eq!(k.wait(), Some(0));
+    assert!(started.elapsed() < Duration::from_secs(60), "took {:?}", started.elapsed());
 }
 
 #[test]

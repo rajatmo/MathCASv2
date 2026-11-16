@@ -174,3 +174,31 @@ fn primality_and_next_primes_agree_with_miller_rabin() {
         }
     }
 }
+
+/// Stirling numbers of both kinds for every k of rows up to 90 (and entries of row 300) against the full triangle
+/// of their recurrences in num-bigint: the rows worked out only as far as entry k needs them give the same numbers.
+#[test]
+fn stirling_numbers_against_the_full_triangle() {
+    let started = std::time::Instant::now();
+    let mut nt = Nt::new();
+    let n_max = 300usize;
+    let (mut s1, mut s2) = (vec![vec![BigInt::zero(); n_max + 1]; n_max + 1], vec![vec![BigInt::zero(); n_max + 1]; n_max + 1]);
+    s1[0][0] = BigInt::one();
+    s2[0][0] = BigInt::one();
+    for i in 1..=n_max {
+        for j in 1..=i {
+            s1[i][j] = &s1[i - 1][j - 1] - BigInt::from(i - 1) * &s1[i - 1][j];
+            s2[i][j] = &s2[i - 1][j - 1] + BigInt::from(j) * &s2[i - 1][j];
+        }
+    }
+    let rows = (0..=90).chain([300]);
+    for n in rows {
+        let ks: Vec<usize> = if n == 300 { vec![1, 2, 150, 299, 300] } else { (0..=n + 1).collect() };
+        for k in ks {
+            let (a, b) = if k <= n { (s1[n][k].to_string(), s2[n][k].to_string()) } else { ("0".into(), "0".into()) };
+            assert_eq!(nt.eval(&format!("stirling_s1({n}, {k})")), a, "stirling_s1({n}, {k})");
+            assert_eq!(nt.eval(&format!("stirling_s2({n}, {k})")), b, "stirling_s2({n}, {k})");
+        }
+    }
+    assert!(started.elapsed() < std::time::Duration::from_secs(60), "took {:?}", started.elapsed());
+}

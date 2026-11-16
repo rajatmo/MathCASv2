@@ -27,7 +27,13 @@ pub const CAPABILITIES: &[&str] = &[
     "names",
     // `shutdown` with `interrupt: true` interrupts the running evaluation and cancels the queued ones
     "shutdown_interrupt",
+    // `eval` with `pictures`: the files of pictures written as the client asks for them; the `picture` request
+    "pictures",
 ];
+
+/// The files of a picture a client can ask for, by extension (after the PNG's name: `plot-1-0.png`,
+/// `plot-1-0.svg`, `plot-1-0.column.svg`, ...).
+pub const PICTURE_FILES: &[&str] = &["png", "svg", "pdf", "json", "scene3d", "column.svg", "print.svg", "print.pdf"];
 
 /// Which values an `eval` sends.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -71,6 +77,22 @@ pub enum Request {
         /// number the statements with the session's line counter and keep their values for `out(n)`
         #[serde(default, skip_serializing_if = "is_false")]
         numbered: bool,
+        /// the files the client reads of each picture it is sent (extensions from [`PICTURE_FILES`]); they are
+        /// written before the response that names the picture, the others when asked for (`picture`). Without it
+        /// every picture's PNG, SVG and the files beside them are written when it is made.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pictures: Option<Vec<String>>,
+    },
+    /// Write files of a picture a response named (`path`: its PNG, as the image value names it).
+    Picture {
+        /// the request id
+        #[serde(default)]
+        id: Value,
+        /// the picture's PNG path
+        path: String,
+        /// the files to write, by extension ([`PICTURE_FILES`]; default: all)
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        formats: Option<Vec<String>>,
     },
     /// Stop the evaluation with this id (running or still queued); without an id, the running one.
     Interrupt {
@@ -125,6 +147,7 @@ impl Request {
     pub fn id(&self) -> Value {
         match self {
             Request::Eval { id, .. }
+            | Request::Picture { id, .. }
             | Request::Complete { id, .. }
             | Request::Names { id, .. }
             | Request::Modules { id }
@@ -307,7 +330,7 @@ mod tests {
 
     fn eval(id: Value, src: &str, cell: Option<&str>, values: Option<Values>, numbered: bool) -> Request {
         let cell = cell.map(String::from);
-        Request::Eval { id, cell, src: src.into(), origin: None, line: None, values, numbered }
+        Request::Eval { id, cell, src: src.into(), origin: None, line: None, values, numbered, pictures: None }
     }
 
     #[test]

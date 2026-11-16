@@ -12,6 +12,16 @@ use tiny_skia::{
 /// The largest pixmap, in pixels (4 bytes each).
 pub const MAX_PIXELS: u64 = 40_000_000;
 
+/// The pixel size of a page of `width` x `height` points at `scale` pixels per point; `None` when it would be
+/// larger than [`MAX_PIXELS`].
+pub fn pixels(width: f32, height: f32, scale: f32) -> Option<(u32, u32)> {
+    let (w, h) = ((width * scale).ceil().max(1.0), (height * scale).ceil().max(1.0));
+    if !(w.is_finite() && h.is_finite()) || (w as u64) * (h as u64) > MAX_PIXELS {
+        return None;
+    }
+    Some((w as u32, h as u32))
+}
+
 /// A page being painted into pixels.
 pub struct Raster {
     pm: Pixmap,
@@ -30,11 +40,8 @@ impl Raster {
     /// A transparent page of `width` x `height` points at `scale` pixels per point; `None` when it would be empty
     /// or larger than [`MAX_PIXELS`].
     pub fn new(width: f32, height: f32, scale: f32) -> Option<Raster> {
-        let (w, h) = ((width * scale).ceil().max(1.0), (height * scale).ceil().max(1.0));
-        if !(w.is_finite() && h.is_finite()) || (w as u64) * (h as u64) > MAX_PIXELS {
-            return None;
-        }
-        Some(Raster { pm: Pixmap::new(w as u32, h as u32)?, scale, clips: vec![], mask: None, outlines: HashMap::new(), theme: None, role: Role::Data })
+        let (w, h) = pixels(width, height, scale)?;
+        Some(Raster { pm: Pixmap::new(w, h)?, scale, clips: vec![], mask: None, outlines: HashMap::new(), theme: None, role: Role::Data })
     }
 
     /// Draw chrome in `theme`'s colours from now on.

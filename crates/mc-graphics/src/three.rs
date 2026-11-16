@@ -202,20 +202,31 @@ struct Scene {
 const ROUND: usize = 40;
 
 fn sphere(c: P3, r: [f64; 3], out: &mut Vec<Prim>) {
-    let (nlat, nlon) = (ROUND / 2, ROUND);
+    const NLAT: usize = ROUND / 2;
+    const NLON: usize = ROUND;
+    // the sines and cosines of the grid's angles, once per sphere (the same numbers as worked out per corner)
+    let th: [(f64, f64); NLAT + 1] = std::array::from_fn(|i| {
+        let th = std::f64::consts::PI * i as f64 / NLAT as f64;
+        (th.sin(), th.cos())
+    });
+    let ph: [(f64, f64); NLON + 1] = std::array::from_fn(|j| {
+        let ph = 2.0 * std::f64::consts::PI * j as f64 / NLON as f64;
+        (ph.sin(), ph.cos())
+    });
     let at = |i: usize, j: usize| {
-        let th = std::f64::consts::PI * i as f64 / nlat as f64;
-        let ph = 2.0 * std::f64::consts::PI * j as f64 / nlon as f64;
-        [c[0] + r[0] * th.sin() * ph.cos(), c[1] + r[1] * th.sin() * ph.sin(), c[2] + r[2] * th.cos()]
+        let ((st, ct), (sp, cp)) = (th[i], ph[j]);
+        [c[0] + r[0] * st * cp, c[1] + r[1] * st * sp, c[2] + r[2] * ct]
     };
-    for i in 0..nlat {
-        for j in 0..nlon {
-            let mut pts = vec![at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1)];
-            if i == 0 {
-                pts.remove(0);
-            } else if i == nlat - 1 {
-                pts.remove(2);
-            }
+    out.reserve(NLAT * NLON);
+    for i in 0..NLAT {
+        for j in 0..NLON {
+            let pts = if i == 0 {
+                vec![at(i + 1, j), at(i + 1, j + 1), at(i, j + 1)]
+            } else if i == NLAT - 1 {
+                vec![at(i, j), at(i + 1, j), at(i, j + 1)]
+            } else {
+                vec![at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1)]
+            };
             out.push(Prim::Face { pts, smooth: true, color: None, inside: Some(c) });
         }
     }
@@ -1393,14 +1404,17 @@ impl Prepared {
         if stop() {
             return Err(Failure::new("interrupted", ""));
         }
-        drawn.sort_by(|a, b| b.depth.total_cmp(&a.depth));
+        // the farthest first, ties in the order drawn (a stable sort): the keys are sorted, not the large items
+        let mut order: Vec<(f64, u32)> = drawn.iter().enumerate().map(|(i, d)| (d.depth, i as u32)).collect();
+        order.sort_unstable_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
         if stop() {
             return Err(Failure::new("interrupted", ""));
         }
-        drawn.extend(labels);
-        let mut g = Graphic { items: Vec::with_capacity(drawn.len()), styles: vec![Style::default()], opts: Opts::default() };
-        g.styles.reserve(drawn.len());
-        for d in drawn {
+        let mut slots: Vec<Option<Drawn>> = drawn.into_iter().map(Some).collect();
+        let mut g = Graphic { items: Vec::with_capacity(order.len() + labels.len()), styles: vec![Style::default()], opts: Opts::default() };
+        g.styles.reserve(order.len() + labels.len());
+        let sorted = order.iter().filter_map(|&(_, i)| slots[i as usize].take());
+        for d in sorted.chain(labels) {
             g.styles.push(d.style);
             g.items.push(Item { shape: d.shape, style: g.styles.len() - 1 });
         }
@@ -1510,8 +1524,12 @@ fn prepare(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Prepared, Fa
     // smooth shading: at each vertex of a smooth face the mean of the normals of the faces around it (each
     // turned to agree with the first seen), each face lit as the mean of its vertices' light
     let key = |p: P3| p.map(|v| (v * 1e9).round() as i64);
-    let mut vnormals: std::collections::HashMap<[i64; 3], P3> = std::collections::HashMap::new();
+    let faces = sc.elems.iter().filter(|e| matches!(e.prim, Prim::Face { smooth: true, .. })).count();
+    let mut vnormals: rustc_hash::FxHashMap<[i64; 3], P3> =
+        rustc_hash::FxHashMap::with_capacity_and_hasher(if clip { 0 } else { faces }, Default::default());
     let mut n = 0usize;
+    // the corners of a face in scaled coordinates (one buffer for all faces)
+    let mut q: Vec<P3> = Vec::with_capacity(8);
     // (a clipped scene draws no vertex normals: none are worked out)
     for e in sc.elems.iter().filter(|_| !clip) {
         if let Prim::Face { pts, smooth: true, .. } = &e.prim {
@@ -1519,7 +1537,9 @@ fn prepare(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Prepared, Fa
             if n.is_multiple_of(POLL) && stop() {
                 return Err(Failure::new("interrupted", ""));
             }
-            let fnrm = unit(newell(&pts.iter().map(|&p| scaled(p)).collect::<Vec<_>>()));
+            q.clear();
+            q.extend(pts.iter().map(|&p| scaled(p)));
+            let fnrm = unit(newell(&q));
             for &p in pts {
                 let acc = vnormals.entry(key(p)).or_insert([0.0; 3]);
                 let f = if dot(*acc, fnrm) < 0.0 { [-fnrm[0], -fnrm[1], -fnrm[2]] } else { fnrm };
@@ -1527,6 +1547,8 @@ fn prepare(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Prepared, Fa
             }
         }
     }
+    // each vertex normal made a unit vector once (not at every face around the vertex)
+    vnormals.values_mut().for_each(|v| *v = unit(*v));
     let mut elems = Vec::with_capacity(sc.elems.len());
     for e in sc.elems {
         n += 1;
@@ -1536,17 +1558,18 @@ fn prepare(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Prepared, Fa
         let arrow = matches!(e.prim, Prim::Arrow(_));
         let prim = match e.prim {
             Prim::Face { pts: corners, smooth, color, inside } => {
-                let pts = if clip { clip_polygon(corners.clone(), lo, hi) } else { corners.clone() };
+                let vns = (smooth && !clip).then(|| corners.iter().map(|&p| vnormals.get(&key(p)).copied()).collect());
+                let pts = if clip { clip_polygon(corners, lo, hi) } else { corners };
                 if pts.len() < 3 {
                     continue;
                 }
                 // Newell's normal in scaled coordinates
-                let q: Vec<P3> = pts.iter().map(|&p| scaled(p)).collect();
+                q.clear();
+                q.extend(pts.iter().map(|&p| scaled(p)));
                 let mid = q.iter().fold([0.0; 3], |s, p| add(s, *p, 1.0 / q.len() as f64));
                 let nrm = unit(newell(&q));
                 // a face of a closed convex solid: its outward normal (the solid stays closed unless clipped)
                 let outward = inside.filter(|_| !clip).map(|c| if dot(nrm, sub(mid, scaled(c))) < 0.0 { [-nrm[0], -nrm[1], -nrm[2]] } else { nrm });
-                let vns = (smooth && !clip).then(|| corners.iter().map(|&p| vnormals.get(&key(p)).map(|&v| unit(v))).collect());
                 PPrim::Face(PFace { pts, nrm, mid, vns, smooth, color, outward })
             }
             Prim::Line(pts) | Prim::Arrow(pts) => {

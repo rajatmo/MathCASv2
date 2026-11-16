@@ -108,7 +108,7 @@
 //! uses an addition only when it is listed; a kernel without the field has none):
 //!
 //! ```text
-//! {"id":null,"type":"hello","protocol":1,"version":"0.0.0","engine":"mathcas-v2 0.0.0","capabilities":["values_each","numbered","history","display","display_svg","message","names","shutdown_interrupt"]}
+//! {"id":null,"type":"hello","protocol":1,"version":"0.0.0","engine":"mathcas-v2 0.0.0","capabilities":["values_each","numbered","history","display","display_svg","message","names","shutdown_interrupt","pictures"]}
 //! ```
 //!
 //! | capability | request | effect |
@@ -121,6 +121,7 @@
 //! | `message` | (`values: "each"`) | a warning of library code (`message(tag, text)`) is sent as `message` with `text` and `tag` (the function's name); without `values: "each"` it is an `output` line `tag: text`, as before |
 //! | `names` | `names` with `prefix` (default `""`) | `names`: `[{name, kind}]` sorted by name, the names `complete` offers with `kind` `function`, `value`, `module` or `symbol`; then `done` |
 //! | `shutdown_interrupt` | `shutdown` with `interrupt: true` | the running evaluation is interrupted and the queued ones are cancelled (`done` `interrupted`) before the shutdown's `done`: quitting a busy kernel |
+//! | `pictures` | `eval` with `pictures: [...]` (extensions: `png`, `svg`, `pdf`, `json`, `scene3d`, `column.svg`, `print.svg`, `print.pdf`); `picture` with `path` (a picture's PNG as its image value names it) and `formats` (default: all) | the files of the pictures made by the evaluation are written when they are asked for, not when the picture is made: those listed in `pictures` before the response (`value`, `display`, `output`, `failure`) whose text names the picture, the others when a `picture` request names them (then `done` `ok`; `error` and `done` `error` when none of them exists, the picture being unknown or removed). A picture's value, its `display` size and every file's bytes are the same as without the field; without it (every client that does not know the field) each picture's PNG, SVG and the files beside them are written when it is made. Files a reader in the session needs (`export_data`, `import_data`, ...) are written when it reads them |
 //!
 //! `numbered: true` without `values: "each"` numbers the statements and sends only the last statement's value
 //! (when shown). An example exchange:

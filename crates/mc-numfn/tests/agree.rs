@@ -283,3 +283,49 @@ fn refusals_leave_the_interpreter() {
     }
 }
 
+
+/// `map(x => body, xs)` over a long packed vector and `array(k => body, n)` compile the body once (`mc-lists`): the result is the term the
+/// interpreter's element-by-element values make (`map_indexed`, never compiled), bit for bit (the printed texts
+/// show signed zeros), at signed zeros, the smallest and largest machine numbers, and for integers; a body the
+/// compiler declines at some element (a complex root, a quotient that is not an integer) is left to the interpreter.
+#[test]
+fn compiled_maps_agree_with_the_interpreter() {
+    let started = std::time::Instant::now();
+    let mut e = engine();
+    eval(&mut e, "xs = join(range(-3, 3, 0.001), [0.0, -0.0, 1.0e308, -1.0e308, 5.0e-324, -5.0e-324, 2.2250738585072014e-308]);");
+    eval(&mut e, "ks = range(-3000, 3000);");
+    for (body, over) in [
+        ("x^2 - 3*x + 1", "xs"),
+        ("sqrt(abs(x))", "xs"),
+        ("-x", "xs"),
+        ("x * 0.0", "xs"),
+        ("0.0 * x - x", "xs"),
+        ("sin(x) * exp(-x^2)", "xs"),
+        ("atan(x) + tanh(x)", "xs"),
+        ("sqrt(abs(x)) ^ 3", "xs"),
+        ("x / 3", "xs"),
+        ("sqrt(x)", "xs"),
+        ("k^2 - 7*k", "ks"),
+        ("k / 2", "ks"),
+        ("k^7", "ks"),
+        ("2*k + 0.5", "ks"),
+    ] {
+        let v = if over == "ks" { "k" } else { "x" };
+        let compiled = format!("map({v} => {body}, {over})");
+        let interpreted = format!("map_indexed(({v}, at) => {body}, {over})");
+        assert_eq!(eval(&mut e, &format!("({compiled}) === ({interpreted})")), "true", "{compiled}");
+        assert_eq!(eval(&mut e, &format!("to_string({compiled}) == to_string({interpreted})")), "true", "{compiled}");
+    }
+    // a list with complex values (declined at x < 0)
+    assert_eq!(eval(&mut e, "length(map(x => sqrt(x), xs))"), "6008");
+    // array(k => body, n) and array(k => body, n, origin) over the indices, the same way
+    for body in ["k^2 - 7*k", "k / 2", "sqrt(k) - 0.5", "sin(k / 1000.0) * k"] {
+        for (compiled, indices) in [("array(k => {b}, 6000)", "range(6000)"), ("array(k => {b}, 5000, -2500)", "range(-2500, 2499)")] {
+            let compiled = compiled.replace("{b}", body);
+            let interpreted = format!("map_indexed((k, at) => {body}, {indices})");
+            assert_eq!(eval(&mut e, &format!("to_string({compiled}) == to_string({interpreted})")), "true", "{compiled}");
+            assert_eq!(eval(&mut e, &format!("({compiled}) === ({interpreted})")), "true", "{compiled}");
+        }
+    }
+    assert!(started.elapsed() < std::time::Duration::from_secs(60), "took {:?}", started.elapsed());
+}

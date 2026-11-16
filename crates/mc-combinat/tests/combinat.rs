@@ -126,3 +126,18 @@ fn numeric_functions() {
     assert_eq!(ev("abs(dirichlet_l(4, 3, 2.) - 0.915965594177219) < 1e-12"), "true");
     assert_eq!(ev("dirichlet_l(1, 1, 2)"), "(1/6)*pi^2");
 }
+
+#[test]
+fn gaussian_composites_without_factoring() {
+    let started = std::time::Instant::now();
+    // the test of the norm agrees with counting the prime factors with multiplicity, on every Gaussian integer of
+    // a square around 0 (units, Gaussian primes of both kinds, ramified and split rational primes, composites)
+    let src = "{ let zs = select(flatten(table(a + b*im, [a, -24, 24], [b, -24, 24])), z => z != 0)\n\
+               [length(zs), select(zs, z => is_composite(z, gaussian_integers: true) != (prime_omega(z, gaussian_integers: true) >= 2))] }";
+    assert_eq!(ev(src), "[2400, []]");
+    check(&[
+        ("is_composite([1, im, 3, 2, 5, 9, 1 + im, 2 + im, 3 + 3*im, 7*im], gaussian_integers: true)",
+         "[false, false, false, true, true, true, false, false, true, false]"),
+    ]);
+    assert!(started.elapsed() < std::time::Duration::from_secs(60), "took {:?}", started.elapsed());
+}

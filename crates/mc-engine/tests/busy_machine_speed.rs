@@ -42,13 +42,13 @@ fn steps_on_the_pool_run_on_the_calling_worker() {
     assert_eq!(ev(&mut e, "x + 1"), "3");
 }
 
-/// `table(body, iterators)` against the same values built by nested `map`s (which the interpreter evaluates
-/// element by element), as one term: packed or not, the same.
+/// `table(body, iterators)` against the same values built by nested `map_indexed`s (which the interpreter
+/// evaluates element by element; `map` over a long vector compiles too), as one term: packed or not, the same.
 fn same_as_maps(e: &mut CoreEngine, body: &str, its: &[(&str, &str)]) {
     let table = format!("table({body}, {})", its.iter().map(|(k, r)| format!("{k}, {r}")).collect::<Vec<_>>().join(", "));
     let mut maps = body.to_string();
     for (k, r) in its.iter().rev() {
-        maps = format!("map({k} => {maps}, {r})");
+        maps = format!("map_indexed(({k}, {k}pos) => {maps}, {r})");
     }
     assert_eq!(ev(e, &format!("({table}) === ({maps})")), "true", "{table}");
 }

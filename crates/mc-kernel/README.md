@@ -18,8 +18,13 @@ streams, the messages it speaks, the `.mcn` notebook format and its runner.
 - The kernel writes a `hello` message with the protocol number once the session is ready. The protocol number changes
   only when a message changes incompatibly: clients ignore unknown fields and response types, and the kernel ignores
   unknown request fields.
-- Requests include `eval`, `interrupt`, `complete`, `modules` and `reset`; the table is in the crate documentation.
-- Depends on `mc-engine`, `mc-eval`, `mc-api`, `mc-syntax`, `mc-nbfile`, `serde` and `serde_json`.
+- Requests include `eval`, `interrupt`, `complete`, `modules`, `reset` and `picture`; the table is in the crate
+  documentation.
+- A client says in `eval`'s `pictures` which files of a picture it reads (`png`, `svg`, `json`, ...): those are
+  written before the response that names the picture, the others when a `picture` request asks for them. A client
+  that does not say gets every picture's PNG, SVG and the files beside them when the picture is made.
+- Depends on `mc-engine`, `mc-eval`, `mc-api`, `mc-syntax`, `mc-nbfile`, `mc-plot`, `mc-graphics`, `serde` and
+  `serde_json`.
 
 ## Tests
 - Unit tests in `src`; integration tests in `tests/` for the protocol over in-memory streams, notebook running and

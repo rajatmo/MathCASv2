@@ -8,7 +8,8 @@
 //! prompt.
 use crate::cell::{run_cell, run_each, EachEvent, ErrorReport, Status};
 use crate::protocol::{
-    parse_request, Body, DisplayKind, ModuleInfo, NameInfo, Request, Response, Values, CAPABILITIES, PROTOCOL,
+    parse_request, Body, DisplayKind, ModuleInfo, NameInfo, Request, Response, Values, CAPABILITIES, PICTURE_FILES,
+    PROTOCOL,
 };
 use mc_api::{Engine, StopFlag};
 use mc_engine::{guard, CoreEngine, EachOptions, EngineConfig, Origin, Report};
@@ -239,7 +240,11 @@ fn handle(
 ) -> io::Result<Flow> {
     let id = id.clone();
     match request {
-        Request::Eval { cell, src, origin: file, line, values, numbered, .. } => {
+        Request::Eval { cell, src, origin: file, line, values, numbered, pictures, .. } => {
+            // a client that says which files of a picture it reads gets those, written before the response that
+            // names the picture; the others wait until asked for
+            mc_plot::set_files_on_demand(pictures.is_some());
+            let wanted = pictures.map(|p| picture_files(&p));
             let cancelled = {
                 let mut ev = lock(shared);
                 if let Some(i) = ev.queued.iter().position(|q| *q == id) {
@@ -267,6 +272,9 @@ fn handle(
                 let each = values == Some(Values::Each);
                 let mut written = Ok(());
                 let mut send = |body: Body| {
+                    if let Some(exts) = &wanted {
+                        write_pictures(&body, exts);
+                    }
                     if written.is_ok() {
                         written = w.send(&id, &cell, body);
                     }
@@ -295,6 +303,19 @@ fn handle(
             };
             let numbers = numbered.then(|| (first, engine.line()));
             w.done_numbered(&id, &cell, status, start, numbers)?;
+        }
+        Request::Picture { path, formats, .. } => {
+            let exts = match formats {
+                Some(f) => picture_files(&f),
+                None => PICTURE_FILES.to_vec(),
+            };
+            mc_graphics::deferred::ensure_only(Path::new(&path), &exts);
+            // done `ok` when a file asked for is there (a picture of this kernel's, still kept)
+            let there = exts.iter().any(|e| Path::new(&path).with_extension(e).is_file());
+            if !there {
+                w.send(&id, &None, Body::Error(ErrorReport::plain(format!("no files of a picture at {path}"))))?;
+            }
+            w.done(&id, &None, if there { Status::Ok } else { Status::Error }, start)?;
         }
         Request::Complete { prefix, .. } => {
             let names = engine.names().into_iter().filter(|n| n.starts_with(&prefix)).collect();
@@ -347,6 +368,40 @@ impl From<crate::cell::CellEvent> for Body {
             CellEvent::Error(r) => Body::Error(r),
         }
     }
+}
+
+/// The extensions of [`PICTURE_FILES`] among `names` (unknown names are ignored).
+fn picture_files(names: &[String]) -> Vec<&'static str> {
+    PICTURE_FILES.iter().copied().filter(|e| names.iter().any(|n| n == e)).collect()
+}
+
+/// Write the files `exts` of every picture a response names (`image("path")` in its text, the path of a
+/// `display`), if they wait ([`mc_graphics::deferred::ensure_only`]).
+fn write_pictures(body: &Body, exts: &[&str]) {
+    if exts.is_empty() {
+        return;
+    }
+    let text = match body {
+        Body::Display { path, .. } => {
+            mc_graphics::deferred::ensure_only(Path::new(path), exts);
+            return;
+        }
+        Body::Value { printed, .. } | Body::Failure { printed, .. } => printed,
+        Body::Output { text, .. } => text,
+        _ => return,
+    };
+    for path in image_paths(text) {
+        mc_graphics::deferred::ensure_only(Path::new(path), exts);
+    }
+}
+
+/// The paths of the image terms `image("path")` in `text`.
+fn image_paths(text: &str) -> impl Iterator<Item = &str> {
+    const OPEN: &str = "image(\"";
+    text.match_indices(OPEN).filter_map(move |(i, _)| {
+        let rest = &text[i + OPEN.len()..];
+        rest.find("\")").map(|end| &rest[..end])
+    })
 }
 
 /// The SVG file an image value `image("path")` names and its size in CSS pixels; `None` when the value is not an

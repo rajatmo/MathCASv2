@@ -153,10 +153,14 @@ impl Native for ReadList {
             b
         } else {
             match h.view(src) {
-                View::Str(p) => match std::fs::read(p) {
-                    Ok(b) => b,
-                    Err(e) => return Ok(Reply::Done(failure(h, "io", &[src, h.string(&e.to_string())]))),
-                },
+                View::Str(p) => {
+                    // a picture whose files are written when first read
+                    mc_graphics::deferred::ensure(std::path::Path::new(p));
+                    match std::fs::read(p) {
+                        Ok(b) => b,
+                        Err(e) => return Ok(Reply::Done(failure(h, "io", &[src, h.string(&e.to_string())]))),
+                    }
+                }
                 _ => return Ok(Reply::Decline),
             }
         };

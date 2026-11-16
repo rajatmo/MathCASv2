@@ -194,6 +194,18 @@ pub struct Layout {
     pub range: [(f64, f64); 2],
 }
 
+impl Layout {
+    /// The size in pixels of the page's PNG at `scale` pixels per point (what rendering it gives), or the failure
+    /// rendering it gives when it is too large.
+    pub fn png_pixels(&self, scale: f32) -> Result<(u32, u32), Failure> {
+        if !(scale > 0.0 && scale <= 16.0) {
+            return Err(Failure::new("argument", format!("scale {scale}")));
+        }
+        raster::pixels(self.width, self.height, scale)
+            .ok_or_else(|| Failure::new("too_large", format!("{} x {} points at scale {scale}", self.width, self.height)))
+    }
+}
+
 /// Render a graphics term to several formats, reading it once; `stop` is polled in loops over the content (a
 /// raised flag gives `Failure` `interrupted`).
 pub fn render_formats<S: Store + ?Sized>(

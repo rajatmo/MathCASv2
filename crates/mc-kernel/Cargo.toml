@@ -16,6 +16,9 @@ mc-eval = { path = "../mc-eval" }
 mc-api = { path = "../mc-api" }
 # the call-of-a-variable note under unevaluated results
 mc-syntax = { path = "../mc-syntax" }
+# pictures' files written as the client asks for them
+mc-plot = { path = "../mc-plot" }
+mc-graphics = { path = "../mc-graphics" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

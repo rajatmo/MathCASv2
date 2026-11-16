@@ -12,6 +12,11 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+/// The files of a picture the notebook reads (the kernel's `pictures` capability): the PNG and the SVG it is drawn
+/// from, the data description (hover), the 3D scene (turning) and the column twin (the PDF export and the saved
+/// notebook). The PDF and the print twins are written when an export in the kernel reads them.
+const PICTURES: [&str; 5] = ["png", "svg", "json", "scene3d", "column.svg"];
+
 /// How long a kernel asked to shut down may take before it is killed (design 5.6).
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(2);
 
@@ -239,7 +244,7 @@ impl KernelLink for KernelProcess {
                     }
                 }
                 let mut v = json!({"type": "eval", "id": id, "cell": cell, "src": src, "line": line,
-                                   "values": "each", "numbered": true});
+                                   "values": "each", "numbered": true, "pictures": PICTURES});
                 if let Some(o) = &self.origin {
                     v["origin"] = json!(o);
                 }
@@ -254,7 +259,8 @@ impl KernelLink for KernelProcess {
                     }
                 }
                 // a control's evaluation (manipulate): a value per statement, no numbers, no history
-                let mut v = json!({"type": "eval", "id": id, "cell": "manipulate", "src": src, "values": "each"});
+                let mut v = json!({"type": "eval", "id": id, "cell": "manipulate", "src": src, "values": "each",
+                                   "pictures": PICTURES});
                 if let Some(o) = &self.origin {
                     v["origin"] = json!(o);
                 }

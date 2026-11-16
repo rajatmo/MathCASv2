@@ -88,6 +88,7 @@ pub fn embedded_text(bytes: &[u8]) -> Option<String> {
 /// The graphics term a PNG or SVG file written by `export_data` holds, read on `h` (not evaluated); `None` for a file
 /// without one. For an importer of `import_data`.
 pub fn import_graphics<'h>(h: &'h Heap, path: &std::path::Path) -> Option<T<'h>> {
+    mc_graphics::deferred::ensure(path);
     let bytes = std::fs::read(path).ok()?;
     let text = embedded_text(&bytes)?;
     match mc_syntax::read(h, &text) {

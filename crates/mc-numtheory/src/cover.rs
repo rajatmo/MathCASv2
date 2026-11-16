@@ -773,7 +773,9 @@ fn stirling<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], first: bool) -> R<'h> 
     let mut row = vec![Int::from_i64(0); k + 1];
     row[0] = Int::from_i64(1);
     for i in 1..=n {
-        for j in (1..=k.min(i)).rev() {
+        // row n's entry k is made from row i's entries k - (n - i) and up: the ones below are not needed
+        let lo = (k + i).saturating_sub(n).max(1);
+        for j in (lo..=k.min(i)).rev() {
             let t = if first {
                 // s(i, j) = s(i-1, j-1) - (i-1) s(i-1, j)
                 row[j - 1].sub(&row[j].mul(&Int::from_i64(i as i64 - 1)))

@@ -1268,7 +1268,15 @@ rule prime_nu(n_, o_) := length(gi_factor(n)[2]) when gi_opt(o) and gi_arg(n)
 rule prime_omega(n_, o_) := total(map(last, gi_factor(n)[2])) when gi_opt(o) and gi_arg(n)
 rule liouville_lambda(n_, o_) := (-1)^total(map(last, gi_factor(n)[2])) when gi_opt(o) and gi_arg(n)
 rule moebius_mu(n_, o_) := { let fs = gi_factor(n)[2]; if some(fs, f => f[2] > 1) then 0 else (-1)^length(fs) } when gi_opt(o) and gi_arg(n)
-rule is_composite(n_, o_) := total(map(last, gi_factor(n)[2])) >= 2 when gi_opt(o) and gi_arg(n)
+# z is composite when it has at least two prime factors with multiplicity: when it is neither a unit (norm 1) nor
+# a Gaussian prime, which has a prime norm or is an associate of a rational prime p = 3 mod 4 (Hardy and Wright
+# 12.8); no factoring is needed
+fn gi_composite(z) = {
+  let m = abs(re(z)) + abs(im_part(z))
+  let nn = gi_normsq(z)
+  nn > 1 and not is_prime(nn) and not (re(z)*im_part(z) == 0 and is_prime(m) and mod(m, 4) == 3)
+}
+rule is_composite(n_, o_) := gi_composite(n) when gi_opt(o) and gi_arg(n)
 rule is_composite(ns_, o_) := map(n => is_composite(n, o), ns) when gi_opt(o) and is_list(ns)
 rule is_prime_power(n_, o_) := length(gi_factor(n)[2]) == 1 when gi_opt(o) and gi_arg(n)
 # --- mixed radix digits ---

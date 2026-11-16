@@ -576,17 +576,17 @@ impl CoreEngine {
                     }
                     // printing a huge number takes long: its decimal conversion polls the stop flag (decision G.6)
                     let _scope = StopScope::enter(Some(arith_stop));
-                    let printed = shown(h, e.value, &|| stop.is_raised(), display);
-                    done.fail = failure.then(|| printed.clone());
                     // `print(x)` returns x: a statement whose value its last output line already shows does not show it
                     // again (the scripts' rule, decision 9.5 of the library and kernel gaps)
-                    // a graphics value is shown as its picture, like a plot (the value itself stays the graphics term)
+                    // a graphics value is shown as its picture, like a plot (the value itself stays the graphics term);
+                    // its text is then not printed
                     let picture =
                         if (show || last) && !failure { mc_plot::render_to_files(h, e.value, &|| stop.is_raised()) } else { None };
                     let printed = match &picture {
                         Some((path, ..)) => format!("image(\"{path}\")"),
-                        None => printed,
+                        None => shown(h, e.value, &|| stop.is_raised(), display),
                     };
+                    done.fail = failure.then(|| printed.clone());
                     if show && !echoes(done.output.last(), &printed) {
                         let image = picture
                             .or_else(|| mc_plot::image_of(h, e.value))

@@ -233,6 +233,16 @@ pub(crate) fn array<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     };
     let dims_ = &dims;
     let total: usize = ds.iter().product();
+    // array(x => e, n) of a numeric body over many indices: the body compiled once, as map over the indices
+    if let ([n], [Dim::Start(s)], None) = (ds.as_slice(), dims.as_slice(), head) {
+        if *n >= COMPILED_TABLE_MIN && (*n as u128) <= MAX_CELLS && s.checked_add(*n as i64).is_some() {
+            let ks: Vec<i64> = (0..*n as i64).map(|j| s + j).collect();
+            let ks = h.int_array(&[*n], &ks);
+            if let Some(v) = compiled_map(lib, cx, f, ks)? {
+                return Ok(Reply::Done(v));
+            }
+        }
+    }
     let cost = group_cost(cx, f);
     let ds_ = &ds;
     let elem = |cx: &mut NativeCx<'_, '_, 'h>, i: usize| {
@@ -586,6 +596,49 @@ fn compiled_table<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Opti
             let ints: Vec<i64> = out.iter().map(|&w| w as i64).collect();
             Some(h.int_array(&dims, &ints))
         }
+        _ => None,
+    })
+}
+
+/// `map(x => e, xs)` over a packed vector `xs` of at least [`COMPILED_TABLE_MIN`] machine reals or machine integers,
+/// with a body the numeric compiler takes ([`compiled_table`]'s conditions): the body compiled once in `x` and called
+/// for every element, the result the packed vector the interpreter's list of these numbers is. `None` (nothing
+/// evaluated) when any of this does not hold or a call declines: the interpreter then maps.
+pub(crate) fn compiled_map<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, xs: T<'h>) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let Some(p) = h.packed(xs) else { return Ok(None) };
+    if p.rank() != 1 || p.count() < COMPILED_TABLE_MIN {
+        return Ok(None);
+    }
+    let View::App { head, args: &[params, body] } = h.view(f) else { return Ok(None) };
+    if !matches!(h.view(head), View::Sym(s) if s == lib.s.fn_) {
+        return Ok(None);
+    }
+    let Some(&[k]) = cx.as_list(params) else { return Ok(None) };
+    let View::Sym(k) = h.view(k) else { return Ok(None) };
+    let (words, arg): (Vec<u64>, mc_jit::Arg) = match (p.reals(), p.ints()) {
+        (Some(r), _) => (r.iter().map(|x| x.to_bits()).collect(), mc_jit::Arg::Real),
+        (_, Some(i)) => (i.iter().map(|&x| x as u64).collect(), mc_jit::Arg::Int),
+        _ => return Ok(None),
+    };
+    let Ok(code) = mc_jit::compile_expr(cx, &[(k, arg)], body, false, mc_jit::Backend::Cranelift) else { return Ok(None) };
+    // (a body that draws random numbers draws them in its own order: left to the interpreter)
+    if code.outputs() != 1 || code.inputs() != 1 || code.draws() {
+        return Ok(None);
+    }
+    let mut out: Vec<u64> = Vec::with_capacity(words.len());
+    let mut one = [0u64];
+    for &w in &words {
+        cx.tick(1)?;
+        if code.call_words(cx, &[w], &mut one) != mc_jit::Call::Done {
+            return Ok(None);
+        }
+        out.push(one[0]);
+    }
+    let dims = [out.len()];
+    Ok(match code.output_types() {
+        [mc_jit::ir::Ty::Real] => Some(h.real_array(&dims, &out.iter().map(|&w| f64::from_bits(w)).collect::<Vec<_>>())),
+        [mc_jit::ir::Ty::Int] => Some(h.int_array(&dims, &out.iter().map(|&w| w as i64).collect::<Vec<_>>())),
         _ => None,
     })
 }

@@ -18,7 +18,10 @@ curves, density and contour plots, 3D plots, charts, vector fields, graphs and a
 
 ## Design
 - A plot evaluates to `image("path")`: a PNG in the temporary folder `mathcas-plots/`, with the same plot as SVG and
-  vector PDF beside it.
+  vector PDF beside it. The PDF and the print twins are drawn when a reader first asks for them; with
+  `set_files_on_demand(true)` (the kernel, for a client that names the files it reads) every file waits until it is
+  asked for, the picture's size known from its layout. Readers in the session (`mc-io`, animations, charts of
+  pictures) ask through `mc_graphics::deferred` before they read.
 - Functions are sampled adaptively (64 even points, refined where the curve bends) through `mc-numfn`; a non-finite
   value breaks the curve, and so does a jump larger than the visible range.
 - The y range uses the 1% and 99% quantiles of the samples, widened when no value lies far outside them.

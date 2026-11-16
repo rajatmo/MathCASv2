@@ -106,6 +106,7 @@ fn frame_pixels<'h>(h: &'h Heap, t: T<'h>) -> Result<(u32, u32, Vec<u8>), String
     if let View::App { head, args: &[p] } = h.view(t) {
         if let (View::Sym(s), View::Str(path)) = (h.view(head), h.view(p)) {
             if h.sym_name(s) == "image" {
+                mc_graphics::deferred::ensure(std::path::Path::new(path));
                 let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
                 return mc_graphics::decode_png(&bytes).ok_or_else(|| format!("{path} is not a PNG file"));
             }

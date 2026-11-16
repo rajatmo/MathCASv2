@@ -789,8 +789,7 @@ fn raster_property<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, g: T<'h>, p: T<'
         },
         "Data" => {
             let pixels = match &image {
-                Some((path, ..)) => std::fs::read(path)
-                    .ok()
+                Some((path, ..)) => crate::read_picture(path)
                     .and_then(|b| mc_graphics::decode_png(&b))
                     .ok_or_else(|| mc_graphics::Failure::new("io", format!("cannot read {path}"))),
                 None => mc_graphics::render_rgba(h, g, 1.0, &stopped),

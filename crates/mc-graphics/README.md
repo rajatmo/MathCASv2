@@ -12,7 +12,9 @@ SVG, vector PDF).
 - `raster`, `svg`, `pdf`: the renderers (`tiny-skia`; standalone SVG 1.1; PDF 1.4 with Flate streams and subset fonts).
 - `label`, `ticks`: typeset labels (a TeX subset between `$` signs, or any typeset expression), automatic ticks.
 - `three`, `view3d`: `graphics3d` scenes, and rotating and zooming a 3D picture without evaluating anything again.
-- `memo`, `deferred`: the plots of the session, and files of a plot that are drawn when first needed.
+- `memo`, `deferred`: the plots of the session, and files of a plot that are drawn when first needed (all of them,
+  the PNG and the texts beside it included, when the front end names the files it reads; `ensure_only` writes those
+  named, `ensure` all).
 - API for other crates: `render`, `render_formats`, `is_graphics`, `page_size`.
 
 ## Design
