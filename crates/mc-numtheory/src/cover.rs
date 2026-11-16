@@ -1260,6 +1260,16 @@ fn leading_digits(p: &Nat, q: &Nat, b: u64, n: usize) -> Option<(Vec<u64>, i64)>
 /// x as (a + b sqrt(d))/c with integers, b != 0, d > 1 not a square, from a canonical sum of a rational and a
 /// rational multiple of a square root of an integer.
 fn quadratic<'h>(fx: &Fx<'_, '_, '_, 'h>, x: T<'h>) -> Option<(i128, i128, i128, i128)> {
+    // a rational multiple of such a sum, as (1/2)(1 + 5^(1/2)) is held
+    if let Some(&[k, s]) = fx.call_of(x, "mul") {
+        if let (Some(k), true) = (fx.rat_of(k), fx.call_of(s, "add").is_some()) {
+            let (a, b, c, d) = quadratic(fx, s)?;
+            let (kn, kd) = (k.num.to_i64()? as i128, nat_u64(&k.den)? as i128);
+            let (a, b, c) = (a.checked_mul(kn)?, b.checked_mul(kn)?, c.checked_mul(kd)?);
+            let g = gcd_i(gcd_i(a, b), c);
+            return Some((a / g, b / g, c / g, d));
+        }
+    }
     let terms: Vec<T<'h>> = match fx.call_of(x, "add") {
         Some(ts) => ts.to_vec(),
         None => vec![x],

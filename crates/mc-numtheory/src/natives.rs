@@ -429,6 +429,22 @@ fn quotient<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res
     }
 }
 
+/// An enclosure of |a + b i| for a, b in the balls, at p bits: sqrt(a^2 + b^2) when that sum is provably positive,
+/// else [0, sqrt(A^2 + B^2)] with A, B the largest magnitudes in the balls.
+fn ball_modulus(a: &mc_arith::num::Ball, b: &mc_arith::num::Ball, p: u64) -> mc_arith::num::Ball {
+    use mc_arith::num::Ball;
+    if let Some(m) = a.mul(a, p).add(&b.mul(b, p), p).sqrt(p) {
+        return m;
+    }
+    let big = |x: &Ball| Mag::from_float_up(&x.mid).add(&x.rad);
+    let s = big(a).mul(&big(a)).add(&big(b).mul(&big(b)));
+    // sqrt rounded up: the root of the float bound, plus its error
+    let (r, e) = s.to_float().sqrt(p);
+    let top = Mag::from_float_up(&r).add(&e);
+    // around 0, as the modulus of a real ball around 0 is (it encloses [0, top])
+    Ball { mid: mc_arith::num::Float::zero(), rad: top }
+}
+
 fn abs<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [x] = args else { return Ok(Reply::Decline) };
@@ -441,6 +457,18 @@ fn abs<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Repl
             // |x| over [m - r, m + r] lies in [|m| - r, |m| + r]
             let ball = mc_arith::num::Ball { mid: b.mid.abs(), rad: b.rad };
             done(ar.number(&Num::Real(Real::Ball(ball, p))))
+        }
+        Num::Complex(re, im) if matches!((&re, &im), (Real::Ball(..), _) | (_, Real::Ball(..))) => {
+            // |a + b i| for balls: the squares are nonnegative, which ball products of a ball containing zero do
+            // not know (ball(0, r)^2 is ball(0, r^2)), so the modulus of balls around 0 was sqrt of a ball
+            // containing negatives and stayed unevaluated
+            let p = re.prec().into_iter().chain(im.prec()).min().unwrap_or(64);
+            let ball = |r: &Real| match r.to_kind(mc_arith::Kind::Ball, p) {
+                Real::Ball(b, _) => Some(b),
+                _ => None,
+            };
+            let (Some(a), Some(b)) = (ball(&re), ball(&im)) else { return Ok(Reply::Decline) };
+            done(ar.number(&Num::Real(Real::Ball(ball_modulus(&a, &b, p), p))))
         }
         Num::Complex(re, im) => {
             // sqrt(re^2 + im^2): exact parts give a canonical radical

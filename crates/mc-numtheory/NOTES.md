@@ -225,3 +225,14 @@ non-power rejected in 0.9 s.
 - Time on four threads: 10^15 about 0.8 s, 10^16 about 3 s, 10^17 about 15 s. Above 10^16 the easy leaves with
   v <= y (one table lookup per group, about y pi(x^(1/3)) groups) and the sieve's crossing out with counter updates
   dominate; a sieve on the residues prime to 30 (8 bits per 30 numbers instead of 15) would be the next step.
+
+## Round 45: moduli of balls, continued fractions of multiples of sums
+
+- `abs(complex(a, b))` with ball parts around 0 (the residues of exact checks evaluated at 50 digits) was
+  `ball(0, r)^(1/2)`, unevaluated: `a*a + b*b` of balls around 0 is a ball around 0 (ball products do not know a
+  square is nonnegative), whose square root is not real. With a ball part the modulus is now `sqrt(a^2 + b^2)` when
+  that sum is provably positive, else the ball around 0 of radius `sqrt(A^2 + B^2)`, `A`, `B` the largest magnitudes
+  in the balls (rounded up), which holds [0, |z|]: the same form as the modulus of a real ball around 0.
+- `continued_fraction((1 + sqrt(5))/2)` stayed unevaluated: the canonical form is `(1/2)*(1 + 5^(1/2))`, a product,
+  which the reader of quadratic irrationals did not take. A rational multiple of a sum is now read too (gives
+  `[[1]]`; `(1 + sqrt(7))/3` gives `[[1, 4, 1, 1]]`).

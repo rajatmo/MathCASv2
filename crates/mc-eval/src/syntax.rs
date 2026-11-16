@@ -988,16 +988,112 @@ fn set_part<'h>(cx: &mut NativeCx<'_, '_, 'h>, lhs: T<'h>, v: T<'h>) -> Res<Opti
     if is_failure_term(h, v) && (is_assoc(h, cur) || cx.loop_signal(v).is_some()) {
         return Ok(Some(Reply::Done(v)));
     }
-    let pos = if ks.len() == 1 { ks[0] } else { cx.list(&ks) };
-    let new = with_part(cx, cur, pos, ks.len() == 1, v)?;
     let mut at = vec![cur];
     at.extend_from_slice(&ks);
-    if new == cur && cx.eval(h.app(head, &at))? != v {
-        return Ok(None);
+    // several positions at a level (a span, `all`, a list of indices): each is assigned, element by element when
+    // the value is a list of as many elements; a position outside the list gives the failure of reading it
+    let new = if ks.iter().any(|&k| several_positions(h, k)) {
+        match assign_at(cx, cur, &ks, v)? {
+            Some(new) => new,
+            None => {
+                let read = cx.eval(h.app(head, &at))?;
+                return Ok(Some(Reply::Done(if is_failure_term(h, read) { read } else { cx.failure(&["part_assignment"]) })));
+            }
+        }
+    } else {
+        let pos = if ks.len() == 1 { ks[0] } else { cx.list(&ks) };
+        with_part(cx, cur, pos, ks.len() == 1, v)?
+    };
+    if new == cur {
+        let read = cx.eval(h.app(head, &at))?;
+        // a position outside the list: the failure of reading it (it was a silent no-op)
+        if is_failure_term(h, read) && !is_failure_term(h, v) {
+            return Ok(Some(Reply::Done(read)));
+        }
+        if read != v {
+            return Ok(None);
+        }
     }
     let set = h.sym_term(h.sym("set"));
     cx.eval(h.app(set, &[s, new]))?;
     Ok(Some(Reply::Done(v)))
+}
+
+/// Does the index `k` select several positions of a list: `span(i, j)`, `span(i, j, s)`, `all`, a list of integers?
+fn several_positions<'h>(h: &'h Heap, k: T<'h>) -> bool {
+    match h.view(k) {
+        View::Sym(s) => h.sym_name(s) == "all",
+        View::App { head, args } => match h.view(head) {
+            View::Sym(f) if h.sym_name(f) == "span" => (2..=3).contains(&args.len()),
+            View::Sym(f) if h.sym_name(f) == "list" => !args.is_empty() && args.iter().all(|a| matches!(h.view(*a), View::Int(_))),
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+/// The 0-based positions that the index `k` (see [`several_positions`]) selects in a list of `len` elements; `None`
+/// when one is outside the list (negative positions count from the end).
+fn positions_of<'h>(h: &'h Heap, k: T<'h>, len: usize) -> Option<Vec<usize>> {
+    let n = len as i64;
+    let at = |t: T<'h>| match h.view(t) {
+        View::Int(i) if i != 0 && i.abs() <= n => Some(if i > 0 { i - 1 } else { n + i }),
+        _ => None,
+    };
+    match h.view(k) {
+        View::Sym(_) => Some((0..len).collect()),
+        View::App { head, args } if matches!(h.view(head), View::Sym(f) if h.sym_name(f) == "list") => {
+            args.iter().map(|&a| at(a).map(|i| i as usize)).collect()
+        }
+        View::App { args, .. } => {
+            // span(i, j, s): the end `all` is the last element; an empty span (j one before i) selects nothing
+            let end = |t: T<'h>| if matches!(h.view(t), View::Sym(s) if h.sym_name(s) == "all") { Some(n - 1) } else { at(t) };
+            let (i, j) = (end(args[0])?, end(args[1])?);
+            let s = match args.get(2).map(|&t| h.view(t)) {
+                None => 1,
+                Some(View::Int(s)) if s != 0 => s,
+                _ => return None,
+            };
+            let mut out = vec![];
+            let mut p = i;
+            while (s > 0 && p <= j) || (s < 0 && p >= j) {
+                out.push(p as usize);
+                p += s;
+            }
+            Some(out)
+        }
+        _ => None,
+    }
+}
+
+/// `cur` with the parts at the indices `ks` (one per level) set to `v`; at a level of several positions each is
+/// set, to the matching element of `v` when `v` is a list of as many elements, else to `v`. `None` when a position
+/// is not in `cur`.
+fn assign_at<'h>(cx: &mut NativeCx<'_, '_, 'h>, cur: T<'h>, ks: &[T<'h>], v: T<'h>) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let Some((&k, rest)) = ks.split_first() else { return Ok(Some(v)) };
+    cx.tick(1)?;
+    if !several_positions(h, k) {
+        if rest.is_empty() {
+            return Ok(Some(with_part(cx, cur, k, true, v)?));
+        }
+        let sub = cx.eval(h.app(h.sym_term(h.sym("part")), &[cur, k]))?;
+        if is_failure_term(h, sub) {
+            return Ok(None);
+        }
+        let Some(new) = assign_at(cx, sub, rest, v)? else { return Ok(None) };
+        return Ok(Some(with_part(cx, cur, k, true, new)?));
+    }
+    let Some(elems) = cx.as_list(cur) else { return Ok(None) };
+    let Some(ps) = positions_of(h, k, elems.len()) else { return Ok(None) };
+    let vs = cx.as_list(v).filter(|vs| vs.len() == ps.len() && !ps.is_empty());
+    let mut out = elems.to_vec();
+    for (n, &p) in ps.iter().enumerate() {
+        let val = vs.map_or(v, |vs| vs[n]);
+        let Some(new) = assign_at(cx, out[p], rest, val)? else { return Ok(None) };
+        out[p] = new;
+    }
+    Ok(Some(cx.list(&out)))
 }
 
 /// `cur` with the part at `pos` replaced by `v` (`replace_part`); when nothing is replaced and `pos` is one key of
@@ -1029,6 +1125,25 @@ struct AssignPart;
 
 impl Native for AssignPart {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
+        // several keys (one of them a span): the parts at those positions are set
+        if let [x, ks @ .., v] = a {
+            if ks.len() > 1 {
+                let h = cx.heap();
+                if is_failure_term(h, *x) || ks.iter().any(|&k| is_failure_term(h, k)) || cx.loop_signal(*v).is_some() {
+                    let first = std::iter::once(*x).chain(ks.iter().copied()).find(|&t| is_failure_term(h, t));
+                    return Ok(Reply::Done(first.unwrap_or(*v)));
+                }
+                return Ok(Reply::Done(match assign_at(cx, *x, ks, *v)? {
+                    Some(new) => new,
+                    None => {
+                        let mut at = vec![*x];
+                        at.extend_from_slice(ks);
+                        let read = cx.eval(h.app(h.sym_term(h.sym("part")), &at))?;
+                        if is_failure_term(h, read) { read } else { cx.failure(&["part_assignment"]) }
+                    }
+                }));
+            }
+        }
         let [x, k, v] = a else { return Ok(Reply::Decline) };
         let h = cx.heap();
         // failures are read as data in the value only (semantics 10, as `x[k] = v` on a symbol): the local and the
@@ -1042,6 +1157,15 @@ impl Native for AssignPart {
         // a loop signal: the assignment around this call stores nothing and ends the statement with it
         if cx.loop_signal(*v).is_some() {
             return Ok(Reply::Done(*v));
+        }
+        if several_positions(h, *k) {
+            return Ok(Reply::Done(match assign_at(cx, *x, &[*k], *v)? {
+                Some(new) => new,
+                None => {
+                    let read = cx.eval(h.app(h.sym_term(h.sym("part")), &[*x, *k]))?;
+                    if is_failure_term(h, read) { read } else { cx.failure(&["part_assignment"]) }
+                }
+            }));
         }
         Ok(Reply::Done(with_part(cx, *x, *k, true, *v)?))
     }

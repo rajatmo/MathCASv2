@@ -364,7 +364,8 @@ fn order_by_keys<'h>(cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>]) -> Res<Vec<us
     }
 }
 
-/// `sort_by(xs, f)`: the elements ordered by the canonical order of `f(x)` (stable: equal keys keep their order).
+/// `sort_by(xs, f)`: the elements ordered by the canonical order of `f(x)` (equal keys: the elements in canonical
+/// order, decision cov-core.7; with a predicate, equal keys keep their order).
 /// Each `f(x)` is evaluated once, as a group.
 pub(crate) fn sort_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();

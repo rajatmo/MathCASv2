@@ -274,3 +274,9 @@ A slot function without slots (`&(x)`) lowers to `fn([&1], x)`: it takes one arg
   parts, pipes) evaluated, printed and evaluated again (a printed value is a normal form) and held with `quote`
   (the printed held term reads back as itself); 1,500 cases in the suite, 15,000 run by hand: no difference except
   balls, which print their correct digits only and read back as machine reals (04-syntax section 4, by design).
+
+## Round 45: part assignments of var locals with spans
+
+`x[2:3] = v` on a `var` local was lowered to `set(part(x, span(2, 3)), v)`, which rebinds only top-level symbols:
+the local kept its value. Every part assignment of a `var` local with a span among its indices now lowers to
+`assign_part(x, k1, ..., kn, v)`, which sets the parts as `set` does for a symbol (mc-eval NOTES, round 45).

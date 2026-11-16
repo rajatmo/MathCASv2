@@ -933,3 +933,13 @@ only; symbols go to the decision service (`mc-decide`, round 44).
 - `to_string(t)` printed the whole tree of `t`: `nest(x => [x, x], 1, 40)` is a tree of 2^40 leaves, so the text grew
   past the memory and a stop was not polled. The printer now polls the stop flag and ends past a quarter of the
   memory the evaluation has left, giving `failure(limit, memory, ...)`.
+
+## Round 45: sort_by on equal keys; max and min of overlapping balls
+
+- The page and the description of `sort_by` said the sort is stable; it orders equal keys by the canonical order of
+  the elements (decision cov-core.7, as the example on the page itself shows). The texts now say so (found by the
+  list generator of `mc-engine/tests/round45_soundness.rs`, which computes the expected order independently).
+- `max(1, v)` with `v` a 30-digit ball containing 1, and `max(z, 0)` with `z` a ball around 0, stayed unevaluated
+  (the comparison is not decided). When every element is an exact or ball real and the machine-value route also
+  declines, the result is now the ball from the largest lower end to the largest upper end (for `min` the smallest),
+  which holds the extreme of every choice of points; decided comparisons keep returning the element itself.

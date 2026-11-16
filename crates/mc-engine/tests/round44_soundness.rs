@@ -940,7 +940,7 @@ fn sum_input(e: &mut CoreEngine, r: &mut Rng, log: &mut Vec<String>) -> Option<S
     }
     let exact = ev(e, "time_constrained(n(v, 30), 20)");
     let num = if finite {
-        let op = if product { "times" } else { "plus" };
+        let op = if product { "mul" } else { "add" };
         ev(e, &format!("n(apply({op}, table({t}, [k, {k0}, {hi}])), 30)"))
     } else {
         let nf = if product { "n_product" } else { "n_sum" };

@@ -232,7 +232,7 @@ functions! {
     "ordered" => sort::ordered,
         "ordered(xs), ordered(xs, by): whether the elements are in canonical order (or by holds for neighbours)";
     "sort_by" => sort::sort_by,
-        "sort_by(xs, f): the elements ordered by the canonical order of f(x), stably";
+        "sort_by(xs, f): the elements ordered by the canonical order of f(x), equal keys by the canonical order of the elements";
     "ordering" => sort::ordering,
         "ordering(xs): the positions of the elements in sorted order; ordering(xs, n): the first n (last -n)";
     "max_by" => sort::max_by,

@@ -632,17 +632,26 @@ impl<'h, S: Store + ?Sized> Lowerer<'h, S> {
                             format!("cannot assign to a part of `{n}`: it is bound by `let`, a parameter or a pattern (use `var` for a mutable local)"),
                         ));
                     }
-                    Some(Bind::Var) if idx.iter().all(|i| !matches!(i.kind, ExprKind::Span(..))) => {
+                    Some(Bind::Var) => {
                         let x = self.store.sym_term(s);
                         let mut ks = Vec::with_capacity(idx.len());
                         for i in idx {
-                            ks.push(self.expr(i)?);
+                            ks.push(match &i.kind {
+                                ExprKind::Span(a, b) => {
+                                    let (a, b) = (self.expr(a)?, self.expr(b)?);
+                                    self.call(Head::Span, &[a, b])
+                                }
+                                _ => self.expr(i)?,
+                            });
                         }
                         let v = self.expr(rhs)?;
-                        // one key: `assign_part` also adds a new key to an association
-                        let new = if ks.len() == 1 {
+                        // one key: `assign_part` also adds a new key to an association; spans select several
+                        // positions, which `assign_part` sets one by one
+                        let new = if ks.len() == 1 || idx.iter().any(|i| matches!(i.kind, ExprKind::Span(..))) {
                             let ap = self.store.sym_term(self.store.sym("assign_part"));
-                            self.store.app(ap, &[x, ks[0], v])
+                            ks.insert(0, x);
+                            ks.push(v);
+                            self.store.app(ap, &ks)
                         } else {
                             let pos = self.call(Head::List, &ks);
                             let rule = self.call(Head::Rule, &[pos, v]);

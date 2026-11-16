@@ -192,12 +192,27 @@ pub fn gamma_zero<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res
             return Ok(false);
         }
         // the multiplication formula at z = n + c/m
+        // the constant factors as powers of primes and of pi, which the arithmetic combines exactly (they were
+        // combined by `power_expand` of the whole term, which also rewrote sqrt(x^2), log(exp(x)) and asin(sin(x))
+        // in it to x: simplify(gamma(x + 1)/gamma(x) - sqrt(x^2)) was 0)
         let mut fs = vec![];
         if m > 1 {
-            let two_pi = b.mul(&[b.int(2), h.sym_term(h.sym("pi"))]);
-            fs.push(b.pow(two_pi, b.rat(1 - m, 2)));
+            let e = b.rat(1 - m, 2);
+            fs.push(b.pow(b.int(2), e));
+            fs.push(b.pow(h.sym_term(h.sym("pi")), e));
             fs.push(b.pow(b.int(m), b.mul(&[b.int(m), n])));
-            fs.push(b.pow(b.int(m), b.sub(c, b.rat(1, 2))));
+            let (mut k, mut p) = (m, 2);
+            while k > 1 {
+                let mut j = 0;
+                while k % p == 0 {
+                    k /= p;
+                    j += 1;
+                }
+                if j > 0 {
+                    fs.push(b.pow(b.int(p), cx.eval(b.mul(&[b.int(j), b.sub(c, b.rat(1, 2))]))?));
+                }
+                p += 1;
+            }
         }
         for k in 0..m {
             let s = cx.eval(b.add(&[b.div(c, b.int(m)), b.rat(k, m)]))?;
@@ -218,9 +233,5 @@ pub fn gamma_zero<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res
     }
     let Some(u) = prime_powers(cx, b, u, n)? else { return Ok(false) };
     let z = cx.eval(b.call_named("together", &[u]))?;
-    if z == b.int(0) {
-        return Ok(true);
-    }
-    let z = cx.eval(b.call_named("together", &[b.call_named("power_expand", &[u])]))?;
     Ok(z == b.int(0))
 }

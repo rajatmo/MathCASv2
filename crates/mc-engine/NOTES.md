@@ -319,3 +319,45 @@ mc-poly, mc-calculus, mc-arith, mc-special). Found and not fixed:
 - `sum(p^k/k, [k, 1, inf])` is `-log(1 - p)` and `sum(1/k^p, [k, 1, inf])` is `zeta(p)` without the condition of
   convergence (formal values, as documented for sums).
 - Gaps rather than wrong values: `zeta(-1, 4)` and `legendre_q(2, 1/3)` at 40-digit arguments, `n(erf(10^8), 30)`.
+
+## Round 45: soundness checkers, second pass
+
+`tests/round45_soundness.rs` holds four more generators with fixed seeds, each answer checked by another route, a
+short version in the suite and a long campaign by hand (`campaign_*`, ignored; the same variables as round 44,
+`MC_SOUNDNESS_SEED` default 4500; status files `soundness2-<job>.txt`):
+- linear algebra: integer, rational, symbolic (checked at a random value of the parameter), machine, 30-digit,
+  sparse, Hilbert, singular and Gaussian-integer matrices of 2 to 4 rows; `lu`, `qr`, `cholesky`, `svd` multiplied
+  back, eigen systems put back into `m v = lambda v` with trace and determinant, `linear_solve`, `null_space` with
+  the rank, `det` against the Leibniz sum, `inverse`, `matrix_exp` and `matrix_function` against their series,
+  `pseudo_inverse` (the four Penrose conditions), `characteristic_polynomial` against `det(x I - m)` by Leibniz,
+  `matrix_minimal_polynomial` (annihilates m, divides the characteristic polynomial), `row_reduce`, `matrix_log`
+  (its exponential by the series), the matrix square root, and the determinant of a matrix of intervals against
+  sampled matrices;
+- algebra and number theory: `factor` (integers, modulo a prime, extensions, three variables, square-free) multiplied
+  back with no fewer factors than the product was made of, gcds dividing, resultants against the Sylvester
+  determinant computed in Rust, Groebner bases against the basis of the other variable order, `solve` (with
+  multiplicity), systems, `n_solve`, `reduce` in one and two variables at grid points and roots, `find_instance`,
+  sums of two squares and bounded integer regions against enumeration; primality (Carmichael numbers, strong and
+  Lucas pseudoprimes, products of two primes beyond 64 bits) against Miller-Rabin in Rust, `factor_integer`,
+  `power_mod` (inverses, square roots), CRT with shared factors, continued fractions of rationals, square roots and
+  quadratic irrationals, `mod`/`quotient` with negative and rational divisors, `frobenius_solve`, Jacobi symbols,
+  `euler_phi`, `divisor_sigma`, `moebius_mu`, multiplicative orders, primitive roots, digits, all computed in Rust;
+- lists: sorting, `sort_by` ties, set operations, `unique`, `tally`, `counts`, `gather`, `split`, `group_by`, spans,
+  part assignments, rotations, partitions, running sums, `merge`, strings, against the same operation in Rust;
+  statistics of exact data in rationals and of machine and degenerate data;
+- rewriting: `simplify`, `full_simplify`, `refine`, `function_expand`, `together`, `apart`, `expand`, `factor`, the
+  trigonometric rewritings, `complex_expand` and `power_expand(e, assumptions: a)` on random blocks in one or two
+  variables and an integer, at 8 exact points of the domain the assumptions state (complex points without one).
+
+Every check is evaluated to `true` (`{ check } === true`) so that a large unevaluated comparison is not printed,
+an answer above 20,000 leaves is not checked, and an evaluation over 90 s (every one asks for at most 60) is a fault.
+Defects found are in the NOTES of mc-eval and mc-syntax (part assignments), mc-simplify (the gamma zero test),
+mc-numtheory (moduli of balls, continued fractions) and mc-lists (`sort_by` texts, max of balls). The round 44
+check of finite sums and products applied `plus`/`times`, which are not functions here, so it compared nothing;
+it applies `add`/`mul` now (the closed forms agree). Found and not fixed:
+- `svd` and the eigen systems of nonsymmetric 30-digit matrices come back in machine numbers (known gap); the
+  minimal polynomial of a machine matrix has a leading coefficient 0.9999999999999999.
+- `matrix_exp(matrix_log(b))` of an exact 3 by 3 `b` is a 36 MB term (root objects whose polynomials have
+  logarithms of roots as coefficients), which `n` leaves partly unevaluated.
+- `find_instance(x^2 < 2 and x > 1, x, integers)` stays unevaluated (the answer is `[]`).
+- Running the four campaigns in one process is far slower than in four (one long evaluation holds the others).

@@ -800,3 +800,16 @@ Found by the adversarial probes of the 1.0 decisions (`round44_language.rs`):
   reads a failure as data; with no arm matching the failure is the value; a loop signal passes through without
   trying the arms (a `_` arm would otherwise swallow `break()`).
 - The semantics table (01-semantics section 10) states these rows.
+
+## Round 45: part assignments to several positions
+
+Found by the list generator of `mc-engine/tests/round45_soundness.rs`: `l[2:4] = 0`, `l[[1, 3]] = [7, 8]` and
+`m[all, 2] = [5, 6]` left `l` and `m` as they were and gave the value: `set_part` passed the index to
+`replace_part`, which reads `[1, 3]` as one position at depth 2 and knows no spans, nothing changed, and the
+fallback made a definition on `part(l, span(2, 4))` that nothing reads. `l[9] = 1` on a list of six did the same.
+Now an index that selects several positions (`span(i, j)`, `span(i, j, s)`, `all`, a list of integers; negative
+positions from the end) sets each of them, at any level (`assign_at`): to the matching element of the value when
+the value is a list of as many elements, else to the whole value (`l[2:4] = 0`). A position outside the list
+gives the failure of reading it (`failure(index, 9, 6)`) instead of a silent no-op. `var` locals take the same route
+(`assign_part(x, k1, ..., kn, v)`; the lowering in mc-syntax no longer leaves spans to `set`, where a local's value
+was not rebound).

@@ -457,7 +457,7 @@ fn extreme<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>
     let ar = lib.arith(h);
     let mut best = first;
     if ar.compare(first, first).is_none() {
-        return symbolic_extreme(cx, t, &xs, max);
+        return extreme_fallback(cx, t, &xs, max);
     }
     let want = if max { Cmp3::Greater } else { Cmp3::Less };
     for &x in rest {
@@ -465,11 +465,63 @@ fn extreme<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>
         match ar.compare(x, best) {
             Some(c) if c == want => best = x,
             Some(Cmp3::Less | Cmp3::Equal | Cmp3::Greater) => {}
-            // a symbolic element, a NaN or overlapping balls: decided by numeric values if they all have one
-            _ => return symbolic_extreme(cx, t, &xs, max),
+            // a symbolic element, a NaN or overlapping balls
+            _ => return extreme_fallback(cx, t, &xs, max),
         }
     }
     Ok(Reply::Done(best))
+}
+
+/// An undecided comparison: decided by numeric values if they all have one ([`symbolic_extreme`]); else, for real
+/// numbers of which some are overlapping balls, the enclosure of the extreme ([`ball_extreme`]).
+fn extreme_fallback<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, xs: &[T<'h>], max: bool) -> Res<Reply<'h>> {
+    let r = symbolic_extreme(cx, t, xs, max)?;
+    if !matches!(r, Reply::Decline) {
+        return Ok(r);
+    }
+    let h = cx.heap();
+    let ar = Arith::new(h);
+    Ok(match ball_extreme(&ar, xs, max) {
+        Some(b) => Reply::Done(b),
+        None => r,
+    })
+}
+
+/// `max`/`min` of real numbers of which at least one is a ball and some comparison is not decided (`max(1,
+/// n(1, 30))`, the balls overlapping): the ball from the largest (smallest) lower end to the largest (smallest)
+/// upper end, which holds the extreme of every choice of points in the balls. `None` unless every element is an
+/// exact or ball real (machine reals and complex numbers are left to the other routes).
+fn ball_extreme<'h>(ar: &Arith<'h, Heap>, xs: &[T<'h>], max: bool) -> Option<T<'h>> {
+    use mc_arith::num::{Ball, Float, Mag};
+    use mc_arith::{Kind, Num, Real};
+    use std::cmp::Ordering;
+    let reals: Vec<Real> = xs
+        .iter()
+        .map(|&x| match ar.num(x)? {
+            Num::Real(r @ (Real::Exact(_) | Real::Ball(..))) => Some(r),
+            _ => None,
+        })
+        .collect::<Option<_>>()?;
+    let p = reals.iter().filter_map(|r| r.prec()).min()?;
+    let ends: Vec<(Float, Float)> = reals
+        .iter()
+        .map(|r| match r.to_kind(Kind::Ball, p) {
+            Real::Ball(b, _) => Some(b.ends()),
+            _ => None,
+        })
+        .collect::<Option<_>>()?;
+    let better = |a: &Float, b: &Float| (a.cmp_exact(b) == Ordering::Greater) == max;
+    let pick = |f: fn(&(Float, Float)) -> &Float| {
+        ends.iter().map(f).fold(None::<&Float>, |acc, v| match acc {
+            Some(a) if !better(v, a) => Some(a),
+            _ => Some(v),
+        })
+    };
+    let (lo, hi) = (pick(|e| &e.0)?.clone(), pick(|e| &e.1)?.clone());
+    let sum = lo.add_exact(&hi);
+    let (mid, err) = Float::round(sum.neg, sum.man.clone(), sum.exp - 1, p);
+    let rad = Mag::from_float_up(&hi.sub_exact(&lo)).mul_2exp(-1).add(&err);
+    Some(ar.number(&Num::Real(Real::Ball(Ball { mid, rad }, p))))
 }
 
 /// `max`/`min` when an element is a number-like value (G54): an interval stands for its largest (smallest) end, the

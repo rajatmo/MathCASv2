@@ -630,3 +630,14 @@ Anger and Weber of integer order, Hurwitz zeta at nonpositive integers, Gamma(n 
 K(-1), K(1/2), the alternating factorial). Each is checked at points against the native evaluation of the function
 (`mc-engine/tests/round44_special.rs`). The result forms are built to print as the usual canonical forms (a sum
 J + i Y written as two products, a Bernoulli polynomial expanded under its rational factor).
+
+## Round 45: the gamma zero test without power_expand
+
+The zero test of `gammanorm.rs` tried `together(power_expand(u))` when `together(u)` was not 0, to combine the
+constant factors of the multiplication formula. `power_expand` is formal: it rewrites `sqrt(x^2)`, `log(exp(x))`,
+`asin(sin(x))`, `acos(cos(x))` to `x` in the whole term, so `simplify(gamma(x + 1)/gamma(x) - sqrt(x^2))` and
+`full_simplify(asin(sin(-x)) + gamma(x + 1)/gamma(x), assumptions: x < 0)` were 0 (found by the rewriting generator
+of `mc-engine/tests/round45_soundness.rs`, which compares input and result at exact points of the domain). The
+constant factors are now written as powers of primes and of pi, `(2 pi)^((1 - m)/2) m^(c - 1/2)` as `2^((1 - m)/2)
+pi^((1 - m)/2)` times `p^(j (c - 1/2))` for each prime power `p^j` of `m`, which the arithmetic combines exactly;
+the formal step is gone. The duplication and triplication identities and the Catalan example still prove 0.
