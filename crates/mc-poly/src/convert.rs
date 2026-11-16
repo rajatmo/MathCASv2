@@ -231,6 +231,9 @@ impl<'a, 'h, S: Store + ?Sized> Conv<'a, 'h, S> {
             match task {
                 Task::Visit(t) => {
                     if let Some(v) = memo.get(&t) {
+                        // a copy of a large shared part is work too (a shared product can stand for exponentially
+                        // many terms): charged, so that a stop reaches it
+                        m.step(v.num.len() as u64 >> 6)?;
                         vals.push(v.clone());
                         continue;
                     }
@@ -294,7 +297,9 @@ impl<'a, 'h, S: Store + ?Sized> Conv<'a, 'h, S> {
                 }
                 Task::Keep(t) => {
                     // invariant: Keep follows the visit of its term, which pushed one value
-                    memo.insert(t, vals.last().expect("a value").clone());
+                    let v = vals.last().expect("a value");
+                    m.step(v.num.len() as u64 >> 6)?;
+                    memo.insert(t, v.clone());
                 }
             }
         }

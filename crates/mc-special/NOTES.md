@@ -1316,3 +1316,12 @@ Lommel and the inverse Jacobi functions in m (their inputs are `full_simplify(no
 printed form); complex boxes of Coulomb and type-3 Legendre functions; a box of a modular function with a real
 radius and a complex centre is spread in both parts here (the convention of round 45), so `dedekind_eta` and
 `modular_lambda` of such boxes are wider than enclosures spread along the real direction only.
+
+## Round 46: complex gamma on boxes
+
+`complex::gamma` was exp(log gamma), and log gamma subtracted the logarithms of z, z + 1, ..., z + N - 1 (N about
+p/2), one complex logarithm each for a box (only a point off the axis took the logarithm of the product). Gamma has
+no branch, so it is now exp(Stirling at z + N) divided by the factors in turn (falling back to the logarithms where
+a division does not exclude 0). The box covers of `count_roots(gamma(z) - z - 1, [z, -2 - 2 im, 2 + 2 im])` take
+1.5 s instead of 8.7 s (the cover needs 17 boxes instead of 435 at 64 bits, the boundary walk the same steps).
+The guard scan of a (p+1)Fp series near |z| = 1 (millions of terms) polls the stop flag.

@@ -20,12 +20,20 @@ pub const MAX_BOX: i64 = 200_000;
 /// The domains `solve` accepts as a third argument.
 const DOMAINS: [&str; 4] = ["reals", "integers", "rationals", "complexes"];
 
-/// The conjuncts of an `and` or a list (nested ones flattened).
+/// The conjuncts of an `and` or a list (nested ones flattened). A nested conjunction met again (a shared subterm)
+/// is not opened again: its conjuncts are there already, and a shared term stands for exponentially many copies.
 fn conjuncts<'h>(h: &'h impl Store, t: T<'h>, out: &mut Vec<T<'h>>) {
+    conjuncts_in(h, t, out, &mut mc_api::walk::seen());
+}
+
+fn conjuncts_in<'h>(h: &'h impl Store, t: T<'h>, out: &mut Vec<T<'h>>, opened: &mut mc_api::walk::Seen<T<'h>>) {
     match h.view(t) {
         View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "and" || h.sym_name(s) == names::LIST) => {
+            if !opened.insert(t) {
+                return;
+            }
             for &a in args {
-                conjuncts(h, a, out);
+                conjuncts_in(h, a, out, opened);
             }
         }
         _ => out.push(t),

@@ -186,22 +186,25 @@ impl Native for Integrate {
 /// `t` with every `sinc(u)` written as `sin(u)/u`, or `None` when it has none.
 fn without_sinc<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
     let sinc = h.sym_term(h.sym("sinc"));
-    fn walk<'h>(h: &'h Heap, sinc: T<'h>, t: T<'h>) -> Option<T<'h>> {
-        let View::App { head, args } = h.view(t) else { return None };
-        if head == sinc && args.len() == 1 {
-            let u = walk(h, sinc, args[0]).unwrap_or(args[0]);
-            let sin = h.call(h.sym("sin"), &[u]);
-            return Some(h.call(h.sym(names::MUL), &[sin, h.call(h.sym(names::POW), &[u, h.int(-1)])]));
-        }
-        let new_head = walk(h, sinc, head);
-        let new_args: Vec<Option<T<'h>>> = args.iter().map(|&a| walk(h, sinc, a)).collect();
-        if new_head.is_none() && new_args.iter().all(Option::is_none) {
-            return None;
-        }
-        let args: Vec<T<'h>> = args.iter().zip(new_args).map(|(&a, n)| n.unwrap_or(a)).collect();
-        Some(h.app(new_head.unwrap_or(head), &args))
+    // shared subterms rewritten once
+    fn walk<'h>(h: &'h Heap, sinc: T<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, Option<T<'h>>>) -> Option<T<'h>> {
+        mc_api::walk::cached(memo, t, |memo| {
+            let View::App { head, args } = h.view(t) else { return None };
+            if head == sinc && args.len() == 1 {
+                let u = walk(h, sinc, args[0], memo).unwrap_or(args[0]);
+                let sin = h.call(h.sym("sin"), &[u]);
+                return Some(h.call(h.sym(names::MUL), &[sin, h.call(h.sym(names::POW), &[u, h.int(-1)])]));
+            }
+            let new_head = walk(h, sinc, head, memo);
+            let new_args: Vec<Option<T<'h>>> = args.iter().map(|&a| walk(h, sinc, a, memo)).collect();
+            if new_head.is_none() && new_args.iter().all(Option::is_none) {
+                return None;
+            }
+            let args: Vec<T<'h>> = args.iter().zip(new_args).map(|(&a, n)| n.unwrap_or(a)).collect();
+            Some(h.app(new_head.unwrap_or(head), &args))
+        })
     }
-    walk(h, sinc, t)
+    walk(h, sinc, t, &mut mc_api::walk::memo())
 }
 
 /// The `c` of `options(generated_parameters -> c)` (that option alone).

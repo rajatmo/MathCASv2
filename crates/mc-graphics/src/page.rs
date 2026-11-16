@@ -408,10 +408,10 @@ pub fn paint(g: &Graphic, p: &Plan, s: &mut dyn Surface, stop: &dyn Fn() -> bool
                     if stop() {
                         return Err(Failure::new("interrupted", ""));
                     }
-                    item(g, p, &Item { shape: Shape::Points(part.to_vec()), style: it.style }, s);
+                    item(g, p, &Item { shape: Shape::Points(part.to_vec()), style: it.style }, s, stop);
                 }
             }
-            _ => item(g, p, it, s),
+            _ => item(g, p, it, s, stop),
         }
     }
     s.role(Role::Data);
@@ -549,7 +549,7 @@ pub(crate) fn size(shape: &Shape) -> usize {
 }
 
 /// Paint one primitive.
-fn item(g: &Graphic, p: &Plan, it: &Item, s: &mut dyn Surface) {
+fn item(g: &Graphic, p: &Plan, it: &Item, s: &mut dyn Surface, stop: &dyn Fn() -> bool) {
     let st = &g.styles[it.style];
     // lines, points and text in the style's colour; faces and images set their own role
     s.role(st.role);
@@ -665,10 +665,11 @@ fn item(g: &Graphic, p: &Plan, it: &Item, s: &mut dyn Surface) {
             let ht = natural.1 as f32 * k;
             let left = x - (1.0 + offset.0 as f32) / 2.0 * w;
             let top = y - (1.0 - offset.1 as f32) / 2.0 * ht;
-            if let Ok(sub) = plan(graphic, &|| false) {
+            // an inset is drawn under the same stop flag as its page
+            if let Ok(sub) = plan(graphic, stop) {
                 s.role(Role::Data);
                 let mut placed = crate::surface::Placed { inner: s, dx: left, dy: top, s: k };
-                let _ = paint(graphic, &sub, &mut placed, &|| false);
+                let _ = paint(graphic, &sub, &mut placed, stop);
             }
         }
         Shape::Text { label, at, offset } => {

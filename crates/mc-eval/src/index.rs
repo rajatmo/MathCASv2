@@ -369,9 +369,38 @@ fn term_flat<'h>(h: &'h Heap, t: T<'h>, d0: usize, depth: usize, out: &mut Vec<F
     }
 }
 
+/// The most nodes of the tree of a literal that the index keys in full.
+const HUGE_LITERAL: u64 = 1 << 16;
+/// The levels of a huge literal flattened in a query.
+const HUGE_LITERAL_DEPTH: usize = 8;
+
+/// Whether the tree `t` stands for has more than [`HUGE_LITERAL`] nodes (a packed array counts its elements; the
+/// walk stops at the bound).
+fn huge_literal(h: &Heap, t: T<'_>) -> bool {
+    let mut stack = vec![t];
+    let mut seen = 0u64;
+    while let Some(u) = stack.pop() {
+        if let Some(p) = h.packed(u) {
+            seen = seen.saturating_add(p.dims().iter().product::<u64>());
+        } else {
+            seen += 1;
+            if let View::App { args, .. } = h.view(u) {
+                stack.extend_from_slice(args);
+            }
+        }
+        if seen > HUGE_LITERAL {
+            return true;
+        }
+    }
+    false
+}
+
 /// The insertion path of a pattern (recursive on pattern depth, which compilation bounds).
 fn pat_path<'h>(h: &'h Heap, p: &Pat, d: usize, out: &mut Vec<(QKey<'h>, usize)>) {
     match p.strip() {
+        // a literal whose tree is huge (a term with shared subterms: its flat form grows with the tree) is keyed `*`
+        // there, as a pattern is; the match itself compares it
+        Pat::Lit(t) if huge_literal(h, t.get(h)) => out.push((QKey::Star, d)),
         Pat::Lit(t) => term_flat(h, t.get(h), d, usize::MAX, &mut vec![], Some(out)),
         // below the top, a call pattern with an optional argument also matches terms of other heads (the unit of
         // the head, C9B2.2): any term
@@ -398,7 +427,11 @@ fn pat_flat<'h>(h: &'h Heap, p: &Pat, out: &mut Vec<Flat<'h>>) {
     let i = out.len();
     match p.strip() {
         Pat::Lit(t) => {
-            term_flat(h, t.get(h), 0, usize::MAX, out, None);
+            // a huge literal: flattened to a few levels, below which only `*` and head keys are followed (a rule
+            // keyed below them that is more general is not found, and the new rule goes last)
+            let t = t.get(h);
+            let depth = if huge_literal(h, t) { HUGE_LITERAL_DEPTH } else { usize::MAX };
+            term_flat(h, t, 0, depth, out, None);
             return;
         }
         Pat::App { head, args, info } => {

@@ -663,7 +663,7 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
     cx.poll()?;
     // for the memo only, which keeps no text past its limit: a term surely longer is not printed (a density plot's
     // raster took longer to print than the whole plot to draw), and none is printed past the limit
-    let text = memo_text(h, g);
+    let text = memo_text(h, g, &stop);
     cx.poll()?;
     Ok(Reply::Done(match write_files(&files, &json, None, &twins) {
         Ok(path) => {
@@ -683,6 +683,9 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
 /// A plot built as a graphics term `g` (2D or 3D) of its own: a message naming the options not used, then the
 /// term rendered to a fresh PNG with SVG and PDF siblings and a data sidecar without series; the PNG's image
 /// term (or a failure).
+/// The most bytes of a graphic's text kept next to its picture.
+const GRAPHIC_TEXT_LIMIT: usize = 1 << 28;
+
 pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &str, ignored: &[String]) -> Res<Reply<'h>> {
     let h = cx.heap();
     cx.effect()?;
@@ -703,7 +706,14 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
     // a 3D graphic's term next to its picture: a front end turns it from there (mc_graphics::view3d); else the text
     // is for the memo only, which keeps none past its limit
     let three = mc_graphics::three::is_graphics3d(h, g);
-    let text = if three { Some(mc_syntax::Printer::new(h).expr(g)) } else { memo_text(h, g) };
+    // (the text of a term with shared subterms grows with its tree: past the limit or a stop it is not kept)
+    let text = if three {
+        let printer = mc_syntax::Printer::new(h).with_limit(GRAPHIC_TEXT_LIMIT).with_stop(|| stop.load(Ordering::Relaxed));
+        let text = printer.expr(g);
+        (!printer.was_cut()).then_some(text)
+    } else {
+        memo_text(h, g, &stop)
+    };
     cx.poll()?;
     let scene = if three { text.as_deref() } else { None };
     // a 3D picture of the default size also gets a column twin (round 38): the projection drawn on a page as wide as
@@ -736,12 +746,12 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
 /// The printed graphics term `g` for the memo (`mc_graphics::memo::remember`), or `None` when it is longer than the
 /// memo keeps: then it is not printed at all when that is sure beforehand ([`prints_longer_than`]), and never
 /// printed past the limit.
-fn memo_text<'h>(h: &'h Heap, g: T<'h>) -> Option<String> {
+fn memo_text<'h>(h: &'h Heap, g: T<'h>, stop: &std::sync::atomic::AtomicBool) -> Option<String> {
     let limit = mc_graphics::memo::TEXT_LIMIT;
     if prints_longer_than(h, g, limit) {
         return None;
     }
-    let p = mc_syntax::Printer::new(h).with_limit(limit + 1);
+    let p = mc_syntax::Printer::new(h).with_limit(limit + 1).with_stop(|| stop.load(Ordering::Relaxed));
     let text = p.expr(g);
     (!p.was_cut() && text.len() <= limit).then_some(text)
 }

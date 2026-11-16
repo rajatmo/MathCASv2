@@ -131,3 +131,35 @@ thread (`mc-kernel`, 64 MB), and the threads those phases start themselves (so n
 Why: every cell parsed its text two or three times on a fresh 64 MB thread (the reader, the check of `;` after
 statements, the check of calls written as products): about 0.35 ms of a 0.5 ms small cell on an idle machine, and
 tens to hundreds of milliseconds on a loaded one, where a new thread waits for a time slice. Now about 0.05 ms.
+## Round 46: the hangs that are left
+
+The catalogue test (`mc-engine/tests/round45_shared_terms.rs`) has an empty `LEFT`: every name of the catalogue,
+called on the shared terms with the stop raised 200 ms in, ends within 300 ms of the stop. The functions that were
+left walked a shared argument as a tree in these places (found by sampling the stacks of the hung calls), each
+moved onto a memo or a visited set with the same answer:
+- the rule index (`mc-eval/index.rs`): a definition's left side was flattened into the discrimination tree in full;
+  a literal whose tree has more than 65536 nodes is keyed `*` there (the match compares it), and a query flattens
+  it to 8 levels (`register_exception_type`, any definition made in a function with a shared argument);
+- layouts and plots: labels laid out both parts of every two-argument term before looking at the head
+  (`mc-graphics/label.rs`); the text a plot keeps beside its picture was printed in full (`mc-plot`: now with a
+  limit of 256 MB and the stop flag, not kept when cut); insets were painted under a stop flag that never rose;
+- function properties (`mc-calculus`): `hyperbolic_of_log`, `transcendental_calls`, `abs_of_root_squares`,
+  `poly_degree` (saturating degrees), the order keys of conditions (`order_key` memoized, `key` cut at 64 KiB:
+  keys equal that far keep their order, the sorts are stable);
+- the cylindrical decomposition reads at most 2^20 parts of a formula (it builds a tree), and its unresolved form
+  is rewritten once per subterm, a conjunction flattened past 65536 parts staying nested; `normal`'s `strip_order`;
+- solving (`mc-solve`): `scalar_equations`, `free_symbols` of reduce (keyed by the bound variables too), the
+  conjuncts of `and` and lists (a nested conjunction is opened once: a repeated one adds nothing), the symbols of
+  function kernels, and the equation reader, which now also stops after 2^20 parts (a shared list of `true`);
+- sums (`split_offsets`, `factorial_to_gamma`), `outer`'s leaf count, the `sinc` rewrite of `integrate`, the
+  closed-numeric test of contagion in `mc-engine/arith.rs`;
+- polynomial reading charges the copies of large shared parts to the meter (a shared product of sums stands for
+  exponentially many monomials: the work is real, and now reaches the stop flag).
+
+The long version (`MC_SHARED_ALL=1`; `MC_SHARED_TERMS=k,...` selects terms, `MC_SHARED_TRACE=1` prints each
+input as it starts, which finds the input that ends a process) runs every name on the nine terms.
+
+Left as found (recursive term functions without a memo): a scan (self-recursive functions over `T` whose body
+recurses into arguments and keeps no memo or visited set) lists about 470 candidates across 40 crates; most recurse
+on structure that the catalogue does not reach with a shared term (rules of patterns, option lists, depth-bounded
+reads) and stay as they are. Each one the long catalogue found hung was converted.

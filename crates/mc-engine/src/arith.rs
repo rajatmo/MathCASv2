@@ -172,6 +172,13 @@ impl Consts {
 /// (`pi`, `2^(1/2)`, `cos(1)/pi`)? Heads are not inspected; `n` decides whether it really has a value.
 fn closed_numeric(h: &Heap, c: &Consts, t: T<'_>) -> bool {
     fn leaves_numeric(h: &Heap, c: &Consts, t: T<'_>) -> bool {
+        // shared subterms are decided once
+        leaves_numeric_in(h, c, t, &mut mc_api::walk::memo())
+    }
+    fn leaves_numeric_in<'a>(h: &'a Heap, c: &Consts, t: T<'a>, memo: &mut mc_api::walk::Memo<T<'a>, bool>) -> bool {
+        mc_api::walk::cached(memo, t, |memo| leaves_numeric_node(h, c, t, memo))
+    }
+    fn leaves_numeric_node<'a>(h: &'a Heap, c: &Consts, t: T<'a>, memo: &mut mc_api::walk::Memo<T<'a>, bool>) -> bool {
         match h.view(t) {
             View::Sym(s) => c.index(h, s).is_some(),
             // a root object root(p, k) of a polynomial with numbers for coefficients stands for a number too
@@ -194,7 +201,7 @@ fn closed_numeric(h: &Heap, c: &Consts, t: T<'_>) -> bool {
                 matches!(h.view(p), View::App { head: f, .. } if f == h.sym_term(h.sym("fn")) || f == h.sym_term(h.sym("function")) || f == h.sym_term(h.sym("&")))
                     && exact(h, p)
             }
-            View::App { args, .. } => !args.is_empty() && args.iter().all(|&a| leaves_numeric(h, c, a)),
+            View::App { args, .. } => !args.is_empty() && args.iter().all(|&a| leaves_numeric_in(h, c, a, memo)),
             View::Str(_) => false,
             _ => true,
         }

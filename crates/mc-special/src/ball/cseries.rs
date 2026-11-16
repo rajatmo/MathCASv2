@@ -279,6 +279,10 @@ pub(crate) fn max_term_log2(a: &[(f64, f64)], b: &[(f64, f64)], za: f64) -> f64 
     let lz = za.log2();
     let (mut l, mut big) = (0.0f64, 0.0f64);
     for k in 0..4_000_000u64 {
+        // millions of terms near |z| = 1: the stop flag is polled (a stopped evaluation discards the guard)
+        if k % 65_536 == 65_535 && mc_arith::num::stopped() {
+            return big;
+        }
         let kf = k as f64;
         let mut d = lz - (kf + 1.0).log2();
         for &ai in a {

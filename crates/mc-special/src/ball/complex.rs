@@ -101,21 +101,21 @@ fn log_shift(z: &CBall, n: u64, w: u64) -> Option<CBall> {
     Some(shift)
 }
 
-/// The analytic log gamma on a complex ball.
-pub fn log_gamma(z: &CBall, p: u64) -> Option<CBall> {
-    let w = p + 20;
+/// The shift N of Stirling's series at precision p (Re (z + N) >= p/2 + 10), or `None` past 100,000.
+fn stirling_shift(z: &CBall, p: u64) -> Option<u64> {
     let target = 10.0 + 0.5 * p as f64;
     let re = f64_of(&z.re);
     if !re.is_finite() {
         return None;
     }
     let n = (target - re).ceil().max(0.0) as u64;
-    if n > 100_000 {
-        return None;
-    }
-    let shift = log_shift(z, n, w)?;
-    let x = z.add(&CBall::from_i64(n as i64), w);
-    let ax = abs_lower(&x, w);
+    (n <= 100_000).then_some(n)
+}
+
+/// Stirling's series for log gamma at x (Re x large, |x| > 1) with its remainder, at working precision w for a
+/// result to p bits.
+fn stirling(x: &CBall, p: u64, w: u64) -> Option<CBall> {
+    let ax = abs_lower(x, w);
     if ax <= 1.0 {
         return None;
     }
@@ -136,10 +136,10 @@ pub fn log_gamma(z: &CBall, p: u64) -> Option<CBall> {
         let l = el::log(&two_pi, w)?;
         Ball { mid: Float::new(l.mid.neg, l.mid.man.clone(), l.mid.exp - 1), rad: l.rad.mul_2exp(-1) }
     };
-    let lx = cball::log(&x, w)?;
+    let lx = cball::log(x, w)?;
     let half = rat_ball(&Rat::new(mc_arith::num::Int::from_i64(1), mc_arith::num::Int::from_i64(2)), w);
-    let mut s = x.sub(&CBall::real(half), w).mul(&lx, w).sub(&x, w).add(&CBall::real(log2pi_half), w);
-    let inv = CBall::from_i64(1).div(&x, w)?;
+    let mut s = x.sub(&CBall::real(half), w).mul(&lx, w).sub(x, w).add(&CBall::real(log2pi_half), w);
+    let inv = CBall::from_i64(1).div(x, w)?;
     let inv2 = inv.square(w);
     let mut pw = inv.clone();
     for k in 1..m {
@@ -149,14 +149,47 @@ pub fn log_gamma(z: &CBall, p: u64) -> Option<CBall> {
         pw = pw.mul(&inv2, w);
     }
     let lb = log2_b2(m) - ((2 * m) as f64 * (2 * m - 1) as f64).log2() - (2 * m - 1) as f64 * ax.log2() + m as f64;
-    let s = widen(s, 2f64.powf(lb + 1.0), w);
+    Some(widen(s, 2f64.powf(lb + 1.0), w))
+}
+
+/// The analytic log gamma on a complex ball.
+pub fn log_gamma(z: &CBall, p: u64) -> Option<CBall> {
+    let w = p + 20;
+    let n = stirling_shift(z, p)?;
+    let shift = log_shift(z, n, w)?;
+    let x = z.add(&CBall::from_i64(n as i64), w);
+    let s = stirling(&x, p, w)?;
     Some(s.sub(&shift, w).round(p))
 }
 
-/// Gamma on a complex ball.
+/// Gamma on a complex ball: exp of Stirling's series at z + N divided by z, z + 1, ..., z + N - 1 in turn. The
+/// divisions need no logarithms (gamma has no branch), which on a wide box (the covers of `count_roots`) are most
+/// of the cost; where a division does not exclude 0 (a box across both axes), the exponential of the analytic
+/// log gamma.
 pub fn gamma(z: &CBall, p: u64) -> Option<CBall> {
-    let lg = log_gamma(z, p + 32)?;
-    Some(cball::exp(&lg, p + 16)?.round(p))
+    let q = p + 32;
+    let n = stirling_shift(z, q)?;
+    // the divisions lose about log2(N) bits to rounding
+    let w = q + 20 + (64 - n.leading_zeros() as u64);
+    let x = z.add(&CBall::from_i64(n as i64), w);
+    let mut v = cball::exp(&stirling(&x, q, q + 20)?, w)?;
+    for j in 0..n {
+        if j % 64 == 0 && mc_arith::num::stopped() {
+            return None;
+        }
+        let t = z.add(&CBall::from_i64(j as i64), w);
+        if t.contains_zero() {
+            return None;
+        }
+        match v.div(&t, w) {
+            Some(u) => v = u,
+            None => {
+                let lg = log_gamma(z, p + 32)?;
+                return Some(cball::exp(&lg, p + 16)?.round(p));
+            }
+        }
+    }
+    Some(v.round(p))
 }
 
 /// erf on a complex ball (|z| <= 30).

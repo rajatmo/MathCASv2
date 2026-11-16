@@ -45,6 +45,9 @@ pub struct Front<'h> {
     fresh: StdCell<u32>,
 }
 
+/// The most parts (the nodes of its tree) of a formula read by [`Front::problem`].
+const MAX_FORMULA_NODES: u64 = 1 << 20;
+
 /// Names of numeric constants: a formula with them is not polynomial with rational coefficients.
 const CONSTANTS: &[&str] = &["pi", "e", "im", "euler_gamma", "catalan", "golden_ratio", "degree", "glaisher", "khinchin", "inf"];
 
@@ -551,6 +554,10 @@ impl<'h> Front<'h> {
     /// The problem of `cond`: the free variables `free` (in order) after any other symbols (parameters), then the
     /// bound variables. `Err` with a reason when the formula is not a real polynomial formula.
     pub fn problem(&self, cond: T<'h>, free: &[T<'h>], m: &mut Meter) -> WorkResult<Result<Parsed<'h>, &'static str>> {
+        // the formula is read as a tree: a condition with shared parts can stand for exponentially many atoms
+        if mc_api::walk::tree_size(self.h(), cond) > MAX_FORMULA_NODES {
+            return Ok(Err("a formula of more than a million parts"));
+        }
         let f = match self.parse(cond) {
             Ok(f) => f,
             Err(e) => return Ok(Err(e)),

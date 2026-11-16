@@ -32,6 +32,16 @@ const CONSTANTS: &[&str] = &[
 
 /// The variables of a condition: its symbols outside head positions, without constants and bound variables.
 fn free_symbols<'h>(h: &'h impl Store, t: T<'h>, bound: &mut Vec<T<'h>>, out: &mut Vec<T<'h>>) {
+    // each distinct subterm under the same bound variables is visited once (the order of first finds is kept)
+    free_symbols_in(h, t, bound, out, &mut mc_api::walk::seen());
+}
+
+type Visited<'h> = mc_api::walk::Seen<(T<'h>, Vec<T<'h>>)>;
+
+fn free_symbols_in<'h>(h: &'h impl Store, t: T<'h>, bound: &mut Vec<T<'h>>, out: &mut Vec<T<'h>>, seen: &mut Visited<'h>) {
+    if !seen.insert((t, bound.clone())) {
+        return;
+    }
     match h.view(t) {
         View::Sym(s) => {
             let n = h.sym_name(s);
@@ -48,16 +58,16 @@ fn free_symbols<'h>(h: &'h impl Store, t: T<'h>, bound: &mut Vec<T<'h>>, out: &m
                     _ => bound.push(args[0]),
                 }
                 for &a in &args[1..] {
-                    free_symbols(h, a, bound, out);
+                    free_symbols_in(h, a, bound, out, seen);
                 }
                 bound.truncate(k);
                 return;
             }
             if !matches!(h.view(head), View::Sym(_)) {
-                free_symbols(h, head, bound, out);
+                free_symbols_in(h, head, bound, out, seen);
             }
             for &a in args {
-                free_symbols(h, a, bound, out);
+                free_symbols_in(h, a, bound, out, seen);
             }
         }
         _ => {}

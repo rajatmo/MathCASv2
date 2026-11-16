@@ -262,12 +262,26 @@ fn piecewise_atoms<'h>(
 /// `tanh(log(u))` and the like as rational functions of `u` (`exp(log(u)) = u` on the whole plane): `(u^2 - 1)/(u^2 + 1)`
 /// is continuous at the points where `log` is not (B26-6).
 fn hyperbolic_of_log<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>) -> Res<T<'h>> {
+    // shared subterms rewritten once
+    hyperbolic_of_log_in(cx, b, t, &mut mc_api::walk::memo())
+}
+
+fn hyperbolic_of_log_in<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> Res<T<'h>> {
+    if let Some(&r) = memo.get(&t) {
+        return Ok(r);
+    }
+    let r = hyperbolic_of_log_node(cx, b, t, memo)?;
+    memo.insert(t, r);
+    Ok(r)
+}
+
+fn hyperbolic_of_log_node<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> Res<T<'h>> {
     let h = b.heap();
     let View::App { head, args } = h.view(t) else { return Ok(t) };
     let mut new = Vec::with_capacity(args.len());
     let mut changed = false;
     for &a in args {
-        let r = hyperbolic_of_log(cx, b, a)?;
+        let r = hyperbolic_of_log_in(cx, b, a, memo)?;
         changed |= r != a;
         new.push(r);
     }
@@ -797,6 +811,15 @@ pub fn is_head<'h>(b: &Build<'h>, t: T<'h>, name: &str) -> bool {
 /// products and sums (a sum or product by its largest part, a power by its base then exponent), then calls by
 /// head name and arguments.
 fn order_key<'h>(b: &Build<'h>, t: T<'h>) -> String {
+    // shared parts keyed once
+    order_key_in(b, t, &mut mc_api::walk::memo())
+}
+
+fn order_key_in<'h>(b: &Build<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, String>) -> String {
+    mc_api::walk::cached(memo, t, |memo| order_key_node(b, t, memo))
+}
+
+fn order_key_node<'h>(b: &Build<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, String>) -> String {
     let h = b.heap();
     match h.view(t) {
         View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) => {
@@ -815,11 +838,11 @@ fn order_key<'h>(b: &Build<'h>, t: T<'h>) -> String {
         View::App { head, args } => {
             let s = b.sym_of(head);
             if s == Some(b.hd.add) || s == Some(b.hd.mul) {
-                let mut ks: Vec<String> = args.iter().filter(|&&a| b.ar.num(a).is_none()).map(|&a| order_key(b, a)).collect();
+                let mut ks: Vec<String> = args.iter().filter(|&&a| b.ar.num(a).is_none()).map(|&a| order_key_in(b, a, memo)).collect();
                 ks.sort();
                 ks.pop().unwrap_or_else(|| "0".to_string())
             } else if s == Some(b.hd.pow) {
-                format!("{}^{}", order_key(b, args[0]), order_key(b, args[1]))
+                format!("{}^{}", order_key_in(b, args[0], memo), order_key_in(b, args[1], memo))
             } else {
                 let mut k = "3".to_string();
                 key(b, t, &mut k);
@@ -844,8 +867,16 @@ fn cond_key<'h>(b: &Build<'h>, t: T<'h>) -> String {
     }
 }
 
-/// A key for the canonical order of conditions: heads by name, then arguments, numbers as numbers.
+/// The most bytes of an order key: a condition with shared parts is a tree exponentially larger than itself, and
+/// keys that agree on this many bytes keep their order (the sorts are stable).
+const KEY_LIMIT: usize = 1 << 16;
+
+/// A key for the canonical order of conditions: heads by name, then arguments, numbers as numbers (at most
+/// [`KEY_LIMIT`] bytes).
 fn key<'h>(b: &Build<'h>, t: T<'h>, out: &mut String) {
+    if out.len() > KEY_LIMIT {
+        return;
+    }
     let h = b.heap();
     match h.view(t) {
         View::Int(k) => out.push_str(&num_key(k as f64)),
@@ -938,6 +969,15 @@ fn linear_atom<'h>(b: &Build<'h>, a: T<'h>, x: T<'h>) -> bool {
 /// The total degree of `t` as a polynomial in `syms` with rational coefficients (other symbols count as
 /// coefficients only if `syms` is empty... no: any other symbol is a coefficient), or `None`.
 pub fn poly_degree<'h>(b: &Build<'h>, t: T<'h>, syms: &[T<'h>]) -> Option<u32> {
+    // shared subterms measured once (the degree saturates)
+    poly_degree_in(b, t, syms, &mut mc_api::walk::memo())
+}
+
+fn poly_degree_in<'h>(b: &Build<'h>, t: T<'h>, syms: &[T<'h>], memo: &mut mc_api::walk::Memo<T<'h>, Option<u32>>) -> Option<u32> {
+    mc_api::walk::cached(memo, t, |memo| poly_degree_node(b, t, syms, memo))
+}
+
+fn poly_degree_node<'h>(b: &Build<'h>, t: T<'h>, syms: &[T<'h>], memo: &mut mc_api::walk::Memo<T<'h>, Option<u32>>) -> Option<u32> {
     let h = b.heap();
     if syms.contains(&t) {
         return Some(1);
@@ -954,13 +994,13 @@ pub fn poly_degree<'h>(b: &Build<'h>, t: T<'h>, syms: &[T<'h>]) -> Option<u32> {
         View::App { head, args } => {
             let s = b.sym_of(head)?;
             if s == b.hd.add {
-                args.iter().map(|&a| poly_degree(b, a, syms)).try_fold(0, |m, d| d.map(|d| m.max(d)))
+                args.iter().map(|&a| poly_degree_in(b, a, syms, memo)).try_fold(0, |m, d| d.map(|d| m.max(d)))
             } else if s == b.hd.mul {
-                args.iter().map(|&a| poly_degree(b, a, syms)).try_fold(0, |m, d| d.map(|d| m + d))
+                args.iter().map(|&a| poly_degree_in(b, a, syms, memo)).try_fold(0u32, |m, d| d.map(|d| m.saturating_add(d)))
             } else if s == b.hd.pow {
                 let [base, ex] = args else { return None };
                 match h.view(*ex) {
-                    View::Int(k) if k >= 0 => poly_degree(b, *base, syms).map(|d| d * k as u32),
+                    View::Int(k) if k >= 0 => poly_degree_in(b, *base, syms, memo).map(|d| d.saturating_mul(u32::try_from(k).unwrap_or(u32::MAX))),
                     _ => None,
                 }
             } else {

@@ -455,13 +455,27 @@ fn from_base<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, hi:
 
 /// `t` with every `factorial(u)` raised to a symbolic power written `gamma(u + 1)`.
 fn factorial_to_gamma<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, under: bool) -> Res<T<'h>> {
+    // shared subterms rewritten once
+    factorial_to_gamma_in(sx, t, under, &mut mc_api::walk::memo())
+}
+
+fn factorial_to_gamma_in<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, under: bool, memo: &mut mc_api::walk::Memo<(T<'h>, bool), T<'h>>) -> Res<T<'h>> {
+    if let Some(&r) = memo.get(&(t, under)) {
+        return Ok(r);
+    }
+    let r = factorial_to_gamma_node(sx, t, under, memo)?;
+    memo.insert((t, under), r);
+    Ok(r)
+}
+
+fn factorial_to_gamma_node<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, under: bool, memo: &mut mc_api::walk::Memo<(T<'h>, bool), T<'h>>) -> Res<T<'h>> {
     let h = sx.h();
     match h.view(t) {
         View::App { head, args } => {
             let symbolic_power = head == sx.sym(names::POW) && args.len() == 2 && !matches!(h.view(args[1]), View::Int(_));
             let mut new = Vec::with_capacity(args.len());
             for (i, &a) in args.iter().enumerate() {
-                new.push(factorial_to_gamma(sx, a, symbolic_power && i == 0)?);
+                new.push(factorial_to_gamma_in(sx, a, symbolic_power && i == 0, memo)?);
             }
             if under && head == sx.sym("factorial") && new.len() == 1 {
                 let u1 = sx.plus(new[0], 1)?;
@@ -999,11 +1013,25 @@ fn poly_part<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, k: T<'h>) -> Res<T<'h>> 
 
 /// `t` with powers `b^(e + c)` (c an integer constant) written `b^c b^e`, so that common factors show.
 fn split_offsets<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>) -> Res<T<'h>> {
+    // shared subterms rewritten once
+    split_offsets_in(sx, t, &mut mc_api::walk::memo())
+}
+
+fn split_offsets_in<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> Res<T<'h>> {
+    if let Some(&r) = memo.get(&t) {
+        return Ok(r);
+    }
+    let r = split_offsets_node(sx, t, memo)?;
+    memo.insert(t, r);
+    Ok(r)
+}
+
+fn split_offsets_node<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> Res<T<'h>> {
     let h = sx.h();
     let View::App { head, args } = h.view(t) else { return Ok(t) };
     let mut new = Vec::with_capacity(args.len());
     for &a in args {
-        new.push(split_offsets(sx, a)?);
+        new.push(split_offsets_in(sx, a, memo)?);
     }
     if head == sx.sym(names::POW) && new.len() == 2 && sx.as_int(new[1]).is_none() {
         let (e, c) = crate::shift::offset(sx, new[1])?;

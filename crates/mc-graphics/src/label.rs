@@ -195,10 +195,17 @@ fn term_row<S: Store + ?Sized>(h: &S, t: T<'_>, depth: usize) -> Row {
         View::Str(s) => return Label::text(s).row,
         View::App { head, args: &[a, b] } if depth < MAX_DEPTH => {
             if let View::Sym(f) = h.view(head) {
-                let (a, b) = (term_row(h, a, depth + 1), term_row(h, b, depth + 1));
+                // the parts are laid out only under a script head (laying them out first, for any head, made a
+                // shared term cost time exponential in its depth)
                 match h.sym_name(f).as_str() {
-                    "superscript" => return Row::boxed(Node::Superscript { base: a, exp: b }),
-                    "subscript" => return Row::boxed(Node::Subscript { base: a, index: b }),
+                    "superscript" => {
+                        let (a, b) = (term_row(h, a, depth + 1), term_row(h, b, depth + 1));
+                        return Row::boxed(Node::Superscript { base: a, exp: b });
+                    }
+                    "subscript" => {
+                        let (a, b) = (term_row(h, a, depth + 1), term_row(h, b, depth + 1));
+                        return Row::boxed(Node::Subscript { base: a, index: b });
+                    }
                     _ => {}
                 }
             }

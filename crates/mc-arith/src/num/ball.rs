@@ -306,6 +306,29 @@ impl Float {
         (Float::new(neg, keep, e), err)
     }
 
+    /// [`Float::round`] of a mantissa held elsewhere: only the kept bits are copied (a constant cached at a million
+    /// bits is rounded for a 64-bit request without copying it). The same result as `round(neg, man.clone(), ..)`.
+    pub fn round_ref(neg: bool, man: &Nat, exp: i64, p: u64) -> (Float, Mag) {
+        let b = man.bits();
+        if b <= p {
+            return (Float::new(neg, man.clone(), exp), Mag::ZERO);
+        }
+        let s = b - p;
+        let mut keep = man.shr(s);
+        let half = man.bit(s - 1);
+        let inexact = half || man.low_bits_nonzero(s - 1);
+        let mut e = exp + s as i64;
+        let err = if inexact { Mag::pow2(e - 1) } else { Mag::ZERO };
+        if half {
+            keep = keep.add_u64(1);
+            if keep.bits() > p {
+                keep = keep.shr(1); // keep was 2^p: exact
+                e += 1;
+            }
+        }
+        (Float::new(neg, keep, e), err)
+    }
+
     /// Sum rounded to p bits, with an error bound. An operand below a quarter of the other's last place is not
     /// aligned (that could take unbounded memory): the result is the larger operand and the smaller one's magnitude
     /// joins the error bound.

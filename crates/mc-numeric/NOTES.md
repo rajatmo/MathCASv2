@@ -812,3 +812,11 @@ centered interval inside such a list now reaches the complex-ball enclosures (`u
 `uncertain_cball::apply` the two elements of a list argument become two balls, for the `weierstrass_*` names only:
 the parameter lists of the hypergeometric functions are not numbers in a row). Functions whose value is a list
 (`weierstrass_half_periods`, `weierstrass_invariants`) are the lists of the enclosures of their elements.
+## Round 46: slow calls
+
+- `compare` (and so `sign`, `is_real` callers) of a closed term with no real value refined it to the cap of 8192
+  bits (`sign(elliptic_k(2))` took 20 s): once a side fails as a real ball and its complex value's imaginary part
+  excludes 0, no precision can give a real comparison, and the answer (undecided) is given at once (0.7 s).
+- `Const::ball` rounded the cached ball after cloning it under the lock: a constant once computed to a million bits
+  made every later request (in every session of the process) copy it. It is rounded in place now
+  (`Float::round_ref` in mc-arith, the same result as `Float::round`).

@@ -1754,6 +1754,15 @@ pub(crate) fn normal_native<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) ->
 
 /// `t` with the order terms `O(...)` of the sums inside its products (and sums of products) removed.
 fn strip_order<'h>(env: &Env<'h>, t: T<'h>) -> T<'h> {
+    // shared subterms rewritten once
+    strip_order_in(env, t, &mut mc_api::walk::memo())
+}
+
+fn strip_order_in<'h>(env: &Env<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> T<'h> {
+    mc_api::walk::cached(memo, t, |memo| strip_order_node(env, t, memo))
+}
+
+fn strip_order_node<'h>(env: &Env<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> T<'h> {
     let h = env.h();
     let is_o = |a: T<'h>| matches!(h.view(a), View::App { head, .. } if head == env.sym(ORDER));
     let View::App { head, args } = h.view(t) else { return t };
@@ -1765,7 +1774,7 @@ fn strip_order<'h>(env: &Env<'h>, t: T<'h>) -> T<'h> {
         if head == env.hd.add && is_o(a) {
             continue;
         }
-        out.push(strip_order(env, a));
+        out.push(strip_order_in(env, a, memo));
     }
     if out.iter().zip(args.iter()).all(|(a, b)| a == b) && out.len() == args.len() {
         return t;

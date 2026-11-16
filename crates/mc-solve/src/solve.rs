@@ -34,13 +34,21 @@ const CONSTANTS: &[&str] = &["pi", "e", "im", "euler_gamma", "catalan", "inf", "
 
 /// The most equations [`read_equations`] reads.
 const MAX_EQUATIONS: usize = 1 << 16;
+/// The most parts (lists, conjunctions, equations, `true`) [`read_equations`] reads.
+const MAX_PARTS: usize = 1 << 20;
 
 /// The equations of `t` as differences `lhs - rhs`: `Ok(None)` for `false`, an error message for inequalities and
 /// other relations.
 pub(crate) fn read_equations<'h>(env: &Env<'h>, t: T<'h>) -> Result<Option<Vec<T<'h>>>, &'static str> {
     let mut out = vec![];
     let mut stack = vec![t];
+    // parts read: a shared list of `true`s stands for exponentially many parts that add no equation
+    let mut read = 0usize;
     while let Some(u) = stack.pop() {
+        read += 1;
+        if read > MAX_PARTS {
+            return Err("more than 65536 equations");
+        }
         if env.is_sym(u, "true") {
             continue;
         }
@@ -109,7 +117,7 @@ pub(crate) fn symbols_of<'h>(env: &Env<'h>, eqs: &[T<'h>], m: &mut Meter) -> Wor
     }
     // only function kernels (`sqrt(x) == 3/2`, `exp(x) == 2`): the symbols that occur as arguments, in order
     let mut out: Vec<T<'h>> = vec![];
-    let mut stack: Vec<T<'h>> = eqs.iter().rev().copied().collect();
+    let mut stack = mc_api::walk::Walk::from_vec(eqs.iter().rev().copied().collect());
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) => {

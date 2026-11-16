@@ -11,7 +11,8 @@
 //! `MC_SHARED_ALL=1` runs every term (lists, associations, sums and products that stay shared);
 //! `MC_SHARED_ONLY=a,b` runs only those names, `MC_SHARED_FROM=a` the names from `a` on, `MC_SHARED_SKIP=a,b` all
 //! but those; `MC_SHARED_INPUTS=src;;src` evaluates whole inputs and prints their values and times;
-//! `MC_SHARED_PROGRESS=1` prints `[k/N pct%]` progress. A call that runs 20 s is reported as hung and left behind (at
+//! `MC_SHARED_PROGRESS=1` prints `[k/N pct%]` progress, `MC_SHARED_TRACE=1` each input as it starts;
+//! `MC_SHARED_TERMS=2,5` runs those terms only. A call that runs 20 s is reported as hung and left behind (at
 //! most 6 of them, or `MC_SHARED_MAX_HUNG`, then the run stops).
 use mc_api::StopFlag;
 use mc_engine::{CoreEngine, EngineConfig, Origin};
@@ -34,17 +35,9 @@ const TERMS: &[&str] = &[
     "[<|a -> nest(x => [x, x], 1, 60)|>, nest(x => x + x^2, y, 60)]",
 ];
 
-/// Functions that still take time exponential in the depth of a shared argument without reaching the stop flag:
-/// the layout of nested lists (grids, rows, panes, labels), the properties of functions over a shared list, and
-/// the solvers that rewrite their input recursively. Converting them is the next step of the same family.
-const LEFT: &[&str] = &[
-    "diamond_matrix", "difference_delta", "disk_matrix", "framed", "function_analytic", "function_continuous",
-    "function_discontinuities", "function_meromorphic", "function_singularities", "graphics_column", "graphics_grid",
-    "graphics_row", "grid", "integrate", "labeled", "legended", "list_animate", "magnify", "mean_around",
-    "moment_of_inertia", "multicolumn", "n_roots", "n_solve", "n_solve_values", "pane", "panel",
-    "partial_fraction_elements", "product", "rasterize", "reduce", "register_exception_type", "roots", "row", "solve",
-    "solve_values", "text",
-];
+/// Functions that still take time exponential in the depth of a shared argument without reaching the stop flag
+/// (none now: the layouts, properties, solvers and rule definitions that were here walk the graph).
+const LEFT: &[&str] = &[];
 
 /// Names left out: they write files, wait, or change the session's definitions and attributes.
 const EFFECTS: &[&str] = &[
@@ -142,7 +135,13 @@ fn every_function_ends_promptly_on_shared_terms() {
         let skip: Vec<&str> = skip.split(',').map(str::trim).collect();
         names.retain(|n| !skip.contains(&n.as_str()));
     }
-    let terms = if all { TERMS } else { &TERMS[..1] };
+    let terms: Vec<&str> = match std::env::var("MC_SHARED_TERMS") {
+        // `MC_SHARED_TERMS=2,5`: those terms only (counted from 1)
+        Ok(ks) => ks.split(',').filter_map(|k| k.trim().parse::<usize>().ok()).filter_map(|k| TERMS.get(k.wrapping_sub(1)).copied()).collect(),
+        Err(_) if all => TERMS.to_vec(),
+        Err(_) => TERMS[..1].to_vec(),
+    };
+    let trace = std::env::var("MC_SHARED_TRACE").is_ok_and(|v| v == "1");
     let mut inputs = vec![];
     if let Ok(given) = std::env::var("MC_SHARED_INPUTS") {
         // whole inputs separated by `;;`, each printed with its value and time
@@ -154,7 +153,7 @@ fn every_function_ends_promptly_on_shared_terms() {
         }
         return;
     }
-    for t in terms {
+    for t in &terms {
         for f in &names {
             inputs.push(format!("dd = {t}; {f}(dd)"));
             inputs.push(format!("dd = {t}; {f}(dd, x)"));
@@ -189,6 +188,9 @@ fn every_function_ends_promptly_on_shared_terms() {
     while done + hung.len() < total {
         match rx.recv_timeout(Duration::from_secs(1)) {
             Ok(Msg::Start(k, src)) => {
+                if trace {
+                    eprintln!("start {k}: {src}");
+                }
                 running.insert(k, (src, Instant::now()));
             }
             Ok(Msg::Done(k, src, since, v)) => {

@@ -201,6 +201,15 @@ pub(crate) fn split<'a, 'h>(h: &'h Heap, f: &str, args: &'a [T<'h>]) -> Result<(
 /// Scalar equations from vector and matrix ones: `[a, b] == [c, d]` is `a == c and b == d` (nested lists element
 /// by element, a list against a scalar elementwise); `None` when nothing changes.
 pub(crate) fn scalar_equations<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
+    // shared subterms rewritten once
+    scalar_equations_in(h, t, &mut mc_api::walk::memo())
+}
+
+fn scalar_equations_in<'h>(h: &'h Heap, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, Option<T<'h>>>) -> Option<T<'h>> {
+    mc_api::walk::cached(memo, t, |memo| scalar_equations_node(h, t, memo))
+}
+
+fn scalar_equations_node<'h>(h: &'h Heap, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, Option<T<'h>>>) -> Option<T<'h>> {
     let list = h.sym_term(h.sym(names::LIST));
     let and = h.sym("and");
     let equal = h.sym("equal");
@@ -223,7 +232,7 @@ pub(crate) fn scalar_equations<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
                 .into_iter()
                 .map(|(x, y)| {
                     let e = h.call(equal, &[x, y]);
-                    scalar_equations(h, e).unwrap_or(e)
+                    scalar_equations_in(h, e, memo).unwrap_or(e)
                 })
                 .collect();
             Some(h.call(and, &parts))
@@ -232,7 +241,7 @@ pub(crate) fn scalar_equations<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
             let mut changed = false;
             let parts: Vec<T<'h>> = args
                 .iter()
-                .map(|&a| match scalar_equations(h, a) {
+                .map(|&a| match scalar_equations_in(h, a, memo) {
                     Some(b) => {
                         changed = true;
                         b

@@ -71,7 +71,10 @@ impl Const {
         let slot = self as usize;
         if let Some((q, b)) = &CACHE.lock().unwrap_or_else(|e| e.into_inner())[slot] {
             if *q >= p {
-                return Some(elementary::round(b.clone(), p));
+                // rounded from the cached ball in place: a constant cached at many bits is not copied for each
+                // request (with the lock held, that slowed every other evaluation that needs the constant)
+                let (mid, err) = Float::round_ref(b.mid.neg, &b.mid.man, b.mid.exp, p);
+                return Some(Ball { mid, rad: b.rad.add(&err) });
             }
         }
         let w = p + 16;

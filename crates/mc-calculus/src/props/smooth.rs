@@ -104,6 +104,14 @@ pub fn free_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, m
 /// The arguments `u` of the calls `F(u)` of `t` in which `F` is a transcendental function (entire, or with poles)
 /// and `u` depends on a variable: a pole of `u` is an essential singularity of `F(u)` (decision F27.2).
 fn transcendental_calls<'h>(b: &Build<'h>, t: T<'h>, vars: &[T<'h>], out: &mut Vec<T<'h>>) {
+    // each distinct subterm visited once
+    transcendental_calls_in(b, t, vars, out, &mut mc_api::walk::seen());
+}
+
+fn transcendental_calls_in<'h>(b: &Build<'h>, t: T<'h>, vars: &[T<'h>], out: &mut Vec<T<'h>>, seen: &mut mc_api::walk::Seen<T<'h>>) {
+    if !seen.insert(t) {
+        return;
+    }
     let h = b.heap();
     let dep = |u: T<'h>| vars.iter().any(|&x| !crate::common::is_free(b, u, x));
     let View::App { head, args } = h.view(t) else { return };
@@ -129,7 +137,7 @@ fn transcendental_calls<'h>(b: &Build<'h>, t: T<'h>, vars: &[T<'h>], out: &mut V
         }
     }
     for &a in args {
-        transcendental_calls(b, a, vars, out);
+        transcendental_calls_in(b, a, vars, out, seen);
     }
 }
 

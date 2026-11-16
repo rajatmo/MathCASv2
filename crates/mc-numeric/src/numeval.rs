@@ -881,9 +881,19 @@ pub fn compare<'h, S: Store + ?Sized>(st: &'h S, ar: &Arith<'h, S>, nm: &Names, 
     let cap = COMPARE_CAP.max(4 * fixed);
     let mut p = 64u64.max(fixed);
     loop {
-        if let (Some(x), Some(y)) = (g.eval_ball(&xa, p), g.eval_ball(&xb, p)) {
-            if let Some(o) = x.cmp3(&y) {
-                return Some(from_ordering(o));
+        match (g.eval_ball(&xa, p), g.eval_ball(&xb, p)) {
+            (Some(x), Some(y)) => {
+                if let Some(o) = x.cmp3(&y) {
+                    return Some(from_ordering(o));
+                }
+            }
+            (x, y) => {
+                // a side with no real value: when its complex value has an imaginary part that excludes 0, no
+                // precision gives a real comparison (refining to the cap only costs time)
+                let not_real = |is: &Island| g.eval_complex(is, p).is_some_and(|z| !z.im.contains_zero());
+                if (x.is_none() && not_real(&xa)) || (y.is_none() && not_real(&xb)) {
+                    return Some(Cmp3::Undecided);
+                }
             }
         }
         if stopped() || 2 * p > cap {

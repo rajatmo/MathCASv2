@@ -1888,6 +1888,20 @@ fn nonreal_point<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: 
 
 /// `f` with every `(u^2)^(1/2)` replaced by `abs(u)` (the reals).
 fn abs_of_root_squares<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>) -> Res<T<'h>> {
+    // shared subterms rewritten once
+    abs_of_root_squares_in(cx, b, f, &mut mc_api::walk::memo())
+}
+
+fn abs_of_root_squares_in<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> Res<T<'h>> {
+    if let Some(&r) = memo.get(&f) {
+        return Ok(r);
+    }
+    let r = abs_of_root_squares_node(cx, b, f, memo)?;
+    memo.insert(f, r);
+    Ok(r)
+}
+
+fn abs_of_root_squares_node<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> Res<T<'h>> {
     let h = b.heap();
     let View::App { head, args } = h.view(f) else { return Ok(f) };
     if b.sym_of(head) == Some(b.hd.pow) {
@@ -1895,7 +1909,7 @@ fn abs_of_root_squares<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h
             if *ex == b.rat(1, 2) {
                 if let View::App { head: bh, args: &[u, two] } = h.view(*base) {
                     if b.sym_of(bh) == Some(b.hd.pow) && two == b.int(2) {
-                        let u = abs_of_root_squares(cx, b, u)?;
+                        let u = abs_of_root_squares_in(cx, b, u, memo)?;
                         return cx.eval(b.call("abs", &[u]));
                     }
                 }
@@ -1905,7 +1919,7 @@ fn abs_of_root_squares<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h
     let mut changed = false;
     let mut v = Vec::with_capacity(args.len());
     for &a in args {
-        let r = abs_of_root_squares(cx, b, a)?;
+        let r = abs_of_root_squares_in(cx, b, a, memo)?;
         changed |= r != a;
         v.push(r);
     }

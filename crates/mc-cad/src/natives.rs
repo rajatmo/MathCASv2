@@ -438,11 +438,29 @@ fn boolean_instances<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, depth: usize) 
 /// A formula `resolve` could not eliminate: itself, with the variables of each quantifier as a list (the
 /// reference's form of an unresolved formula).
 fn unresolved<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>) -> T<'h> {
+    // shared subterms rewritten once
+    let fr = Front::new(cx.heap());
+    unresolved_in(cx, &fr, f, &mut mc_api::walk::memo())
+}
+
+/// The most parts of a conjunction or disjunction flattened by [`unresolved`] (a shared formula flattened would have
+/// exponentially many; past this it stays nested, which is the same formula).
+const MAX_FLAT: usize = 1 << 16;
+
+fn unresolved_in<'h>(cx: &mut NativeCx<'_, '_, 'h>, fr: &Front<'h>, f: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> T<'h> {
+    if let Some(&r) = memo.get(&f) {
+        return r;
+    }
+    let r = unresolved_node(cx, fr, f, memo);
+    memo.insert(f, r);
+    r
+}
+
+fn unresolved_node<'h>(cx: &mut NativeCx<'_, '_, 'h>, fr: &Front<'h>, f: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> T<'h> {
     let h = cx.heap();
     match h.view(f) {
         View::App { head, args } => {
-            let new: Vec<T<'h>> = args.iter().map(|&a| unresolved(cx, a)).collect();
-            let fr = Front::new(h);
+            let new: Vec<T<'h>> = args.iter().map(|&a| unresolved_in(cx, fr, a, memo)).collect();
             let quant = matches!(fr.head(f).map(|x| x.0).as_deref(), Some("exists" | "for_all"));
             let mut new = new;
             if quant && !new.is_empty() && fr.list(new[0]).is_none() {
@@ -456,6 +474,9 @@ fn unresolved<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>) -> T<'h> {
                         Some((n2, inner)) if n2 == name => flat.extend_from_slice(inner),
                         _ => flat.push(a),
                     }
+                }
+                if flat.len() > MAX_FLAT {
+                    return h.app(head, &new);
                 }
                 return h.app(head, &flat);
             }

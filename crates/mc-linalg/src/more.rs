@@ -417,6 +417,9 @@ fn matrix_exp_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
             if let Some(r) = numeric_exp(fx, &m)? {
                 return Ok(Some(to_term(fx, &r)));
             }
+            if let Some(b) = exp_of_log(fx, a[0], &m)? {
+                return Ok(Some(b));
+            }
         }
     }
     if a.len() == 2 {
@@ -430,6 +433,47 @@ fn matrix_exp_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         return Ok(Some(fx.call("dot", &[e, a[1]])));
     }
     matrix_function(fx, f, a[0])
+}
+
+/// The most rows of a matrix of logarithms recognised by [`exp_of_log`].
+const EXP_OF_LOG_ROWS: usize = 6;
+
+/// exp(L) for an exact matrix L of closed numbers with logarithms that is the logarithm of a rational matrix B:
+/// `matrix_exp(matrix_log(b))` is `b`, where interpolating exp at the eigenvalues of L (roots of a polynomial with
+/// logarithms for coefficients) gives a term of millions of leaves. The candidate B is exp(L) at 40 digits with
+/// its entries rationalized; it is the answer only when `matrix_log(B)` is L itself (every logarithm X of B has
+/// exp(X) = B), so the answer is proved by that identity and is never a guess. `None` otherwise.
+fn exp_of_log<'h>(fx: &mut Fx<'_, '_, '_, 'h>, mt: T<'h>, m: &M<'h>) -> R<'h> {
+    if m.len() > EXP_OF_LOG_ROWS || machine_matrix(fx, m) {
+        return Ok(None);
+    }
+    let log = fx.sym("log");
+    if !m.iter().flatten().any(|&e| mc_api::walk::any(fx.h, e, |u| u == log)) {
+        return Ok(None);
+    }
+    let digits = fx.int(40);
+    let approx = fx.eval(fx.call("matrix_exp", &[fx.call("n", &[mt, digits])]))?;
+    let Some(rows) = square(fx, approx) else { return Ok(None) };
+    if rows.len() != m.len() {
+        return Ok(None);
+    }
+    let tol = fx.eval(fx.pow(fx.int(10), fx.int(-20)))?;
+    let mut cand = Vec::with_capacity(rows.len());
+    for row in rows {
+        let mut r = Vec::with_capacity(row.len());
+        for e in row {
+            let q = fx.eval(fx.call("rationalize", &[fx.call("chop", &[e, tol]), tol]))?;
+            match fx.num(q) {
+                Some(v) if v.kind() == Kind::Exact => r.push(q),
+                _ => return Ok(None),
+            }
+        }
+        cand.push(fx.list(&r));
+    }
+    let b = fx.list(&cand);
+    let back = fx.eval(fx.call("matrix_log", &[b]))?;
+    let l = fx.eval(mt)?;
+    Ok((back == l).then_some(b))
 }
 
 fn matrix_log_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {

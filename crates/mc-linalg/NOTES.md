@@ -283,3 +283,9 @@ one. Exact rational and machine matrices keep the native kernels.
   1.0 by construction now (lib/lists.mc).
 - Left: the minimal polynomial of a 30-digit matrix fails (`null_space` of balls cannot certify a rank drop).
   Tests `mc-engine/tests/round46_decisions.rs`.
+## Round 46: exp of a logarithm
+
+`matrix_exp(L)` for an exact L of closed numbers with logarithms (at most 6 rows): the candidate B = exp(L) at 40
+digits, chopped and rationalized at 10^-20, is the answer when `matrix_log(B)` is L itself (exp of any logarithm of
+B is B). `matrix_exp(matrix_log([[1, 2, 0], [0, 3, 1], [1, 0, 2]]))` was a term of 15.3 million leaves (root objects
+with logarithms as coefficients, which `n` left partly unevaluated); it is the matrix now. Otherwise unchanged.

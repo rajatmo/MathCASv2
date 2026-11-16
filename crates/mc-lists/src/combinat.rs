@@ -415,10 +415,17 @@ pub(crate) fn outer<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
 
 /// The leaves of `x` for `outer` (parts with head `head` are opened down to `depth` levels).
 fn leaves<'h>(h: &'h Heap, head: T<'h>, x: T<'h>, depth: usize) -> usize {
-    match h.view(x) {
-        View::App { head: g, args } if g == head && depth > 0 => args.iter().map(|&a| leaves(h, head, a, depth - 1)).sum(),
+    // shared parts counted once each (the count saturates)
+    leaves_in(h, head, x, depth, &mut mc_api::walk::memo())
+}
+
+fn leaves_in<'h>(h: &'h Heap, head: T<'h>, x: T<'h>, depth: usize, memo: &mut mc_api::walk::Memo<(T<'h>, usize), usize>) -> usize {
+    mc_api::walk::cached(memo, (x, depth), |memo| match h.view(x) {
+        View::App { head: g, args } if g == head && depth > 0 => {
+            args.iter().fold(0usize, |n, &a| n.saturating_add(leaves_in(h, head, a, depth - 1, memo)))
+        }
         _ => 1,
-    }
+    })
 }
 
 /// The outer product from argument `k` on, with the leaves chosen so far.
