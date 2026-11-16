@@ -361,3 +361,11 @@ it applies `add`/`mul` now (the closed forms agree). Found and not fixed:
   logarithms of roots as coefficients), which `n` leaves partly unevaluated.
 - `find_instance(x^2 < 2 and x > 1, x, integers)` stays unevaluated (the answer is `[]`).
 - Running the four campaigns in one process is far slower than in four (one long evaluation holds the others).
+## Round 45: equality of sums of logarithms of rationals
+
+`a == b` with exact closed sides whose difference has no sign at 30 digits and is not algebraic: when the expanded
+difference is `q0 + sum c_i log(q_i)` (rationals, positive q_i up to 10^40) it is 0 exactly when q0 and the
+coefficient of every prime are 0 (unique factorisation; a nonzero combination is the logarithm of a rational other
+than 1, irrational). `log(16) == 4 log(2)` and `divisor_sum(27, &(moebius_mu(27/&1) log(&1))) == mangoldt_lambda(27)`
+are true. Tests `tests/round45_general.rs` (also the series, recurrence, divisor-sum and principal-range methods
+of this round in mc-poly, mc-sums, mc-numtheory, mc-calculus).

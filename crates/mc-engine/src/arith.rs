@@ -551,6 +551,80 @@ fn closed_exact<'h>(h: &'h Heap, t: T<'h>) -> bool {
 
 /// The order of two closed exact numeric terms the arithmetic cannot compare (algebraic numbers, root objects):
 /// the sign of `n(a - b, 30)` when that is a nonzero real; an exact zero by `root_reduce(a - b)`.
+/// Is `d` (expanded) exactly the sum `q0 + sum c_i log(q_i)` with rationals `q0`, `c_i` and positive rationals
+/// `q_i` that is 0? Each `log(q_i)` is the sum of `e log(p)` over the prime powers of `q_i`; the logarithms of the
+/// primes are linearly independent over the rationals (`prod p^(c_p) = 1` with rational exponents forces every
+/// `c_p = 0` by unique factorisation), and a nonzero combination is the logarithm of a positive rational other
+/// than 1, which is irrational (indeed transcendental, Lindemann 1882), so the sum is 0 exactly when `q0` and every
+/// prime's coefficient are 0. `false` when `d` is not of this form (or a numerator or denominator is above 10^40).
+fn log_combination_zero<'h>(cx: &mut NativeCx<'_, '_, 'h>, d: T<'h>) -> Res<bool> {
+    use mc_arith::num::Rat;
+    let h = cx.heap();
+    let e = cx.eval(h.call(h.sym("expand"), &[d]))?;
+    let ar = mc_arith::Arith::new(h);
+    let terms: Vec<T<'h>> = match h.view(e) {
+        View::App { head, args } if head == h.sym_term(h.sym(names::ADD)) => args.to_vec(),
+        _ => vec![e],
+    };
+    if terms.len() > 64 {
+        return Ok(false);
+    }
+    let rat = |t: T<'h>| -> Option<Rat> {
+        match ar.num(t) {
+            Some(mc_arith::Num::Real(mc_arith::Real::Exact(q))) => Some(q),
+            _ => None,
+        }
+    };
+    let mut constant = Rat::from_i64(0);
+    let mut coef: Vec<(T<'h>, Rat)> = vec![];
+    let log = h.sym_term(h.sym("log"));
+    for t in terms {
+        if let Some(q) = rat(t) {
+            constant = constant.add(&q);
+            continue;
+        }
+        let factors: Vec<T<'h>> = match h.view(t) {
+            View::App { head, args } if head == h.sym_term(h.sym(names::MUL)) => args.to_vec(),
+            _ => vec![t],
+        };
+        let mut c = Rat::from_i64(1);
+        let mut arg = None;
+        for f in factors {
+            if let Some(q) = rat(f) {
+                c = c.mul(&q);
+                continue;
+            }
+            match h.view(f) {
+                View::App { head, args: &[x] } if head == log && arg.is_none() => arg = Some(x),
+                _ => return Ok(false),
+            }
+        }
+        let Some(x) = arg else { return Ok(false) };
+        let Some(q) = rat(x) else { return Ok(false) };
+        if q.num.neg || q.num.is_zero() || q.num.mag.bits() > 133 || q.den.bits() > 133 {
+            return Ok(false);
+        }
+        for (part, sign) in [(q.num.mag.clone(), 1i64), (q.den.clone(), -1)] {
+            if part.to_u128() == Some(1) {
+                continue;
+            }
+            let pt = ar.number(&mc_arith::Num::rat(Rat::from_int(mc_arith::num::Int::from_nat(part))));
+            let fi = cx.eval(h.call(h.sym("factor_integer"), &[pt]))?;
+            let View::App { args: pairs, .. } = h.view(fi) else { return Ok(false) };
+            for &pe in pairs {
+                let View::App { args: &[p, k], .. } = h.view(pe) else { return Ok(false) };
+                let View::Int(k) = h.view(k) else { return Ok(false) };
+                let add = c.mul(&Rat::from_i64(sign * k));
+                match coef.iter_mut().find(|e| e.0 == p) {
+                    Some(e) => e.1 = e.1.add(&add),
+                    None => coef.push((p, add)),
+                }
+            }
+        }
+    }
+    Ok(constant.is_zero() && coef.iter().all(|e| e.1.is_zero()))
+}
+
 fn exact_sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>) -> Res<Option<Ordering>> {
     let h = cx.heap();
     let number = |t: T<'h>| matches!(h.view(t), View::Int(_) | View::Rational { .. } | View::BigInt { .. });
@@ -602,7 +676,7 @@ fn exact_sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>) -> Res<Opti
     }
     let algebraic = ar.num(z).is_some() || matches!(h.view(z), View::App { head, .. } if head == h.sym_term(h.sym("root")));
     if !algebraic {
-        return Ok(None);
+        return Ok(if log_combination_zero(cx, d)? { Some(Ordering::Equal) } else { None });
     }
     // a nonzero algebraic number: its sign from its own value (a root object isolates its root at any precision)
     let v = cx.eval(h.call(h.sym("n"), &[z, h.int(30)]))?;

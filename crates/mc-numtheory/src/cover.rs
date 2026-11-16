@@ -490,7 +490,13 @@ fn divisor_sum<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         return Ok(Some(fx.list(&out)));
     }
     let Some(v) = int(fx, n) else {
-        if a.len() == 2 && fx.num(n).is_none() {
+        if fx.num(n).is_some() || fx.as_list(n).is_some() {
+            return Ok(None);
+        }
+        if let Some(s) = divisor_sum_squares(fx, n, a[1], a.get(2).copied())? {
+            return Ok(Some(s));
+        }
+        if a.len() == 2 {
             return divisor_sum_symbolic(fx, n, a[1]);
         }
         return Ok(None);
@@ -513,6 +519,103 @@ fn divisor_sum<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     }
     let s = fx.call("add", &terms);
     Ok(Some(if terms.is_empty() { fx.int(0) } else { s }))
+}
+
+/// Jacobi's theorems on sums of squares as divisor sums over a symbolic n (Hardy and Wright, theorems 278 and
+/// 386; E. Grosswald, Representations of Integers as Sums of Squares, ch. 9): r_2(n) = 4 sum_{d | n} chi_4(d),
+/// r_4(n) = 8 sum_{d | n, 4 ∤ d} d, r_8(n) = 16 sum_{d | n} (-1)^(n + d) d^3. The summand f(d) (and the condition
+/// c(d)) is matched by its weights on the residue classes of d modulo 4: with d = 4m + r and m an integer,
+/// f(d)/d^k must simplify to a term free of m, and c(d) to true or false (`is_odd` and `is_even` by the parity of
+/// r; a condition that is already true or false for a symbolic d, such as `is_prime`, is not read). Weights
+/// proportional to those of one of the three theorems give that multiple of `squares_r`.
+fn divisor_sum_squares<'h>(fx: &mut Fx<'_, '_, '_, 'h>, n: T<'h>, f: T<'h>, cond: Option<T<'h>>) -> R<'h> {
+    let m = fx.sym("divisor_sum·m");
+    let assume = fx.call("element", &[m, fx.sym("integers")]);
+    // the condition: None (all), or a decision per residue
+    let parity = cond.and_then(|c| match fx.h.view(c) {
+        mc_api::View::Sym(s) => match fx.h.sym_name(s).as_str() {
+            "is_odd" => Some(1),
+            "is_even" => Some(0),
+            _ => None,
+        },
+        _ => None,
+    });
+    if let (Some(c), None) = (cond, parity) {
+        let probe = fx.eval(fx.h.app(c, &[fx.sym("divisor_sum·d")]))?;
+        if probe == fx.bool(true) || probe == fx.bool(false) {
+            return Ok(None);
+        }
+    }
+    for k in [0i64, 1, 3] {
+        fx.tick(4)?;
+        let mut w = vec![];
+        for r in 1..=4i64 {
+            let d = fx.eval(fx.add(&[fx.mul(&[fx.int(4), m]), fx.int(r)]))?;
+            let included = match (cond, parity) {
+                (None, _) => true,
+                (Some(_), Some(p)) => r % 2 == p,
+                (Some(c), None) => {
+                    let t = fx.eval(fx.h.app(c, &[d]))?;
+                    let t = fx.eval(fx.call("simplify", &[t, assume]))?;
+                    if t == fx.bool(true) {
+                        true
+                    } else if t == fx.bool(false) {
+                        false
+                    } else {
+                        return Ok(None);
+                    }
+                }
+            };
+            if !included {
+                w.push(fx.int(0));
+                continue;
+            }
+            let body = fx.eval(fx.h.app(f, &[d]))?;
+            let q = fx.div(body, fx.pow(d, fx.int(k)));
+            let q = fx.eval(fx.call("simplify", &[q, assume]))?;
+            if fx.contains(q, "divisor_sum·m") || fx.contains(q, "failure") {
+                w.push(fx.sym("divisor_sum·none"));
+            } else {
+                w.push(q);
+            }
+        }
+        if w.iter().any(|&x| x == fx.sym("divisor_sum·none")) {
+            continue;
+        }
+        let (w1, w2, w3, w4) = (w[0], w[1], w[2], w[3]);
+        // the combinations that must vanish (and the weight that must not) for each theorem
+        let (must, lead) = match k {
+            0 => (vec![w2, w4, fx.add(&[w1, w3])], w1),
+            1 => (vec![w4, fx.sub(w1, w2), fx.sub(w1, w3)], w1),
+            _ => (vec![fx.add(&[w1, w2]), fx.add(&[w3, w2]), fx.sub(w4, w2)], w2),
+        };
+        let mut fits = true;
+        for t in must {
+            let s = fx.eval(fx.call("simplify", &[t]))?;
+            if s != fx.int(0) {
+                fits = false;
+                break;
+            }
+        }
+        let lead_s = fx.eval(fx.call("simplify", &[lead]))?;
+        if !fits || lead_s == fx.int(0) {
+            continue;
+        }
+        let value = match k {
+            // weights t chi_4(d): the sum is t r_2(n)/4
+            0 => fx.div(fx.mul(&[w1, fx.call("squares_r", &[fx.int(2), n])]), fx.int(4)),
+            // weight t on the residues 1, 2, 3 and 0 on 0: t r_4(n)/8
+            1 => fx.div(fx.mul(&[w1, fx.call("squares_r", &[fx.int(4), n])]), fx.int(8)),
+            // weights t (-1)^d: t (-1)^n r_8(n)/16
+            _ => {
+                let sgn = fx.pow(fx.int(-1), n);
+                fx.div(fx.mul(&[w2, sgn, fx.call("squares_r", &[fx.int(8), n])]), fx.int(16))
+            }
+        };
+        let int_n = fx.call("element", &[n, fx.sym("integers")]);
+        return Ok(Some(fx.eval(fx.call("simplify", &[value, int_n]))?));
+    }
+    Ok(None)
 }
 
 /// The sum of f(d) over the divisors d of a symbolic n, term by term (f(d) a sum of constant multiples of known

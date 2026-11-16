@@ -1832,3 +1832,17 @@ closed form, for one) can prove monotonicity in a. Checked against central diffe
   near 0 (midpoint near 2^-(10^12)) asked for 180 GB in the exact alignment and ended the process
   (`function_injective(erf(1/x), x)`).
 - Found by the property and precision generators of `mc-engine/tests/round44_soundness.rs`.
+
+## Round 45: hyperharmonic derivatives, principal ranges, generating functions of squares_r
+
+- `d(hyper_harmonic_number(r, m), m) = H (psi(m + r) - psi(m + 1)) + G psi'(m + r)`, `G = gamma(m + r)/(gamma(m + 1)
+  gamma(r))`, from the gamma form `function_expand` gives; `hyper_harmonic_number(r, 0)` is 0 (the empty running sum;
+  also the gamma form for r not an integer <= 0). `series(hyper_harmonic_number(p, n), n, 0, 2)` is
+  `psi'(p) n + (...) n^2`.
+- `function_range(f(z), z, y, complexes)` for acos, asin, acosh, asech, asinh, acsch, atanh, acoth of the variable
+  itself (lib/calculus.mc, `calc_principal_range`): the strip of the principal branch with the parts of its edges the
+  closure of the cuts reaches (DLMF 4.23, 4.37). Checked in `mc-engine/tests/round45_general.rs` against f(g(y)) = y
+  for the forward function g on a grid that includes the edges.
+- `generating_function(squares_r(k, n), n, x) = elliptic_theta(3, 0, x)^k` and the Z transform at 1/z (Hardy and
+  Wright 20.13).
+- Gap: `pi < pi` stays unevaluated (the order of equal exact constants is not decided by `less`).

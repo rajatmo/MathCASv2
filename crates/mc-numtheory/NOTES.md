@@ -236,3 +236,12 @@ non-power rejected in 0.9 s.
 - `continued_fraction((1 + sqrt(5))/2)` stayed unevaluated: the canonical form is `(1/2)*(1 + 5^(1/2))`, a product,
   which the reader of quadratic irrationals did not take. A rational multiple of a sum is now read too (gives
   `[[1]]`; `(1 + sqrt(7))/3` gives `[[1, 4, 1, 1]]`).
+## Round 45: Jacobi's sums of squares as divisor sums
+
+`divisor_sum(n, f)` and `divisor_sum(n, f, c)` for a symbolic n: the summand is read by its weights on the residue
+classes of d modulo 4 (d = 4m + r, f(d)/d^k simplified with m an integer must be free of m; c decided per class,
+`is_odd`/`is_even` by parity, a predicate that is already true or false for a symbol is not read). Weights
+proportional to those of r_2 = 4 sum chi_4(d), r_4 = 8 sum_{4 ∤ d} d, r_8 = 16 sum (-1)^(n + d) d^3 (Hardy and
+Wright, theorems 278 and 386; Grosswald ch. 9) give that multiple of `squares_r`. Checked against the divisor sums
+at n = 1..60. `refine` now drops even integer multiples from the exponent of `(-1)^k` whatever the rest is
+(`(-1)^(n + 4m + 1)` is `(-1)^(n + 1)` for an integer m), which the weights need.

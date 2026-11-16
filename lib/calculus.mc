@@ -124,6 +124,8 @@ rule alternating_factorial(m_) := e*gamma(m + 2)*gamma(-m - 1, 1) - cos(pi*m)*(1
 # H(0, m) = 1/m^s
 rule hyper_harmonic_number(r_, m_) := (if r == 0 then 1/m else binomial(m + r - 1, r - 1)*(harmonic_number(m + r - 1) - harmonic_number(r - 1))) when calc_count(r) and calc_count(m) and not (r == 0 and m == 0)
 rule hyper_harmonic_number(r_, m_) := gamma(m + r)/(gamma(m + 1)*gamma(r))*(digamma(m + r) - digamma(r)) when calc_inexact([r, m])
+# the empty running sum: H(r, 0) = 0 (also the value of the gamma form for r not an integer <= 0)
+rule hyper_harmonic_number(r_, m_) := 0 when m === 0 and not (is_integer(r) and r <= 0) and not calc_inexact([r])
 rule hyper_harmonic_number(r_, m_, s_) := harmonic_number(m, s) when r === 1
 rule hyper_harmonic_number(r_, m_, s_) := {
   var c = map(k => 1/k^s, range(m))
@@ -2925,6 +2927,29 @@ rule series(f_, s1_, s2_, s3_) := calc_series_multi(f, [s1, s2, s3]) when is_lis
 # function_range of an integer step of the variable itself (round 44): floor, ceiling, round and integer_part of x
 # take only integer values, and every integer k (at x = k)
 rule function_range(f_, x_, y_) := element(y, integers) when is_symbol(x) and is_symbol(y) and not (x === y) and (f === floor(x) or f === ceiling(x) or f === round(x) or f === integer_part(x))
+
+# function_range(f(z), z, y, complexes) of an inverse circular or hyperbolic function of the variable itself: the
+# image of its principal branch, a strip with the parts of its edges that the closure of the branch cuts reaches
+# (the cuts and their sides as in DLMF 4.23 and 4.37: counter-clockwise continuity). With a = re(y), b = im_part(y):
+fn calc_principal_range(f, y) = {
+  let a = re(y)
+  let b = im_part(y)
+  let h = pi/2
+  if f === acos then a == 0 and b >= 0 or 0 < a and a < pi or a == pi and b <= 0
+  else if f === asin then a == -h and b >= 0 or -h < a and a < h or a == h and b <= 0
+  else if f === acosh then a == 0 and 0 <= b and b <= pi or a > 0 and -pi < b and b <= pi
+  else if f === asech then a == 0 and (0 <= b and b < h or h < b and b <= pi) or a > 0 and -pi < b and b <= pi
+  else if f === asinh then a < 0 and -h <= b and b < h or a == 0 and -h <= b and b <= h or a > 0 and -h < b and b <= h
+  else if f === acsch then a < 0 and -h <= b and b < h or a == 0 and (-h <= b and b < 0 or 0 < b and b <= h) or a > 0 and -h < b and b <= h
+  else if f === atanh then a < 0 and -h < b and b <= h or a == 0 and -h < b and b < h or a > 0 and -h <= b and b < h
+  else if f === acoth then a < 0 and -h < b and b <= h or a == 0 and (-h < b and b < 0 or 0 < b and b <= h) or a > 0 and -h <= b and b < h
+  else null
+}
+# the generating function of the numbers of representations as sums of k squares: theta_3(0, x)^k, the k-th power
+# of sum x^(m^2) over the integers m (Hardy and Wright 20.13); the Z transform is its value at 1/z
+rule generating_function(f_, n_, x_) := elliptic_theta(3, 0, x)^f[1] when head(f) === squares_r and length(f) == 2 and f[2] === n and is_symbol(n) and is_integer(f[1]) and f[1] >= 1
+rule z_transform(f_, n_, z_) := elliptic_theta(3, 0, 1/z)^f[1] when head(f) === squares_r and length(f) == 2 and f[2] === n and is_symbol(n) and is_integer(f[1]) and f[1] >= 1
+rule function_range(f_, z_, y_, complexes) := calc_principal_range(head(f), y) when is_symbol(z) and is_symbol(y) and not (z === y) and length(f) == 1 and f[1] === z and not (calc_principal_range(head(f), y) === null)
 
 # --- integrals over regions given by boole or piecewise ---
 

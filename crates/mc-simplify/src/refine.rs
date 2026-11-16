@@ -538,12 +538,11 @@ fn negate<'h>(b: &B<'h>, u: T<'h>) -> T<'h> {
 }
 
 /// The exponent `k` of `(-1)^k` with the even part of each integer term dropped (`3*n + 4` becomes `n` for an
-/// integer `n`), when that changes it.
+/// integer `n`), when that changes it. The other terms of `k` need not be integers: `(-1)^(a + 2 t) = (-1)^a` for
+/// an integer `t` and every complex `a` (the principal power is `exp(i pi k)`), so `(-1)^(n + 4 m + 1)` is
+/// `(-1)^(n + 1)` for an integer `m` whatever `n` is.
 fn even_part_dropped<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, k: T<'h>) -> Res<Option<T<'h>>> {
     let h = b.heap();
-    if f.info(cx, k)?.kind != Kind::Integer {
-        return Ok(None);
-    }
     let two = b.int(2);
     let mut out = Vec::new();
     let mut changed = false;

@@ -79,6 +79,9 @@ const FORMULA: &[&str] = &[
     // arguments); the rules are checked by central differences at 30 digits in
     // crates/mc-engine/tests/round42_balls.rs
     "log_barnes_g", "factorial2", "binomial", "catalan_number", "whittaker_m", "whittaker_w",
+    // the same (a formula for inexact arguments); both partials are checked by central differences at 40 digits in
+    // crates/mc-engine/tests/round45_general.rs
+    "hyper_harmonic_number",
 ];
 
 #[test]

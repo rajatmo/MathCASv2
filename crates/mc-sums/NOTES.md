@@ -335,3 +335,20 @@ differences and ratios, generating functions and convergence, interruption.
   when 1 - z is not 0 (Gasper and Rahman, Basic Hypergeometric Series, section 1.2). With `generate_conditions: true`
   an infinite product in q-Pochhammer symbols of one base Q gets |Q| < 1 unless the assumptions imply it.
   Checked against the factors multiplied out (200 terms at 30 digits). Tests: `mc-engine/tests/round44_calculus.rs`.
+
+## Round 45: k-step products, classical three-term recurrences, quadratic maps
+
+`rclassic.rs` (literature in its module doc):
+- `y(n + k) = r(n) y(n)` with r a constant times `q^(alpha n)` times rational linear factors: `P(n) = C^(n/k)
+  q^(alpha n (n - k)/(2k)) prod (k^(n/k) gamma((n + a_j)/k))^(e_j)` normalised to `P(0) = 1`, the basis
+  `omega^(j n) P(n)`. Powers of an integer base in the normalising constant go into that base's exponent
+  (`2^(2 + n/2)`). Hyper does not see these solutions (their ratio is not rational); tried after Hyper.
+- Second-order recurrences gauge-equivalent to those of Chebyshev T/U, Legendre P/Q, Bessel J/Y, modified Bessel
+  I/(-1)^n K and K/(-1)^n I: the invariant `p0(n + 1) p2(n)/(p1(n) p1(n + 1))` gives `w^2`; `w` by `power_expand`
+  of the square root; the gauge `rho` and the identity `lambda p2 rho(n) rho(n + 1) = q2` checked exactly; a real
+  `w` preferred (a match through `J_n(i x)` only when nothing else fits). The gauge factor is the product of rho.
+- First-order quadratic recurrences: `u = alpha y + beta/2` gives `u(n + 1) = u(n)^2 + c`; closed forms for c = 0
+  (`exp(C 2^n)`, with an initial value `u0^(2^(n - k))` written as prime powers so that `2^(2 2^n)` is
+  `2^(2^(1 + n))`) and c = -2 (`2 cos(C 2^n)`); every solution substituted back at four integers.
+- Left: `a(n + 2) + (2n + 1) a(n + 1) + n^2 a(n) = 0` (one hypergeometric solution; the second by reduction of order
+  is not built), Möbius recurrences, systems, Casoratians with their normalisation.

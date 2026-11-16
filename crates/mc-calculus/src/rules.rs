@@ -84,6 +84,30 @@ pub(crate) fn opaque_partial<'h>(b: &Build<'h>, f: &str, a: &[T<'h>], i: usize) 
     b.app(b.derivative(&orders, f), a)
 }
 
+/// d/dm of the hyperharmonic number H(r, m) = G (psi(m + r) - psi(r)), G = Gamma(m + r)/(Gamma(m + 1) Gamma(r))
+/// (Conway and Guy, The Book of Numbers, p. 258; the continuation in m that `function_expand` gives): with
+/// dG/dm = G (psi(m + r) - psi(m + 1)), dH/dm = H (psi(m + r) - psi(m + 1)) + G psi'(m + r).
+fn hyper_harmonic_m_partial<'h>(b: &Build<'h>, r: T<'h>, m: T<'h>) -> T<'h> {
+    let mr = b.add(&[m, r]);
+    let m1 = b.add(&[m, b.one()]);
+    let g = b.div(b.call("gamma", &[mr]), b.mul(&[b.call("gamma", &[m1]), b.call("gamma", &[r])]));
+    let hh = b.call("hyper_harmonic_number", &[r, m]);
+    let psi = b.sub(b.call("digamma", &[mr]), b.call("digamma", &[m1]));
+    b.add(&[b.mul(&[hh, psi]), b.mul(&[g, b.call("polygamma", &[b.one(), mr])])])
+}
+
+/// d/dr of the hyperharmonic number: dG/dr = G (psi(m + r) - psi(r)) = H, so dH/dr = H (psi(m + r) - psi(r)) +
+/// G (psi'(m + r) - psi'(r)).
+fn hyper_harmonic_r_partial<'h>(b: &Build<'h>, r: T<'h>, m: T<'h>) -> T<'h> {
+    let mr = b.add(&[m, r]);
+    let m1 = b.add(&[m, b.one()]);
+    let g = b.div(b.call("gamma", &[mr]), b.mul(&[b.call("gamma", &[m1]), b.call("gamma", &[r])]));
+    let hh = b.call("hyper_harmonic_number", &[r, m]);
+    let psi = b.sub(b.call("digamma", &[mr]), b.call("digamma", &[r]));
+    let tri = b.sub(b.call("polygamma", &[b.one(), mr]), b.call("polygamma", &[b.one(), r]));
+    b.add(&[b.mul(&[hh, psi]), b.mul(&[g, tri])])
+}
+
 /// d/da of the upper incomplete gamma function: from gamma(a, z) = sum (-1)^k z^(a+k)/(k! (a + k)) (DLMF 8.7.1)
 /// differentiated term by term, d/da Gamma(a, z) = Gamma(a) psi(a) - log(z) (Gamma(a) - Gamma(a, z)) +
 /// z^a/a^2 2F2(a, a; a + 1, a + 1; -z) (the series sum (-z)^k/(k! (a + k)^2) = a^-2 2F2(...); K. O. Geddes, M. L.
@@ -992,6 +1016,11 @@ pub const RULES: &[(&str, usize, Rule)] = &[
     ("fresnel_s", 1, Rule::Partials(&[|b, a| fresnel(b, "sin", a[0])])),
     ("fresnel_c", 1, Rule::Partials(&[|b, a| fresnel(b, "cos", a[0])])),
     ("harmonic_number", 1, Rule::Partials(&[|b, a| b.call("polygamma", &[b.one(), b.add(&[a[0], b.one()])])])),
+    (
+        "hyper_harmonic_number",
+        2,
+        Rule::Partials(&[|b, a| hyper_harmonic_r_partial(b, a[0], a[1]), |b, a| hyper_harmonic_m_partial(b, a[0], a[1])]),
+    ),
     (
         "surd",
         2,

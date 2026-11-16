@@ -641,3 +641,7 @@ of `mc-engine/tests/round45_soundness.rs`, which compares input and result at ex
 constant factors are now written as powers of primes and of pi, `(2 pi)^((1 - m)/2) m^(c - 1/2)` as `2^((1 - m)/2)
 pi^((1 - m)/2)` times `p^(j (c - 1/2))` for each prime power `p^j` of `m`, which the arithmetic combines exactly;
 the formal step is gone. The duplication and triplication identities and the Catalan example still prove 0.
+## Round 45: powers of -1
+
+`(-1)^k` drops the even part of each integer term of k even when the rest of k is not an integer: `(-1)^(a + 2t) =
+(-1)^a` for an integer t and any complex a (principal power `exp(i pi k)`). Used by the divisor sums of mc-numtheory.

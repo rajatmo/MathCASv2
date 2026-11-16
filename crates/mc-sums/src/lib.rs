@@ -10,7 +10,9 @@
 //! - [`prod`]: products of rational functions through `pochhammer` and `gamma`, Euler's reflection formula;
 //! - [`sumfn`]: the closed forms of definite, indefinite and infinite sums; [`verify`]: their checks;
 //! - [`numsum`]: numeric sums and products;
-//! - [`rsolve`]: `r_solve` and `r_solve_value` for linear recurrences with polynomial coefficients.
+//! - [`rsolve`]: `r_solve` and `r_solve_value` for linear recurrences with polynomial coefficients;
+//! - [`rclassic`]: recurrences `y(n + k) = r(n) y(n)`, second-order recurrences gauge-equivalent to those of the
+//!   classical functions, and the quadratic maps with closed-form orbits.
 //!
 //! The crate wraps the list library's `sum` and `product` and the calculus crate's `r_solve` (installed
 //! after them): the inner natives keep their fast paths, and the methods here run when they decline.
@@ -30,6 +32,7 @@ pub mod hyper;
 pub mod nested;
 pub mod numsum;
 pub mod prod;
+pub mod rclassic;
 pub mod recur;
 pub mod rf;
 pub mod rsolve;

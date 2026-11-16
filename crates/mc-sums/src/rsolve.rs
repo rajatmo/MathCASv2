@@ -177,7 +177,10 @@ pub fn r_solve<'h>(
     if let Target::Points(pts) = tgt {
         return iterate(sx, &p, a, n, pts);
     }
-    let sols = some!(general(sx, &p, a, n, gen, m)?);
+    let sols = match general(sx, &p, a, n, gen, m)? {
+        Some(s) => s,
+        None => some!(quadratic(sx, &p, n, gen)?),
+    };
     let mut out = vec![];
     for s in sols {
         let v = match tgt {
@@ -570,7 +573,13 @@ fn general<'h>(sx: &mut Sx<'_, '_, '_, 'h>, p: &Problem<'h>, a: T<'h>, n: T<'h>,
         }
         b
     } else {
-        some!(hyper_basis(sx, &ps, n, order as usize, m)?)
+        match hyper_basis(sx, &ps, n, order as usize, m)? {
+            Some(b) => b,
+            None => match crate::rclassic::kstep_basis(sx, &ps, n)? {
+                Some(b) => b,
+                None => some!(crate::rclassic::classical_basis(sx, &ps, n)?),
+            },
+        }
     };
     if basis.len() != order as usize {
         return Ok(None);
@@ -636,6 +645,79 @@ fn general<'h>(sx: &mut Sx<'_, '_, '_, 'h>, p: &Problem<'h>, a: T<'h>, n: T<'h>,
         }
     }
     Ok(Some(sols))
+}
+
+/// A first-order quadratic recurrence `c1 y(n + 1) + k2 y(n)^2 + k1 y(n) + k0 = 0` (coefficients free of `n`) with
+/// an orbit in closed form ([`crate::rclassic::quadratic_orbit`]), checked by substitution at several integers.
+fn quadratic<'h>(sx: &mut Sx<'_, '_, '_, 'h>, p: &Problem<'h>, n: T<'h>, gen: Option<T<'h>>) -> Res<Option<Vec<T<'h>>>> {
+    let lo = p.shifts.iter().map(|s| s.0).min().unwrap_or(0);
+    let hi = p.shifts.iter().map(|s| s.0).max().unwrap_or(0);
+    if hi - lo != 1 || p.inits.len() > 1 {
+        return Ok(None);
+    }
+    let ys = [sx.sym("rsolve$q0"), sx.sym("rsolve$q1")];
+    let pairs: Vec<(T<'h>, T<'h>)> = p.shifts.iter().map(|&(s, t)| (t, ys[(s - lo) as usize])).collect();
+    let d = replace(sx, p.diff, &pairs);
+    let d = sx.ev("expand", &[d])?;
+    let c1 = sx.ev("d", &[d, ys[1]])?;
+    if c1 == sx.int(0) || !sx.free(c1, ys[0]) || !sx.free(c1, ys[1]) || !sx.free(c1, n) {
+        return Ok(None);
+    }
+    let lin = sx.mul(&[c1, ys[1]])?;
+    let rest = sx.sub(d, lin)?;
+    let rest = sx.ev("expand", &[rest])?;
+    if !sx.free(rest, ys[1]) || !sx.free(rest, n) {
+        return Ok(None);
+    }
+    let mut k = vec![];
+    for e in 0..=2 {
+        k.push(sx.ev("coefficient", &[rest, ys[0], sx.int(e)])?);
+    }
+    let sq = sx.pow(ys[0], sx.int(2))?;
+    let back = sx.mul(&[k[2], sq])?;
+    let back1 = sx.mul(&[k[1], ys[0]])?;
+    let back = sx.add(&[back, back1, k[0]])?;
+    let chk = sx.sub(rest, back)?;
+    let chk = sx.ev("expand", &[chk])?;
+    if chk != sx.int(0) || k[2] == sx.int(0) || k.iter().any(|&c| !sx.free(c, ys[0])) {
+        return Ok(None);
+    }
+    // y(n + 1) = alpha y(n)^2 + beta y(n) + gamma
+    let mut coef = [k[2], k[1], k[0]];
+    for c in coef.iter_mut() {
+        let q = sx.div(*c, c1)?;
+        *c = sx.mul(&[sx.int(-1), q])?;
+    }
+    let cst = match gen {
+        Some(g) => sx.h().app(g, &[sx.int(1)]),
+        None => sx.call("c", &[sx.int(1)]),
+    };
+    let init = p.inits.first().copied();
+    let Some(y) = crate::rclassic::quadratic_orbit(sx, coef, n, init, cst)? else { return Ok(None) };
+    // substitution at integers (the constant a rational number)
+    let third = sx.div(sx.int(1), sx.int(3))?;
+    let yc = sx.subst(y, cst, third)?;
+    let zero = sx.int(0);
+    let start: i64 = init.and_then(|(k0, _)| sx.as_int(k0)).unwrap_or_default();
+    let mut agreed = 0;
+    for nv in start..start + 4 {
+        sx.cx.tick(1)?;
+        let a0 = sx.subst(yc, n, sx.int(nv))?;
+        let a1 = sx.subst(yc, n, sx.int(nv + 1))?;
+        let r = sx.subst_all(d, &[sx.rule(ys[0], a0), sx.rule(ys[1], a1)])?;
+        match verify::equal(sx, r, zero)? {
+            Some(true) => agreed += 1,
+            Some(false) => return Ok(None),
+            None => {}
+        }
+    }
+    if let Some((k0, v)) = init {
+        let at = sx.subst(y, n, k0)?;
+        if verify::equal(sx, at, v)? != Some(true) {
+            return Ok(None);
+        }
+    }
+    Ok(if agreed >= 2 { Some(vec![y]) } else { None })
 }
 
 /// A basis of hypergeometric solutions by Hyper (all `order` of them, else `None`).

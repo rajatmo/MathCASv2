@@ -1153,6 +1153,24 @@ pub(crate) fn series_native<'h>(env: &Env<'h>, args: &[T<'h>], taylor: &TaylorTa
                 // a Puiseux series at a real point with complex coefficients: the function is real on the other
                 // side (asin at 1), whose real expansion in powers of (x0 - x) is the one given (item 13C)
                 let side = taylor.get(x).filter(|t| t.subst.is_none() && t.c.is_empty()).and_then(|t| env.int(t.u0));
+                if den == 1 && inf == 0 && side == Some(-1) {
+                    // x < x0 assumed: the expansion in the positive variable x0 - x, whose powers and logarithms
+                    // are the principal ones on that side (asinh(1/x) = log(-x) - log(2) + ... for x < 0; the
+                    // expansion in x - x0 takes (x^-2)^(1/2) as x^-1)
+                    let mut d2 = 1i64;
+                    let r = loop {
+                        let r2 = Request { x: *x, x0: *x0, order_x: n + 1, den: d2, inf, taylor, logx: None, reflect: true };
+                        match attempt_raw(env, &r2, *e, m) {
+                            Err(SErr::Ramify(d)) if d > 1 && d2 * d <= MAX_DEN => d2 *= d,
+                            other => break (other, d2),
+                        }
+                    };
+                    if let (Ok((cs2, v2, p2, ag2)), 1) = r {
+                        let r2 = Request { x: *x, x0: *x0, order_x: n + 1, den: 1, inf, taylor, logx: None, reflect: true };
+                        return Ok(result_term(env, &r2, cs2, v2, p2, ag2));
+                    }
+                    return Ok(Out::Decline);
+                }
                 if den == 2 && side == Some(-1) {
                     // x < x0 assumed: the expansion from below, written in powers of (x - x0)^(1/2) with
                     // (x0 - x)^(k/2) = (-i)^k (x - x0)^(k/2) (principal values)
@@ -1442,7 +1460,14 @@ fn gcd_i64(a: i64, b: i64) -> i64 {
 /// log(t) in terms of x: log(x - x0)/den, or log(±1/x)/den at an infinity.
 fn log_t<'h>(env: &Env<'h>, req: &Request<'h, '_>) -> T<'h> {
     let h = env.h();
-    let inner = if req.inf != 0 { env.ar.pow(env.ar.mul(&[h.int(req.inf), req.x]), h.int(-1)) } else { env.ar.sub(req.x, req.x0) };
+    let inner = if req.inf != 0 {
+        env.ar.pow(env.ar.mul(&[h.int(req.inf), req.x]), h.int(-1))
+    } else if req.reflect {
+        // the expansion variable is t = x0 - x
+        env.ar.sub(req.x0, req.x)
+    } else {
+        env.ar.sub(req.x, req.x0)
+    };
     let l = h.call(h.sym("log"), &[inner]);
     env.ar.mul(&[env.ar.rational(h.int(1), h.int(req.den)), l])
 }
@@ -1452,6 +1477,8 @@ fn log_neg_t<'h>(env: &Env<'h>, req: &Request<'h, '_>) -> T<'h> {
     let h = env.h();
     let inner = if req.inf != 0 {
         env.ar.neg(env.ar.pow(env.ar.mul(&[h.int(req.inf), req.x]), h.int(-1)))
+    } else if req.reflect {
+        env.ar.sub(req.x, req.x0)
     } else {
         env.ar.sub(req.x0, req.x)
     };
@@ -1788,6 +1815,41 @@ fn finite_value<'h>(h: &'h Heap, v: T<'h>) -> bool {
     true
 }
 
+/// Has `arg` a pole at `x0` (its value `u0` there an infinity, or 1/arg equal to 0 at x0)?
+fn pole_at<'h>(cx: &mut mc_eval::NativeCx<'_, '_, 'h>, arg: T<'h>, u0: T<'h>, x: T<'h>, x0: T<'h>) -> mc_eval::Res<bool> {
+    let h = cx.heap();
+    if is_infinite_value(h, u0) {
+        return Ok(true);
+    }
+    let inv = h.call(h.sym("pow"), &[arg, h.int(-1)]);
+    let inv = cx.eval(h.call(h.sym("together"), &[inv]))?;
+    let rule = h.call(h.sym(mc_api::names::RULE), &[x, x0]);
+    let v = cx.eval(h.call(h.sym("rewrite"), &[inv, rule]))?;
+    Ok(v == h.int(0))
+}
+
+/// Is `v` an infinity: `inf`, `complex_infinity` or a multiple `c inf` with a nonzero number c?
+fn is_infinite_value<'h>(h: &'h Heap, v: T<'h>) -> bool {
+    let mut infinities = 0;
+    let mut stack = vec![v];
+    while let Some(u) = stack.pop() {
+        match h.view(u) {
+            View::Sym(s) => match h.sym_name(s).as_str() {
+                "inf" | "complex_infinity" => infinities += 1,
+                "mul" | "complex" => {}
+                _ => return false,
+            },
+            View::Real(r) if !r.is_finite() => return false,
+            View::App { head, args } => {
+                stack.push(head);
+                stack.extend(args.iter().copied());
+            }
+            _ => {}
+        }
+    }
+    infinities == 1
+}
+
 /// The Taylor table of `series(e, x, x0, n)`: for every call `f(..., u, ...)` in `e` whose head the series kernels do
 /// not know and in which exactly one argument `u` mentions `x`, the coefficients f^(k)(u0)/k!, k = 0..n+3, with u0
 /// the value of `u` at `x0` (finite points only), by differentiating with the evaluator. Coefficients stop at the
@@ -1918,6 +1980,15 @@ fn taylor_table_with<'h>(
         }
         let u0 = cx.eval(h.call(h.sym("rewrite"), &[arg, rule(*x, *x0)]))?;
         if !finite_value(h, u0) {
+            // an inverse hyperbolic function whose argument has a pole at x0 (asinh(1/x) at 0): its logarithmic
+            // form, which holds on the principal branches everywhere
+            if all && fargs.len() == 1 && log_form(h, &h.sym_name(fs), arg).is_some() && pole_at(cx, arg, u0, *x, *x0)? {
+                if let Some(sub) = log_form(h, &h.sym_name(fs), arg) {
+                    side_marker(cx, &mut table, *x, *x0)?;
+                    stack.push((sub, want));
+                    table.insert(t, Taylor { arg, u0: h.int(0), c: vec![], subst: Some(sub) });
+                }
+            }
             continue;
         }
         // a step function whose argument sits on a jump at x0: constant on each side, so a series only for a side
@@ -2266,6 +2337,13 @@ fn singular_form<'h>(h: &'h Heap, f: &str, args: &[T<'h>], i: usize, u0: T<'h>) 
         }
         // the branch points of atanh and acosh: their logarithmic forms
         ("atanh" | "acosh", 1, View::Int(1 | -1)) => log_form(h, f, u),
+        // the reciprocal inverse hyperbolic functions at their singular points (0 and the branch points of the
+        // function of 1/u): acsch(u) = asinh(1/u), asech(u) = acosh(1/u), acoth(u) = atanh(1/u), which hold on the
+        // principal branches in the whole plane (DLMF 4.37.7 to 4.37.9)
+        // (the branch points ±i of acsch are left: a series there in powers of (x -+ i)^(1/2) holds in a sector only)
+        ("acsch", 1, View::Int(0)) => Some(call("asinh", &[ar.pow(u, h.int(-1))])),
+        ("asech", 1, View::Int(-1..=1)) => Some(call("acosh", &[ar.pow(u, h.int(-1))])),
+        ("acoth", 1, View::Int(-1..=1)) => Some(call("atanh", &[ar.pow(u, h.int(-1))])),
         _ => None,
     }
 }

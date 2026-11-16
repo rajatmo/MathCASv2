@@ -424,3 +424,19 @@ factor by factor and stay products.
   only (on the left the function is 1 + x). `periodic_jump` treats their jumps (integers, multiples of 1/2,
   multiples of m) like those of the step functions: a series only for a side given by the assumptions, none
   otherwise. Found by the series generator of `mc-engine/tests/round44_soundness.rs`.
+
+## Round 45: series at the singular points of the reciprocal inverse hyperbolic functions
+
+- `acsch(u)` at u0 = 0, `asech(u)` and `acoth(u)` at u0 = 0, ±1 are expanded as `asinh(1/u)`, `acosh(1/u)`,
+  `atanh(1/u)` (DLMF 4.37.7 to 4.37.9, true on the principal branches in the whole plane; checked numerically on and
+  off the cuts). An inverse hyperbolic function whose argument has a pole at x0 (u0 infinite, or 1/u equal to 0 at
+  x0) is expanded through its logarithmic form, as at infinity. `series(acsch(x), x, 0, 10, assumptions: x > 0)`
+  is `log(2) - log(x) + x^2/4 - ...`.
+- Under an assumption `x < x0` (the side marker of a singular or logarithmic form) a series without ramification
+  is the expansion in the positive variable t = x0 - x (`reflect`), with `log(t)` read as `log(x0 - x)`:
+  `series(asinh(1/x), x, 0, 4, assumptions: x < 0)` is `log(-x) - log(2) - x^2/4 + ...` (the expansion in x - x0
+  took `(x^-2)^(1/2)` as `x^-1` and gave the x > 0 series with log(x) complex). `log_t` and `log_neg_t` swap under
+  `reflect` (they ignored it).
+- Left: the branch points ±i of acsch (and of asinh): a series there in powers of (x -+ i)^(1/2) holds in a sector
+  only; `sqrt(1/x^2 + 1)` under `x < 0` without a singular form in the term still gives the x > 0 expansion (the
+  side marker is set only by singular and logarithmic forms).
