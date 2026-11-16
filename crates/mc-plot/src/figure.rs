@@ -691,6 +691,34 @@ pub(crate) fn between(a: &[(f64, Option<f64>)], c: &[(f64, Option<f64>)], window
     out
 }
 
+/// The ticks of one axis from `lo` to `hi` (axis coordinates) as a plot draws them, and the grid lines
+/// `grid_lines: automatic` gives it: automatic on a linear axis (no grid lines on a linear axis of a plot with axes
+/// through the origin), the powers of ten with their minor steps on a logarithmic one. `show` works them out again
+/// for the range of the combined picture ([`crate::reaxis`]).
+pub(crate) fn axis_marks<'h>(h: &'h Heap, lo: f64, hi: f64, ax: Axis, origin_axes: bool) -> (T<'h>, T<'h>) {
+    let b = B { h };
+    match axis(lo, hi, ax) {
+        None => (b.sym("automatic"), b.sym(if origin_axes { "none" } else { "automatic" })),
+        Some((major, minor)) => {
+            let none = b.sym("none");
+            let marks = major
+                .iter()
+                .map(|(u, l)| b.list(&[h.real(*u), b.label(l)]))
+                .chain(minor.iter().map(|&u| b.list(&[h.real(u), none, h.real(0.5)])));
+            let ticks = b.list(&marks.collect::<Vec<_>>());
+            // grid lines without a colour of their own (the graphic's grid colour, 0.9 gray; the minor ones at
+            // half opacity, 0.95 on white), so a front end draws them in its theme (round nb-svg)
+            let half = b.call("opacity", &[h.real(0.5)]);
+            let lines: Vec<T<'h>> = minor
+                .iter()
+                .map(|&u| b.list(&[h.real(u), half]))
+                .chain(major.iter().map(|(u, _)| h.real(*u)))
+                .collect();
+            (ticks, b.list(&lines))
+        }
+    }
+}
+
 /// The `graphics` term of the plot of `series` (and `extra`) as `look` says.
 pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra: &Extra<'h>) -> T<'h> {
     let b = B { h };
@@ -727,7 +755,8 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
         }
         content.push(b.list(&part));
     }
-    // ticks and grid lines: automatic on linear axes, powers of ten on logarithmic ones, or the plot's own
+    // ticks, and the grid lines `grid_lines: automatic` asks for: automatic on linear axes, powers of ten on
+    // logarithmic ones, or the plot's own
     let mut ticks = vec![];
     let mut grid = vec![];
     for (k, (lo, hi, ax)) in [(x0, x1, look.scale.x), (y0, y1, look.scale.y)].into_iter().enumerate() {
@@ -736,29 +765,9 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
             grid.push(b.sym("none"));
             continue;
         }
-        match axis(lo, hi, ax) {
-            None => {
-                ticks.push(b.sym("automatic"));
-                grid.push(b.sym(if look.origin_axes { "none" } else { "automatic" }));
-            }
-            Some((major, minor)) => {
-                let none = b.sym("none");
-                let marks = major
-                    .iter()
-                    .map(|(u, l)| b.list(&[h.real(*u), b.label(l)]))
-                    .chain(minor.iter().map(|&u| b.list(&[h.real(u), none, h.real(0.5)])));
-                ticks.push(b.list(&marks.collect::<Vec<_>>()));
-                // grid lines without a colour of their own (the graphic's grid colour, 0.9 gray; the minor ones at
-                // half opacity, 0.95 on white), so a front end draws them in its theme (round nb-svg)
-                let half = b.call("opacity", &[h.real(0.5)]);
-                let lines: Vec<T<'h>> = minor
-                    .iter()
-                    .map(|&u| b.list(&[h.real(u), half]))
-                    .chain(major.iter().map(|(u, _)| h.real(*u)))
-                    .collect();
-                grid.push(b.list(&lines));
-            }
-        }
+        let (t, g) = axis_marks(h, lo, hi, ax, look.origin_axes);
+        ticks.push(t);
+        grid.push(g);
     }
     let none = b.sym("none");
     let text = |s: &Option<String>| s.as_deref().map_or(none, |s| h.string(s));
@@ -770,7 +779,6 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
         b.rule("plot_range_padding", b.sym("none")),
         b.rule("font_size", h.real(LABEL_SIZE)),
         b.rule("ticks", b.list(&ticks)),
-        b.rule("grid_lines", b.list(&grid)),
     ];
     if look.origin_axes {
         opts.push(b.rule("axes", b.sym("true")));
@@ -837,7 +845,8 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
         opts.retain(|r| rule_name(h, *r).as_deref() != Some(name));
         let v = match name {
             "ticks" => given_ticks(&b, *v, frame_ticks, look.scale, own_ticks),
-            "grid_lines" => log_positions(&b, *v, look.scale),
+            // no grid lines unless asked: `automatic` (also `true`, `all`, or per axis) gives the plot's own
+            "grid_lines" => asked_grid(h, *v, &grid, look.scale),
             // positions of the content given in data values, placed on the axes (logarithms on log axes)
             "epilog" | "prolog" if look.scale.x != Axis::Linear || look.scale.y != Axis::Linear => on_axes(&b, *v, look.scale, 0),
             _ => *v,
@@ -922,6 +931,26 @@ fn given_ticks<'h>(b: &B<'h>, v: T<'h>, frame: bool, scale: Scale, own: Option<T
         b.list(&moved)
     };
     b.list(&[axis(x, 0, scale.x), axis(y, 1, scale.y)])
+}
+
+/// The grid lines a plot is asked for with `grid_lines: v` (a plot draws none unless asked): `automatic`, `true` or
+/// `all` (for both axes or for one of `[x, y]`) give the plot's own, `own` (automatic on linear axes, the powers of
+/// ten and their minor steps on logarithmic ones); anything else as [`log_positions`] places it.
+pub(crate) fn asked_grid<'h>(h: &'h Heap, v: T<'h>, own: &[T<'h>], scale: Scale) -> T<'h> {
+    use mc_core::View;
+    let b = &B { h };
+    let auto = |t: T<'h>| matches!(h.view(t), View::Sym(s) if matches!(h.sym_name(s).as_str(), "automatic" | "true" | "all"));
+    if auto(v) {
+        return b.list(own);
+    }
+    match h.view(v) {
+        View::App { head, args: &[x, y] } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == mc_api::names::LIST) && (auto(x) || auto(y)) => {
+            let given = log_positions(b, v, scale);
+            let View::App { args: &[gx, gy], .. } = h.view(given) else { return given };
+            b.list(&[if auto(x) { own[0] } else { gx }, if auto(y) { own[1] } else { gy }])
+        }
+        _ => log_positions(b, v, scale),
+    }
 }
 
 /// Grid lines `[xs, ys]` given in data values, placed on the axes (logarithms on log axes); each a position or

@@ -98,6 +98,39 @@ pub fn recall_graphic(path: &str) -> Option<std::sync::Arc<crate::model::Graphic
     m.iter().rev().find(|(p, _)| p == path).map(|e| e.1.clone())
 }
 
+/// The contents of plots read back from the memo (by the structural hash of the content, the first argument of the
+/// `graphics` term) with the path of the plot's PNG: a picture that combines plots (`show`) finds by its parts the
+/// plots they came from, and with them what those plots know (their series, for hovering).
+static LINKS: Mutex<Option<Links>> = Mutex::new(None);
+/// The most contents linked.
+const LINK_ENTRIES: usize = 1024;
+
+#[derive(Default)]
+struct Links {
+    order: VecDeque<u64>,
+    path: std::collections::HashMap<u64, String>,
+}
+
+/// Link the content of the plot drawn to `path`, by its structural hash.
+pub fn link(hash: u64, path: &str) {
+    let Ok(mut m) = LINKS.lock() else { return };
+    let l = m.get_or_insert_with(Links::default);
+    if l.path.insert(hash, path.to_string()).is_none() {
+        l.order.push_back(hash);
+    }
+    while l.order.len() > LINK_ENTRIES {
+        if let Some(old) = l.order.pop_front() {
+            l.path.remove(&old);
+        }
+    }
+}
+
+/// The plot each content hash is linked to ([`link`]), if any, in the order given.
+pub fn linked(hashes: &[u64]) -> Vec<Option<String>> {
+    let Ok(m) = LINKS.lock() else { return vec![None; hashes.len()] };
+    hashes.iter().map(|k| m.as_ref().and_then(|l| l.path.get(k).cloned())).collect()
+}
+
 /// The path of an `image("path")` term.
 pub fn image_path<'h, S: Store + ?Sized>(h: &'h S, t: T<'h>) -> Option<&'h str> {
     let View::App { head, args: &[p] } = h.view(t) else { return None };

@@ -975,7 +975,10 @@ demand.
   (`view=x:y:z`, `zoom=z`, `vertical=x:y:z`, only what differs from the picture's own view; an undo unit) and comes
   back when the notebook is opened. Plot coordinates are not shown over a 3D picture.
 - Hit-testing per element of a drawing is out of scope; plot read-outs come from the `.json` description (in points,
-  so they hold at every scale).
+  so they hold at every scale). A picture that combines plots (`show(p1, p2, ...)`, a plot shown with other
+  graphics) has the series of every plot in its description, on the first plot's axes and in the combined range,
+  so the read-out snaps to them as on a single plot. A layout of plots (`graphics_row`, `graphics_grid`) gives
+  free coordinates only (its description has no series).
 - Images in saved notebooks: 7.5.
 
 ## 7. File format

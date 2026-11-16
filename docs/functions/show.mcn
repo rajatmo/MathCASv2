@@ -21,6 +21,12 @@
 #% item
 # Directives inside one graphic do not reach into the next: each graphic's content stays a list of its own.
 
+#% item
+# Plots shown together are drawn in one range that holds them all (or the `plot_range` given to `show`, in data values also on logarithmic axes), and their axes are ticked afresh for that range, as one plot of that range is: the first plot's scales, ticks a plot was given kept, grid lines only when `show` or a plot asks for them.
+
+#% item
+# Pointing at the picture in the notebook snaps to the curves and points of every plot in it, with the plot's name and coordinates.
+
 #% section
 # Examples
 
@@ -73,6 +79,14 @@ show(plot(x^3 - 2, [x, 0, 2]), graphics([red, point_size(0.02), point([x /. firs
 #% output
 #= image("show.files/show-5.svgz")
 
+#% text
+# Two plots of different ranges: the picture is ticked for the range that holds both:
+
+#% cell
+show(log_plot(exp(x), [x, 0, 3]), log_plot(exp(x/2), [x, 0, 20]))
+#% output
+#= image("show.files/show-6.svgz")
+
 #% subsection
 # Possible issues
 
@@ -82,7 +96,7 @@ show(plot(x^3 - 2, [x, 0, 2]), graphics([red, point_size(0.02), point([x /. firs
 #% cell
 show(graphics(disk()), disk([2, 0], 1))
 #% output
-#= image("show.files/show-6.svgz")
+#= image("show.files/show-7.svgz")
 
 #% section
 # See also

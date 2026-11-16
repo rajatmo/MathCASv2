@@ -276,6 +276,11 @@ impl PlotInfo {
         self.grid = grid;
     }
 
+    /// Point `k` of series `s` in PNG pixels.
+    pub fn png_point(&self, s: usize, k: usize) -> Option<Pos2> {
+        self.series.get(s)?.px.get(k).copied().filter(|p| p.x.is_finite() && p.y.is_finite())
+    }
+
     /// The data coordinates of a place in PNG pixels.
     pub fn data_at(&self, p: Pos2) -> [f64; 2] {
         let u = f64::from((p.x - self.area.left()) / self.area.width());
@@ -386,8 +391,8 @@ impl Plots {
 }
 
 /// Paint the hover marks for the pointer at `pointer` (screen) over a plot drawn in `rect` (screen): marker, guide
-/// lines and the tooltip.
-pub fn paint(ctx: &egui::Context, painter: &Painter, info: &PlotInfo, rect: Rect, pointer: Pos2, p: &Palette) {
+/// lines and the tooltip; gives the tooltip's text.
+pub fn paint(ctx: &egui::Context, painter: &Painter, info: &PlotInfo, rect: Rect, pointer: Pos2, p: &Palette) -> String {
     let k = vec2(rect.width() / info.size[0], rect.height() / info.size[1]);
     let to_screen = |q: Pos2| rect.min + vec2(q.x * k.x, q.y * k.y);
     let to_png = |q: Pos2| pos2((q.x - rect.left()) / k.x, (q.y - rect.top()) / k.y);
@@ -417,7 +422,7 @@ pub fn paint(ctx: &egui::Context, painter: &Painter, info: &PlotInfo, rect: Rect
     let layer = egui::LayerId::new(egui::Order::Tooltip, egui::Id::unique("mc-notebook-plot-hover"));
     let tip = ctx.layer_painter(layer);
     let font = Face::Ui.font(12.0);
-    let g = tip.layout_no_wrap(text, font, color);
+    let g = tip.layout_no_wrap(text.clone(), font, color);
     let pad = vec2(6.0, 3.0);
     let size = g.size() + pad * 2.0;
     let screen = ctx.content_rect();
@@ -431,6 +436,7 @@ pub fn paint(ctx: &egui::Context, painter: &Painter, info: &PlotInfo, rect: Rect
     let r = Rect::from_min_size(min, size);
     tip.rect(r, 3.0, p.bg, Stroke::new(1.0, p.border_strong()), egui::StrokeKind::Inside);
     tip.galley(r.min + pad, g, color);
+    text
 }
 
 #[cfg(test)]

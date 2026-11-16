@@ -38,7 +38,14 @@ pub fn resolve<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<T<'h>> {
     }
     let Some(text) = recall(path) else { return Ok(t) };
     match mc_syntax::read(h, &text) {
-        Ok(v) if v.len() == 1 => cx.eval(v[0]),
+        Ok(v) if v.len() == 1 => {
+            let g = cx.eval(v[0])?;
+            // the content linked to the plot: a picture combining it finds the plot's series (hovering)
+            if let View::App { args: [c, ..], .. } = h.view(g) {
+                mc_graphics::memo::link(h.structural_hash(*c), path);
+            }
+            Ok(g)
+        }
         _ => Ok(t),
     }
 }
@@ -545,23 +552,38 @@ fn colour_in<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
     }
 }
 
-/// The plot ranges of graphics terms combined: the union of the explicit `[[x0, x1], [y0, y1]]` ranges; `None`
-/// unless every graphic has one.
-pub(crate) fn union_range<'h>(h: &'h Heap, opts: &[Option<T<'h>>]) -> Option<[f64; 4]> {
+/// The plot ranges of graphics terms combined: the union of the explicit `[[x0, x1], [y0, y1]]` ranges of their
+/// options `opts`, and for a graphic without one (primitives shown with plots) the range it is drawn with on its
+/// own; `None` when a graphic has neither, or none has a range of its own (then the combined content's range is
+/// the automatic one anyway).
+pub(crate) fn union_range<'h>(h: &'h Heap, opts: &[Option<T<'h>>], graphics: &[T<'h>]) -> Option<[f64; 4]> {
     let mut r = [f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY];
-    for &o in opts {
-        let v = option(h, o, "plot_range")?;
-        let View::App { args: &[x, y], .. } = h.view(v) else { return None };
+    let mut any = false;
+    for (k, &o) in opts.iter().enumerate() {
         let pair = |t: T<'h>| -> Option<(f64, f64)> {
             match h.view(t) {
                 View::App { args: &[a, b], .. } => Some((number(h, a)?, number(h, b)?)),
                 _ => None,
             }
         };
-        let ((x0, x1), (y0, y1)) = (pair(x)?, pair(y)?);
+        let given = option(h, o, "plot_range").and_then(|v| match h.view(v) {
+            View::App { args: &[x, y], .. } => Some((pair(x)?, pair(y)?)),
+            _ => None,
+        });
+        let ((x0, x1), (y0, y1)) = match given {
+            Some(g) => {
+                any = true;
+                g
+            }
+            None => {
+                let g = mc_graphics::model::read(h, *graphics.get(k)?, &|| false).ok()?;
+                let [x, y] = mc_graphics::page::plan(&g, &|| false).ok()?.range;
+                (x, y)
+            }
+        };
         r = [r[0].min(x0), r[1].max(x1), r[2].min(y0), r[3].max(y1)];
     }
-    Some(r)
+    any.then_some(r)
 }
 
 /// Is `t` nested deeper than `limit` levels (checked without recursion)?

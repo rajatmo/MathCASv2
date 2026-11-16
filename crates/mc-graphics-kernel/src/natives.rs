@@ -414,6 +414,8 @@ impl Native for Show {
                 None => flat.push((i, g)),
             }
         }
+        // the plots among them by the paths of their pictures (their axes are worked out again below)
+        let paths: Vec<Option<String>> = flat.iter().map(|e| mc_graphics::memo::image_path(h, e.1).map(str::to_string)).collect();
         // plots (`image(path)`) as the graphics they were drawn from
         for e in flat.iter_mut() {
             e.1 = crate::compose::resolve(cx, e.1)?;
@@ -431,12 +433,14 @@ impl Native for Show {
         }
         let own_range = rules.iter().any(|(k, _)| k == "plot_range");
         let mut graphic_opts = vec![];
+        let mut shown = vec![];
         let mut legends: Vec<T<'h>> = vec![];
         let mut kind: Option<T<'h>> = None;
         for (i, g) in flat {
             cx.tick(1)?;
             if let View::App { args: ga, .. } = h.view(g) {
                 graphic_opts.push(ga.get(1).copied());
+                shown.push(g);
                 if let Some(Some(l)) = ga.get(1).map(|&o| model::rules(h, o).ok().and_then(|rs| rs.into_iter().find(|(k, _)| k == "legend").map(|r| r.1))) {
                     legends.extend(cx.as_list(l).unwrap_or(&[]).iter().copied());
                 }
@@ -461,7 +465,7 @@ impl Native for Show {
         }
         // combined plots: the union of their ranges, all their legends
         if !three && !own_range && graphic_opts.len() > 1 {
-            if let Some([x0, x1, y0, y1]) = crate::compose::union_range(h, &graphic_opts) {
+            if let Some([x0, x1, y0, y1]) = crate::compose::union_range(h, &graphic_opts, &shown) {
                 let range = cx.list(&[h.reals(&[x0, x1]), h.reals(&[y0, y1])]);
                 rules.retain(|(k, _)| k != "plot_range");
                 rules.push(("plot_range".into(), range));
@@ -520,6 +524,13 @@ impl Native for Show {
                 let merged = cx.list(&[axis(0), axis(1)]);
                 rules.retain(|(k, _)| k != key);
                 rules.push((key.into(), merged));
+            }
+        }
+        // the axes of combined plots marked afresh for the combined range, as one plot of that range
+        if !three {
+            if let Some(reaxis) = crate::REAXIS.get() {
+                let given: Vec<String> = own.and_then(|o| model::rules(h, o).ok()).map(|rs| rs.into_iter().map(|r| r.0).collect()).unwrap_or_default();
+                reaxis(h, &paths, &mut rules, &given);
             }
         }
         if legends.len() > 1 && !own.is_some_and(|o| model::rules(h, o).is_ok_and(|rs| rs.iter().any(|(k, _)| k == "legend"))) {

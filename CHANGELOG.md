@@ -32,6 +32,11 @@ Functions of several intervals use the corner rule only when every derivative si
 count operations instead of time, so an answer does not depend on the speed of the machine or on what else it is
 doing.
 
+**Plots.** Plots draw no grid lines unless `grid_lines` asks for them; `grid_lines: automatic` gives the grid
+they drew before (at the ticks, on logarithmic axes at the powers of ten). `show` of several plots ticks the
+combined picture afresh for the range that holds them all (or the `plot_range` given to `show`), and pointing at
+it in the notebook snaps to the curves and points of every plot, as on a single plot.
+
 **Interrupts.** Drawing a picture honours an interrupt within a quarter of a second (sampling, meshing and
 writing the picture), and so does `prime_pi` of a large argument.
 

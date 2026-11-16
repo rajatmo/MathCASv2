@@ -27,6 +27,7 @@ mod figure;
 mod more;
 mod plots3d;
 mod graphs;
+mod reaxis;
 mod regions;
 mod vectors;
 mod roundtrip;
@@ -277,6 +278,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
 
 /// Register the natives with `k`.
 pub fn install(k: &mut Kernel, h: &Heap) {
+    let _ = mc_graphics_kernel::REAXIS.set(reaxis::reaxis);
     let lin = Scale::default();
     let ylog = Scale {
         x: Axis::Linear,
@@ -673,6 +675,7 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
             }
             let model = std::sync::Arc::new(model);
             mc_graphics::memo::remember_shared(&path, model.clone());
+            sidecar::remember(&path, look.scale, reaxis::marks(h, look), &entries);
             mc_graphics::deferred::defer(std::path::Path::new(&path), model, later);
             image(h, &path)
         }
@@ -702,7 +705,7 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
         }
     };
     cx.poll()?;
-    let json = sidecar::json(&layout, Scale::default(), &[]);
+    let json = shown_json(h, g, &layout);
     // a 3D graphic's term next to its picture: a front end turns it from there (mc_graphics::view3d); else the text
     // is for the memo only, which keeps none past its limit
     let three = mc_graphics::three::is_graphics3d(h, g);
@@ -989,10 +992,19 @@ pub fn render_to_files<'h>(h: &'h Heap, t: T<'h>, stop: &dyn Fn() -> bool) -> Op
     }
     let (files, layout, model) = mc_graphics::render_read(h, t, &FORMATS, stop).ok()?;
     let scene = mc_graphics::three::is_graphics3d(h, t).then(|| mc_syntax::Printer::new(h).expr(t));
-    let path = write_files(&files, &sidecar::json(&layout, Scale::default(), &[]), scene.as_deref(), &[]).ok()?;
+    let path = write_files(&files, &shown_json(h, t, &layout), scene.as_deref(), &[]).ok()?;
     mc_graphics::deferred::defer(std::path::Path::new(&path), std::sync::Arc::new(model), vec![PDF_LATER]);
     let (w, ht) = png_size(std::path::Path::new(&path))?;
     Some((path, w, ht))
+}
+
+/// The data sidecar of a graphic `g` drawn as `layout`: the series of the plots it combines ([`sidecar::combined`]),
+/// on the first one's axes; none for other graphics.
+fn shown_json<'h>(h: &'h Heap, g: T<'h>, layout: &mc_graphics::Layout) -> String {
+    match sidecar::combined(h, g) {
+        Some((scale, entries)) => sidecar::json(layout, scale, &entries),
+        None => sidecar::json(layout, Scale::default(), &[]),
+    }
 }
 
 /// `plot(f, [x, a, b])` and its log-scale forms.

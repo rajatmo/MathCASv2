@@ -13,6 +13,15 @@ pub mod transform;
 
 pub use natives::{install, install_late, numeric_content, rgb_term};
 
+/// Works out the axes of a picture `show` combines from plots for its combined range, as a plot of that range
+/// would mark them (ticks, the grid lines asked for, logarithmic axes): given the PNG path of each graphic shown
+/// (`None` for one that is not a plot), the combined options (changed in place) and the names of the options given
+/// to `show` itself.
+pub type Reaxis = for<'h> fn(&'h mc_core::Heap, &[Option<String>], &mut Vec<(String, mc_core::T<'h>)>, &[String]);
+
+/// The [`Reaxis`] of the plotting library, set when it is installed.
+pub static REAXIS: std::sync::OnceLock<Reaxis> = std::sync::OnceLock::new();
+
 /// Every function of this crate with a one-line description.
 pub const FUNCTIONS: &[(&str, &str)] = &[
     (

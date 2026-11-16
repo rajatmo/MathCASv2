@@ -4,7 +4,7 @@
 # grid_lines
 
 #% text
-# `grid_lines` is an option of graphics and plots: `none`, `automatic` (at the ticks), or `[x_lines, y_lines]`, each `automatic`, `none` or a list of positions or `[position, directives]` pairs.
+# `grid_lines` is an option of graphics and plots: `none`, `automatic` (at the ticks), or `[x_lines, y_lines]`, each `automatic`, `none` or a list of positions or `[position, directives]` pairs. Graphics and plots draw no grid lines unless asked: `grid_lines: automatic` (or `true`) gives lines at the ticks, on a logarithmic axis at the powers of ten with fainter lines at their multiples.
 
 #% section
 # Examples
@@ -26,12 +26,21 @@ plot(x^2, [x, 0, 3], grid_lines: [[1, 2], [[4, dashed]]])
 # Scope
 
 #% text
+# On a logarithmic axis:
+
+#% cell
+log_plot(exp(x), [x, 0, 10], grid_lines: automatic)
+#% output
+#= image("grid_lines.files/grid_lines-3.svgz")
+
+
+#% text
 # A colour given as `"#rrggbb"`:
 
 #% cell
 plot(x, [x, 0, 1], grid_lines: [[[0.5, "#e0115f"]], none])
 #% output
-#= image("grid_lines.files/grid_lines-3.svgz")
+#= image("grid_lines.files/grid_lines-4.svgz")
 
 #% section
 # See also

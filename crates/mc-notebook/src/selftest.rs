@@ -36,6 +36,8 @@
 //!   one frame, repeated over `frames` frames; `pad <points> [frames]`: one Ctrl+wheel event of `points` points (a
 //!   precision touchpad) per frame; `anchor <y>`: write the magnification, the scroll offset and the cell (and the
 //!   fraction of it) at window height `y` to the log
+//! - `plotpoint <s> <k>`: the pointer onto (just beside) point `k` of series `s` of the last plot picture with a
+//!   description; `plottip`: write the last hover tooltip on a plot to the log
 //! - `plainwheel <lines>`: one wheel event without Ctrl; `view3d`: the 3D views kept on outputs and the render
 //!   times so far (milliseconds: median and largest)
 //! - `export <file>`: File > Export to an `.html` or `.pdf` file
@@ -444,6 +446,20 @@ impl SelfTest {
                 });
             }
             "view3d" => self.log.push(format!("view3d: {}", app.view3d_probe())),
+            "plotpoint" => {
+                let mut it = arg.split_whitespace().filter_map(|a| a.parse::<usize>().ok());
+                let (s, k) = (it.next().unwrap_or(0), it.next().unwrap_or(0));
+                match app.plot_point(ctx, s, k) {
+                    Some(p) => {
+                        // a little off the point: the hover snaps to it
+                        self.pending.push(Event::PointerMoved(p + egui::vec2(3.0, -2.0)));
+                        self.later.push(vec![]);
+                        self.later.push(vec![Event::PointerMoved(p + egui::vec2(2.0, -2.0))]);
+                    }
+                    None => self.log.push(format!("plotpoint: no point {s} {k}")),
+                }
+            }
+            "plottip" => self.log.push(format!("plottip: {}", app.plot_tip())),
             "anchor" => {
                 let y: f32 = arg.parse().unwrap_or(300.0);
                 self.log.push(format!("anchor: {}", app.zoom_probe(y)));

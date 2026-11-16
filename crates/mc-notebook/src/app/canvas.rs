@@ -127,7 +127,23 @@ impl App {
         let Some(rect) = self.doc.view.graphic_rect(&self.doc.nb, i) else { return };
         let Some(info) = self.plots.get(&path, ctx.input(|i| i.time)) else { return };
         let rect = rect.translate(origin.to_vec2());
-        crate::plothover::paint(ctx, painter, &info, rect, screen, &self.doc.view.palette);
+        self.plot_tip = Some(crate::plothover::paint(ctx, painter, &info, rect, screen, &self.doc.view.palette));
+    }
+
+    /// The screen place of point `k` of series `s` on the last plot picture with a description (self-test).
+    pub fn plot_point(&mut self, ctx: &egui::Context, s: usize, k: usize) -> Option<egui::Pos2> {
+        let n = self.doc.nb.cells().len();
+        let (i, path) = (0..n).rev().find_map(|i| self.doc.view.graphic_path(&self.doc.nb, i).map(|p| (i, p)))?;
+        let rect = self.doc.view.graphic_rect(&self.doc.nb, i)?;
+        let info = self.plots.get(&path, ctx.input(|i| i.time))?;
+        let q = info.png_point(s, k)?;
+        let scale = egui::vec2(rect.width() / info.size[0], rect.height() / info.size[1]);
+        Some(self.doc.view.origin + rect.min.to_vec2() + egui::vec2(q.x * scale.x, q.y * scale.y))
+    }
+
+    /// The last hover tooltip on a plot (self-test).
+    pub fn plot_tip(&self) -> String {
+        self.plot_tip.clone().unwrap_or_else(|| "none".into())
     }
 
     /// `x` (canvas coordinates) is over the content of cell `id`, not in its margins or label.

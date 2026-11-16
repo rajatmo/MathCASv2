@@ -300,6 +300,8 @@ pub struct App {
     pub(crate) glyphs: Rc<RefCell<Glyphs>>,
     /// the descriptions of plot pictures, for coordinates under the pointer
     plots: crate::plothover::Plots,
+    /// the last hover tooltip on a plot (self-test)
+    plot_tip: Option<String>,
     /// help while writing code: the usage hint, the hovered name, the pages asked for
     pub(crate) help: help::HelpState,
     /// the canvas's visible rectangle in the last frame (screen coordinates)
@@ -333,6 +335,7 @@ impl App {
             zoom3d_commit: None,
             glyphs,
             plots: crate::plothover::Plots::default(),
+            plot_tip: None,
             help: help::HelpState::default(),
             canvas_clip: egui::Rect::NOTHING,
             tabs: Tabs::new(),

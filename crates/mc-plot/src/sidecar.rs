@@ -18,9 +18,14 @@
 //! given: `k = 10^n`, `n = max(0, ceil(-log10 c))`, `a = max(1, 4 n)`), and `y` likewise from the bottom edge `y1` upwards. Points
 //! that are not finite are left out; a line broken at a pole or a gap is several entries with the same name and
 //! colour.
+//!
+//! A picture that combines plots (`show`) carries the series of all of them ([`combined`]).
 use crate::figure::{Axis, Scale};
+use mc_core::{Heap, Store, View, T};
 use mc_graphics::Layout;
+use std::collections::VecDeque;
 use std::fmt::Write as _;
+use std::sync::Mutex;
 
 /// The most points one series entry carries.
 pub(crate) const MAX_POINTS: usize = 20_000;
@@ -131,6 +136,128 @@ pub(crate) fn json(layout: &Layout, scale: Scale, entries: &[Entry]) -> String {
     }
     o.push_str("]}\n");
     o
+}
+
+/// What the picture of a plot knows for hovering, by the path of its PNG: the axes and the series entries in plot
+/// coordinates (the values on the axes: logarithms on log axes, as the graphic draws them).
+struct Known {
+    path: String,
+    scale: Scale,
+    marks: Marks,
+    entries: Vec<Entry>,
+}
+
+/// How a plot marked its axes: what `show` works out again for the range of a combined picture
+/// ([`crate::reaxis`]).
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Marks {
+    /// axes through the origin (else a frame)
+    pub(crate) origin_axes: bool,
+    /// ticks the plot was given (or date ticks), per axis: kept as they are
+    pub(crate) own_ticks: [bool; 2],
+    /// the grid lines asked for, per axis
+    pub(crate) grid: [Ask; 2],
+}
+
+/// The grid lines asked for on one axis.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) enum Ask {
+    #[default]
+    None,
+    /// `automatic`: the plot's own for its range
+    Auto,
+    /// positions given
+    Given,
+}
+
+/// The plots known for hovering, oldest first.
+static KNOWN: Mutex<VecDeque<Known>> = Mutex::new(VecDeque::new());
+/// The most plots known, and the most points in all.
+const KNOWN_PLOTS: usize = 256;
+const KNOWN_POINTS: usize = 4_000_000;
+
+fn points_of(k: &Known) -> usize {
+    k.entries.iter().map(|e| e.points.len()).sum()
+}
+
+/// Remember the series of the plot drawn to `path` (`entries` in data coordinates, on the axes `scale`), so a
+/// picture that combines it with others (`show`) can carry them.
+pub(crate) fn remember(path: &str, scale: Scale, marks: Marks, entries: &[Entry]) {
+    let on_axes = |&(x, y): &(f64, f64)| Some((scale.x.to(x)?, scale.y.to(y)?));
+    let entries: Vec<Entry> = entries
+        .iter()
+        .map(|e| Entry { name: e.name.clone(), color: e.color, kind: e.kind, points: thinned(&e.points).iter().filter_map(on_axes).collect() })
+        .collect();
+    let Ok(mut m) = KNOWN.lock() else { return };
+    m.retain(|k| k.path != path);
+    m.push_back(Known { path: path.to_string(), scale, marks, entries });
+    let mut total: usize = m.iter().map(points_of).sum();
+    while m.len() > KNOWN_PLOTS || total > KNOWN_POINTS {
+        match m.pop_front() {
+            Some(k) => total -= points_of(&k),
+            None => break,
+        }
+    }
+}
+
+/// The axes and their marks of the plot drawn to `path`, if it is known.
+pub(crate) fn marks_of(path: &str) -> Option<(Scale, Marks)> {
+    let m = KNOWN.lock().ok()?;
+    m.iter().rev().find(|k| k.path == path).map(|k| (k.scale, k.marks))
+}
+
+/// The parts of a graphic's content looked at for plots: lists, at most this deep and this many.
+const PART_DEPTH: usize = 3;
+const PARTS: usize = 4096;
+
+/// The axes and series of a picture that combines plots (`show(p1, p2, ...)`, a plot with other graphics): the
+/// entries of every plot whose content is a part of the graphic `g` (linked by [`mc_graphics::memo::link`] when
+/// the plot was read back), in the order of the content. The axes are the first plot's, as `show` draws them (its
+/// ticks first); another plot's points stay where the picture draws them, read on those axes. `None` when no part
+/// is a known plot.
+pub(crate) fn combined<'h>(h: &'h Heap, g: T<'h>) -> Option<(Scale, Vec<Entry>)> {
+    let View::App { args, .. } = h.view(g) else { return None };
+    let &content = args.first()?;
+    let list = h.sym_term(h.sym(mc_api::names::LIST));
+    // level by level, so a plot's own parts are not looked at once the plot is found
+    let mut level = vec![content];
+    let mut paths: Vec<String> = vec![];
+    let mut seen = 0;
+    for depth in 0..=PART_DEPTH {
+        if level.is_empty() || seen >= PARTS {
+            break;
+        }
+        level.truncate(PARTS - seen);
+        seen += level.len();
+        let hashes: Vec<u64> = level.iter().map(|&t| h.structural_hash(t)).collect();
+        let found = mc_graphics::memo::linked(&hashes);
+        let mut next = vec![];
+        for (&t, p) in level.iter().zip(found) {
+            match p {
+                Some(p) => paths.push(p),
+                None if depth < PART_DEPTH && h.packed(t).is_none() => {
+                    if let View::App { head, args } = h.view(t) {
+                        if head == list {
+                            next.extend_from_slice(args);
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+        level = next;
+    }
+    let m = KNOWN.lock().ok()?;
+    let known: Vec<&Known> = paths.iter().filter_map(|p| m.iter().rev().find(|k| &k.path == p)).collect();
+    let scale = known.first()?.scale;
+    let data = |&(u, v): &(f64, f64)| (scale.x.from(u), scale.y.from(v));
+    let entries = known
+        .iter()
+        .flat_map(|k| k.entries.iter())
+        .map(|e| Entry { name: e.name.clone(), color: e.color, kind: e.kind, points: e.points.iter().map(data).filter(|p| p.0.is_finite() && p.1.is_finite()).collect() })
+        .filter(|e| !e.points.is_empty())
+        .collect();
+    Some((scale, entries))
 }
 
 #[cfg(test)]
