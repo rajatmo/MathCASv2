@@ -341,3 +341,15 @@ held. The integer solver is asked first; when it proves there is none (a bounded
 answer is `[]` (`x^2 < 2 and x > 1`). A point it finds is left to the search, whose order the answers keep.
 Found, not fixed: `reduce(a < 0 and b >= sqrt(-3 a)/3 or a >= 0, a, reals)` gives
 `b <= 0 and a == 0 or b > 0 and -3 b^2 <= a and a <= 0`, which loses a > 0 (the second symbol taken as a constant).
+
+## Round 47: radicals that are not real in one disjunct
+
+The fault above had another cause: a square root `sqrt(t)` became a variable `r` with `exists r (r^2 == t and r >= 0
+and F)`, which made `t >= 0` a condition of the whole formula, so the disjunct `a >= 0`, free of the radical, was cut
+to `a == 0`. Now `exists r (r^2 == t and r >= 0 and F) or (t < 0 and F')` (for a universal `r`: `(not(r^2 == t and
+r >= 0) or F) and (t >= 0 or F')`), where `F'` is `F` with every relation holding `r` false and its negation false too
+(a relation with a value that is not real holds in neither form). `reduce(a < 0 and b >= sqrt(-3 a)/3 or a >= 0, a,
+reals)` is `b <= 0 and a >= 0 or b > 0 and a >= -3 b^2`; formulas whose radicands are nonnegative wherever they are
+asked give what they gave. A generator (`mc-engine/tests/round47_props.rs`) reduces six disjunctions whose pieces meet
+where a radicand changes sign and compares the answer with the formula at exact points on and 1/7 beside each
+boundary.

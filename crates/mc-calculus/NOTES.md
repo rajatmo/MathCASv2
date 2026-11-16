@@ -1917,3 +1917,37 @@ Wronskian of P and Q (DLMF 14.2.4) at 30 digits in `mc-engine/tests/round45_spec
 Checked against `series_coefficient` at integer orders 0..12 for ten functions (`round46_general.rs`). Left:
 products of two transcendental factors (`exp(x)/(1 - x)`, `sin(x)^2`), `sin(sqrt(x))` (no Taylor series), the
 expected arrangement `(1 + (-1)^n)/2` of even-only coefficients (ours is `mod(n, 2) == 0` in the condition).
+
+## Round 47: ranges from the first extremum, rays of pieces
+
+- **Oscillating functions of order 0** (table ranges, with the proof in the entry): J0' = -J1 and Y0' = -Y1 (DLMF
+  10.6.2), so between consecutive positive zeros of J1 (Y1) the function is monotone and on [0, j(1,2)] ((0, y(1,2)])
+  the extrema are J0(0) = 1 and J0(j(1,1)) (Y0(y(1,1)); Y0 -> -inf at 0+, 10.7.3). Beyond, |J0|, |Y0| <= M0(x) =
+  (J0^2 + Y0^2)^(1/2), decreasing on x > 0 by Nicholson's integral (10.9.30), and M0(j(1,2)) = 0.30087 < 0.40276,
+  M0(y(1,2)) = 0.34172 < 0.52079. Ranges: `bessel_j(0, bessel_j_zero(1, 1)) <= y <= 1`, `y <= bessel_y(0,
+  bessel_y_zero(1, 1))`, the same for `anger_j(0, x)` (= J0, 11.10.4) and `sinc` (sinc' = -j1, zeros of J_(3/2),
+  envelope 1/x: `sinc(bessel_j_zero(3/2, 1)) <= y <= 1`). |J_n| <= 1 and |anger_j| <= 1 (10.14.1, 11.10.1), Y_nu of
+  nu >= 0 bounded above (-inf at 0+, M_nu decreasing): not onto.
+- **I_n of integer order** (10.25.2, 10.27.1, 10.29.1): even n even, >= 0, convex (I_0 >= 1: `y >= 1`); odd n odd and
+  increasing, onto.
+- **The elliptic nome** increases on m <= 1 from -1 (q(m) = -q(m/(m - 1)) for m < 0, 19.7.5) to q(1) = 1: range
+  `-1 < y <= 1`, not onto; its inverse `y <= 1`; F(phi|m) of m < 1 onto (the integrand has period pi: F(phi + pi) =
+  F(phi) + 2 K).
+- **Rays** (`onto.rs`, `surjective_line`): a piece between consecutive real breaks on which f tends to -inf at an end
+  takes every value below f(p) for an exact point p inside it, one with +inf every value above f(p); a ray below v and
+  a ray above w <= v cover the line (`-cos(x)/x`, `legendre_q(2, x)`). Not with a family of breaks (members beyond the
+  listed ones may lie between two listed breaks). `function_range` asks this last, for `true`.
+- Singular atoms `gamma(u) == 0` (from a denominator) never hold (1/Gamma has no zeros off the poles, 5.2.1) and are
+  dropped; a table range with constants the comparisons do not order (`bessel_j_zero`) is checked against the samples
+  at 30 digits.
+- Two answers that are easy to get wrong: `function_range(factorial_power(x, 2), x, y)` is `y >= -1/4` (x (x - 1) at 1/2), not
+  `y >= 1`; `function_singularities(lommel_s1(2, 1/3, z), z)` is not `z == 0`: s_(2,1/3)(z) = z^3/(80/9) 1F2(...;
+  -z^2/4) is entire (11.9.3), our values at z = +-10^-3, 10^-3 i divided by z^3 are 0.11250 = 9/80.
+- Left: ranges whose extremum is the zero of an unnamed function (Airy, Y1, Kelvin, Fresnel f and g, Struve H_(-1/2),
+  Weber E, q_pochhammer: they need the root objects of the transcendental `root`); `spherical_bessel_j(0, x)` is
+  evaluated to `sin(x)/x`, which is undefined at 0 (its range is `y < 1` there, not the closed one); the gamma ratios
+  `factorial_power(x, 1/2)`, `pochhammer(x, 1/2)` (one-sided limits at the poles of gamma not found); the Weierstrass
+  functions of a degenerate lattice written with `coth` of an imaginary argument; the singular sets of the Weierstrass
+  invariants, half-periods and roots, of the inverse Jacobi functions of a numeric parameter (the cuts of the principal
+  branches in the plane are not proved) and of Lommel functions with parameters.
+  Tests: `mc-engine/tests/round47_props.rs`.

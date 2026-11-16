@@ -112,6 +112,10 @@ pub fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
             return Ok(Some(r));
         }
     }
+    // every real value, proved by the limits of f on the pieces between its breaks (intermediate values)
+    if cond.is_none() && spec::params(b, &[f], &[x]).is_empty() && super::onto::onto_line(cx, b, f, x)? {
+        return Ok(Some(cx.bool(true)));
+    }
     Ok(None)
 }
 
@@ -872,6 +876,8 @@ fn checks_out_with<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, c
     if !spec::params(b, &[f, r], &[x, y]).is_empty() || cx.is_true(r) {
         return Ok(true);
     }
+    // constants the comparisons do not order (bessel_j_zero) as 30-digit numbers: the samples only test the answer
+    let r = cx.eval(b.call("n", &[r, b.int(30)]))?;
     let step = if light { 8 } else { 1 };
     let mut xs: Vec<f64> = (-120..=120).step_by(step).map(|k| f64::from(k) * 0.25 + 0.0123).collect();
     // a light check stays within 10^-3..10^3 (some functions evaluate slowly far out)

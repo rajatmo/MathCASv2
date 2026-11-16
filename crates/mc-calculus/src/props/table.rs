@@ -182,6 +182,10 @@ pub static TABLE: &[Entry] = &[
     Entry { name: "airy_bi", bound: Bound::Below, refs: "DLMF 9.7.7, 9.7.11", ..ENTIRE },
     Entry { name: "airy_ai_prime", ranges: &[("", "true")], refs: "DLMF 9.7.10", ..ENTIRE },
     Entry { name: "airy_bi_prime", ranges: &[("", "true")], refs: "DLMF 9.7.12", ..ENTIRE },
+    // sinc = j_0 is even with sinc' = -j_1 (DLMF 10.51.2), j_1(x) = (pi/(2 x))^(1/2) J_(3/2)(x) (10.47.3): monotone
+    // between consecutive zeros of J_(3/2), so on [0, j(3/2,2)] the extrema are sinc(0) = 1 and sinc(j(3/2,1)) =
+    // -0.21723; beyond, |sinc(x)| <= 1/x <= 1/j(3/2,2) = 0.12944
+    Entry { name: "sinc", ranges: &[("", "sinc(bessel_j_zero(3/2, 1)) <= $y and $y <= 1")], bound: Bound::Both, onto: &[("", false)], refs: "DLMF 10.47.3, 10.51.2", ..ENTIRE },
     Entry { name: "scorer_gi", bound: Bound::Both, refs: "DLMF 9.12.4, 9.12.27, 9.12.31", ..ENTIRE },
     Entry { name: "scorer_gi_prime", ranges: &[("", "true")], refs: "DLMF 9.12.4, 9.12.31", ..ENTIRE },
     Entry { name: "scorer_hi", signs: &[("", 1)], mono: &[("", 1)], convex: &[("", 1)], ranges: &[("", "$y > 0")], bound: Bound::Below, refs: "DLMF 9.12.5, 9.12.20, 9.12.30", ..ENTIRE },
@@ -340,7 +344,9 @@ pub static TABLE: &[Entry] = &[
         ..E
     },
     // F(phi|m) increases: its derivative (1 - m sin(phi)^2)^(-1/2) is positive where it is real (DLMF 19.2.4)
-    Entry { name: "elliptic_f", arity: 2, when: "$a < 1", mono: &[("", 1)], real: "true", sr: Some(NONE), refs: "DLMF 19.2.4", ..E },
+    // and the integrand has period pi, so F(phi + pi|m) = F(phi|m) + 2 K(m) with K(m) > 0: unbounded both ways, every
+    // real value taken
+    Entry { name: "elliptic_f", arity: 2, when: "$a < 1", mono: &[("", 1)], real: "true", sr: Some(NONE), ranges: &[("", "true")], onto: &[("", true)], refs: "DLMF 19.2.4, 19.2.8", ..E },
     Entry { name: "elliptic_e", arity: 2, when: "$a < 1", real: "true", sr: Some(NONE), refs: "DLMF 19.2.5", ..E },
     Entry {
         name: "elliptic_pi",
@@ -352,8 +358,32 @@ pub static TABLE: &[Entry] = &[
         refs: "DLMF 19.2.7, 19.6.5, 19.7.9",
         ..E
     },
-    Entry { name: "elliptic_nome_q", mono: &[("", 1)], real: "$u <= 1", complex: "true", sr: Some(&[("$u >= 1", BR)]), refs: "DLMF 22.2.1, 19.2.8", ..E },
-    Entry { name: "inverse_elliptic_nome_q", mono: &[("", 1)], real: "-1 < $u and $u <= 1", sr: Some(&[("$u <= -1", BR), ("$u >= 1", BR)]), refs: "DLMF 20.9.1, 22.2.2", ..E },
+    // q(m) = exp(-pi K(1 - m)/K(m)) increases on m <= 1 from q(-inf) = -1 to q(1) = 1: for m < 0, q(m) = -q(m/(m - 1))
+    // (K(m) = (1 - m)^(-1/2) K(m/(m - 1)), DLMF 19.7.5, and the nome of the imaginary transformation, DLMF 22.17.1-22.17.2)
+    // with m/(m - 1) -> 1- as m -> -inf; its inverse m(q) increases on (-1, 1] from -inf to 1
+    Entry {
+        name: "elliptic_nome_q",
+        mono: &[("", 1)],
+        real: "$u <= 1",
+        complex: "true",
+        sr: Some(&[("$u >= 1", BR)]),
+        ranges: &[("", "-1 < $y and $y <= 1")],
+        bound: Bound::Both,
+        onto: &[("", false)],
+        refs: "DLMF 22.2.1, 19.2.8, 19.7.5",
+        ..E
+    },
+    Entry {
+        name: "inverse_elliptic_nome_q",
+        mono: &[("", 1)],
+        real: "-1 < $u and $u <= 1",
+        sr: Some(&[("$u <= -1", BR), ("$u >= 1", BR)]),
+        ranges: &[("", "$y <= 1")],
+        bound: Bound::Above,
+        onto: &[("", false)],
+        refs: "DLMF 20.9.1, 22.2.2, 19.7.5",
+        ..E
+    },
     // Jacobi elliptic functions of real x and m: sn, cn, dn real-analytic; the zeros of cn at (2k + 1) K(m) and of
     // sn at 2k K(m) for m < 1, of dn at (2k + 1) K(1/m)/sqrt(m) and of sn at 2k K(1/m)/sqrt(m) for m > 1 (Jacobi's
     // real transformation), sn = tanh and cn = dn = sech at m = 1 (DLMF 22.2, 22.4.1, 22.5 (special values), 22.17.4)
@@ -428,6 +458,65 @@ pub static TABLE: &[Entry] = &[
     // Bessel, Hankel, Kelvin, Struve, Anger-Weber functions (DLMF 10.2, 10.8, 10.25, 10.47, 10.61, 10.65, 11.2,
     // 11.10)
     Entry { name: "bessel_k", arity: 2, var: 1, onto: &[("element($a, reals)", false)], signs: &[("element($a, reals)", 1)], mono: &[("element($a, reals)", -1)], convex: &[("element($a, reals)", 1)], ranges: &[("element($a, reals)", "$y > 0")], bound: Bound::Below, refs: "DLMF 10.25.3, 10.31.1, 10.37", ..POSITIVE },
+    // ranges of the oscillating functions of order 0 from the first extremum and a decreasing envelope: J0' = -J1 and
+    // Y0' = -Y1 (DLMF 10.6.2), so between consecutive positive zeros of J1 (Y1) J0 (Y0) is monotone and the extrema
+    // on [0, j(1,2)] ((0, y(1,2)]) are J0(0) = 1 and J0(j(1,1)) (Y0(y(1,1)), Y0 -> -inf at 0+, DLMF 10.7.3); beyond,
+    // |J0|, |Y0| <= M0(x) = (J0^2 + Y0^2)^(1/2), decreasing on x > 0 by Nicholson's integral (DLMF 10.9.30: K0(2 x
+    // sinh t) decreases in x), and M0(j(1,2)) = 0.30087 < -J0(j(1,1)) = 0.40276, M0(y(1,2)) = 0.34172 < Y0(y(1,1)) =
+    // 0.52079 (30-digit values). J0 is even and |J_n| <= 1 for integer n (DLMF 10.14.1).
+    Entry {
+        name: "bessel_j",
+        arity: 2,
+        var: 1,
+        when: "element($a, integers)",
+        ranges: &[("$a == 0", "bessel_j(0, bessel_j_zero(1, 1)) <= $y and $y <= 1")],
+        bound: Bound::Both,
+        onto: &[("", false)],
+        refs: "DLMF 10.6.2, 10.9.30, 10.14.1",
+        ..ENTIRE
+    },
+    Entry {
+        name: "bessel_y",
+        arity: 2,
+        var: 1,
+        when: "$a == 0",
+        ranges: &[("", "$y <= bessel_y(0, bessel_y_zero(1, 1))")],
+        bound: Bound::Above,
+        onto: &[("", false)],
+        refs: "DLMF 10.6.2, 10.7.3, 10.9.30",
+        ..POSITIVE
+    },
+    // I_n of an integer order (I_(-n) = I_n, DLMF 10.27.1): entire, the series (x/2)^n sum (x^2/4)^k/(k! (n + k)!)
+    // (DLMF 10.25.2) has positive terms, so I_n of even n is even and >= 0 (I_0 >= 1, = 1 at 0 only), of odd n odd;
+    // I_n' = (I_(n-1) + I_(n+1))/2 (DLMF 10.29.1): odd n increasing (two even orders, I_0 > 0 or a zero at 0 only),
+    // even n convex (I_n'' = (I_(n-2) + 2 I_n + I_(n+2))/4, three even orders); unbounded (DLMF 10.30.4)
+    Entry {
+        name: "bessel_i",
+        arity: 2,
+        var: 1,
+        when: "element($a/2, integers)",
+        signs: &[("$a == 0", 1), ("", 2)],
+        convex: &[("", 1)],
+        ranges: &[("$a == 0", "$y >= 1"), ("", "$y >= 0")],
+        bound: Bound::Below,
+        onto: &[("", false)],
+        refs: "DLMF 10.25.2, 10.27.1, 10.29.1",
+        ..ENTIRE
+    },
+    Entry {
+        name: "bessel_i",
+        arity: 2,
+        var: 1,
+        when: "element(($a - 1)/2, integers)",
+        mono: &[("", 1)],
+        ranges: &[("", "true")],
+        onto: &[("", true)],
+        refs: "DLMF 10.25.2, 10.27.1, 10.29.1, 10.30.4",
+        ..ENTIRE
+    },
+    // Y_nu of an order nu >= 0 tends to -inf at 0+ (DLMF 10.7.3, 10.7.7) and |Y_nu| <= M_nu(x) <= M_nu(1) on x >= 1
+    // (Nicholson, DLMF 10.9.30): bounded above on x > 0, not onto
+    Entry { name: "bessel_y", arity: 2, var: 1, when: "$a >= 0", bound: Bound::Above, onto: &[("", false)], refs: "DLMF 10.7.3, 10.7.7, 10.9.30", ..POSITIVE },
     Entry { name: "bessel_y", arity: 2, var: 1, refs: "DLMF 10.2.3, 10.8.1", ..POSITIVE },
     Entry { name: "bessel_j", arity: 2, var: 1, when: "not_element($a, integers)", real: "$u > 0 or $u == 0 and $a > 0", complex: "$u != 0 or re($a) > 0", refs: "DLMF 10.2.2", ..POSITIVE },
     Entry { name: "bessel_i", arity: 2, var: 1, when: "not_element($a, integers)", real: "$u > 0 or $u == 0 and $a > 0", complex: "$u != 0 or re($a) > 0", refs: "DLMF 10.25.2", ..POSITIVE },
@@ -544,6 +633,19 @@ pub static TABLE: &[Entry] = &[
         complex: "$u != 0 or re($a) > -1",
         refs: "DLMF 11.2.2",
         ..POSITIVE
+    },
+    // J_nu(x) = (1/pi) int_0^pi cos(nu t - x sin t) dt: |J_nu| <= 1 for real nu and x (DLMF 11.10.1), and J_n = J_n
+    // of Bessel for an integer n (DLMF 11.10.4): the range of order 0 is that of bessel_j(0, x)
+    Entry {
+        name: "anger_j",
+        arity: 2,
+        var: 1,
+        when: "element($a, reals)",
+        ranges: &[("$a == 0", "bessel_j(0, bessel_j_zero(1, 1)) <= $y and $y <= 1")],
+        bound: Bound::Both,
+        onto: &[("", false)],
+        refs: "DLMF 11.10.1, 11.10.4",
+        ..ENTIRE
     },
     Entry { name: "anger_j", arity: 2, var: 1, refs: "DLMF 11.10.1, 11.10.(i)", ..ENTIRE },
     Entry { name: "weber_e", arity: 2, var: 1, refs: "DLMF 11.10.2, 11.10.(i)", ..ENTIRE },

@@ -118,7 +118,7 @@ pub fn atoms_ext<'h>(
     let mut out: Vec<Atom<'h>> = vec![];
     for a in raw {
         let t = tidy_all(cx, b, a.t)?;
-        if cx.is_false(t) {
+        if cx.is_false(t) || zero_of_zero_free(b, t) {
             continue;
         }
         if let Some(o) = out.iter_mut().find(|o| o.t == t) {
@@ -130,6 +130,33 @@ pub fn atoms_ext<'h>(
         out.push(Atom { t, kind: a.kind });
     }
     Ok(Some((out, partial)))
+}
+
+/// Is `t` the equation `g == 0` of a `g` that has no zero: gamma (1/gamma is entire with zeros only at the poles
+/// of gamma, DLMF 5.2.1), a power of a zero-free base (b^e = exp(e log b)), a product of such factors and nonzero
+/// numbers? (A denominator `gamma(u)` contributes such an atom; it never holds.)
+fn zero_of_zero_free<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+    fn free<'h>(b: &Build<'h>, g: T<'h>) -> bool {
+        let h = b.heap();
+        match h.view(g) {
+            View::Int(k) => k != 0,
+            View::Rational { .. } | View::BigInt { .. } => true,
+            View::Sym(s) => matches!(h.sym_name(s).as_str(), "e" | "pi"),
+            View::App { head, args } => match b.sym_of(head).map(|s| h.sym_name(s).to_string()).as_deref() {
+                Some("gamma") => args.len() == 1,
+                Some("exp") => true,
+                _ if b.sym_of(head) == Some(b.hd.pow) => args.len() == 2 && free(b, args[0]),
+                _ if b.sym_of(head) == Some(b.hd.mul) => args.iter().all(|&a| free(b, a)),
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    let h = b.heap();
+    match h.view(t) {
+        View::App { head, args: &[l, r] } if b.sym_of(head) == Some(h.sym("equal")) && r == b.zero() => free(b, l),
+        _ => false,
+    }
 }
 
 /// The atoms of `piecewise([[v1, c1], ...], d)` of one real variable (F27.4): the atoms of each value inside its

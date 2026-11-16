@@ -625,6 +625,11 @@ impl<'h> Front<'h> {
                 *d = self.subst(*d, k, r, m)?;
             }
             let base = self.subst(base, k, r, m)?;
+            // where the radicand is negative the radical is not real and every relation holding it is false (its
+            // negation too): only those atoms are decided there, the rest of the formula keeps its meaning (a
+            // disjunct free of the radical, as `a >= 0` in `a < 0 and b >= sqrt(-3 a)/3 or a >= 0`, still holds)
+            let with_r: Vec<bool> = diffs.iter().map(|&d| contains(self.h(), d, r)).collect();
+            let off_domain = false_where(&fm, &with_r, true);
             // where r goes: after the innermost bound variable of the radicand, else first of the bound ones
             let pos = (0..prefix.len()).rev().find(|&i| contains(self.h(), base, prefix[i].1));
             let (at, q) = match pos {
@@ -638,9 +643,15 @@ impl<'h> Front<'h> {
             diffs.push(r);
             rels.push(Rel::Ge);
             let ge = Fm::Atom(diffs.len() - 1);
+            diffs.push(base);
+            rels.push(Rel::Lt);
+            let negative = Fm::Atom(diffs.len() - 1);
+            diffs.push(base);
+            rels.push(Rel::Ge);
+            let nonnegative = Fm::Atom(diffs.len() - 1);
             fm = match q {
-                Quant::Exists => Fm::And(vec![eq, ge, fm]),
-                Quant::ForAll => Fm::Or(vec![Fm::negation(Fm::And(vec![eq, ge])), fm]),
+                Quant::Exists => Fm::Or(vec![Fm::And(vec![eq, ge, fm]), Fm::And(vec![negative, off_domain])]),
+                Quant::ForAll => Fm::And(vec![Fm::Or(vec![Fm::negation(Fm::And(vec![eq, ge])), fm]), Fm::Or(vec![nonnegative, off_domain])]),
             };
         }
         let bound: Vec<T<'h>> = prefix.iter().map(|p| p.1).collect();
@@ -725,6 +736,18 @@ fn bool_subst<'h>(f: &QFm<'h>, x: T<'h>, v: bool) -> QFm<'h> {
         QFm::Not(g) => QFm::Not(Box::new(bool_subst(g, x, v))),
         QFm::Q(q, vs, g) if !vs.contains(&x) => QFm::Q(*q, vs.clone(), Box::new(bool_subst(g, x, v))),
         g => g.clone(),
+    }
+}
+
+/// `f` with every atom marked in `which` false where it occurs positively (`pos`) and true under a negation, so
+/// that the relation and its negation are both false.
+fn false_where(f: &Fm, which: &[bool], pos: bool) -> Fm {
+    match f {
+        Fm::Atom(j) if which.get(*j).copied().unwrap_or(false) => Fm::Const(!pos),
+        Fm::And(v) => Fm::And(v.iter().map(|h| false_where(h, which, pos)).collect()),
+        Fm::Or(v) => Fm::Or(v.iter().map(|h| false_where(h, which, pos)).collect()),
+        Fm::Not(h) => Fm::Not(Box::new(false_where(h, which, !pos))),
+        h => h.clone(),
     }
 }
 

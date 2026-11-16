@@ -458,6 +458,28 @@ fn side_limit<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'
     Ok(Some(l))
 }
 
+/// Is `f` (one real variable `x`, no parameters, no condition) proved to take every real value, by the limits on
+/// the pieces between its real breaks ([`surjective_line`])? (`function_range` asks this last.)
+pub fn onto_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<bool> {
+    let s = Spec {
+        f,
+        comps: vec![f],
+        vector: false,
+        cond: None,
+        ycond: None,
+        vars: vec![x],
+        yvars: vec![],
+        dom: Dom::Reals,
+        dom_given: false,
+        gc: Gc::Yes,
+        facts: vec![],
+        strict: false,
+        speed: false,
+    };
+    let y = b.heap().sym_term(b.heap().sym("y"));
+    Ok(matches!(surjective_line(cx, b, &s, y)?, Ans::Bool(true)))
+}
+
 /// One real variable (module comment).
 fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, y: T<'h>) -> Res<Ans<'h>> {
     let h = b.heap();
@@ -485,6 +507,10 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
     // per interval: the limits at its ends and whether f is strictly monotonic on it (a proved sign of f')
     let df = cx.eval(b.call("d", &[f, x]))?;
     let mut images: Vec<Option<(T<'h>, T<'h>)>> = vec![];
+    // rays: a piece on which f tends to -inf at an end contains every value below f(p) for each exact point p inside
+    // it (intermediate values on the stretch from p to that end), and one where f tends to +inf every value above
+    // f(p); a ray below some v and a ray above some w <= v cover the line (-cos(x)/x: -inf at 0+, +inf at 0-)
+    let (mut below, mut above): (Vec<T<'h>>, Vec<T<'h>>) = (vec![], vec![]);
     for w in ends.windows(2) {
         cx.tick(1)?;
         let (a, c) = (w[0], w[1]);
@@ -517,6 +543,37 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
         if let (Some(la), Some(lc)) = (la, lc) {
             if [la, lc].contains(&inf) && [la, lc].contains(&ninf) {
                 return Ok(Ans::Bool(true));
+            }
+        }
+        // (not with a family of breaks: members beyond the listed ones may fall between two listed breaks)
+        if s.cond.is_none() && !families && [la, lc].iter().any(|l| l.is_some_and(|l| l == inf || l == ninf)) {
+            // exact points inside the piece: rationals near the machine midpoint and nearer each end
+            let near: Vec<f64> = if a.0.is_finite() && c.0.is_finite() {
+                vec![mid, a.0 + 0.25 * (c.0 - a.0), a.0 + 0.75 * (c.0 - a.0)]
+            } else {
+                vec![mid, mid + (mid - if a.0.is_finite() { a.0 } else { c.0 })]
+            };
+            for p in near {
+                let q = cx.eval(b.call("rationalize", &[h.real(p), h.real(1e-3)]))?;
+                if !sets::real_rational(b, q) {
+                    continue;
+                }
+                // strictly inside, decided exactly
+                let inside = (a.0.is_infinite() || super::proof::closed_sign(cx, b, b.sub(q, a.1))? == Some(1))
+                    && (c.0.is_infinite() || super::proof::closed_sign(cx, b, b.sub(c.1, q))? == Some(1));
+                if !inside {
+                    continue;
+                }
+                let v = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, q])]))?;
+                if value(cx, b, v, x, 0.0)?.is_none() {
+                    continue;
+                }
+                if la == Some(ninf) || lc == Some(ninf) {
+                    below.push(v);
+                }
+                if la == Some(inf) || lc == Some(inf) {
+                    above.push(v);
+                }
             }
         }
         // strictly monotonic on the open piece: f' of one strict sign, proved by refine there (or by enclosures over
@@ -554,6 +611,13 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
             (Some(p), Some(q), true) => order(cx, p, q)?,
             _ => None,
         });
+    }
+    for &v in &below {
+        for &w in &above {
+            if super::proof::closed_sign(cx, b, b.sub(v, w))?.is_some_and(|s| s >= 0) {
+                return Ok(Ans::Bool(true));
+            }
+        }
     }
     // every image known (and every break point listed, not a family): a value outside all of them (0, or an end
     // of an image), decided exactly

@@ -124,6 +124,10 @@ const TEMPLATES: &[&str] = &[
     "function_injective(exp(x) + A*x, x)",
     "function_surjective(x^3 + A*x^2, x)",
     "function_bijective(A*x + B, x)",
+    // onto by the limits on pieces (rays) and not onto by a bound
+    "function_surjective(x + A/x, x)",
+    "function_surjective(x/(x^2 + A), x)",
+    "function_surjective(A*cos(x)/x, x)",
 ];
 
 const PARAMS: [(&str, &str); 4] = [("A", "a"), ("B", "b"), ("C", "c"), ("D", "d_u")];
