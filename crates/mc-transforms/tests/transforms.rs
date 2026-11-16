@@ -24,7 +24,7 @@ fn laplace() {
         ("laplace_transform(t*unit_step(t - 1), t, s)", "(1 + s)*exp(-s)*s^-2"),
         ("laplace_transform(sin(w*t), t, s)", "w/(s^2 + w^2)"),
         ("laplace_transform(exp(a*t)*sin(w*t), t, s)", "w/(w^2 + (s - a)^2)"),
-        ("laplace_transform(t*cosh(a*t), t, s)", "(a^2 + s^2)*(a + s)^-2*(a - s)^-2"),
+        ("laplace_transform(t*cosh(a*t), t, s)", "(a^2 + s^2)*(a + s)^-2*(s - a)^-2"),
         ("laplace_transform(t^n, t, s)", "gamma(1 + n)*s^(-1 - n)"),
         ("laplace_transform(log(t), t, s)", "(-euler_gamma - log(s))/s"),
         ("laplace_transform(bessel_j(0, a*t), t, s)", "(a^2 + s^2)^(-1/2)"),

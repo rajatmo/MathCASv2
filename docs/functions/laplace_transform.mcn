@@ -80,7 +80,7 @@ laplace_transform(sin(w*t), t, s)
 #% cell
 laplace_transform(t*cosh(a*t), t, s)
 #% output
-#= (a^2 + s^2)/((a + s)^2*(a - s)^2)
+#= (a^2 + s^2)/((a + s)^2*(s - a)^2)
 
 #% text
 # Powers and logarithms:

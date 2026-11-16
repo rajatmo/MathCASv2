@@ -52,6 +52,16 @@ precision could claim digits it did not have; `sum(x^k, [k, -inf, inf])` gave 0;
 functions at 0. Assignments to a span, to several positions or to a column (`l[2:4] = 0`, `m[all, 2] = v`) did
 nothing; they set every selected part, and a position outside the list is a failure.
 
+Property answers are exact at their boundaries: `function_bijective(x^3 + a*x^2 + b*x + c, x)` is
+`a^2 - 3*b <= 0` (the boundary was left out); `function_injective` no longer uses one sign of the derivative
+over separate intervals; convexity with a parameter sees the poles; `function_analytic(sqrt(x^2), x)` is `false`
+and `abs(x^2)` is analytic; strict monotonicity of `x^3` is answered.
+
+**Faster.** A small input takes about a tenth of the time it took (parsing no longer starts a thread per
+input); a plot draws its PDF and print versions when an export first asks for them; plots of large rasters no
+longer print them; `sign` of a complex constant, root counts with `gamma` and `matrix_exp` of a matrix logarithm
+are much quicker.
+
 **Sums carry their conditions.** An infinite sum or product with a parameter gives a `conditional_expression`
 with its condition of convergence (`sum(p^k/k, [k, 1, inf])` holds for `abs(p) < 1` and at `p == -1`);
 `generate_conditions: false` gives the value alone, and a condition that the assumptions imply is dropped.
@@ -76,7 +86,11 @@ Zernike functions and spherical harmonics off the integers; centered intervals w
 Fresnel, Hankel, gamma and zeta functions; Bessel functions of half-integer order in elementary functions;
 recurrences solved by products over several steps and by the recurrences of orthogonal polynomials and Bessel
 functions; sums of two, four and eight squares as divisor sums; images of the principal branches of the inverse
-functions; series at the singular points of `acsch`, `asech` and `acoth`.
+functions; series at the singular points of `acsch`, `asech` and `acoth`. Proved complex boxes of the
+Weierstrass and modular functions; alternating series of rational functions; sums of Bell and Stirling numbers;
+general series coefficients; sums of squares above degree 2 with an exact certificate; eigenvectors and singular
+value decompositions of high-precision matrices at their precision; `refine` joins facts about several symbols
+(`a > 0` from `a > b and a > -b`); `find_instance` proves an empty answer over the integers.
 
 **Also new.** Proved images of more special functions on wide intervals; `prime_pi` up to 2^60;
 hypergeometric functions (p+1)Fp beyond the unit circle; Lommel and Weber functions at exceptional orders;

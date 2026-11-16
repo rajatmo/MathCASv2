@@ -67,7 +67,7 @@ lerch_phi(0.4, 2.0, 0.7) - sum(0.4^k/(k + 0.7)^2, [k, 0, 80])
 #% cell
 lerch_phi(-1.0, 1.0, 1.0)
 #% output
-#= lerch_phi(-1.0, 1.0, 1.0)
+#= 0.6931471805599453
 
 #% section
 # See also

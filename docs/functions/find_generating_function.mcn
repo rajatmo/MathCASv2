@@ -31,7 +31,7 @@ together(find_generating_function([0, 1, 2, 0, 1, 2, 0], x))
 #% cell
 together(find_generating_function([3, 7, 13, 21, 31, 43, 57], x))
 #% output
-#= (-3 + 2*x - x^2)/(-1 + 3*x - 3*x^2 + x^3)
+#= (-3 + 2*x - x^2)/(-1 + x)^3
 
 #% cell
 series(find_generating_function([1, 1, 2, 3, 5, 8, 13], x), x, 0, 9)

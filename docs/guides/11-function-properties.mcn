@@ -220,7 +220,7 @@ function_surjective([x + 2*y + 3*z, 4*x + 5*y + 6*z, 7*x + 8*y + 9*z], [x, y, z]
 #% cell
 function_bijective(x^3 + a*x + b, x)
 #% output
-#= conditional_expression(true, element(a | b, reals) and a > 0)
+#= conditional_expression(true, element(a | b, reals) and a >= 0)
 
 #% cell
 function_bijective(a*x, x, complexes)
@@ -230,7 +230,7 @@ function_bijective(a*x, x, complexes)
 #% cell
 function_bijective(a*x + b, x)
 #% output
-#= conditional_expression(true, element(a | b, reals) and (a > 0 or a < 0) and a != 0)
+#= conditional_expression(true, element(a | b, reals) and (a >= 0 and a != 0 or a <= 0 and a != 0) and a != 0)
 
 #% cell
 function_bijective(a*x + b, x, assumptions: a > 0)
