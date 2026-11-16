@@ -1473,6 +1473,14 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
                 v.push(Task::Expr(u, Ctx::at(MUL)));
                 return;
             }
+            // an imaginary number with a negative part that is not a literal (`a - 3*im/4`, not `a + -3*im/4`)
+            if self.is(a, Head::Complex, 2).is_some() {
+                if let Some(u) = self.negated_number(a) {
+                    v.push(Task::Text(" - "));
+                    v.push(Task::Expr(u, Ctx::at(ADD + 1)));
+                    return;
+                }
+            }
         }
         if let Some([m, b]) = self.is(a, Head::Mul, 2) {
             // `a - 7` and `a - 3/4` read back as negative literals, so `mul(-1, 7)` keeps its explicit form.

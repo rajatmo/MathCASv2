@@ -42,7 +42,7 @@ projection([a, b, c], [1, 1, 1])
 #% cell
 projection([3 + im, 2, 2 - im], [2, 4, 5*im])
 #% output
-#= [2/5 + -16*im/45, 4/5 + -32*im/45, 8/9 + im]
+#= [2/5 - 16*im/45, 4/5 - 32*im/45, 8/9 + im]
 
 #% cell
 projection([1, 2, 3], [[1, 1, 0], [0, 1, 0]])

@@ -212,7 +212,7 @@ n_integrate(t^2*exp(-3*t)*exp(-2.5*t), [t, 0, inf])
 #% cell
 laplace_transform(sin(t), t, 1 + 2im)
 #% output
-#= -1/10 + -im/5
+#= -1/10 - im/5
 
 #% subsection
 # Possible issues

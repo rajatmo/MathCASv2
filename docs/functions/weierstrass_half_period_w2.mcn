@@ -39,7 +39,7 @@ weierstrass_half_period_w2([0.5 + im, 1.0])
 #% cell
 weierstrass_half_period_w2([1, 0])
 #% output
-#= (-1/4 + -im/4)*gamma(1/4)^2/pi^(1/2)
+#= (-1/4 - im/4)*gamma(1/4)^2/pi^(1/2)
 
 #% cell
 w = weierstrass_half_period_w2([1.0, 2.0]); weierstrass_p(0.3 + 2*w, [1, 2]) - weierstrass_p(0.3, [1, 2])

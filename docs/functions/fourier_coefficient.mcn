@@ -30,7 +30,7 @@
 #% cell
 fourier_coefficient(t^2 + t, t, 5)
 #% output
-#= -2/25 + -im/5
+#= -2/25 - im/5
 
 #% cell
 fourier_coefficient(t^2 + t, t, n)
