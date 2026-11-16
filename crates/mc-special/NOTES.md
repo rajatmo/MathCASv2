@@ -1284,3 +1284,35 @@ that do not exist yet: Struve, Kelvin, inverse Jacobi in m, Mittag-Leffler, Lomm
 complex boxes of the modular, Weierstrass, Coulomb and Legendre functions of type 3 (no complex-ball kernels); Lerch
 Phi beyond the unit disc; the Taylor fallback of `series` at a point where a function stays unevaluated but is
 infinite (fixed here for the Hankel functions only).
+## Round 46: special functions in depth, third part
+
+Groups of the inputs left partly unevaluated, by cause, and the methods built (tests:
+`mc-engine/tests/round46_special.rs`, each enclosure sampled at 40-digit points of its box against the term path,
+each value against an independent route):
+
+- **Complex boxes of the Weierstrass and modular functions** (`ball/lattice.rs`, through `ball/boxes.rs`). Every
+  quantity carries its gradient in the box arguments (forward differentiation on complex balls); the result is the
+  narrower, part by part, of the natural enclosure and the mean value form f(c) + sum_i f_i(B)(B_i - c_i). The roots
+  of 4t^3 - g2 t - g3 by an interval Newton step (Moore, Kearfott and Cloud 2009, 8.1), their gradient by implicit
+  differentiation; K and E by the arithmetic-geometric mean on balls (once |a - b| <= |a|/8 the differences fall by
+  1/48 a step, so the mean lies within |a - b| of a; the complex 2F1 kernel took a minute for a box of radius 1e-6);
+  the half-periods with the labelling of the machine path, p, p', zeta, sigma by the theta series of theta_1 with the
+  bound of the rest and of its derivatives in tau and v; the reduced half-periods as the integer combination the
+  machine reduction chooses at the centre (declined when tau moves within 1e-6 of a boundary of the fundamental
+  domain over the box, a bound from the gradient); the invariants of half-periods by the theta constants (DLMF
+  23.6.2-4). Modular: eta by the pentagonal series, lambda = theta_2^4/theta_3^4, J = E4^3/(1728 eta^24) with
+  eta^24 = Q prod (1 - Q^n)^24 (a box of lambda can reach 0 where J is finite). The radii are of the order of
+  |f'| r: `weierstrass_p` at boxes of radius 1e-9 has 1.1e-8.
+- **Ferrers P and Q and the Laguerre functions of a non-integer rational degree at 0** (`more.rs`): DLMF 14.5.1-2
+  (the form of `function_expand`) and L_n^a(0) = binomial(n + a, n); the Taylor series about 0 are explicit
+  (they were derivatives of unevaluated values).
+- **Lerch Phi beyond the unit circle at inexact integer s and a** (`cover.rs`): the polylogarithm form took only exact
+  integers; `n(lerch_phi(7/3, 5, 2), 50)` evaluates.
+
+Not reached: Lerch Phi and the polylogarithm of a complex non-integer order beyond the unit circle (the expansion
+about z = 1 needs zeta(s - k, a) for complex s at large negative real parts in arbitrary precision; the machine
+Hurwitz zeta there is not accurate enough to build on); the forms at infinity of Struve, Kelvin, Mittag-Leffler,
+Lommel and the inverse Jacobi functions in m (their inputs are `full_simplify(normal(series(...)))`, compared by the
+printed form); complex boxes of Coulomb and type-3 Legendre functions; a box of a modular function with a real
+radius and a complex centre is spread in both parts here (the convention of round 45), so `dedekind_eta` and
+`modular_lambda` of such boxes are wider than enclosures spread along the real direction only.

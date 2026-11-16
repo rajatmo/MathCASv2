@@ -804,3 +804,11 @@ the boxes), which is tight to second order where the series of the natural form 
 (`pochhammer(centered_interval(5 + 3 i, (1 + i)/1000), 3/5)` has the radius 4.2e-4, the natural form 0.25). No natural
 enclosure (a pole or a cut in a box) leaves the call unevaluated: the mean value form needs analyticity on the box.
 Radii above 1/4 are not taken. Literature: Moore, Kearfott and Cloud (2009) ch. 5-6; Johansson, Arb (2017).
+
+## Round 46: centered intervals inside list arguments
+
+The Weierstrass functions take their invariants (or half-periods) as a list, `weierstrass_p(u, [g2, g3])`. A
+centered interval inside such a list now reaches the complex-ball enclosures (`uncertain::any_or_listed`, and in
+`uncertain_cball::apply` the two elements of a list argument become two balls, for the `weierstrass_*` names only:
+the parameter lists of the hypergeometric functions are not numbers in a row). Functions whose value is a list
+(`weierstrass_half_periods`, `weierstrass_invariants`) are the lists of the enclosures of their elements.

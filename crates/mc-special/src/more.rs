@@ -562,6 +562,9 @@ fam!(hermite_h, Family::Hermite);
 
 fn legendre_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if a.len() == 2 {
+        if fx.is_int(a[1], 0) && non_integer_rat(fx, a[0]) {
+            return Ok(Some(ferrers_at_zero(fx, a[0], false)));
+        }
         return family(fx, Family::Legendre, a);
     }
     // the associated function P_l^m(x) = (-1)^m (1 - x^2)^(m/2) d^m/dx^m P_l(x) (type 2, |x| < 1)
@@ -644,12 +647,37 @@ fn falling_ratio(l: u64, m: u64) -> Rat {
     Rat::new(Int::from_i64(1), Int::from_nat(den))
 }
 
+/// An exact rational that is not an integer.
+fn non_integer_rat<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> bool {
+    fx.rat_of(t).is_some_and(|r| !r.is_int())
+}
+
+/// The Ferrers functions of a non-integer rational degree at 0 (DLMF 14.5.1-2 with mu = 0):
+/// P_nu(0) = sqrt(pi)/(Gamma(1/2 - nu/2) Gamma(1 + nu/2)), Q_nu(0) = -pi^(3/2) tan(nu pi/2)/(nu Gamma(1/2 - nu/2)
+/// Gamma(nu/2)) (the form of `function_expand`; 14.5.2 rewritten by the reflection formula). The values make the
+/// Taylor series about 0 of the functions of such a degree explicit.
+fn ferrers_at_zero<'h>(fx: &Fx<'_, '_, '_, 'h>, nu: T<'h>, second: bool) -> T<'h> {
+    let half = fx.rat(1, 2);
+    let g = |t: T<'h>| fx.call("gamma", &[t]);
+    let hn = fx.mul(&[half, nu]);
+    let a = g(fx.sub(half, hn));
+    if second {
+        let tan = fx.call("tan", &[fx.mul(&[hn, fx.sym("pi")])]);
+        fx.neg(fx.div(fx.mul(&[fx.pow(fx.sym("pi"), fx.rat(3, 2)), tan]), fx.mul(&[nu, a, g(hn)])))
+    } else {
+        fx.div(fx.pow(fx.sym("pi"), half), fx.mul(&[a, g(fx.add(&[fx.int(1), hn]))]))
+    }
+}
+
 fn legendre_q<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     // legendre_q(nu, mu, x) is a library rule (lib/special.mc); the native only takes its uncertain arguments
     if a.len() != 2 {
         return Ok(None);
     }
     let (n, x) = (a[0], a[1]);
+    if fx.is_int(x, 0) && non_integer_rat(fx, n) {
+        return Ok(Some(ferrers_at_zero(fx, n, true)));
+    }
     if let Some(k) = small_nat(fx, n) {
         if let Some(v) = legendre_q_machine(fx, k, x)? {
             return Ok(Some(v));
@@ -747,6 +775,17 @@ fn rats_of<'h>(fx: &Fx<'_, '_, '_, 'h>, ts: &[T<'h>]) -> Option<Vec<Rat>> {
 }
 
 fn laguerre_l<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    // at 0, of a non-integer rational degree: L_n^a(0) = binomial(n + a, n) (DLMF 18.5.12 continued in n by the
+    // 1F1 form binomial(n + a, n) 1F1(-n; a + 1; x) of 18.5.12, which is 1 at x = 0)
+    let last = a[a.len() - 1];
+    if fx.is_int(last, 0) && non_integer_rat(fx, a[0]) {
+        if a.len() == 2 {
+            return Ok(Some(fx.int(1)));
+        }
+        if fx.rat_of(a[1]).is_some() {
+            return Ok(Some(fx.call("binomial", &[fx.add(&[a[0], a[1]]), a[0]])));
+        }
+    }
     if a.len() == 2 {
         return family(fx, Family::Laguerre, a);
     }

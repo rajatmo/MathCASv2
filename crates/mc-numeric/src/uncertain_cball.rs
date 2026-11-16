@@ -158,7 +158,17 @@ pub(crate) fn apply<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>], n
     let mut centres = Vec::with_capacity(args.len());
     let mut spread = vec![];
     let mut complex = false;
-    for (i, &a) in args.iter().enumerate() {
+    // a list argument (the invariants [g2, g3] or half-periods of the Weierstrass functions) gives one ball per
+    // element, in order (only for those: the parameter lists of other functions are not numbers in a row)
+    let lists = name.starts_with("weierstrass_");
+    let mut flat = Vec::with_capacity(args.len());
+    for &a in args {
+        match fx.as_list(a) {
+            Some(xs) if lists && xs.len() == 2 => flat.extend_from_slice(xs),
+            _ => flat.push(a),
+        }
+    }
+    for (i, &a) in flat.iter().enumerate() {
         let Some((b, c, cx, sp)) = arg_ball(fx, a) else { return Ok(None) };
         complex |= cx;
         if sp {
@@ -171,6 +181,21 @@ pub(crate) fn apply<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>], n
         return Ok(None);
     }
     fx.tick(4)?;
+    // functions whose value is a list: the list of the enclosures of its elements
+    let parts: Option<&[&str]> = match name.as_str() {
+        "weierstrass_half_periods" => Some(&["weierstrass_half_period_w1", "weierstrass_half_period_w3"]),
+        "weierstrass_invariants" => Some(&["weierstrass_invariant_g2", "weierstrass_invariant_g3"]),
+        _ => None,
+    };
+    if let Some(ps) = parts {
+        let mut out = Vec::with_capacity(ps.len());
+        for p in ps {
+            let Some(v) = hook(p, &balls, None, P) else { return Ok(None) };
+            let Some(t) = written(fx, &v) else { return Ok(None) };
+            out.push(t);
+        }
+        return Ok(Some(fx.list(&out)));
+    }
     // the natural enclosure over the boxes, met with the mean value form f(c) + f'(B) (B - c) when one argument is
     // spread (the segment from c to any point of the convex box B stays in B, so f(z) - f(c) is z - c times an
     // average of f' over it, inside the convex enclosure of f'(B)): the natural form widens by the dependency of
@@ -190,12 +215,17 @@ pub(crate) fn apply<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>], n
         // no natural enclosure: a pole or a cut may be inside, where the mean value form does not hold
         (None, _) => return Ok(None),
     };
-    let Some((mr, rr)) = mid_rad(&v.re) else { return Ok(None) };
+    Ok(written(fx, &v))
+}
+
+/// A complex ball as the enclosing centered interval of machine numbers.
+fn written<'h>(fx: &Fx<'_, '_, '_, 'h>, v: &CBall) -> Option<T<'h>> {
+    let (mr, rr) = mid_rad(&v.re)?;
     if v.im.mid.is_zero() && v.im.rad.is_zero() {
-        return Ok(Some(fx.call("centered_interval", &[fx.real(mr), fx.real(rr)])));
+        return Some(fx.call("centered_interval", &[fx.real(mr), fx.real(rr)]));
     }
-    let Some((mi, ri)) = mid_rad(&v.im) else { return Ok(None) };
+    let (mi, ri) = mid_rad(&v.im)?;
     let c = fx.ar.complex(fx.real(mr), fx.real(mi));
     let r = fx.ar.complex(fx.real(rr), fx.real(ri));
-    Ok(Some(fx.call("centered_interval", &[c, r])))
+    Some(fx.call("centered_interval", &[c, r]))
 }

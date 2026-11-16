@@ -2467,7 +2467,17 @@ fn lerch_phi<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         }
         // a positive integer s and a: the series is z^-a (Li_s(z) - sum_(i < a) z^i/i^s), which continues it
         // beyond the unit circle on the principal branch of the polylogarithm (DLMF 25.14.1, 25.12.10)
-        if let (Some(n), Some(m)) = (fx.int_of(s), fx.int_of(x)) {
+        // (s and a may be inexact numbers with an integer value, as n(lerch_phi(7/3, 5, 2), 50) gives them)
+        let integral = |t: T<'h>| -> Option<i64> {
+            fx.int_of(t).or_else(|| match fx.num(t)? {
+                Num::Real(r) => crate::ball::exact_int(&r).or_else(|| match r {
+                    Real::Machine(v) if v.fract() == 0.0 && v.abs() < 1e9 => Some(mc_arith::num::Int::from_i64(v as i64)),
+                    _ => None,
+                })?.to_i64(),
+                _ => None,
+            })
+        };
+        if let (Some(n), Some(m)) = (integral(s), integral(x)) {
             if n >= 1 && (1..=10_000).contains(&m) {
                 let mut terms = vec![fx.call("polylog", &[s, z])];
                 for i in 1..m {

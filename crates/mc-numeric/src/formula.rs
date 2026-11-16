@@ -265,7 +265,7 @@ impl Native for FormulaNative {
                 return Ok(Reply::Done(v));
             }
         }
-        if !crate::uncertain::HEADS.contains(&d.name) && crate::uncertain::any(h, args) {
+        if !crate::uncertain::HEADS.contains(&d.name) && crate::uncertain::any_or_listed(h, args) {
             if let Some(v) = crate::uncertain::apply(cx, t, args)? {
                 return Ok(Reply::Again(v));
             }

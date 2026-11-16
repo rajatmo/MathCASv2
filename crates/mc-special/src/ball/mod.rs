@@ -19,6 +19,7 @@ pub mod expint;
 pub mod gamma;
 pub mod hyper;
 pub mod incomplete;
+pub mod lattice;
 pub mod nome;
 pub mod polylog;
 pub mod zeta;

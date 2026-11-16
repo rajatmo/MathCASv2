@@ -38,6 +38,21 @@ pub fn any(h: &Heap, args: &[T<'_>]) -> bool {
     args.iter().any(|&a| head_of(h, a).is_some())
 }
 
+/// Is a centered interval an element of a list argument (the invariants of the Weierstrass functions)?
+fn in_list(h: &Heap, args: &[T<'_>]) -> bool {
+    args.iter().any(|&a| match h.view(a) {
+        View::App { head, args: xs } => {
+            matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "list") && xs.iter().any(|&x| head_of(h, x) == Some(2))
+        }
+        _ => false,
+    })
+}
+
+/// [`any`], or a centered interval inside a list argument.
+pub fn any_or_listed(h: &Heap, args: &[T<'_>]) -> bool {
+    any(h, args) || in_list(h, args)
+}
+
 fn head_of(h: &Heap, t: T<'_>) -> Option<usize> {
     let View::App { head, .. } = h.view(t) else { return None };
     let View::Sym(s) = h.view(head) else { return None };
@@ -82,6 +97,10 @@ pub fn apply<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res
 
 fn apply_in<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Option<T<'h>>> {
     let kinds: Vec<Option<usize>> = args.iter().map(|&a| head_of(fx.h, a)).collect();
+    if kinds.iter().all(Option::is_none) && in_list(fx.h, args) {
+        // centered intervals inside a list argument: the registered complex-ball enclosures
+        return crate::uncertain_cball::apply(fx, t, args, false);
+    }
     let Some(kind) = kinds.iter().flatten().copied().next() else { return Ok(None) };
     // sums, products and powers of centered intervals with complex parts, with intervals, or with an uncertain
     // exponent: rectangular box arithmetic (rigorous)

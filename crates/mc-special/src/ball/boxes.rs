@@ -6,7 +6,9 @@
 //! - the auxiliary functions (DLMF 7.2.10-11 solved for f, g): f = (1/2 - S) cos(pi z^2/2) - (1/2 - C) sin(pi z^2/2),
 //!   g = (1/2 - C) cos(pi z^2/2) + (1/2 - S) sin(pi z^2/2);
 //! - Hankel functions H_nu = J_nu +- i Y_nu (DLMF 10.4.3) and the spherical ones sqrt(pi/(2z)) H_(n+1/2)(z) (10.47.5-6);
-//! - the Pochhammer symbol Gamma(a + n)/Gamma(a) and the subfactorial Gamma(x + 1, -1)/e (the principal value).
+//! - the Pochhammer symbol Gamma(a + n)/Gamma(a) and the subfactorial Gamma(x + 1, -1)/e (the principal value);
+//! - the modular functions eta, lambda, J and the Weierstrass functions, half-periods and invariants (their own
+//!   module, [`super::lattice`], with the mean value form in every argument).
 use super::cseries::{bessel_j, bessel_y, int_of};
 use super::cspecial::{bessel_yk_int, gamma_inc};
 use crate::functions::Special;
@@ -148,6 +150,7 @@ pub fn complex_box(name: &str, a: &[CBall], p: u64) -> Option<CBall> {
             let e = cball::exp(&CBall::from_i64(-1), w)?;
             g.mul(&e, w)
         }
+        _ if super::lattice::has(name) => super::lattice::enclose(name, a, w)?,
         _ => Special::find(name, a.len())?.ball_complex(a, w)?,
     };
     Some(v.round(p))
