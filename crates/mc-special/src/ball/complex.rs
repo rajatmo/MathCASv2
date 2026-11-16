@@ -221,7 +221,7 @@ fn gamma_box(z: &CBall, p: u64) -> Option<CBall> {
     let mut sum = 0.0f64;
     for j in 0..n {
         let d = (cr + j as f64).hypot(ci) * (1.0 - 1e-12);
-        if !(d > r) {
+        if d.is_nan() || d <= r {
             return gamma_by_log(z, p);
         }
         sum += 1.0 / d;
@@ -241,7 +241,7 @@ fn gamma_box(z: &CBall, p: u64) -> Option<CBall> {
     // exp(S(z + N) - log P(c) - log(1 + u)) (any branch of the logarithm of the point P(c): exp removes it), the
     // radius added there to both parts
     let g = (r * sum * (1.0 + 1e-12)).exp_m1() * (1.0 + 1e-12);
-    if !(g < 0.5) {
+    if g.is_nan() || g >= 0.5 {
         return gamma_by_log(z, p);
     }
     let Some(lp) = cball::log(&prod, w) else { return gamma_by_log(z, p) };
