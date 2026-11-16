@@ -109,6 +109,22 @@ fn generalized<'h>(h: &'h Heap, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
 fn hurwitz<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, s: T<'h>, a: T<'h>) -> Option<T<'h>> {
     let zeta = |x: T<'h>| h.call(h.sym("zeta"), &[x]);
     let (ns, na) = (ar.num(s), ar.num(a));
+    // s = -n, a nonpositive integer, and a number a: zeta(-n, a) = -B_(n+1)(a)/(n + 1) (DLMF 25.11.14), a polynomial
+    // (Euler-Maclaurin at machine precision lost 9 digits to cancellation: zeta(-3, 0.3) had a relative error 3e-9)
+    if let (Some(x), Some(_)) = (&ns, &na) {
+        let int_value = match x {
+            Num::Real(Real::Exact(q)) if q.is_int() => q.num.to_i64(),
+            Num::Real(Real::Machine(v)) if v.fract() == 0.0 => Some(*v as i64),
+            _ => None,
+        };
+        if let Some(sv) = int_value.filter(|v| (-60..=0).contains(v)) {
+            let n1 = 1 - sv;
+            let b = h.call(h.sym("bernoulli_b"), &[h.int(n1), a]);
+            let v = ar.mul(&[ar.rational(h.int(-1), h.int(n1)), b]);
+            // a machine s keeps the result a machine number
+            return Some(if x.kind() == mc_arith::Kind::Machine { h.call(h.sym("n"), &[v]) } else { v });
+        }
+    }
     if let (Some(x), Some(y)) = (&ns, &na) {
         if x.kind() == mc_arith::Kind::Machine || y.kind() == mc_arith::Kind::Machine {
             let (zs, za) = (machine_c64(x)?, machine_c64(y)?);
@@ -499,6 +515,23 @@ impl Native for Pfq {
         // a zero numerator parameter: 1
         if a.iter().any(|&x| ar.num(x).is_some_and(|v| v.is_exact_zero())) {
             return Ok(Reply::Again(ar.int(1)));
+        }
+        // the series is symmetric in the upper and in the lower parameters: lists with a symbolic member in
+        // canonical order, so that equal values are equal terms
+        let sorted = |xs: &[T<'h>]| -> Option<Vec<T<'h>>> {
+            if xs.iter().all(|&x| ar.num(x).is_some()) {
+                return None;
+            }
+            let mut v = xs.to_vec();
+            v.sort_by(|&p, &q| ar.cmp(p, q));
+            (v != xs).then_some(v)
+        };
+        let (sa, sb) = (sorted(a), sorted(b));
+        if sa.is_some() || sb.is_some() {
+            let la = sa.map_or(args[0], |v| cx.list(&v));
+            let lb = sb.map_or(args[1], |v| cx.list(&v));
+            let View::App { head, .. } = h.view(t) else { return Ok(Reply::Decline) };
+            return Ok(Reply::Again(h.app(head, &[la, lb, args[2]])));
         }
         // dispatch to the named functions of fixed arity
         let named = match (a.len(), b.len()) {

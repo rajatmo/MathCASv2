@@ -372,11 +372,27 @@ impl<'a, 'h> More<'a, 'h> {
                 if a[0] == a[1] {
                     return self.val(self.call("exp", &[a[2]]));
                 }
+                // b - a a nonpositive integer -n at a symbolic argument: Kummer's transformation 1F1(a; b; z) =
+                // e^z 1F1(b - a; b; -z) (DLMF 13.2.39) makes the series terminate (b not a pole)
+                if let (Some(qa), Some(qb), None) = (self.rat(a[0]), self.rat(a[1]), self.ar.num(a[2])) {
+                    let d = qb.sub(&qa);
+                    let pole = qb.is_int() && qb.cmp_value(&Rat::from_i64(0)).is_le();
+                    let n = d.num.to_i64().filter(|_| d.is_int()).map(|v| -v);
+                    if !pole && n.is_some_and(|n| (1..=40).contains(&n)) {
+                        let inner = self.call("hypergeometric_1f1", &[self.q(&d), a[1], self.ar.neg(a[2])]);
+                        return self.val(self.ar.mul(&[self.call("exp", &[a[2]]), inner]));
+                    }
+                }
                 self.terminating(&[a[0]], &[a[1]], a[2])
             }
             S::Hyp2F1 => {
                 if self.is(a[3], 0) || self.is(a[0], 0) || self.is(a[1], 0) {
                     return self.val(self.n(1));
+                }
+                // symmetric in a and b: symbolic upper parameters in canonical order (equal values, equal terms)
+                let symbolic = self.ar.num(a[0]).is_none() || self.ar.num(a[1]).is_none();
+                if symbolic && self.ar.cmp(a[0], a[1]).is_gt() {
+                    return self.val(self.call("hypergeometric_2f1", &[a[1], a[0], a[2], a[3]]));
                 }
                 if self.is(a[3], 1) {
                     let (x, y, c) = (self.rat(a[0])?, self.rat(a[1])?, self.rat(a[2])?);
@@ -516,6 +532,12 @@ impl<'a, 'h> More<'a, 'h> {
                 let (u, m) = (a[0], a[1]);
                 if self.is(u, 0) {
                     return self.val(self.n(if f == S::JacobiSn { 0 } else { 1 }));
+                }
+                // sn is odd in u, cn and dn are even (DLMF 22.2.4-6: theta_1 odd, theta_2, theta_3, theta_4
+                // even)
+                if let Some(v) = self.negated(u) {
+                    let e = self.call(f.name(), &[v, m]);
+                    return self.val(if f == S::JacobiSn { self.ar.neg(e) } else { e });
                 }
                 if self.is(m, 0) {
                     return self.val(match f {

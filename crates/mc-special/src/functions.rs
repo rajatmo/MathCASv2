@@ -528,6 +528,7 @@ impl Special {
             S::JacobiDn => csp::jacobi(2, &a[0], &a[1], p),
             S::EllipticK => csp::elliptic_k(&a[0], p),
             S::EllipticE => csp::elliptic_e(&a[0], p),
+            S::EllipticF => ball::elliptic::elliptic_f_complex(&a[0], &a[1], p),
             _ => None,
         }
     }
@@ -588,7 +589,7 @@ impl Special {
             S::EllipticK => el::elliptic_k(&a[0], p),
             S::EllipticE => el::elliptic_e(&a[0], p),
             S::EllipticEInc => el::elliptic_e_inc(&a[0], &a[1], p),
-            S::EllipticF => el::elliptic_f(&a[0], &a[1], p),
+            S::EllipticF => el::elliptic_f(&a[0], &a[1], p).or_else(|| el::elliptic_f_beyond(&a[0], &a[1], p)),
             S::EllipticPi => el::elliptic_pi(&a[0], &a[1], p),
             S::EllipticPiInc => el::elliptic_pi_inc(&a[0], &a[1], &a[2], p),
             S::JacobiSn => el::jacobi_sn(&a[0], &a[1], p),

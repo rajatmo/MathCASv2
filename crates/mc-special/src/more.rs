@@ -1744,6 +1744,13 @@ fn jacobi_ratio<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], p: char, q: char) 
     let ball_args = a.iter().all(|&t| fx.num(t).is_some())
         && a.iter().any(|&t| fx.num(t).is_some_and(|n| n.kind() == mc_arith::Kind::Ball))
         && !a.iter().any(|&t| fx.num(t).is_some_and(|n| n.kind() == mc_arith::Kind::Machine));
+    // parity in u: sn odd, cn, dn and 1 even, so pq is odd when exactly one of p, q is s
+    if a.len() == 2 {
+        if let Some(y) = fx.negated(a[0]) {
+            let e = fx.call(&format!("jacobi_{p}{q}"), &[y, a[1]]);
+            return Ok(Some(if (p == 's') != (q == 's') { fx.neg(e) } else { e }));
+        }
+    }
     // m = 0 (circular) and m = 1 (hyperbolic): the ratio of two of sin/cos/1 or tanh/sech/1 in its own name, DLMF 22.5.1-2
     if a.len() == 2 && (fx.is_int(a[1], 0) || fx.is_int(a[1], 1)) {
         let one = fx.is_int(a[1], 1);

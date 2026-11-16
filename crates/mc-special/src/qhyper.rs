@@ -120,6 +120,21 @@ fn bilateral_hypergeometric_pfq<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>])
     if let Some(v) = dougall(fx, a, b, z)? {
         return Ok(Some(v));
     }
+    // symmetric in the upper and in the lower parameters: lists with a symbolic member in canonical order
+    let sorted = |xs: &[T<'h>]| -> Option<Vec<T<'h>>> {
+        if xs.iter().all(|&x| fx.num(x).is_some()) {
+            return None;
+        }
+        let mut v = xs.to_vec();
+        v.sort_by(|&p, &q| fx.ar.cmp(p, q));
+        (v != xs).then_some(v)
+    };
+    let (sa, sb) = (sorted(a), sorted(b));
+    if sa.is_some() || sb.is_some() {
+        let la = sa.map_or(args[0], |v| fx.list(&v));
+        let lb = sb.map_or(args[1], |v| fx.list(&v));
+        return Ok(Some(fx.call("bilateral_hypergeometric_pfq", &[la, lb, z])));
+    }
     let mut all: Vec<T<'h>> = a.to_vec();
     all.extend_from_slice(b);
     all.push(z);

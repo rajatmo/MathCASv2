@@ -953,6 +953,15 @@ pub(crate) fn f21_cd(a: CD, b: CD, c: CD, z: CD) -> Option<(CD, f64)> {
         let (s, big) = series(a, c - b, w)?;
         return Some((pre * s, big * pre.abs()));
     }
+    // real parameters and 1/2 < z < 1 (a row of an Appell function with both variables near 1): the connection
+    // formula in 1 - z of the real kernel (DLMF 15.8.4); the two terms may cancel, so the error scale allows 2^-26
+    // of relative loss
+    let real = |t: CD| t.im.hi == 0.0 && t.im.lo == 0.0;
+    if [a, b, c, z].into_iter().all(real) {
+        let v = crate::machine::hyper::f21_near_one_dd(a.re, b.re, c.re, z.re)?;
+        let big = v.hi.abs() * 2f64.powi(26);
+        return big.is_finite().then_some((CD::real(v), big));
+    }
     None
 }
 

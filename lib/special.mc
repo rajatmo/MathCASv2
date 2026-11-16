@@ -28,7 +28,8 @@ fn ds_heads() = [sin_integral, sinh_integral, cos_integral, cosh_integral, exp_i
   spheroidal_eigenvalue, mittag_leffler_e, q_pochhammer, whittaker_m, whittaker_w, q_hypergeometric_pfq, inverse_elliptic_nome_q,
   hypergeometric_pfq_regularized, anger_j, weber_e, zeta, factorial2, barnes_g, hyperfactorial, elliptic_theta_prime,
   hypergeometric_u, airy_ai, airy_bi, airy_ai_prime, airy_bi_prime, airy_ai_zero, airy_bi_zero, riemann_siegel_z,
-  bessel_j_zero, bessel_y_zero]
+  bessel_j_zero, bessel_y_zero, erf, erfc, fresnel_c, fresnel_s, gamma_regularized, hankel_h1, hankel_h2,
+  spherical_hankel_h1, spherical_hankel_h2, lerch_phi]
 fn ds_known(t) = not is_atom(t) and some(ds_heads(), f => f === head(t))
 
 rule ds_series(e_, x_, x0_, k_, opts___) := ds_series_at(e, x, x0, k)
@@ -49,8 +50,11 @@ fn ds_series_at(e, x, x0, k) = {
 # is constant to every power of x; the series kernels would write them as -log(x^-1) and log(x) + i pi)
 fn ds_series_log(e, x, x0, k) = {
   let l = if x0 === inf then log(x) else if x0 === 0 then log(-x) else null
-  if not (l === null) and not free_of(e, l) then rewrite(series(rewrite(e, l -> ds_logx), x, x0, k), ds_logx -> l)
-  else series(e, x, x0, k)
+  # at infinity log(-x) is kept too (the inversion formulas of the polylogarithm and the Lerch function have it)
+  let e2 = if x0 === inf and not free_of(e, log(-x)) then rewrite(e, log(-x) -> ds_logmx) else e
+  let r = if not (l === null) and not free_of(e2, l) then rewrite(series(rewrite(e2, l -> ds_logx), x, x0, k), ds_logx -> l)
+    else series(e2, x, x0, k)
+  if e2 === e then r else rewrite(r, ds_logmx -> log(-x))
 }
 
 # ds_one(t, x, x0, k): the expansion of the call t at x -> x0 (k terms), or ds_none
@@ -460,6 +464,79 @@ rule ds_at(bessel_y(nu_, u_), 2, inf, k_) := {
 rule ds_at(bessel_k(nu_, u_), 2, inf, k_) := ds_pieces([[exp(-u), sqrt(pi/2)*u^(-1/2)*ds_sum(j => ds_hankel_a(nu, j)*u^(-j), 0, k)]])
 rule ds_at(bessel_i(nu_, u_), 2, inf, k_) := ds_pieces([[exp(u), u^(-1/2)/sqrt(2*pi)*ds_sum(j => (-1)^j*ds_hankel_a(nu, j)*u^(-j), 0, k)]])
 
+# at infinity: the Hankel functions, H1 ~ sqrt(2/(pi u)) e^(i omega) sum i^j a_j(nu) u^-j and H2 its conjugate form
+# (DLMF 10.17.5-6), the spherical Hankel functions of integer order n >= 0, finite sums
+# h1_n(u) = e^(iu) sum_(j=0..n) i^(j - n - 1) a_j(n + 1/2) u^(-j - 1), a_j(n + 1/2) = (n + j)!/(2^j j! (n - j)!)
+# (DLMF 10.49.1, 10.49.6), and h2_n with -i
+rule ds_at(hankel_h1(nu_, u_), 2, inf, k_) := {
+  ds_pieces([[exp(im*u - im*(nu/2 + 1/4)*pi), sqrt(2)*pi^(-1/2)*u^(-1/2)*ds_sum(j => im^j*ds_hankel_a(nu, j)*u^(-j), 0, k)]])
+}
+rule ds_at(hankel_h2(nu_, u_), 2, inf, k_) := {
+  ds_pieces([[exp(-im*u + im*(nu/2 + 1/4)*pi), sqrt(2)*pi^(-1/2)*u^(-1/2)*ds_sum(j => (-im)^j*ds_hankel_a(nu, j)*u^(-j), 0, k)]])
+}
+fn ds_sph_a(n, j) = factorial(n + j)/(2^j*factorial(j)*factorial(n - j))
+rule ds_at(spherical_hankel_h1(n_, u_), 2, inf, k_) := {
+  ds_pieces([[exp(im*u), ds_sum(j => im^(j - n - 1)*ds_sph_a(n, j)*u^(-j - 1), 0, n)]])
+} when is_integer(n) and n >= 0
+rule ds_at(spherical_hankel_h2(n_, u_), 2, inf, k_) := {
+  ds_pieces([[exp(-im*u), ds_sum(j => (-im)^(j - n - 1)*ds_sph_a(n, j)*u^(-j - 1), 0, n)]])
+} when is_integer(n) and n >= 0
+
+# at infinity (u -> +inf): erfc u ~ e^(-u^2)/(sqrt(pi) u) sum (-1)^j (1/2)_j u^(-2j) (DLMF 7.12.1), erf = 1 - erfc;
+# the Fresnel integrals C = 1/2 + f sin(pi u^2/2) - g cos(pi u^2/2), S = 1/2 - f cos(pi u^2/2) - g sin(pi u^2/2)
+# with f ~ (pi u)^-1 sum (-1)^m (1/2)_(2m) (pi u^2/2)^(-2m), g ~ (pi u)^-1 sum (-1)^m (1/2)_(2m+1) (pi u^2/2)^(-2m-1)
+# (DLMF 7.5.3-4, 7.12.2-3); Si = pi/2 - f cos u - g sin u, Ci = f sin u - g cos u with f ~ u^-1 sum (-1)^m (2m)!
+# u^(-2m), g ~ u^-2 sum (-1)^m (2m + 1)! u^(-2m) (DLMF 6.5.5-6, 6.12.3-4); Chi = (Ei(u) - E1(u))/2 from the expansions
+# of Ei and E1 (DLMF 6.12.1-2), sinh u times the even terms and cosh u the odd ones of sum j!/u^(j+1) (Shi is left:
+# its expansion depends on the direction by a constant); E_nu ~ e^-u/u sum (-1)^j (nu)_j u^-j (DLMF 8.20.2);
+# Q(a, u) ~ u^(a-1) e^-u/Gamma(a) sum (a - 1)(a - 2)...(a - j) u^-j (DLMF 8.11.2)
+fn ds_erfc_s(u, k) = pi^(-1/2)*ds_sum(j => (-1)^j*pochhammer(1/2, j)*u^(-2*j - 1), 0, floor(k/2) + 1)
+rule ds_at(erfc(u_), 1, inf, k_) := ds_pieces([[exp(-u^2), ds_erfc_s(u, k)]])
+rule ds_at(erf(u_), 1, inf, k_) := ds_pieces([[1, 1], [exp(-u^2), -ds_erfc_s(u, k)]])
+fn ds_fres(u, k, r) = 1/(pi*u)*ds_sum(m => (-1)^m*pochhammer(1/2, 2*m + r)*(pi*u^2/2)^(-2*m - r), 0, floor(k/4) + 1)
+rule ds_at(fresnel_c(u_), 1, inf, k_) := {
+  ds_pieces([[1, 1/2], [sin(pi*u^2/2), ds_fres(u, k, 0)], [cos(pi*u^2/2), -ds_fres(u, k, 1)]])
+}
+rule ds_at(fresnel_s(u_), 1, inf, k_) := {
+  ds_pieces([[1, 1/2], [cos(pi*u^2/2), -ds_fres(u, k, 0)], [sin(pi*u^2/2), -ds_fres(u, k, 1)]])
+}
+fn ds_trig_f(u, k, s) = ds_sum(m => s^m*factorial(2*m)*u^(-2*m - 1), 0, floor(k/2) + 1)
+fn ds_trig_g(u, k, s) = ds_sum(m => s^m*factorial(2*m + 1)*u^(-2*m - 2), 0, floor(k/2) + 1)
+rule ds_at(sin_integral(u_), 1, inf, k_) := {
+  ds_pieces([[1, pi/2], [cos(u), -ds_trig_f(u, k, -1)], [sin(u), -ds_trig_g(u, k, -1)]])
+}
+rule ds_at(cos_integral(u_), 1, inf, k_) := ds_pieces([[sin(u), ds_trig_f(u, k, -1)], [cos(u), -ds_trig_g(u, k, -1)]])
+rule ds_at(cosh_integral(u_), 1, inf, k_) := ds_pieces([[sinh(u), ds_trig_f(u, k, 1)], [cosh(u), ds_trig_g(u, k, 1)]])
+rule ds_at(exp_integral_e(nu_, u_), 2, inf, k_) := {
+  ds_pieces([[exp(-u), ds_sum(j => (-1)^j*ds_product(i => nu + i, 0, j - 1)*u^(-j - 1), 0, k)]])
+}
+rule ds_at(gamma_regularized(a_, u_), 2, inf, k_) := {
+  ds_pieces([[exp(-u)*u^(a - 1), ds_sum(j => ds_product(i => a - i, 1, j)*u^(-j)/gamma(a), 0, k)]])
+}
+
+# at infinity: Whittaker W ~ e^(-u/2) u^kappa sum (1/2 + mu - kappa)_j (1/2 - mu - kappa)_j/j! (-u)^-j (DLMF 13.19.3),
+# a finite sum when 1/2 + mu - kappa or 1/2 - mu - kappa is a nonpositive integer; M = e^(-u/2) u^(mu + 1/2)
+# 1F1(mu - kappa + 1/2; 1 + 2 mu; u) (DLMF 13.14.2) only when the 1F1 is a polynomial (otherwise a growing part too)
+rule ds_at(whittaker_w(ka_, mu_, u_), 3, inf, k_) := {
+  ds_pieces([[exp(-u/2), u^ka*ds_sum(j => pochhammer(1/2 + mu - ka, j)*pochhammer(1/2 - mu - ka, j)/factorial(j)*(-u)^(-j), 0, k)]])
+}
+rule ds_at(whittaker_m(ka_, mu_, u_), 3, inf, k_) := {
+  ds_pieces([[exp(-u/2), u^(mu + 1/2)*hypergeometric_1f1(mu - ka + 1/2, 1 + 2*mu, u)]])
+} when is_integer(mu - ka + 1/2) and mu - ka + 1/2 <= 0 and not (is_integer(2*mu) and 2*mu < 0)
+
+# at infinity: Li_s(u) = -(2 pi i)^s/s! B_s(1/2 + log(-u)/(2 pi i)) - (-1)^s Li_s(1/u) for integers s >= 1 (Jonquiere's
+# inversion relation, DLMF 25.12.12), log(-u) kept; Phi(u, 1, a) = u^-a (-log(1 - u) - sum_(n<a) u^n/n) for
+# integers a >= 1 (DLMF 25.14.1 summed), with log(1 - u) = log(-u) - sum u^-j/j; zeta(u) = sum j^-u (DLMF 25.2.1):
+# each term exponentially smaller than the one before
+rule ds_at(polylog(s_, u_), 2, inf, k_) := {
+  let t = 1/2 + log(-u)/(2*pi*im)
+  together(expand(-(2*pi*im)^s/factorial(s)*bernoulli_b(s, t))) - (-1)^s*ds_sum(j => u^(-j)/j^s, 1, k)
+} when is_integer(s) and s >= 1
+rule ds_at(lerch_phi(u_, s_, a_), 1, inf, k_) := {
+  u^(-a)*(-log(-u) + ds_sum(j => u^(-j)/j, 1, k + a) - ds_sum(n => u^n/n, 1, a - 1))
+} when s === 1 and is_integer(a) and a >= 1
+rule ds_at(zeta(u_), 1, inf, k_) := ds_pieces(map(j => [j^(-u), 1], range(1, max(1, k - 3))))
+
 # at infinity: zeros of Bessel functions (McMahon, DLMF 10.21.19) with beta = (k + nu/2 - 1/4) pi for J and
 # (k + nu/2 - 3/4) pi for Y, mu = 4 nu^2; zeros of Airy functions a_k = -T(3 pi (4k - 1)/8), b_k = -T(3 pi (4k - 3)/8)
 # with T(t) ~ t^(2/3) (1 + 5/48 t^-2 - 5/36 t^-4 + ...) (DLMF 9.9.6, 9.9.18)
@@ -493,6 +570,51 @@ rule riemann_siegel_z(im_part(zeta_zero(k_))) := 0
 # values at 0 and at infinity; Anger and Weber functions at 0 (DLMF 11.10.1-2)
 rule anger_j(nu_, 0) := sinc(pi*nu)
 rule weber_e(nu_, 0) := (if nu == 0 then 0 else (1 - cos(pi*nu))/(pi*nu)) when is_numeric(nu)
+
+# --- closed forms at exact arguments and symmetries (round 44) ---
+# an exact number (rational, algebraic or a multiple of pi; not a machine or ball number)
+fn ds_exact(z) = is_numeric(z) and precision(z) === inf
+# z written with a negative sign: a negative rational, or a product with a negative rational coefficient
+fn ds_negated(z) = (is_rational(z) and z < 0) or (not is_atom(z) and head(z) === mul and is_rational(z[1]) and z[1] < 0)
+# Anger and Weber functions: from the integrals (1/pi) int_0^pi cos(nu t - z sin t) dt and the same with sin
+# (DLMF 11.10.1-2), J_nu(-z) = J_-nu(z) and E_nu(-z) = -E_-nu(z); at an integer order and an exact z,
+# J_n(z) = J_n(z) (DLMF 11.10.4) and E_n(z) = -H_n(z) + (1/pi) sum_(k < n/2) Gamma(k + 1/2) (z/2)^(n - 2k - 1)/
+# Gamma(n + 1/2 - k) for n >= 0 (DLMF 11.10.15-16)
+# (at an integer order the parities of J_n and of -H_n + the polynomial: J_n(-z) = (-1)^n J_n(z), E_n(-z) =
+# (-1)^(n+1) E_n(z), and J_-n = (-1)^n J_n)
+rule anger_j(nu_, z_) := anger_j(-nu, -z) when ds_negated(z) and not is_integer(nu)
+rule weber_e(nu_, z_) := -weber_e(-nu, -z) when ds_negated(z) and not is_integer(nu)
+rule anger_j(n_, z_) := (-1)^n*anger_j(n, -z) when is_integer(n) and ds_negated(z)
+rule weber_e(n_, z_) := (-1)^(n + 1)*weber_e(n, -z) when is_integer(n) and ds_negated(z)
+rule anger_j(n_, z_) := (-1)^n*anger_j(-n, z) when is_integer(n) and n < 0
+rule anger_j(n_, z_) := bessel_j(n, z) when is_integer(n) and ds_exact(z)
+rule weber_e(n_, z_) := {
+  -struve_h(n, z) + ds_sum(k => gamma(k + 1/2)*(z/2)^(n - 2*k - 1)/gamma(n + 1/2 - k), 0, floor((n - 1)/2))/pi
+} when is_integer(n) and n >= 0 and n <= 40 and ds_exact(z)
+# the incomplete beta function of positive integer parameters, a + b <= 41: I_z(a, b) = sum_(j=a..n) C(n, j) z^j
+# (1 - z)^(n - j), n = a + b - 1 (DLMF 8.17.5), at exact z (and I_z(1, 1) = z for any z); its inverse where the
+# polynomial is solved by a root: (1, b): 1 - (1 - s)^(1/b), (a, 1): s^(1/a), a = b at s = 1/2: 1/2 (8.17.4 symmetry);
+# Q(1, x) = e^-x, so its inverse is -log(s) (Gamma(1, x) = e^-x from the definition, DLMF 8.2.2)
+fn ds_ibeta(z, a, b) = ds_sum(j => binomial(a + b - 1, j)*z^j*(1 - z)^(a + b - 1 - j), a, a + b - 1)
+rule beta_regularized(z_, a_, b_) := z when a === 1 and b === 1
+rule beta_regularized(z_, a_, b_) := ds_ibeta(z, a, b) when is_integer(a) and is_integer(b) and a >= 1 and b >= 1 and a + b <= 41 and ds_exact(z)
+rule beta(z_, a_, b_) := beta(a, b)*ds_ibeta(z, a, b) when is_integer(a) and is_integer(b) and a >= 1 and b >= 1 and a + b <= 41 and ds_exact(z)
+rule inverse_beta_regularized(s_, a_, b_) := 1 - (1 - s)^(1/b) when a === 1 and is_integer(b) and b >= 1 and ds_exact(s) and is_real(s) and s >= 0 and s <= 1
+rule inverse_beta_regularized(s_, a_, b_) := s^(1/a) when b === 1 and is_integer(a) and a >= 1 and ds_exact(s) and is_real(s) and s >= 0 and s <= 1
+rule inverse_beta_regularized(s_, a_, b_) := 1/2 when s === 1/2 and a === b and is_numeric(a) and is_real(a) and a > 0
+rule inverse_gamma_regularized(a_, s_) := -log(s) when a === 1 and ds_exact(s) and is_real(s) and s > 0 and s <= 1
+# U(a, a, z) = e^z Gamma(1 - a, z) (DLMF 13.6.6 with 13.2.40), at exact numbers; E_(1/2)(z) = e^(z^2) erfc(-z) (the
+# Mittag-Leffler series DLMF 10.46.3 split into even and odd powers, the odd part e^(z^2) erf(z), DLMF 7.6.2); erf(i b) = i erfi(b), erfi(i b) = i erf(b)
+# (erfi(z) = -i erf(i z), DLMF 7.2.1 and the definition of erfi); W(-pi/2) = i pi/2 (i pi/2 e^(i pi/2) = -pi/2, the principal branch: Im W in (-pi, pi));
+# Hurwitz zeta at a half-integer above 1 by zeta(s, a + 1) = zeta(s, a) - a^-s down to zeta(s, 1/2) = (2^s - 1)
+# zeta(s) (DLMF 25.11.3, 25.11.11); (q; q)_inf at q = 1 is 0
+rule hypergeometric_u(a_, b_, z_) := exp(z)*gamma(1 - a, z) when a === b and is_rational(a) and ds_exact(z) and not (is_real(z) and z <= 0)
+rule mittag_leffler_e(a_, z_) := exp(z^2)*erfc(-z) when a === 1/2 and ds_exact(z)
+rule erf(z_) := im*erfi(im_part(z)) when ds_exact(z) and re(z) == 0 and not (z === 0)
+rule erfi(z_) := im*erf(im_part(z)) when ds_exact(z) and re(z) == 0 and not (z === 0)
+rule product_log(z_) := im*pi/2 when z === -pi/2
+rule zeta(s_, a_) := zeta(s, a - 1) - (a - 1)^(-s) when is_integer(s) and s >= 2 and is_rational(a) and a > 1 and denominator(a) == 2
+rule q_pochhammer(q_) := 0 when q === 1
 rule barnes_g(inf) := inf
 rule log_barnes_g(inf) := inf
 rule log_barnes_g(0) := -inf

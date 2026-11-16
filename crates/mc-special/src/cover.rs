@@ -590,6 +590,12 @@ fn neville<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: u8) -> R<'h> {
     if fx.is_int(z, 0) {
         return Ok(Some(if which == 0 { fx.int(0) } else { fx.int(1) }));
     }
+    // theta_s is odd in z, theta_c, theta_d, theta_n even (theta_1 odd, theta_2, theta_3, theta_4 even, DLMF 20.2.1-4)
+    if let Some(y) = fx.negated(z) {
+        let name = ["neville_theta_s", "neville_theta_c", "neville_theta_d", "neville_theta_n"][which as usize];
+        let e = fx.call(name, &[y, m]);
+        return Ok(Some(if which == 0 { fx.neg(e) } else { e }));
+    }
     if !numeric(fx, a) {
         return Ok(None);
     }

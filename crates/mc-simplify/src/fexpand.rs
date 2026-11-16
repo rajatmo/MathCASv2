@@ -304,6 +304,154 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
             let k = |u: T<'h>| b.call_named("elliptic_k", &[u]);
             b.call_named("exp", &[b.neg(b.div(b.mul(&[pi, k(b.sub(one, *m))]), k(*m)))])
         }
+        _ => return special_rule(b, &name, args),
+    })
+}
+
+/// More special functions by their definitions in other functions (round 44): the Whittaker functions by the
+/// confluent ones, M = e^(-z/2) z^(mu + 1/2) 1F1(1/2 + mu - kappa; 1 + 2 mu; z) and W the same with U (DLMF 13.14.2-3);
+/// the Hankel functions J +- i Y (DLMF 10.4.3-4); the spherical Bessel functions of an order that is not an integer
+/// by sqrt(pi/(2 z)) times the Bessel function of order n + 1/2 (DLMF 10.47.3-4); the subfactorial
+/// Gamma(1 + x, -1)/e (the continuation of !n = Gamma(n + 1, -1)/e); the inverse nome m(q) = theta_2(q)^4/theta_3(q)^4
+/// (DLMF 22.2.2 with 20.9.1); Legendre functions at 0 (DLMF 14.5.1-2 with mu = 0, the reflection formula 5.5.3 for
+/// Q); the regularized 0F1 by I_(b-1) (DLMF 10.39.9); Y_l^0 by the Legendre polynomial (DLMF 14.30.1); the Anger
+/// function of an integer order is the Bessel function J_n (DLMF 11.10.4); the Weber function of an order n >= 0 is
+/// -H_n(z) + (1/pi) sum_(k < n/2) Gamma(k + 1/2) (z/2)^(n - 2k - 1)/Gamma(n + 1/2 - k) (DLMF 11.10.15-16); the
+/// Hurwitz zeta at a nonpositive integer -B_(n+1)(a)/(n + 1) (DLMF 25.11.14); the upper incomplete gamma function of
+/// a half-integer n + 1/2 > 0 by erf and the recurrence Gamma(a + 1, z) = a Gamma(a, z) plus z^a e^-z (DLMF 8.8.2,
+/// 8.4.6); psi'(1/4) = pi^2 + 8 G, psi'(3/4) = pi^2 - 8 G; K(-1) and K(1/2) by Gamma(1/4) (DLMF 19.20.2 with the
+/// imaginary-modulus transformation 19.7.5).
+fn special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
+    let h = b.heap();
+    let one = b.int(1);
+    let half = b.rat(1, 2);
+    let pi = h.sym_term(h.sym("pi"));
+    let g = |x: T<'h>| b.call_named("gamma", &[x]);
+    let rat = |t: T<'h>| b.ar.num(t).and_then(|n| n.as_rat().cloned());
+    let int = |t: T<'h>| match h.view(t) {
+        mc_api::View::Int(n) => Some(n),
+        _ => None,
+    };
+    let exact_num = |t: T<'h>| b.ar.num(t).is_some_and(|n| n.is_exact());
+    Some(match (name, args) {
+        ("whittaker_m" | "whittaker_w", [k, m, z]) => {
+            let f = if name == "whittaker_m" { "hypergeometric_1f1" } else { "hypergeometric_u" };
+            // M with 1 + 2 mu a nonpositive integer is not the 1F1 form (its lower parameter is a pole)
+            let twice = b.ar.num(b.mul(&[b.int(2), *m])).and_then(|n| n.as_rat().cloned());
+            if name == "whittaker_m" && twice.is_some_and(|q| q.is_int() && q.num.neg && !q.num.is_zero()) {
+                return None;
+            }
+            let first = b.add(&[half, *m, b.neg(*k)]);
+            let second = b.add(&[one, b.mul(&[b.int(2), *m])]);
+            let e = b.call_named("exp", &[b.mul(&[b.rat(-1, 2), *z])]);
+            b.mul(&[b.call_named(f, &[first, second, *z]), e, b.pow(*z, b.add(&[half, *m]))])
+        }
+        ("hankel_h1" | "hankel_h2", [nu, z]) => {
+            let i = h.sym_term(h.sym("im"));
+            let s = if name == "hankel_h1" { 1 } else { -1 };
+            let y = b.mul(&[b.int(s), i, b.call_named("bessel_y", &[*nu, *z])]);
+            b.add(&[b.call_named("bessel_j", &[*nu, *z]), y])
+        }
+        ("spherical_bessel_j" | "spherical_bessel_y" | "spherical_hankel_h1" | "spherical_hankel_h2", [n, z]) if !is_integer(b, *n) => {
+            let order = b.mul(&[half, b.add(&[one, b.mul(&[b.int(2), *n])])]);
+            let f = match name {
+                "spherical_bessel_j" => "bessel_j",
+                "spherical_bessel_y" => "bessel_y",
+                "spherical_hankel_h1" => "hankel_h1",
+                _ => "hankel_h2",
+            };
+            let pre = b.mul(&[half, b.pow(b.int(2), half), b.pow(pi, half), b.pow(*z, b.rat(-1, 2))]);
+            if f.starts_with("hankel") {
+                // the two parts J +- i Y each with the factor
+                let s = if f == "hankel_h1" { 1 } else { -1 };
+                let i = h.sym_term(h.sym("im"));
+                let j = b.mul(&[pre, b.call_named("bessel_j", &[order, *z])]);
+                let y = b.mul(&[b.int(s), i, pre, b.call_named("bessel_y", &[order, *z])]);
+                return Some(b.add(&[j, y]));
+            }
+            b.mul(&[pre, b.call_named(f, &[order, *z])])
+        }
+        // the alternating factorial a(x) = int_0^inf e^-t (t^(x+1) - cos(pi x) t)/(1 + t) dt, the sum of
+        // (-1)^(n-k) k! for integers (the geometric sum under the integral of k! = int e^-t t^k dt), with
+        // int_0^inf e^-t t^(s-1)/(1 + t) dt = Gamma(s) e Gamma(1 - s, 1) and int e^-t t/(1 + t) dt = 1 + e Ei(-1)
+        ("alternating_factorial", [x]) if !is_integer(b, *x) => {
+            let e = h.sym_term(h.sym("e"));
+            let c = b.call_named("cos", &[b.mul(&[*x, pi])]);
+            let main = b.mul(&[e, g(b.add(&[b.int(2), *x])), b.call_named("gamma", &[b.sub(b.int(-1), *x), one])]);
+            let ei = b.mul(&[e, c, b.call_named("exp_integral_ei", &[b.int(-1)])]);
+            b.add(&[b.neg(c), main, b.neg(ei)])
+        }
+        ("subfactorial", [x]) if !is_integer(b, *x) => {
+            let e = h.sym_term(h.sym("e"));
+            b.div(b.call_named("gamma", &[b.add(&[one, *x]), b.int(-1)]), e)
+        }
+        ("inverse_elliptic_nome_q", [q]) => {
+            let th = |a: i64| b.call_named("elliptic_theta", &[b.int(a), b.int(0), *q]);
+            b.div(b.powi(th(2), 4), b.powi(th(3), 4))
+        }
+        ("legendre_p", [nu, x]) if *x == b.int(0) && !is_integer(b, *nu) => {
+            b.div(b.pow(pi, half), b.mul(&[g(b.sub(half, b.mul(&[half, *nu]))), g(b.add(&[one, b.mul(&[half, *nu])]))]))
+        }
+        ("legendre_q", [nu, x]) if *x == b.int(0) && !is_integer(b, *nu) => {
+            let tan = b.call_named("tan", &[b.mul(&[half, *nu, pi])]);
+            let den = b.mul(&[*nu, g(b.sub(half, b.mul(&[half, *nu]))), g(b.mul(&[half, *nu]))]);
+            b.neg(b.div(b.mul(&[b.pow(pi, b.rat(3, 2)), tan]), den))
+        }
+        ("hypergeometric_0f1_regularized", [c, z]) => {
+            let i = b.call_named("bessel_i", &[b.sub(*c, one), b.mul(&[b.int(2), b.pow(*z, half)])]);
+            b.mul(&[b.pow(*z, b.mul(&[half, b.sub(one, *c)])), i])
+        }
+        ("spherical_harmonic_y", [l, m, th, _]) if *m == b.int(0) => {
+            let p = b.call_named("legendre_p", &[*l, b.call_named("cos", &[*th])]);
+            b.div(b.mul(&[p, b.pow(b.add(&[one, b.mul(&[b.int(2), *l])]), half)]), b.mul(&[b.int(2), b.pow(pi, half)]))
+        }
+        ("anger_j", [n, z]) if is_integer(b, *n) => b.call_named("bessel_j", &[*n, *z]),
+        ("weber_e", [n, z]) if int(*n).is_some_and(|n| (1..=40).contains(&n)) => {
+            let n = int(*n)?;
+            let mut terms = vec![b.neg(b.call_named("struve_h", &[b.int(n), *z]))];
+            for k in 0..=(n - 1) / 2 {
+                let c = b.div(g(b.rat(2 * k + 1, 2)), b.mul(&[pi, g(b.rat(2 * n + 1 - 2 * k, 2))]));
+                terms.push(b.mul(&[c, b.pow(b.mul(&[half, *z]), b.int(n - 2 * k - 1))]));
+            }
+            b.add(&terms)
+        }
+        ("zeta", [s, a]) if int(*s).is_some_and(|s| (-60..=0).contains(&s)) && !exact_num(*a) => {
+            let n1 = 1 - int(*s)?;
+            let minus_b = b.call_named("expand", &[b.neg(b.call_named("bernoulli_b", &[b.int(n1), *a]))]);
+            b.mul(&[b.rat(1, n1), minus_b])
+        }
+        ("gamma", [a, z]) => {
+            // a = n + 1/2, 1 <= n <= 40
+            let q = rat(*a)?;
+            let n2 = b.ar.num(b.mul(&[b.int(2), *a])).and_then(|n| n.as_rat().cloned()).filter(|d| d.is_int())?.num.to_i64()?;
+            if q.is_int() || n2 % 2 == 0 || !(3..=81).contains(&n2) {
+                return None;
+            }
+            let n = (n2 - 1) / 2;
+            let rz = b.pow(*z, half);
+            let mut terms = vec![];
+            for j in 1..=n {
+                terms.push(b.mul(&[b.div(g(*a), g(b.rat(2 * j + 1, 2))), b.pow(*z, b.int(j))]));
+            }
+            let head = b.mul(&[g(*a), b.sub(one, b.call_named("erf", &[rz]))]);
+            let tail = b.div(b.mul(&[b.add(&terms), b.call_named("exp", &[b.neg(*z)])]), rz);
+            b.add(&[head, tail])
+        }
+        ("polygamma", [m, x]) if *m == one => {
+            let catalan = h.sym_term(h.sym("catalan"));
+            let s = if *x == b.rat(1, 4) {
+                8
+            } else if *x == b.rat(3, 4) {
+                -8
+            } else {
+                return None;
+            };
+            b.add(&[b.powi(pi, 2), b.mul(&[b.int(s), catalan])])
+        }
+        ("elliptic_k", [m]) if *m == b.int(-1) => {
+            b.div(b.mul(&[b.pow(b.int(2), half), b.powi(g(b.rat(1, 4)), 2)]), b.mul(&[b.int(8), b.pow(pi, half)]))
+        }
+        ("elliptic_k", [m]) if *m == half => b.div(b.mul(&[b.int(8), b.pow(pi, b.rat(3, 2))]), b.powi(g(b.rat(-1, 4)), 2)),
         _ => return None,
     })
 }

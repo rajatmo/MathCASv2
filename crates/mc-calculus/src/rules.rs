@@ -84,6 +84,24 @@ pub(crate) fn opaque_partial<'h>(b: &Build<'h>, f: &str, a: &[T<'h>], i: usize) 
     b.app(b.derivative(&orders, f), a)
 }
 
+/// d/da of the upper incomplete gamma function: from gamma(a, z) = sum (-1)^k z^(a+k)/(k! (a + k)) (DLMF 8.7.1)
+/// differentiated term by term, d/da Gamma(a, z) = Gamma(a) psi(a) - log(z) (Gamma(a) - Gamma(a, z)) +
+/// z^a/a^2 2F2(a, a; a + 1, a + 1; -z) (the series sum (-z)^k/(k! (a + k)^2) = a^-2 2F2(...); K. O. Geddes, M. L.
+/// Glasser, R. A. Moore, T. C. Scott, AAECC 1 (1990) 149-165, for the same form). Every part has a ball form, so
+/// enclosures of functions built on gamma(a, z) can prove monotonicity in a.
+fn gamma_a_partial<'h>(b: &Build<'h>, a: T<'h>, z: T<'h>) -> T<'h> {
+    let g = b.call("gamma", &[a]);
+    let lower = b.sub(g, b.call("gamma", &[a, z]));
+    let a1 = b.add(&[a, b.one()]);
+    let list = |xs: &[T<'h>]| b.app(b.sym(b.hd.list), xs);
+    let pfq = b.call("hypergeometric_pfq", &[list(&[a, a]), list(&[a1, a1]), b.neg(z)]);
+    b.add(&[
+        b.mul(&[g, b.call("digamma", &[a])]),
+        b.neg(b.mul(&[b.call("log", &[z]), lower])),
+        b.div(b.mul(&[b.pow(z, a), pfq]), b.pow(a, b.int(2))),
+    ])
+}
+
 /// d/dz of a Struve function of order nu: (f_(nu-1) + s f_(nu+1) + (z/2)^nu/(sqrt(pi) Gamma(nu + 3/2)))/2 with s = -1
 /// for H and +1 for L (DLMF 11.4.27, 11.4.28).
 fn struve_z<'h>(b: &Build<'h>, a: &[T<'h>], f: &str, s: i64) -> T<'h> {
@@ -715,7 +733,7 @@ pub const RULES: &[(&str, usize, Rule)] = &[
     ("erfi", 1, Rule::Partials(&[|b, a| gauss(b, a[0], 1)])),
     ("inverse_erf", 1, Rule::Partials(&[|b, a| inverse_gauss(b, "inverse_erf", a[0], 1)])),
     ("inverse_erfc", 1, Rule::Partials(&[|b, a| inverse_gauss(b, "inverse_erfc", a[0], -1)])),
-    ("gamma", 2, Rule::Partials(&[|b, a| opaque_partial(b, "gamma", a, 0), |b, a| gamma_density(b, a[0], a[1])])),
+    ("gamma", 2, Rule::Partials(&[|b, a| gamma_a_partial(b, a[0], a[1]), |b, a| gamma_density(b, a[0], a[1])])),
     (
         "gamma_regularized",
         2,

@@ -622,3 +622,11 @@ Gaps: `mod(a, -b) + mod(-a, b) == 0` (no transformation for `mod` of a negated m
 - Found, not fixed: `simplify` and `factor` of such a term still take time exponential in its depth further on
   (`simplify(nest(x => [x, x], 1, 22))` takes over 3 s, depth 60 never ends and ignores a stop); the same walker
   pattern (a stack of arguments with no set of terms seen) occurs at about 240 places in the library crates.
+## Round 44: function_expand of more special functions
+
+`fexpand::special_rule` adds the forms listed in its doc comment (Whittaker by the confluent functions, Hankel by
+J and Y, spherical functions of non-integer order, subfactorial, inverse nome, Legendre at 0, regularized 0F1, Y_l^0,
+Anger and Weber of integer order, Hurwitz zeta at nonpositive integers, Gamma(n + 1/2, z), psi'(1/4), psi'(3/4),
+K(-1), K(1/2), the alternating factorial). Each is checked at points against the native evaluation of the function
+(`mc-engine/tests/round44_special.rs`). The result forms are built to print as the usual canonical forms (a sum
+J + i Y written as two products, a Bernoulli polynomial expanded under its rational factor).

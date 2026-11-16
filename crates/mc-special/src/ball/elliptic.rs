@@ -210,6 +210,136 @@ pub fn rf_b(x: &Ball, y: &Ball, z: &Ball, wp: u64) -> Option<Ball> {
     None
 }
 
+/// R_F(x, y, z) for complex balls off the cut (-inf, 0] (an argument exactly on it is taken from above, as the
+/// principal square root of `cball` does; at most one argument zero). The duplication with principal square roots
+/// is valid for complex arguments (B. C. Carlson, "Numerical computation of real or complex elliptic integrals",
+/// Numer. Algorithms 10 (1995), section 2; DLMF 19.36.1), and the remainder of the degree-7 polynomial is bounded
+/// as in [`rf_b`]: the majorant coefficients of the expansion are positive, so with eps = max |X_i| <= 1/2 the
+/// remainder is at most 2 |A|^(-1/2) eps^8.
+pub fn crf_b(x: &CBall, y: &CBall, z: &CBall, wp: u64) -> Option<CBall> {
+    use mc_numeric::cball;
+    let (mut x, mut y, mut z) = (x.clone(), y.clone(), z.clone());
+    let three = CBall::from_i64(3);
+    let quarter = CBall::real(frac(1, 4, wp));
+    let cmag = |c: &CBall| mag_up(&c.re).add(&mag_up(&c.im));
+    // each step divides the deviations by about 4: wp/2 + 64 steps reach any precision from a start off the cut
+    for it in 0..(wp / 2 + 64) as usize {
+        if it % 8 == 0 && stopped() {
+            return None;
+        }
+        let a = x.add(&y, wp).add(&z, wp).div(&three, wp)?;
+        let alo = lower(&cball::abs(&a, wp)?);
+        if alo.neg || alo.is_zero() {
+            return None;
+        }
+        let alo = Mag::from_float_down(&alo);
+        let (mut e, mut mids, mut rads) = (Mag::ZERO, Mag::ZERO, Mag::ZERO);
+        for t in [&x, &y, &z] {
+            let d = a.sub(t, wp);
+            e = mag_max(e, cmag(&d));
+            mids = mag_max(mids, Mag::from_float_up(&d.re.mid).add(&Mag::from_float_up(&d.im.mid)));
+            rads = mag_max(rads, d.re.rad.add(&d.im.rad));
+        }
+        let eps = e.div_up(&alo);
+        let le = eps.log2();
+        if le < -1.0 && (8.0 * le + 1.0 < -(wp as f64) - 4.0 || mag_le(&mids, &rads)) {
+            let xx = a.sub(&x, wp).div(&a, wp)?;
+            let yy = a.sub(&y, wp).div(&a, wp)?;
+            let zz = xx.add(&yy, wp).neg();
+            let xy = xx.mul(&yy, wp);
+            let e2 = xy.sub(&zz.square(wp), wp);
+            let e3 = xy.mul(&zz, wp);
+            let e22 = e2.square(wp);
+            let terms = [
+                (-1, 10, e2.clone()),
+                (1, 14, e3.clone()),
+                (1, 24, e22.clone()),
+                (-3, 44, e2.mul(&e3, wp)),
+                (-5, 208, e22.mul(&e2, wp)),
+                (3, 104, e3.square(wp)),
+                (1, 16, e22.mul(&e3, wp)),
+            ];
+            let mut poly = CBall::from_i64(1);
+            for (n, d, t) in terms.iter() {
+                poly = poly.add(&t.mul_real(&frac(*n, *d, wp), wp), wp);
+            }
+            let inv = cball::sqrt(&a, wp)?.recip(wp)?;
+            let err = cmag(&inv).mul(&mag_pow(&eps, 8)).mul_2exp(1);
+            let v = poly.mul(&inv, wp);
+            return Some(CBall::new(super::widen(v.re, &err), super::widen(v.im, &err)));
+        }
+        let (sx, sy, sz) = (cball::sqrt(&x, wp)?, cball::sqrt(&y, wp)?, cball::sqrt(&z, wp)?);
+        let lam = sx.mul(&sy, wp).add(&sx.mul(&sz, wp), wp).add(&sy.mul(&sz, wp), wp);
+        x = x.add(&lam, wp).mul(&quarter, wp);
+        y = y.add(&lam, wp).mul(&quarter, wp);
+        z = z.add(&lam, wp).mul(&quarter, wp);
+    }
+    None
+}
+
+/// F(phi | m) for a complex amplitude (or a complex parameter) on balls, with the convention of the machine path:
+/// phi = j pi + psi with j the nearest integer to Re phi / pi, F = sin psi R_F(cos^2 psi, 1 - m sin^2 psi, 1) +
+/// 2 j K(m) (DLMF 19.25.5, 19.2.10). `None` where an argument of R_F meets the cut or j is not decided.
+pub fn elliptic_f_complex(phi: &CBall, m: &CBall, p: u64) -> Option<CBall> {
+    use mc_numeric::cball;
+    // real arguments are decided by the real paths ([`elliptic_f`], [`elliptic_f_beyond`]): what they leave (m = 1
+    // beyond pi/2, a pole or a cut) has no value here either, and the duplication would only spin towards it
+    if phi.is_real() && m.is_real() {
+        return None;
+    }
+    refine(p, 24, |wp| {
+        let w = wp + phi.re.mid.top().max(0) as u64 + 8;
+        let pw = pi(w)?;
+        let t = phi.re.div(&pw, w)?;
+        // j = the nearest integer to Re phi / pi (halves away from zero), as the machine path chooses: the
+        // representations of different j are different continuations where the integrand has branch points, so the
+        // choice fixes the value; only on the line Re phi = (j + 1/2) pi itself, where cos^2 psi lies on the cut of
+        // R_F and the j form has no enclosure, the half-period form below takes over
+        let tm = f64_of(&t.mid);
+        if !tm.is_finite() || tm.abs() > 1e15 {
+            return None;
+        }
+        let near_half = (tm - tm.floor() - 0.5).abs() < 1e-6;
+        let one_rep = |j: i64| -> Option<CBall> {
+            let psi = CBall::new(phi.re.sub(&pw.mul(&int(j), w), w), phi.im.clone());
+            let (s, c) = cball::sin_cos(&psi, wp)?;
+            let s2 = s.square(wp);
+            let one = CBall::from_i64(1);
+            let r = crf_b(&c.square(wp), &one.sub(&m.mul(&s2, wp), wp), &one, wp)?;
+            let v = s.mul(&r, wp);
+            if j == 0 {
+                return Some(v);
+            }
+            let k = super::cspecial::elliptic_k(m, wp)?;
+            Some(v.add(&k.mul(&CBall::from_i64(2 * j), wp), wp))
+        };
+        if let Some(v) = one_rep(tm.round() as i64) {
+            return Some(v);
+        }
+        if !near_half {
+            return None;
+        }
+        // Re phi near (j + 1/2) pi, where cos^2 psi is near the cut of R_F: with phi = (j + 1/2) pi + w,
+        // F = (2j + 1) K(m) + int_0^w dt/sqrt(1 - m cos^2 t) = (2j + 1) K(m) + sin w R_F((1 - m) cos^2 w,
+        // 1 - m cos^2 w, 1 - m) (DLMF 19.25.5 for the parameter -m/(1 - m), homogeneity of R_F); m real >= 1 is left
+        // (1 - m on the cut)
+        if m.im.rad.is_zero() && m.im.mid.is_zero() && !lower(&m.re).cmp_exact(&Float::from_i64(1)).is_lt() {
+            return None;
+        }
+        let j = tm.floor() as i64;
+        let half_pi = scale2(&pw, -1);
+        let wre = phi.re.sub(&pw.mul(&int(j), w), w).sub(&half_pi, w);
+        let wv = CBall::new(wre, phi.im.clone());
+        let (s, c) = cball::sin_cos(&wv, wp)?;
+        let one = CBall::from_i64(1);
+        let mc = one.sub(m, wp);
+        let c2 = c.square(wp);
+        let r = crf_b(&mc.mul(&c2, wp), &one.sub(&m.mul(&c2, wp), wp), &mc, wp)?;
+        let k = super::cspecial::elliptic_k(m, wp)?;
+        Some(s.mul(&r, wp).add(&k.mul(&CBall::from_i64(2 * j + 1), wp), wp))
+    })
+}
+
 /// The degree-5 polynomial of R_D and R_J, with the remainder bound for eps <= 1/2, times the unit 4^-k A^(-3/2).
 fn finish5(e: [Ball; 4], a: &Ball, k: i64, eps: &Mag, wp: u64) -> Option<Ball> {
     let [e2, e3, e4, e5] = e;
@@ -588,6 +718,44 @@ pub fn elliptic_f(phi: &Real, m: &Real, p: u64) -> Option<CBall> {
         let ma = arg(m, wp)?;
         let mc = one_minus(&ma, wp);
         Some(real(f_b(&ph, &ma.b, &mc, wp)?))
+    })
+}
+
+/// F(phi | m) for m > 1 where the value is complex (the side of the machine path: 1 - m sin^2 psi + i0, and K(m)
+/// on the cut from below), with phi = j pi + psi. Where y = 1 - m sin^2 psi = -a < 0, splitting
+/// R_F(x, y + i0, z) = 1/2 int_0^inf dt/sqrt((t + x)(t + y + i0)(t + z)) at t = a gives
+/// R_F(0, x + a, z + a) for t > a and -i int_0^a ... for t < a; with s = a - t, w = 1/s the second part is
+/// -i sqrt(a) R_F((a + x)(a + z), x (a + z), z (a + x)) (Carlson, DLMF 19.16.1, 19.29.4 with one root at an end).
+/// Both parts are real symmetric integrals with arguments >= 0, so the enclosure is rigorous.
+pub fn elliptic_f_beyond(phi: &Real, m: &Real, p: u64) -> Option<CBall> {
+    refine(p, 24, |wp| {
+        let pb = super::real_ball(phi, wp)?;
+        let ma = arg(m, wp)?;
+        let mc = one_minus(&ma, wp);
+        if !is_neg(&mc) {
+            return None;
+        }
+        let ph = reduce(&pb, wp)?;
+        let s2 = sq(&ph.s, wp);
+        let c2 = sq(&ph.c, wp);
+        let ms2 = ma.b.mul(&s2, wp);
+        let a = ms2.sub(&int(1), wp);
+        let part = if is_pos(&a) {
+            // x + a = (m - 1) sin^2, z + a = m sin^2 with z = 1
+            let xa = ms2.sub(&s2, wp);
+            let re = rf_b(&int(0), &xa, &ms2, wp)?;
+            let im = rf_b(&xa.mul(&ms2, wp), &c2.mul(&ms2, wp), &xa, wp)?.mul(&el::sqrt(&a, wp)?, wp);
+            CBall::new(ph.s.mul(&re, wp), ph.s.mul(&im, wp).neg())
+        } else if is_neg(&a) {
+            real(ph.s.mul(&rf_b(&c2, &a.neg(), &int(1), wp)?, wp))
+        } else {
+            return None;
+        };
+        if ph.j == 0 {
+            return Some(part);
+        }
+        let k = super::cspecial::elliptic_k(&CBall::real(ma.b.clone()), wp)?;
+        Some(part.add(&k.mul(&CBall::from_i64(2 * ph.j), wp), wp))
     })
 }
 

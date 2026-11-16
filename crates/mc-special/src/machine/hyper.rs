@@ -248,6 +248,19 @@ fn f21(a: DD, b: DD, c: DD, z: DD, omz: DD) -> Option<Scaled> {
     f21_general(a, b, c, z, omz)
 }
 
+/// 2F1(a, b; c; z) as a double-double for real double-double parameters and 1/2 < z < 1 (the connection formula
+/// in 1 - z, with its degenerate case), `None` outside or where the exponent range is left.
+pub(crate) fn f21_near_one_dd(a: DD, b: DD, c: DD, z: DD) -> Option<DD> {
+    if !(z.hi > 0.5 && z.hi < 1.0) {
+        return None;
+    }
+    let s = f21(a, b, c, z, DD::ONE - z)?;
+    if s.m.hi == 0.0 || !s.m.hi.is_finite() || s.e.abs() > 900 {
+        return None;
+    }
+    Some(s.m.ldexp(s.e as i32))
+}
+
 /// The Gauss hypergeometric function 2F1(a, b; c; z) for real z <= 1 (NaN for z > 1, at poles c = 0, -1, ...
 /// that the series reaches, and where the value is complex).
 pub fn hyp_2f1(a: f64, b: f64, c: f64, z: f64) -> f64 {

@@ -351,6 +351,15 @@ fn zero<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> bool {
     fx.num(t).is_some_and(|n| n.is_zero())
 }
 
+/// A function symmetric in all its arguments with symbolic ones: the call with the arguments in canonical order
+/// when they are not (R_F is symmetric, DLMF 19.16.1, and R_K = (2/pi) R_F(0, x, y)), so that equal values are equal terms;
+/// `None` when the order is already canonical.
+fn symmetric_order<'h>(fx: &Fx<'_, '_, '_, 'h>, name: &str, a: &[T<'h>]) -> Option<T<'h>> {
+    let mut v = a.to_vec();
+    v.sort_by(|&p, &q| fx.ar.cmp(p, q));
+    (v != a).then(|| fx.call(name, &v))
+}
+
 fn carlson_rf<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let (x, y, z) = (a[0], a[1], a[2]);
     if a.iter().filter(|&&t| zero(fx, t)).count() >= 2 {
@@ -365,7 +374,7 @@ fn carlson_rf<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
             let rest: Vec<T<'h>> = a.iter().enumerate().filter(|&(j, _)| j != i).map(|(_, &t)| t).collect();
             return Ok(Some(fx.mul(&[fx.rat(1, 2), fx.sym("pi"), fx.call("carlson_rk", &rest)])));
         }
-        return Ok(None);
+        return Ok(symmetric_order(fx, "carlson_rf", a));
     }
     if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
         if let Some(v) = crate::fast29::carlson_rf_cd(ms[0], ms[1], ms[2]) {
@@ -389,7 +398,7 @@ fn carlson_rk<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         return Ok(Some(fx.pow(x, fx.rat(-1, 2))));
     }
     if !numeric(fx, a) {
-        return Ok(None);
+        return Ok(symmetric_order(fx, "carlson_rk", a));
     }
     if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
         if let Some(v) = crate::fast29::carlson_rf_cd(crate::cdd::CD::ZERO, ms[0], ms[1]) {

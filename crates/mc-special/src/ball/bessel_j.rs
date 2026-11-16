@@ -310,8 +310,73 @@ pub fn bessel_j(nu: &Real, x: &Real, p: u64) -> Option<CBall> {
     }
     refine(p, 24, |wp| {
         let v = real_ball(nu, wp)?;
-        Some(real(j_point(&v, n, &arg_ball(x, wp)?, wp)?))
+        let xb = arg_ball(x, wp)?;
+        let direct = j_point(&v, n, &xb, wp);
+        // a ball order: the mean value form in nu, met with the direct enclosure
+        let mv = if v.rad.is_zero() { None } else { j_mean_value(&v, &xb, wp) };
+        match (direct, mv) {
+            (Some(a), Some(b)) => Some(real(meet(&a, &b, wp).unwrap_or(b))),
+            (a, b) => a.or(b).map(real),
+        }
     })
+}
+
+/// The intersection of two enclosures of one value (`None` when they are disjoint, which rounding cannot cause).
+fn meet(a: &Ball, b: &Ball, wp: u64) -> Option<Ball> {
+    use std::cmp::Ordering;
+    let (alo, ahi, blo, bhi) = (super::lower(a), super::upper(a), super::lower(b), super::upper(b));
+    let lo = if alo.cmp_exact(&blo) == Ordering::Greater { alo } else { blo };
+    let hi = if ahi.cmp_exact(&bhi) == Ordering::Less { ahi } else { bhi };
+    if lo.cmp_exact(&hi) == Ordering::Greater {
+        return None;
+    }
+    Some(super::hull(&lo, &hi, wp))
+}
+
+/// J_nu(x) for a ball order nu = c +- r (nu > -1, x > 0) by the mean value form J(c, x) + [-r, r] max |dJ/dnu|. The
+/// natural ball extension of the power series loses the dependence between the terms (a box of width 0.1 in nu gave
+/// an enclosure of width 1); the derivative is bounded term by term from DLMF 10.15.1: d/dnu of
+/// t_k = (-1)^k (x/2)^(nu + 2k)/(k! Gamma(nu + k + 1)) is t_k (log(x/2) - psi(nu + k + 1)), so
+/// |dJ/dnu| <= sum |t_k| c_k with c_k = |log(x/2)| + |psi(nu + k + 1)|. Since psi(y + 1) = psi(y) + 1/y,
+/// c_(j) <= c_K + (j - K) for j > K >= 1, and once the term ratio q/((k + 1)(nu + k + 1)) (q = x^2/4) is at most 1/4
+/// the tail after term K is at most |t_K| (c_K + 1).
+fn j_mean_value(nu: &Ball, x: &Ball, wp: u64) -> Option<Ball> {
+    if lo_f(nu).is_nan() || lo_f(nu) <= -1.0 || !is_pos(x) {
+        return None;
+    }
+    let c = Ball::exact(nu.mid.clone());
+    let at_c = j_point(&c, None, x, wp)?;
+    let half = x.mul(&Ball::from_ratio(1, 2, wp), wp);
+    let q = half.mul(&half, wp);
+    let q_hi = hi_abs(&q);
+    let lg = hi_abs(&el::log(&half, wp)?);
+    let pw = el::exp(&nu.mul(&el::log(&half, wp)?, wp), wp)?;
+    let mut t = hi_abs(&pw.div(&gamma_ball(&nu.add(&int(1), wp), wp)?, wp)?);
+    let nu_lo = lo_f(nu);
+    let mut bound = 0.0f64;
+    for k in 0..MAX_TERMS {
+        if k % 32 == 0 && stopped() {
+            return None;
+        }
+        let y = nu.add(&int(k as i64 + 1), wp);
+        let ck = (lg + hi_abs(&super::gamma::digamma_ball(&y, wp)?)) * (1.0 + 1e-12);
+        bound = (bound + t * ck) * (1.0 + 1e-12);
+        let ratio = q_hi / ((k as f64 + 1.0) * (nu_lo + k as f64 + 1.0)) * (1.0 + 1e-12);
+        if k >= 1 && ratio <= 0.25 {
+            bound = (bound + t * (ck + 1.0)) * (1.0 + 1e-12);
+            break;
+        }
+        t *= ratio;
+        if !bound.is_finite() {
+            return None;
+        }
+    }
+    let r = hi_abs(&Ball { mid: mc_arith::num::Float::zero(), rad: nu.rad });
+    let w = bound * r * (1.0 + 1e-12);
+    if !w.is_finite() {
+        return None;
+    }
+    Some(widen(at_c, &mc_arith::num::Mag::from_float_up(&super::float_of(w * (1.0 + 1e-12) + f64::MIN_POSITIVE))))
 }
 
 /// Y_nu(x) to p bits (x > 0).

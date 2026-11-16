@@ -1151,3 +1151,57 @@ small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
 The series sum mu(k)/k log(zeta(k s)) (Froberg 1968) for an inexact real s in [1/5, 1), not only (1/2, 1) (below 1/5 the series needs more than 330 terms: a plot down to 0.01 would take minutes, so it stays): each term
 with k s < 1 has zeta(k s) < 0 and is taken on the principal branch, so P(1/4) has the imaginary part pi (1 - 1/2 -
 1/3) = pi/6 and P(4/11) the part pi/2; (digits + 3) 3.33/s terms. Complex s in the critical strip still stay.
+## Round 44: special functions in depth
+
+Groups of the inputs left partly unevaluated, by cause, and the method built for each (tests:
+`mc-engine/tests/round44_special.rs`, each method against an independent route):
+
+- **Elliptic F beyond the real domain and at complex amplitudes, on balls** (`ball/elliptic.rs`). Real phi with
+  m > 1 and m sin^2 psi > 1: splitting R_F(x, y + i0, z) at t = -y gives R_F(0, x + a, z + a) and
+  -i sqrt(a) R_F((a + x)(a + z), x (a + z), z (a + x)) (a = -y; the second part by s = a - t, w = 1/s), both real
+  symmetric integrals with arguments >= 0, so the enclosure is rigorous; the side (+i0) and K(m) on the cut from below
+  are those of the machine path (`fast33::elliptic_f_beyond`). Complex phi or m: complex-ball R_F by duplication
+  with principal roots (Carlson 1995, valid off the cut) and the degree-7 remainder 2 |A|^(-1/2) eps^8 (the majorant
+  coefficients are positive, so the real bound holds for complex arguments); j = the nearest integer to Re phi/pi
+  as the machine path chooses (different j are different continuations where the integrand has branch points), and
+  on the line Re phi = (j + 1/2) pi itself, where cos^2 psi is on the cut of R_F, the half-period form
+  F = (2j + 1) K(m) + sin w R_F((1 - m) cos^2 w, 1 - m cos^2 w, 1 - m). `n(elliptic_f(12/5, 3), 50)` and
+  `n(inverse_jacobi_dn(1/2, 1/3), 30)` evaluate; `function_convexity(inverse_jacobi_dn(x, m), [x, m])` is decided.
+- **J of a ball order** (`ball/bessel_j.rs`): the mean value form in nu, J(c, x) + [-r, r] max |dJ/dnu|, met with
+  the direct enclosure; |dJ/dnu| <= sum |t_k| (|log(x/2)| + |psi(nu + k + 1)|) from DLMF 10.15.1 with a tail bound
+  (psi(y + 1) = psi(y) + 1/y). `bessel_j(interval([0.5, 0.6]), interval([2.4, 2.5]))` is [0.3018, 0.3979] (it was
+  [-0.16, 0.88]). For x beyond about 3 the bound follows the growing terms of the series and is loose; Hankel's
+  expansion differentiated in nu would be the next step there.
+- **Appell F1 with both variables near 1**: the rows 2F1(a + m, b2; c + m; y) at 1/2 < y < 1 by the connection
+  formula in 1 - y of the real double-double kernel (`machine::hyper::f21_near_one_dd`, DLMF 15.8.4 with its
+  degenerate case); `appell_f1(2., 1.5, .5, 3., .9, .95)` 9 s -> 0.19 s.
+- **Asymptotic series at infinity** (`lib/special.mc`, `ds_at(..., inf, k)`): erf, erfc (DLMF 7.12.1), Fresnel C and
+  S (7.5.3-4, 7.12.2-3), Si, Ci (6.5.5-6, 6.12.3-4), Chi from Ei and E1 (6.12.1-2), E_nu (8.20.2), Q(a, x) (8.11.2),
+  H1, H2 (10.17.5-6), spherical h1, h2 of integer order (finite, 10.49.6), Whittaker W (13.19.3) and M when the 1F1 is
+  a polynomial, Li_s by Jonquiere's inversion (25.12.12) with log(-x) kept, Lerch Phi(z, 1, a), zeta(x) as the sum
+  of j^-x. Left: erfi, Dawson and Shi (their expansions in a general direction carry a subdominant constant, -i or
+  -i pi/2, that depends on the direction; none is chosen for x -> +inf). The series kernel expands coefficients such
+  as n (n + 1) (E_nu, Q, polylog print expanded coefficients).
+- **Closed forms for `function_expand`** (`mc-simplify/src/fexpand.rs`, `special_rule`): Whittaker M, W by 1F1, U
+  (not M with 1 + 2 mu a nonpositive integer), H1/H2 = J +- i Y, spherical functions of non-integer order by
+  J_(n+1/2), subfactorial, inverse nome by theta constants, Legendre P, Q at 0, regularized 0F1 by I, Y_l^0, Anger
+  and Weber of integer order, Hurwitz zeta at nonpositive integers, Gamma(n + 1/2, z), psi'(1/4), psi'(3/4), K(-1),
+  K(1/2), the alternating factorial by its integral (sum of k! under int e^-t t^k dt).
+- **Parity and symmetric parameters**: the twelve Jacobi functions (sn odd, cn, dn even) and the Neville thetas
+  (theta_s odd) at a negated argument; R_F, R_K and the parameter lists of 2F1, pFq and the bilateral series with a
+  symbolic member in canonical order (`Arith::cmp`), so that equal values are equal terms; Anger J_nu(-z) = J_-nu(z),
+  Weber E_nu(-z) = -E_-nu(z) (from the integrals 11.10.1-2), integer orders J_n, E_n with their parities.
+- **Exact values**: I_z(a, b) of positive integer parameters as the binomial sum (8.17.5) and its inverses where a
+  root solves it, Q(1, x) inverse -log s, U(a, a, z) = e^z Gamma(1 - a, z), E_(1/2)(z) = e^(z^2) erfc(-z),
+  erf(i b) = i erfi(b), W(-pi/2) = i pi/2, Hurwitz zeta at half-integers above 1 by the shift, (q; q)_inf at 1.
+- **Hurwitz zeta at s = -n** (`natives.rs`): -B_(n+1)(a)/(n + 1) for any number a; the machine Euler-Maclaurin sum
+  lost 9 digits there to cancellation (zeta(-3, 0.3) had a relative error 3e-9).
+- **d/da Gamma(a, z)** (`mc-calculus/src/rules.rs`): Gamma(a) psi(a) - log(z) gamma(a, z) + z^a/a^2 2F2(a, a; a + 1,
+  a + 1; -z), every part with a ball form (the term-by-term derivative of 8.7.1; Geddes, Glasser, Moore, Scott 1990).
+
+Not reached this round: interval and centered-interval forms of the alternating factorial (its derivative now has
+a closed form through the one above, but the function has no native that hands uncertain arguments to the
+enclosures; a prelude form of the closed expression would lose the dependence between its factors and give a
+loose enclosure), a tight ball form of the inverse nome over (-1, 1) (the theta quotient of
+a wide ball is loose), function_range and function_singularities of special functions (property code), the
+half-integer Bessel orders evaluated automatically (a change of the automatic forms everywhere).

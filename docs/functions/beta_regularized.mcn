@@ -27,7 +27,7 @@
 #% cell
 beta_regularized(1/2, 2, 3)
 #% output
-#= beta_regularized(1/2, 2, 3)
+#= 11/16
 
 #% cell
 beta_regularized(0.3, 2.5, 4.0)

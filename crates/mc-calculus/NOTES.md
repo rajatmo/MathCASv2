@@ -1808,3 +1808,9 @@ Source in `lib/calculus.mc` (helpers `r38_`).
 - Gap: the family of a cubic or quartic u without a condition stays unevaluated; points are root objects, not
   `algebraic_number` forms.
   Tests: `mc-engine/tests/round44_calculus.rs`.
+## Round 44: the derivative of gamma(a, z) in a
+
+`d(gamma(a, z), a)` was the opaque `derivative(1, 0)(gamma)(a, z)`; it is now Gamma(a) psi(a) - log(z) (Gamma(a) -
+Gamma(a, z)) + z^a/a^2 2F2(a, a; a + 1, a + 1; -z), the term-by-term derivative of the series of the lower function
+(DLMF 8.7.1). Every part has a ball form, so enclosures of expressions in gamma(a, z) (the alternating factorial's
+closed form, for one) can prove monotonicity in a. Checked against central differences at 40 digits.
