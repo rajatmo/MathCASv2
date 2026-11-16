@@ -1,11 +1,13 @@
 # MathCAS v2: spike reports
 
 Each spike measures one risky part of the design (plan section 5) against cases from the benchmark suite
-([`02-benchmarks.md`](02-benchmarks.md)), and ends with decisions and what it rules out.
+([`02-benchmarks.md`](02-benchmarks.md)), and ends with decisions and what it rules out. The spike crates were
+throwaway code and are not kept in the repository: this document is their record, and the paths it names
+(`spikes/...`) are where each one lived.
 
 ## Spike 1: term store
 
-Code: [`spikes/termstore`](../../spikes/termstore). Raw results: `spikes/termstore/results/run1.md` (first
+Code: `spikes/termstore`. Raw results: `spikes/termstore/results/run1.md` (first
 version) and `run2.md` (with immediates).
 
 ### Question
@@ -125,7 +127,7 @@ results, checked by fingerprint.
 
 ### Spike 1b: arena collection
 
-Report: [`spikes/collect/REPORT.md`](../../spikes/collect/REPORT.md).
+Report: `spikes/collect/REPORT.md`.
 
 - Collection removes the garbage problem of spike 1: S3's peak heap 132 → 8.3 MB; a 1000-evaluation session
   1.87 GB → 184 to 480 MB.
@@ -147,7 +149,7 @@ Report: [`spikes/collect/REPORT.md`](../../spikes/collect/REPORT.md).
 
 ### Spike 2: matcher
 
-Report: [`spikes/matcher/REPORT.md`](../../spikes/matcher/REPORT.md).
+Report: `spikes/matcher/REPORT.md`.
 
 - Naive AC matching is exponential in one place, sequence variables: 31 s against 125 ms for the pruning matcher at
   10^4 rules; a 10-term pigeonhole case takes 36 s against 2.5 ms with a Hall test.
@@ -172,7 +174,7 @@ Report: [`spikes/matcher/REPORT.md`](../../spikes/matcher/REPORT.md).
 
 ### Spike 3: numbers
 
-Report: [`spikes/numbers/REPORT.md`](../../spikes/numbers/REPORT.md).
+Report: `spikes/numbers/REPORT.md`.
 
 - Own multiplication with a three-prime NTT: 137 ms at 10^7 digits, against 1.9 s for num-bigint (14 times) and
   14.8 s for v1 (108 times). Below about 30 000 digits own and num-bigint are within 15 %.
@@ -197,7 +199,7 @@ Report: [`spikes/numbers/REPORT.md`](../../spikes/numbers/REPORT.md).
 
 ### Spike 4: parallel evaluation
 
-Report: [`spikes/parallel/REPORT.md`](../../spikes/parallel/REPORT.md).
+Report: `spikes/parallel/REPORT.md`.
 
 - All 475 configurations (3 stores, 6 granularity rules, 1 to 16 threads, 10 cases including random effect-heavy
   trees) give the same value, output order and definitions as sequential evaluation (semantics 18.1).
@@ -238,7 +240,7 @@ that collect at every safe point. Full reports next to the code.
 
 ### I1: collector × concurrent store
 
-Report: [`spikes/int_gc/REPORT.md`](../../spikes/int_gc/REPORT.md).
+Report: `spikes/int_gc/REPORT.md`.
 
 - Composes, and the type system enforces it: evaluations run in a higher-ranked `&'h Heap` scope, the safe point
   needs `&mut Heap`, and keeping a handle across a safe point, returning one from a step, or moving one into an
@@ -255,7 +257,7 @@ Report: [`spikes/int_gc/REPORT.md`](../../spikes/int_gc/REPORT.md).
 
 ### I2: matcher and evaluator on the concurrent store
 
-Report: [`spikes/int_match/REPORT.md`](../../spikes/int_match/REPORT.md).
+Report: `spikes/int_match/REPORT.md`.
 
 - Conditions that evaluate terms work and scale like native ones (3.44 against 3.45 times at 4 threads); the borrow
   checker proves no condition runs during a safe point.
@@ -269,7 +271,7 @@ Report: [`spikes/int_match/REPORT.md`](../../spikes/int_match/REPORT.md).
 
 ### I3: numbers in the collected arena
 
-Report: [`spikes/int_numbers/REPORT.md`](../../spikes/int_numbers/REPORT.md).
+Report: `spikes/int_numbers/REPORT.md`.
 
 - Numbers through the store cost 0.89 to 1.04 times bare arithmetic at 10^5 to 10^6 digits (small factorials 1.5
   times faster, thanks to immediates); interning a 10^6-digit ball costs 0.04 ms against 935 ms to compute it.
