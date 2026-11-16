@@ -43,6 +43,12 @@ pub(crate) struct SolveNative {
 impl Native for SolveNative {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h: &'h Heap = cx.heap();
+        // root([f, x0]): the root of an analytic function near x0
+        if self.f == SolveFn::Root {
+            if let [spec] = args {
+                return mc_algebra::transroot::root_native(cx, &self.stop, _t, *spec);
+            }
+        }
         // the value forms: the solutions of solve and n_solve without the rules
         if matches!(self.f, SolveFn::SolveValues | SolveFn::NSolveValues) {
             let inner = if self.f == SolveFn::SolveValues { "solve" } else { "n_solve" };
@@ -93,6 +99,18 @@ impl Native for SolveNative {
                 crate::modular::solve_mod(&env, self.f, args, p, &mut m)
             };
             return finish_reply(&env, r, tick.abort);
+        }
+        // one analytic equation in a bounded region of the complex plane: every root, isolated and proved
+        if matches!(self.f, SolveFn::Solve | SolveFn::Reduce | SolveFn::NSolve) {
+            use mc_algebra::transroot::{solve_region, Form};
+            let form = match self.f {
+                SolveFn::Solve => Form::Rules,
+                SolveFn::Reduce => Form::Condition,
+                _ => Form::Numbers,
+            };
+            if let Some(r) = solve_region(cx, &self.stop, args, form)? {
+                return Ok(Reply::Done(r));
+            }
         }
         // a domain or conditions: solve the equations, then keep the solutions in the domain that meet them
         if self.f == SolveFn::Solve {

@@ -34,6 +34,7 @@ mod minpoly;
 mod natives;
 pub mod qpoly;
 pub mod realroot;
+pub mod transroot;
 mod transroots;
 mod rootstruct;
 mod rootsum;

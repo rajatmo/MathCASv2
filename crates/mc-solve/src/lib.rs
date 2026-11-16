@@ -40,6 +40,7 @@ mod reduce_steps;
 mod rootobj;
 mod solve;
 mod system;
+mod transwrap;
 mod univariate;
 
 use mc_core::{Heap, Store};
@@ -106,4 +107,5 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
             k.register(h.sym(name), a, Box::new(native));
         }
     }
+    transwrap::install(k, h, stop);
 }

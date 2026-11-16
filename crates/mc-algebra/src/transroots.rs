@@ -45,7 +45,7 @@ use std::sync::Arc;
 /// The highest derivative used for a root at an end.
 const MAX_ORDER: usize = 5;
 /// The library functions a count may use.
-const COUNT_LIBRARY: &[&str] = &["gamma", "digamma", "polygamma", "bessel_j", "bessel_i", "airy_ai", "airy_bi"];
+pub(crate) const COUNT_LIBRARY: &[&str] = &["gamma", "digamma", "polygamma", "bessel_j", "bessel_i", "airy_ai", "airy_bi"];
 /// The most boxes one count may examine.
 const MAX_BOXES: u64 = 400_000;
 /// The working precisions tried in turn (bits).
@@ -396,9 +396,9 @@ fn nonzero_at<'h>(env: &Env<'h>, f: T<'h>, x: T<'h>, a: T<'h>) -> bool {
 
 /// The working precision (bits) and the box budget of one count.
 #[derive(Clone, Copy)]
-struct Prec<'a> {
-    p: u64,
-    bud: &'a Cell<u64>,
+pub(crate) struct Prec<'a> {
+    pub p: u64,
+    pub bud: &'a Cell<u64>,
 }
 
 /// A range enclosure of a real function or of its derivative (`usize` 0 or 1) over a ball: balls for the lower and
@@ -406,23 +406,23 @@ struct Prec<'a> {
 type Encl<'a> = &'a dyn Fn(&Ball, usize) -> Option<(Ball, Ball)>;
 
 /// The functions f, f', ... as numeric graphs in x.
-struct Fns<'h> {
-    g: Graph<'h>,
-    is: Vec<Island>,
+pub(crate) struct Fns<'h> {
+    pub g: Graph<'h>,
+    pub is: Vec<Island>,
 }
 
 impl Fns<'_> {
     /// An enclosure of f^(j) over the region z, or `None`.
-    fn at(&self, j: usize, z: &CBall, p: u64) -> Option<CBall> {
+    pub fn at(&self, j: usize, z: &CBall, p: u64) -> Option<CBall> {
         self.g.eval_complex_at(&self.is[j], p, std::slice::from_ref(z))
     }
     /// An enclosure of the real function f^(j) over the real ball x, or `None` (no real value there).
-    fn real(&self, j: usize, x: &Ball, p: u64) -> Option<Ball> {
+    pub fn real(&self, j: usize, x: &Ball, p: u64) -> Option<Ball> {
         let z = self.at(j, &CBall::real(x.clone()), p)?;
         z.is_real().then_some(z.re)
     }
     /// The sign of f at the exact point x when proved.
-    fn sign(&self, x: &Float, p: u64) -> Option<bool> {
+    pub fn sign(&self, x: &Float, p: u64) -> Option<bool> {
         let v = self.real(0, &Ball::exact(x.clone()), p)?;
         (!v.contains_zero()).then_some(!v.mid.neg)
     }
@@ -701,7 +701,7 @@ fn positive(terms: &[(Ball, Ball)], w: Prec, m: &mut Meter) -> WorkResult<Option
 }
 
 /// One box from the budget; false when it is spent.
-fn take(bud: &Cell<u64>) -> bool {
+pub(crate) fn take(bud: &Cell<u64>) -> bool {
     let left = bud.get();
     bud.set(left.saturating_sub(1));
     left > 0
@@ -713,7 +713,7 @@ fn ends(b: &Ball) -> (Float, Float) {
 }
 
 /// The sign of a range [lo, hi] (given by a ball for each end) when it excludes zero: `Some(true)` for positive.
-fn range_sign(lo: &Ball, hi: &Ball) -> Option<bool> {
+pub(crate) fn range_sign(lo: &Ball, hi: &Ball) -> Option<bool> {
     if !lo.contains_zero() && !lo.mid.neg {
         Some(true)
     } else if !hi.contains_zero() && hi.mid.neg {
@@ -782,14 +782,14 @@ fn interval(fns: &Fns, lo: &Ball, hi: &Ball, zl: &[bool], zh: &[bool], w: Prec, 
 }
 
 /// The ball of the dyadic interval [l, r].
-fn span(l: &Float, r: &Float) -> Ball {
+pub(crate) fn span(l: &Float, r: &Float) -> Ball {
     let s = l.add_exact(r);
     let w = r.sub_exact(l);
     Ball { mid: Float::new(s.neg, s.man, s.exp - 1), rad: Mag::from_float_up(&Float::new(false, w.man, w.exp - 1)) }
 }
 
 /// l + (r - l) k/16, exactly.
-fn split_point(l: &Float, r: &Float, k: i64) -> Float {
+pub(crate) fn split_point(l: &Float, r: &Float, k: i64) -> Float {
     let w = r.sub_exact(l).mul_exact(&Float::from_i64(k));
     l.add_exact(&Float::new(w.neg, w.man, w.exp - 4))
 }
@@ -857,7 +857,7 @@ fn bisect(f: Encl, a: &Float, b: &Float, w: Prec, m: &mut Meter) -> WorkResult<O
 }
 
 /// The zeros of f in the closed rectangle [x0, x1] x [y0, y1] (exact dyadic corners), by the argument principle.
-fn rectangle(fns: &Fns, [x0, x1, y0, y1]: [&Float; 4], w: Prec, m: &mut Meter) -> WorkResult<Option<u64>> {
+pub(crate) fn rectangle(fns: &Fns, [x0, x1, y0, y1]: [&Float; 4], w: Prec, m: &mut Meter) -> WorkResult<Option<u64>> {
     let (p, bud) = (w.p, w.bud);
     // analytic on the rectangle: a cover by boxes with enclosures
     let size = x1.sub_exact(x0).top().max(y1.sub_exact(y0).top());

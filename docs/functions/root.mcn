@@ -21,6 +21,15 @@
 #% item
 # `root(f, k, 0)` is the same as `root(f, k)`.
 
+#% item
+# `root([f, x0])` stands for the root of an analytic function `f` (not a polynomial) that Newton's iteration from `x0` reaches, real or complex. The object exists only when that root is simple and isolated with proof (Krawczyk's test on enclosures of `f` and `f'` over a box): a double root, no root nearby, or a pole or branch cut in the way leave the call unevaluated.
+
+#% item
+# The canonical form of `root([f, x0])`: the factor of the numerator of `together(f)` that vanishes at the root, expanded, with coprime integer coefficients, multiplied by the unit (1, -1, or for complex coefficients also im, -im) that gives the shortest printed form without a leading minus sign, as a slot function; `x0` the machine number nearest the root. `n` refines the proved box to any precision, comparisons go through `n`, and arithmetic keeps the object.
+
+#% item
+# `solve`, `solve_values`, `reduce` and `n_solve` of one analytic equation with conditions on `re(x)`, `im_part(x)` or `abs(x - c)` give every root in that region as such objects (counted by the argument principle, each isolated); `maximize`, `minimize`, `max_value`, `min_value`, `arg_max` and `arg_min` on a closed bounded interval give critical points as such objects, the extremum proved by enclosures.
+
 #% section
 # Examples
 
@@ -75,6 +84,45 @@ root(&(&1^2 - 3*&1 - 1), 2)
 root(&(&1^5 - 3*&1), 3)
 #% output
 #= root(&(-3 + &1^4), 2)
+
+#% text
+# A root of a function that is not a polynomial, from a starting value:
+
+#% cell
+root([x => x - 2*sin(x), 1.9])
+#% output
+#= root([&(&1 - 2*sin(&1)), 1.895494267033981])
+
+#% cell
+n(root([x => x - 2*sin(x), 1.9]), 40)
+#% output
+#= 1.89549426703398094714403573809360169175134663
+
+#% text
+# A complex root, and a root that is not simple, which stays:
+
+#% cell
+root([&(exp(&1) - 1 - im), 0.3 + 0.8im])
+#% output
+#= root([&(1 + im - exp(&1)), 0.34657359027997264 + 0.7853981633974483im])
+
+#% cell
+root([&((&1 - 1)^2*exp(&1)), 1.1])
+#% output
+#= root([&((&1 - 1)^2*exp(&1)), 1.1])
+
+#% text
+# Every root in a region, and a maximum on an interval:
+
+#% cell
+solve(sin(x) - x == 2 and abs(x) < 5, x)
+#% output
+#= [[x -> root([&(2 + &1 - sin(&1)), -2.554195952837043])], [x -> root([&(2 + &1 - sin(&1)), 0.970288144203847 - 1.9542472384221157im])], [x -> root([&(2 + &1 - sin(&1)), 0.970288144203847 + 1.9542472384221157im])]]
+
+#% cell
+arg_min([gamma(x) + x, 1/2 <= x and x <= 3], x)
+#% output
+#= root([&(1 + digamma(&1)*gamma(&1)), 0.8349710458390793])
 
 #% subsection
 # Properties and relations

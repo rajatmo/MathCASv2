@@ -373,3 +373,30 @@ field and the degree-42 norm.
 ## Round 44: ball ends
 
 - `transroots::ends` uses `Ball::ends` (mc-arith), which does not align exponents that are far apart.
+
+## Round 47: roots of analytic functions as objects
+
+- `transroot.rs`: `root([f, x0])` for a function that is not a polynomial. Newton's iteration from x0, then
+  Krawczyk's test (Krawczyk 1969; Moore, Kearfott and Cloud 2009, section 8.2; Rump 2010, section 13) on boxes of
+  growing radius around the point reached: K(Z) inside Z proves one root in Z. Complex boxes use the rectangular
+  complex product, which is the real 2 x 2 interval product of the Cauchy-Riemann matrix, so the real theorem
+  covers them. A real start with f real there gives a real interval (a proved real root).
+- Canonical form: powers `b^(k + e)` split (`b^k K`, K a fresh symbol for `b^e`), `together`, numerator, `factor`;
+  the one factor whose enclosure on the root box contains 0 (all others and the denominator proved nonzero; a
+  vanishing factor that is a power declines), expanded, coprime integer (Gaussian) coefficients, times the unit (1,
+  -1, and i, -i when a coefficient is not real) whose printed form has no leading minus, then is shortest, then
+  least as a string (the term order of a sum depends on its coefficients, so "first coefficient positive" is not
+  stable under negation). x0 is the machine number nearest the
+  midpoint of an 80-bit box. A factor that is a polynomial gives the exact root from `solve` (the one solution whose
+  enclosure meets the box).
+- The object is re-proved on every evaluation (a few ms); there is no cache. `n` (wrapped in mc-solve) replaces
+  each object by its refined box; comparisons reach it through `exact_sign`, which calls `n(a - b, 30)`.
+- Producers: `real_roots` (exclusion, monotonicity and sign change, bisection; as `transroots::bisect` but keeping
+  the root intervals) and `rect_roots` (the certified count of `transroots::rectangle`, one root: Krawczyk on the
+  rectangle or isolation from its centre inside it; more: cut in two at 8/16, 7/16, ... until the halves count).
+  `solve_region` reads `re(x)`, `im_part(x)` bounds and disks `abs(x - c) < r`, covers them by a dyadic rectangle
+  (2^-20 outward), keeps the roots whose refined boxes are proved inside. `minimize_interval`: ends and the roots
+  of f' on a closed interval with dyadic ends; the winner's enclosure lies below every other (refined to 512 bits).
+- Gaps: unbounded domains (the real line, strips with periodic roots) are not searched; ends that are not dyadic;
+  regions whose rectangle holds an essential singularity (x = e^(1/x) in |x| < 5) decline in the analyticity cover;
+  library functions beyond `transroots::COUNT_LIBRARY` are used for single objects but not for region counts.

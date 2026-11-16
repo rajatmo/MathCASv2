@@ -404,3 +404,11 @@ irreducible factor: degree 1 gives the rational, degree 2 `(-b +- sqrt(b^2 - 4ac
 - `reduce(cond, xs)` whose conjuncts include `element(x, integers)` (or `reals`) for every variable is
   `reduce(rest, xs, dom)`: `reduce(element(n, integers) and n <= 0)` failed with "expected equations and
   inequalities".
+
+## Round 47: roots of analytic functions as objects
+
+- `root([f, x0])` (one list argument) goes to `mc_algebra::transroot::root_native`.
+- `solve`, `reduce`, `n_solve` first try `transroot::solve_region` (one equation, one unknown, bounds on `re`,
+  `im_part`, `abs(x - c)`); `n_solve` gives machine numbers sorted by real then imaginary part.
+- `transwrap.rs` wraps `n` (root objects replaced by their values when any was made in the process) and the six
+  extrema (after the methods installed before decline: `transroot::minimize_interval`).
