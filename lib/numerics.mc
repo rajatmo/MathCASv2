@@ -944,12 +944,24 @@ fn nl_rp_many(spec, d, shape) = if length(shape) == 0 then nl_rp_one(spec, d) el
 # a random polygon in the unit square, or m of them, or an array; spec k (vertices), a type simple (the default),
 # convex, star_shaped or convex_hull, [type, k], [type, dist, k] (vertices from a distribution, for
 # convex_hull and simple); d -> spec for a planar polygon in a random plane of dimension d
-fn random_polygon(spec = automatic, shape = automatic) = {
+# a count (vertices, polygons) is a positive integer; anything else (a symbol) leaves the call unevaluated
+fn nl_rp_count_ok(c) = c === automatic or (is_integer(c) and c > 0)
+fn nl_rp_args_ok(spec, shape) = {
+  let s0 = if is_match(spec, _ -> _) then spec[2] else spec
+  let counts_ok = if is_integer(s0) then s0 > 0 else if is_list(s0) and length(s0) >= 2 and length(s0) <= 3 then nl_rp_count_ok(s0[-1]) else true
+  let shape_ok = shape === automatic or (is_list(shape) and every(shape, c => is_integer(c) and c >= 0)) or (is_integer(shape) and shape >= 0)
+  let dim_ok = not is_match(spec, _ -> _) or (is_integer(spec[1]) and spec[1] >= 2)
+  counts_ok and shape_ok and dim_ok
+}
+fn nl_random_polygon(spec, shape) = {
   let d = if is_match(spec, _ -> _) then spec[1] else 2
   let s0 = if is_match(spec, _ -> _) then spec[2] else spec
   let s = if s0 === automatic then simple else s0
   if shape === automatic then nl_rp_one(s, d) else nl_rp_many(s, d, if is_list(shape) then shape else [shape])
 }
+fn random_polygon() = nl_random_polygon(automatic, automatic)
+fn random_polygon(spec) when nl_rp_args_ok(spec, automatic) = nl_random_polygon(spec, automatic)
+fn random_polygon(spec, shape) when nl_rp_args_ok(spec, shape) = nl_random_polygon(spec, shape)
 
 # --- piecewise functions of complex and symbolic arguments ---
 

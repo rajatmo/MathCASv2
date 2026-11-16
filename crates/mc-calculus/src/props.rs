@@ -1165,6 +1165,11 @@ fn chords_agree<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, 
 /// indeterminate, as for any function whose domain leaves out points (the Weierstrass functions: their real
 /// domain is not listed, but the pole at 0 is one of its gaps; DLMF 23.2.4-23.2.5).
 fn pole_on_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>) -> Res<bool> {
+    singular_on_line(cx, b, c, x, &[sets::Kind::Pole])
+}
+
+/// Like [`pole_on_line`] for the singular points of the given kinds.
+fn singular_on_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>, kinds: &[sets::Kind]) -> Res<bool> {
     let h = b.heap();
     if c.integers || c.complex || c.cond.is_some() {
         return Ok(false);
@@ -1182,7 +1187,7 @@ fn pole_on_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, 
     }
     let Some((atoms, _)) = hit.atoms(cx, b, false, sets::Mode::Sing)? else { return Ok(false) };
     for (t, k) in atoms {
-        if k != sets::Kind::Pole {
+        if !kinds.contains(&k) {
             continue;
         }
         let mut others = rustc_hash::FxHashSet::default();
@@ -1362,6 +1367,11 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
     // linear; undecided)
     if shaped {
         return sampled_shape(cx, b, c, x, order);
+    }
+    // a function defined on the whole line with a cut or a jump at a real point is not continuous there: its
+    // derivative's sign proves nothing across it, so only a refutation by values can answer
+    if order > 0 && cs.is_empty() && !c.integers && !c.complex && !has_params && singular_on_line(cx, b, c, x, &[sets::Kind::Branch, sets::Kind::Jump])? {
+        return witness_only(cx, b, c, x, order);
     }
     let mut g = c.f;
     if c.integers && order > 0 {

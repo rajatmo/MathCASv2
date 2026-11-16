@@ -311,6 +311,15 @@ fn at_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: &str, params
             if nonpositive_integer(cx, a)? || (f == "hypergeometric_1f1" && nonpositive_integer(cx, bb)?) {
                 return Ok(None);
             }
+            // x^(a - b) has the modulus x^(Re(a - b)) and the phase x^(i Im(b - a)), which turns without a limit when
+            // a - b is not real: the value is then of unbounded modulus with no direction (complex infinity), and
+            // for a parameter not known to be real the answer depends on it; only real a and b give a signed infinity
+            for v in [a, bb] {
+                let r = cx.eval(b.call("element", &[v, b.heap().sym_term(b.heap().sym("reals"))]))?;
+                if !cx.is_true(r) {
+                    return Ok(None);
+                }
+            }
             let k = if f == "hypergeometric_1f1" { b.div(b.call("gamma", &[bb]), b.call("gamma", &[a])) } else { b.div(b.one(), b.call("gamma", &[a])) };
             let kn = cx.eval(b.call("n", &[k]))?;
             match sign(cx, b, kn)? {

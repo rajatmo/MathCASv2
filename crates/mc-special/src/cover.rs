@@ -2332,7 +2332,15 @@ fn pfq_regularized<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
             return Ok(None);
         }
         coef.push(f);
-        return Ok(Some(fx.mul(&coef)));
+        let v = fx.mul(&coef);
+        // an inexact input gives a number at its precision (the gamma of an exact complex number stays a formula)
+        let mut inputs: Vec<T<'h>> = as_.to_vec();
+        inputs.extend_from_slice(bs);
+        inputs.push(z);
+        if numeric(fx, &inputs.iter().copied().filter(|&t| fx.num(t).is_some()).collect::<Vec<_>>()) {
+            return Ok(Some(numify(fx, v, &inputs)?));
+        }
+        return Ok(Some(v));
     }
     let f = fx.eval(fx.call("hypergeometric_pfq", a))?;
     if fx.contains(f, "hypergeometric_pfq") && !numeric(fx, &[a[2]]) {
