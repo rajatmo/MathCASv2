@@ -154,12 +154,12 @@ fn small_product(h: &Heap, args: &[T<'_>]) -> Option<i64> {
 }
 
 /// Numeric constants (semantics 15): symbols that stand for a real number.
-const CONSTANTS: [&str; 5] = ["pi", "e", "euler_gamma", "catalan", "golden_ratio"];
+const CONSTANTS: [&str; 6] = ["pi", "e", "euler_gamma", "catalan", "golden_ratio", "glaisher"];
 
 /// The symbols of [`CONSTANTS`] in the heap a native was registered with, looked up once (comparing symbols
 /// instead of their names keeps the contagion scan free of allocations).
 #[derive(Default)]
-struct Consts(std::sync::OnceLock<[Sym; 5]>);
+struct Consts(std::sync::OnceLock<[Sym; 6]>);
 
 impl Consts {
     /// The index of `s` in [`CONSTANTS`], if it is one.
@@ -301,7 +301,7 @@ fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: &Consts, args: &[T<'h
 /// The machine values of the [`CONSTANTS`], filled on first use by `n` itself (so they are `n`'s values bit for bit);
 /// a NaN bit pattern marks an empty slot. Symbols are immediates and never memoised, so without this every
 /// `0.5*pi` in a loop evaluated `n(pi)` again (about 7 us a call).
-static CONSTANT_VALUES: [std::sync::atomic::AtomicU64; 5] = [const { std::sync::atomic::AtomicU64::new(u64::MAX) }; 5];
+static CONSTANT_VALUES: [std::sync::atomic::AtomicU64; 6] = [const { std::sync::atomic::AtomicU64::new(u64::MAX) }; 6];
 
 /// The machine value of `t` when it is a bare numeric constant, from [`CONSTANT_VALUES`].
 fn cached_constant<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: &Consts, t: T<'h>) -> Res<Option<T<'h>>> {
@@ -536,10 +536,10 @@ fn closed_exact<'h>(h: &'h Heap, t: T<'h>) -> bool {
             View::Real(_) | View::Ball { .. } | View::Str(_) => return false,
             View::Sym(s) => {
                 let name = h.sym_name(s);
-                // Glaisher's and Khinchin's constants: numbers the arithmetic does not know, decided by `n`
-                if matches!(name.as_str(), "glaisher" | "khinchin") {
+                // Khinchin's constant: a number the arithmetic does not know, decided by `n`
+                if matches!(name.as_str(), "khinchin") {
                     any_call = true;
-                } else if !matches!(name.as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio" | "im") {
+                } else if !matches!(name.as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio" | "glaisher" | "im") {
                     return false;
                 }
             }
@@ -645,7 +645,7 @@ fn exact_sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>) -> Res<Opti
     // equal or very close value
     let number = |t: T<'h>| {
         matches!(h.view(t), View::Int(_) | View::Rational { .. } | View::BigInt { .. })
-            || matches!(h.view(t), View::Sym(s) if matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio"))
+            || matches!(h.view(t), View::Sym(s) if matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio" | "glaisher"))
     };
     let (ca, cb) = (closed_exact(h, a), closed_exact(h, b));
     if a == b && (ca || number(a)) {
@@ -655,9 +655,9 @@ fn exact_sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>) -> Res<Opti
         return Ok(None);
     }
     let d = h.call(h.sym("add"), &[a, h.call(h.sym("mul"), &[h.int(-1), b])]);
-    // Glaisher's and Khinchin's constants by their own 40-digit values (n of a sum does not evaluate them)
+    // Khinchin's constant by its own 40-digit value (n of a sum does not evaluate it)
     let mut subs = vec![];
-    for c in ["glaisher", "khinchin"] {
+    for c in ["khinchin"] {
         let s = h.sym_term(h.sym(c));
         // shared subterms are visited once (a term can be a tree exponentially larger than itself)
         let mut seen = std::collections::HashSet::new();

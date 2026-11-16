@@ -63,6 +63,7 @@ pub const LIBRARY_FUNCTIONS: &[(&str, &str)] = &[
     ("linear_recurrence", "linear_recurrence(ker, init, n): the first n terms of a[k] = ker[1] a[k - 1] + ... + ker[d] a[k - d] from init; (ker, init, [m]), (ker, init, [m1, m2]): term m, terms m1 to m2 (m1 <= 0 runs backwards)"),
     ("threshold", "threshold(data), (data, delta), (data, [hard | soft | firm | piecewise_garrote | smooth_garrote | hyperbola, delta, ...]), (data, [largest_values, k]): data with the small values set to zero"),
     ("cantor_staircase", "cantor_staircase(x): the Cantor function, exact at rational x, numeric at inexact x; 0 for x <= 0 and 1 for x >= 1"),
+    ("directed_infinity", "directed_infinity(z): the point at infinity in the direction of z, the product z*inf (directed_infinity(im) is im*inf); directed_infinity() and directed_infinity(0) are complex_infinity"),
     ("dirac_comb", "dirac_comb(x1, ..., xk): the Dirac comb, a sum of delta functions at the integers (a product over the arguments): 0 at numbers that are not integers"),
     ("is_mandelbrot_set_member", "is_mandelbrot_set_member(c): whether the orbit of 0 under z^2 + c stays bounded for max_iterations steps (default 1000); lists elementwise"),
     ("interpolating_polynomial", "interpolating_polynomial(data, x): the polynomial of least degree through values [f1, ...] at 1, 2, ..., points [[x1, f1], ...] or Hermite data [[x1, f1, d1, ...], ...], in Newton form"),

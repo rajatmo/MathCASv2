@@ -424,14 +424,43 @@ impl<'a, 'k, 'h> Matcher<'a, 'k, 'h> {
     }
 
     fn m_seq(&self, ps: &[Pat], ts: &[T<'h>], b: &mut Binds<'h>, k: K<'_, 'h>) -> bool {
-        let marked = |p: &Pat| matches!(p, Pat::Seq { mark: Some(_), .. } | Pat::Repeat { mark: Some(_), .. });
+        // a marked optional argument (`shortest(optional(y_, d))`: absent first; `longest(...)`: present first) is
+        // decided before every other argument, the highest priority first (ties left to right); the arguments are
+        // then matched with it present (its pattern in its place) or absent (its variable bound to the default)
+        let opt_mark = |p: &Pat| match p {
+            Pat::Opt { mark: Some(m), .. } => Some(*m),
+            _ => None,
+        };
+        if let Some(i) = (0..ps.len()).filter(|&i| opt_mark(&ps[i]).is_some()).max_by_key(|&i| (opt_mark(&ps[i]).map_or(0, |m| m.1), std::cmp::Reverse(i))) {
+            let Pat::Opt { p: q, var, default, mark: Some((long, _)) } = &ps[i] else { return false };
+            for present in [*long, !*long] {
+                let mut qs: Vec<Pat> = ps.to_vec();
+                let matched = if present {
+                    qs[i] = (**q).clone();
+                    self.m_seq(&qs, ts, b, k)
+                } else {
+                    qs.remove(i);
+                    let d = default.get(self.ev.heap);
+                    if q.is_seq() {
+                        self.bind_seq(Some(*var), &mut std::iter::once(d), b, &mut |b| self.m_seq(&qs, ts, b, k))
+                    } else {
+                        self.bind_one(Some(*var), d, b, &mut |b| self.m_seq(&qs, ts, b, k))
+                    }
+                };
+                if matched || self.stop.get().is_some() {
+                    return true;
+                }
+            }
+            return false;
+        }
+        let marked =|p: &Pat| matches!(p, Pat::Seq { mark: Some(_), .. } | Pat::Repeat { mark: Some(_), .. });
         if ps.iter().any(marked) && !ps.iter().any(|p| matches!(p, Pat::Opt { .. })) {
             let mut lens = vec![0; ps.len()];
             let order = marked_order(ps);
             return self.m_marked(ps, ts, &order, 0, 0, &mut lens, b, k);
         }
         let Some((p, rest)) = ps.split_first() else { return ts.is_empty() && k(b) };
-        if let Pat::Opt { p: q, var, default } = p {
+        if let Pat::Opt { p: q, var, default, .. } = p {
             if q.is_seq() {
                 // an optional run: the run first (at least its minimum length), then absent (decision 13.11 of design 01)
                 let mut present: Vec<Pat> = Vec::with_capacity(ps.len());
@@ -661,7 +690,7 @@ impl<'a, 'k, 'h> Matcher<'a, 'k, 'h> {
             };
             return self.m_ac(ps, &info, ts, b, k);
         };
-        let Pat::Opt { p: q, var, default } = &ps[i] else { return false };
+        let Pat::Opt { p: q, var, default, .. } = &ps[i] else { return false };
         let mut present: Vec<Pat> = ps.to_vec();
         present[i] = (**q).clone();
         present.sort_by_key(Pat::ac_class);

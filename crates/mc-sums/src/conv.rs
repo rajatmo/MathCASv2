@@ -21,7 +21,9 @@ pub fn convergence<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, n: T<'h>, lo: Opti
     if sx.free(f, n) {
         return Ok(Some(if f == sx.int(0) { tru } else { fal }));
     }
-    // a pole in the range
+    // a pole in the range; a root depending on parameters is a pole there unless it is not an integer or lies
+    // below the range (`1/(n - a)^2` from 5: not_element(a, integers) or a < 5)
+    let mut off_poles = vec![];
     if let Some(l) = lo {
         if hyper::rational_in(sx, f, n)? {
             let den = sx.ev("denominator", &[f])?;
@@ -30,10 +32,30 @@ pub fn convergence<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, n: T<'h>, lo: Opti
                     if sx.as_int(r).is_some_and(|ri| ri >= l) {
                         return Ok(Some(fal));
                     }
+                    if !crate::verify::symbols(sx, r, &[]).is_empty() {
+                        let ints = sx.sym("integers");
+                        let not_int = sx.ev("not_element", &[r, ints])?;
+                        let below = sx.ev("less", &[r, sx.int(l)])?;
+                        off_poles.push(sx.ev("or", &[not_int, below])?);
+                    }
                 }
             }
         }
     }
+    let v = tail_convergence(sx, f, n, m)?;
+    match v {
+        Some(v) if !off_poles.is_empty() && v != fal => {
+            off_poles.insert(0, v);
+            Ok(Some(sx.ev("and", &off_poles)?))
+        }
+        v => Ok(v),
+    }
+}
+
+/// The verdict on the tail of the sum (no pole in the range).
+fn tail_convergence<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, n: T<'h>, m: &mut Meter) -> Res<Option<T<'h>>> {
+    let tru = sx.sym(names::TRUE);
+    let fal = sx.sym(names::FALSE);
     // the tail decides: the summand's eventual form (convergence does not depend on finitely many terms)
     let f = eventual(sx, f, n)?;
     if sx.free(f, n) {
@@ -262,7 +284,33 @@ fn ratio_test<'h>(sx: &mut Sx<'_, '_, '_, 'h>, r: T<'h>, n: T<'h>, m: &mut Meter
     let z = sx.div(ln, ld)?;
     let az = sx.ev("abs", &[z])?;
     if !crate::verify::symbols(sx, z, &[]).is_empty() {
-        return Ok(Some(condition(sx, z)?));
+        let inside = condition(sx, z, "less")?;
+        if dn == 0 {
+            return Ok(Some(inside));
+        }
+        // on the circle |z| = 1 Raabe's s decides as below: s > 1 converges everywhere on it, 0 < s <= 1 everywhere
+        // but at z = 1 (Dirichlet's test: the moduli of the terms decrease to 0 from some n on), s <= 0 nowhere
+        let n1 = crate::w!(sx, sx.pterm(&c(&rf.num, dn - 1), &ring, m));
+        let d1 = crate::w!(sx, sx.pterm(&c(&rf.den, dd - 1), &ring, m));
+        let a = sx.div(d1, ld)?;
+        let b = sx.div(n1, ln)?;
+        let s = sx.sub(a, b)?;
+        if !crate::verify::symbols(sx, s, &[]).is_empty() {
+            return Ok(Some(inside));
+        }
+        let one = sx.int(1);
+        let above = sx.ev("greater", &[s, one])?;
+        let positive = sx.ev("greater", &[s, sx.int(0)])?;
+        if sx.is_true(above) {
+            return Ok(Some(condition(sx, z, "less_equal")?));
+        }
+        if sx.is_true(positive) {
+            let closed = condition(sx, z, "less_equal")?;
+            let ne = sx.ev("unequal", &[z, one])?;
+            let edge = sx.ev("and", &[ne, closed])?;
+            return Ok(Some(sx.ev("or", &[edge, inside])?));
+        }
+        return Ok(Some(inside));
     }
     let lt = sx.ev("less", &[az, sx.int(1)])?;
     if sx.is_true(lt) {
@@ -294,8 +342,8 @@ fn ratio_test<'h>(sx: &mut Sx<'_, '_, '_, 'h>, r: T<'h>, n: T<'h>, m: &mut Meter
     Ok(None)
 }
 
-/// `abs(z) < 1`, solved for the parameter when `z = c x^p`.
-fn condition<'h>(sx: &mut Sx<'_, '_, '_, 'h>, z: T<'h>) -> Res<T<'h>> {
+/// `abs(z) < 1` (`rel` is `less`) or `abs(z) <= 1` (`less_equal`), solved for the parameter when `z = c x^p`.
+fn condition<'h>(sx: &mut Sx<'_, '_, '_, 'h>, z: T<'h>, rel: &str) -> Res<T<'h>> {
     let syms = crate::verify::symbols(sx, z, &[]);
     if let [x] = syms.as_slice() {
         // z = c x^p: |x| < |c|^(-1/p) (p > 0) or |x| > |c|^(-1/p) (p < 0)
@@ -315,11 +363,12 @@ fn condition<'h>(sx: &mut Sx<'_, '_, '_, 'h>, z: T<'h>) -> Res<T<'h>> {
                     let bnd = sx.pow(ac, e)?;
                     let ax = sx.ev("abs", &[*x])?;
                     let _ = lx;
-                    return sx.ev(if pi > 0 { "less" } else { "greater" }, &[ax, bnd]);
+                    let flip = if rel == "less" { "greater" } else { "greater_equal" };
+                    return sx.ev(if pi > 0 { rel } else { flip }, &[ax, bnd]);
                 }
             }
         }
     }
     let az = sx.ev("abs", &[z])?;
-    sx.ev("less", &[az, sx.int(1)])
+    sx.ev(rel, &[az, sx.int(1)])
 }

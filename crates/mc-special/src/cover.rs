@@ -2701,9 +2701,47 @@ fn barnes_exact<'h>(fx: &Fx<'_, '_, '_, 'h>, z: T<'h>) -> Option<T<'h>> {
     Some(fx.integer(&g))
 }
 
+/// m for z = m + 1/2 with |m| <= 50.
+fn half_integer<'h>(fx: &Fx<'_, '_, '_, 'h>, z: T<'h>) -> Option<i64> {
+    let q = fx.rat_of(z)?;
+    if q.den != mc_arith::num::Nat::from_u64(2) {
+        return None;
+    }
+    fx.int_of(fx.sub(z, fx.rat(1, 2))).filter(|m| m.abs() <= 50)
+}
+
+/// log G(1/2) = log(2)/24 + 1/8 - log(pi)/4 - 3/2 log(A), from G(1/2) = 2^(1/24) e^(1/8) pi^(-1/4) A^(-3/2) (Barnes
+/// 1900; Finch, *Mathematical Constants*, 2.15), A Glaisher's constant.
+fn log_barnes_g_half<'h>(fx: &Fx<'_, '_, '_, 'h>) -> T<'h> {
+    let log = |t| fx.call("log", &[t]);
+    fx.add(&[
+        fx.mul(&[fx.rat(1, 24), log(fx.int(2))]),
+        fx.rat(1, 8),
+        fx.mul(&[fx.rat(-1, 4), log(fx.sym("pi"))]),
+        fx.mul(&[fx.rat(-3, 2), log(fx.sym("glaisher"))]),
+    ])
+}
+
+/// G(m + 1/2) from G(1/2) by G(z + 1) = Gamma(z) G(z).
+fn barnes_half<'h>(fx: &mut Fx<'_, '_, '_, 'h>, m: i64) -> Res<T<'h>> {
+    let g = fx.call("exp", &[log_barnes_g_half(fx)]);
+    let gammas: Vec<T<'h>> = if m >= 0 {
+        (0..m).map(|k| fx.call("gamma", &[fx.rat(2 * k + 1, 2)])).collect()
+    } else {
+        (m..0).map(|k| fx.pow(fx.call("gamma", &[fx.rat(2 * k + 1, 2)]), fx.int(-1))).collect()
+    };
+    let mut fs = vec![g];
+    fs.extend(gammas);
+    let p = fx.mul(&fs);
+    fx.eval(p)
+}
+
 fn barnes_g<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if let Some(v) = barnes_exact(fx, a[0]) {
         return Ok(Some(v));
+    }
+    if let Some(m) = half_integer(fx, a[0]) {
+        return Ok(Some(barnes_half(fx, m)?));
     }
     if !numeric(fx, a) {
         return Ok(None);
@@ -2754,6 +2792,21 @@ fn log_barnes_g<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if let Some(n) = fx.int_of(a[0]).filter(|n| (1..=2000).contains(n)) {
         let g = barnes_exact(fx, fx.int(n)).unwrap_or(fx.int(1));
         return Ok(Some(fx.call("log", &[g])));
+    }
+    // m + 1/2 for m >= 0: log G(1/2) + sum_(k<m) log Gamma(k + 1/2) = log G(1/2) + log(P) + m/2 log(pi) with the
+    // rational P = prod_(k<m) Gamma(k + 1/2)/pi^(1/2), every term real (log G is real on (0, inf))
+    if let Some(m) = half_integer(fx, a[0]).filter(|&m| m >= 0) {
+        let mut fs = vec![];
+        for k in 0..m {
+            fs.push(fx.div(fx.call("gamma", &[fx.rat(2 * k + 1, 2)]), fx.sqrt(fx.sym("pi"))));
+        }
+        let p = fx.mul(&fs);
+        let p = fx.eval(p)?;
+        if fx.rat_of(p).is_none() {
+            return Ok(None);
+        }
+        let s = fx.add(&[log_barnes_g_half(fx), fx.call("log", &[p]), fx.mul(&[fx.rat(m, 2), fx.call("log", &[fx.sym("pi")])])]);
+        return Ok(Some(fx.eval(s)?));
     }
     if !numeric(fx, a) || gamma_pole(fx, a[0]) {
         return Ok(None);

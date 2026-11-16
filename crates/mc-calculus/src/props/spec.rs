@@ -253,7 +253,7 @@ pub fn params<'h>(b: &Build<'h>, ts: &[T<'h>], vars: &[T<'h>]) -> Vec<T<'h>> {
                 let n = h.sym_name(s);
                 let constant = matches!(
                     n.as_str(),
-                    "pi" | "e" | "euler_gamma" | "degree" | "im" | "inf" | "true" | "false" | "catalan" | "golden_ratio" | "reals"
+                    "pi" | "e" | "euler_gamma" | "degree" | "im" | "inf" | "true" | "false" | "catalan" | "golden_ratio" | "glaisher" | "reals"
                         | "complexes" | "integers" | "rationals" | "indeterminate"
                 );
                 if !constant && !vars.contains(&u) && !out.contains(&u) {

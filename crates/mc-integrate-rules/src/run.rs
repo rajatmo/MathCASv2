@@ -491,7 +491,7 @@ fn lower<'h>(ar: &Arith<'h, Heap>, n: &N, x: T<'h>, unit: Option<i64>, runs: &[u
     Some(match n {
         N::X => pat::lit(x),
         N::Var(i) => one(*i),
-        N::Opt(i) => Pat::Opt { p: Box::new(one(*i)), var: *i, default: Raw::new(h.int(unit?)) },
+        N::Opt(i) => Pat::Opt { p: Box::new(one(*i)), var: *i, default: Raw::new(h.int(unit?)), mark: None },
         N::Add(v) => {
             let a: Option<Vec<Pat>> = v.iter().map(|t| lower(ar, t, x, Some(0), runs)).collect();
             pat::call(h, h.sym(mc_api::names::ADD), a?)

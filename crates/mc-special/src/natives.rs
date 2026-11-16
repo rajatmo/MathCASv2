@@ -135,19 +135,60 @@ fn hurwitz<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, s: T<'h>, a: T<'h>) -> Option<
         }
     }
     if let (Some(x), Some(y)) = (&ns, &na) {
+        let real = matches!(x, Num::Real(_)) && matches!(y, Num::Real(_));
         if x.kind() == mc_arith::Kind::Machine || y.kind() == mc_arith::Kind::Machine {
             let (zs, za) = (machine_c64(x)?, machine_c64(y)?);
-            let v = crate::machine::complex::hurwitz_zeta(zs, za)?;
-            let real = matches!(x, Num::Real(_)) && matches!(y, Num::Real(_)) && za.re > 0.0;
+            let real = real && za.re > 0.0;
+            // the machine sum when it keeps its digits; else (a large negative real part, where the terms are far
+            // larger than the value) the complex balls at the precision the cancellation needs, rounded
+            let v = match crate::machine::complex::hurwitz_zeta_checked(zs, za) {
+                Some(v) => v,
+                None => {
+                    let ball = |v: f64| mc_arith::num::float::f64_to_dyadic(v).map(|(neg, man, exp)| mc_arith::num::Ball::exact(mc_arith::num::Float::new(neg, man, exp)));
+                    let (cs, ca) = (CBall::new(ball(zs.re)?, ball(zs.im)?), CBall::new(ball(za.re)?, ball(za.im)?));
+                    let z = crate::ball::zeta::hurwitz_complex(&|_| Some((cs.clone(), ca.clone())), 64)?;
+                    if !z.has_digits(14) && !z.is_exact_zero() {
+                        return None;
+                    }
+                    let v = C64::new(Real::Ball(z.re, 64).to_f64(), Real::Ball(z.im, 64).to_f64());
+                    // beyond the machine range: no machine value
+                    if !(v.re.is_finite() && v.im.is_finite()) {
+                        return None;
+                    }
+                    v
+                }
+            };
             return Some(mach_term(ar, if real { Mach::Real(v.re) } else { Mach::Complex(v) }));
         }
         // real balls (s > -1, a > 0): Euler-Maclaurin on the balls, every point of them enclosed
         if let (Num::Real(rs), Num::Real(ra)) = (x, y) {
             if x.kind() == mc_arith::Kind::Ball || y.kind() == mc_arith::Kind::Ball {
                 let p = rs.prec().unwrap_or(0).max(ra.prec().unwrap_or(0)).max(53);
-                let v = crate::ball::zeta::hurwitz(rs, ra, p)?;
-                return Some(ar.number(&Num::Real(Real::Ball(v.re, p))));
+                if let Some(v) = crate::ball::zeta::hurwitz(rs, ra, p) {
+                    return Some(ar.number(&Num::Real(Real::Ball(v.re, p))));
+                }
             }
+        }
+        // complex balls (or real ones outside the real method), Re a > 0: the complex Euler-Maclaurin sum
+        if x.kind() == mc_arith::Kind::Ball || y.kind() == mc_arith::Kind::Ball {
+            let prec = |n: &Num| match n {
+                Num::Real(r) => r.prec().unwrap_or(0),
+                Num::Complex(u, v) => u.prec().unwrap_or(0).max(v.prec().unwrap_or(0)),
+            };
+            let p = prec(x).max(prec(y)).max(53);
+            // the arguments at the working precision: exact parts rounded there, balls kept
+            let cb = |n: &Num, wp: u64| {
+                let ball = |r: &Real| match r.to_kind(mc_arith::Kind::Ball, wp) {
+                    Real::Ball(b, _) => Some(b),
+                    _ => None,
+                };
+                match n {
+                    Num::Real(r) => Some(CBall::real(ball(r)?)),
+                    Num::Complex(u, v) => Some(CBall::new(ball(u)?, ball(v)?)),
+                }
+            };
+            let z = crate::ball::zeta::hurwitz_complex(&|wp| Some((cb(x, wp)?, cb(y, wp)?)), p)?;
+            return Some(if real { ar.number(&Num::Real(Real::Ball(z.re, p))) } else { cball_term(ar, z, p) });
         }
     }
     let q = na.as_ref().and_then(Num::as_rat)?;

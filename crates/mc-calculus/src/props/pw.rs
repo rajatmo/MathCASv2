@@ -445,7 +445,12 @@ fn cases_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, reg: Opt
             let c2 = cx.eval(b.call("and", &[c2a, n1]))?;
             let n2 = negate(cx, b, c2a)?;
             let c3 = cx.eval(b.call("and", &[n1, n2]))?;
-            Some(vec![(lo, c1), (hi, c2), (u, c3)])
+            // clip(u, [lo, hi], [vlo, vhi]): vlo below lo and vhi above hi
+            let (vlo, vhi) = match args.get(2).and_then(|&r| cx.as_list(r)) {
+                Some([l, r]) => (*l, *r),
+                _ => (lo, hi),
+            };
+            Some(vec![(vlo, c1), (vhi, c2), (u, c3)])
         }
         "unit_step" if args.len() == 1 => {
             let u = args[0];

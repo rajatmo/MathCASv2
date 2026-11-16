@@ -656,14 +656,23 @@ fn walk<'h>(
             }
         }
         ("clip", false) => {
-            if mode == Mode::Sing {
-                let u = args[0];
-                let (lo, hi) = match args.get(1).and_then(|&r| cx.as_list(r)) {
-                    Some([l, r]) => (*l, *r),
-                    _ => (b.neg(one), one),
-                };
-                push(rel("equal", u, lo), Kind::Kink);
-                push(rel("equal", u, hi), Kind::Kink);
+            let u = args[0];
+            let (lo, hi) = match args.get(1).and_then(|&r| cx.as_list(r)) {
+                Some([l, r]) => (*l, *r),
+                _ => (b.neg(one), one),
+            };
+            // clip(u, [lo, hi], [vlo, vhi]): a jump where a value differs from its bound (a discontinuity), a kink
+            // where it is the bound
+            let (vlo, vhi) = match args.get(2).and_then(|&r| cx.as_list(r)) {
+                Some([l, r]) => (*l, *r),
+                _ => (lo, hi),
+            };
+            for (at, v) in [(lo, vlo), (hi, vhi)] {
+                if v != at {
+                    push(rel("equal", u, at), Kind::Jump);
+                } else if mode == Mode::Sing {
+                    push(rel("equal", u, at), Kind::Kink);
+                }
             }
         }
         ("unit_triangle", false) if one_arg => {
@@ -740,7 +749,7 @@ fn numeric_quantity_in<'h>(h: &'h mc_core::Heap, t: T<'h>, memo: &mut mc_api::wa
 
 /// Is the symbol `t` a constant (`pi`, `euler_gamma`, ...)?
 fn is_constant<'h>(h: &'h mc_core::Heap, t: T<'h>) -> bool {
-    matches!(h.view(t), View::Sym(s) if matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio" | "degree"))
+    matches!(h.view(t), View::Sym(s) if matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio" | "degree" | "glaisher"))
 }
 
 /// `re(u)` or `im_part(u)` taken through real constant terms and factors: `re(1 + z^2)` is `1 + re(z^2)`.

@@ -1,0 +1,93 @@
+#! mathcas 2 notebook
+
+#% title
+# directed_infinity
+
+#% text
+# `directed_infinity(z)` is the point at infinity in the direction of the complex number `z`: the product `z*inf`, which the arithmetic keeps as one coefficient per direction.
+
+#% section
+# Details
+
+#% item
+# A directed infinity is the product `c*inf` of a nonzero number `c` and `inf`; `directed_infinity(1)` is `inf`, `directed_infinity(-1)` is `-inf` and `directed_infinity(im)` is `im*inf`. Every directed infinity prints as such a product, which reads back as itself.
+
+#% item
+# The coefficient is reduced to its direction: a real one to its sign, an exact complex one to the Gaussian integer `a + b*im` with coprime `a` and `b` on its ray, an inexact one to `c/abs(c)`.
+
+#% item
+# `directed_infinity()` and `directed_infinity(0)` are `complex_infinity`; `directed_infinity(z)` stays unevaluated unless `z` is a number known to be nonzero.
+
+#% item
+# Directed infinities of one direction absorb finite numbers in sums; two different directions give `failure(indeterminate, ...)`. Products multiply the directions, and a negative power is 0.
+
+#% item
+# `limit` gives a directed infinity for functions of a real variable whose real and imaginary parts have limits, at least one of them infinite.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+directed_infinity(im)
+#% output
+#= im*inf
+
+#% cell
+[directed_infinity(1), directed_infinity(-5), directed_infinity(2 + 2*im)]
+#% output
+#= [inf, -inf, (1 + im)*inf]
+
+#% cell
+[directed_infinity(), directed_infinity(0)]
+#% output
+#= [complex_infinity, complex_infinity]
+
+#% cell
+directed_infinity(0.6 + 0.8*im)
+#% output
+#= (0.6 + 0.8im)*inf
+
+#% subsection
+# Scope
+
+#% cell
+3*im*directed_infinity(1 + im)
+#% output
+#= (-1 + im)*inf
+
+#% cell
+[1 + im*inf, (im*inf)^2, 1/(im*inf)]
+#% output
+#= [im*inf, -inf, 0]
+
+#% cell
+inf + im*inf
+#% output
+#! failure(indeterminate, inf + im*inf)
+
+#% subsection
+# Applications
+
+#% cell
+limit(x*im, x -> inf)
+#% output
+#= im*inf
+
+#% cell
+limit(exp(im*pi/4)*x, x -> inf)
+#% output
+#= (1 + im)*inf
+
+#% cell
+limit(x - im*x^3, x -> -inf)
+#% output
+#= im*inf
+
+#% section
+# See also
+
+#% text
+# `limit`, `abs`, `sign`

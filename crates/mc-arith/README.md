@@ -17,6 +17,8 @@ order on terms, and the canonicaliser of `add`, `mul` and `pow`, written generic
 - Kernels compute on bare values outside the store and build terms once at the end.
 - Every public number operation under a raised stop flag returns without panicking or looping.
 - `Arith` carries a size limit in bits (`DEFAULT_MAX_BITS` by default) and an optional stop flag.
+- Infinities (semantics 3.1): a directed infinity is `c*inf` with one coefficient per direction (a sign, a coprime
+  Gaussian integer, or `c/abs(c)` for inexact `c`); two directions in a sum are indeterminate.
 - The only dependencies are `mc-api` and `rustc-hash`; the evaluator is not a dependency (`mc-core` and the big-number
   libraries are used by tests only).
 

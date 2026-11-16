@@ -1,0 +1,83 @@
+#! mathcas 2 notebook
+
+#% title
+# glaisher
+
+#% text
+# `glaisher` is Glaisher's constant `A = 1.2824...`, defined by `log(A) = 1/12 - zeta'(-1)`; it is the constant in the asymptotic product `1^1 2^2 ... n^n ~ A n^(n^2/2 + n/2 + 1/12) e^(-n^2/4)`.
+
+#% section
+# Details
+
+#% item
+# `glaisher` is exact and known to be a positive real; `n(glaisher, d)` gives `d` digits, also inside larger expressions, up to about 60000 digits (10000 digits take some seconds).
+
+#% item
+# The digits come from `log(A) = (euler_gamma + log(2 pi))/12 - zeta'(2)/(2 pi^2)`, with `zeta'(2)` summed by the Euler-Maclaurin formula and a proved error bound.
+
+#% item
+# `zeta'(-1)` evaluates to `1/12 - log(glaisher)`, and `barnes_g` and `log_barnes_g` at half-integers give closed forms in `glaisher`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+glaisher
+#% output
+#= glaisher
+
+#% cell
+n(glaisher)
+#% output
+#= 1.2824271291006226
+
+#% cell
+n(glaisher, 50)
+#% output
+#= 1.282427129100622636875342568869791727767688927325001192
+
+#% cell
+[is_real(glaisher), is_positive(glaisher), 1 < glaisher and glaisher < 2]
+#% output
+#= [true, true, true]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative of the zeta function at -1:
+
+#% cell
+zeta'(-1)
+#% output
+#= 1/12 - log(glaisher)
+
+#% text
+# The Barnes G-function at 1/2 and its logarithm:
+
+#% cell
+barnes_g(1/2)
+#% output
+#= 2^(1/24)*exp(1/8)/(glaisher^(3/2)*pi^(1/4))
+
+#% cell
+log_barnes_g(1/2)
+#% output
+#= 1/8 - (3/2)*log(glaisher) - (1/4)*log(pi) + (1/24)*log(2)
+
+#% text
+# The hyperfactorial `1^1 2^2 ... n^n` divided by its asymptotic form tends to `A`:
+
+#% cell
+n(product(k^k, [k, 1, 200])/(200^(200^2/2 + 200/2 + 1/12)*exp(-200^2/4)), 20)
+#% output
+#= 1.28242717362918414122
+
+#% section
+# See also
+
+#% text
+# `zeta`, `barnes_g`, `log_barnes_g`, `euler_gamma`, `catalan`

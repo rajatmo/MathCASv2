@@ -140,7 +140,104 @@ pub fn limit_with<'h>(
             o => o,
         });
     }
-    exact_limit(cx, b, f, x, a, direction, &run)
+    let o = exact_limit(cx, b, f, x, a, direction, &run)?;
+    if !matches!(o, Outcome::Unknown) {
+        return Ok(o);
+    }
+    Ok(complex_parts(cx, b, f, x, a, direction, opts)?.unwrap_or(o))
+}
+
+/// The limit of a function with complex values along the real line (`im*x`, `exp(im*pi/4)*x`, `x + im*x^2`) from
+/// the limits of its real part u and imaginary part v (`complex_expand`, x real): u + im v when both are finite,
+/// and a directed infinity (semantics 3.1) otherwise: `inf` or `-inf` when only u is infinite, `im*inf` or
+/// `-im*inf` when only v is, and with both infinite the direction s (1 + im r) from the sign s of u and
+/// r = lim v/u (`im*inf` times the sign of v when r is infinite). Only for an exact function of x alone (no
+/// parameter, whose real part `complex_expand` would assume) with a complex number in it, at a real point; `None`
+/// leaves the limit to the other methods, and anything but two values is not decided here.
+fn complex_parts<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    b: &Build<'h>,
+    f: T<'h>,
+    x: T<'h>,
+    a: T<'h>,
+    direction: Direction,
+    opts: &Options,
+) -> Res<Option<Outcome<'h>>> {
+    let h = b.heap();
+    let complex = h.sym_term(h.sym("complex"));
+    let constants = ["pi", "e", "euler_gamma", "catalan", "golden_ratio", "degree", "glaisher", "khinchin"];
+    let mut has_complex = false;
+    let mut seen = FxHashSet::default();
+    let mut stack = vec![f];
+    while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
+        match h.view(u) {
+            View::Real(_) | View::Ball { .. } => return Ok(None),
+            View::Sym(s) if u != x && !constants.contains(&h.sym_name(s).as_str()) => return Ok(None),
+            View::App { head, args } => {
+                has_complex |= head == complex;
+                stack.extend_from_slice(args);
+            }
+            _ => {}
+        }
+    }
+    if !has_complex {
+        return Ok(None);
+    }
+    let inf = h.sym_term(h.sym("inf"));
+    let truth = h.sym_term(h.sym(names::TRUE));
+    if !(a == inf || a == b.neg(inf) || apply(cx, b, "is_real", &[a])? == truth) {
+        return Ok(None);
+    }
+    let part = |cx: &mut NativeCx<'_, '_, 'h>, name: &str| -> Res<T<'h>> {
+        let p = apply(cx, b, name, &[f])?;
+        apply(cx, b, "complex_expand", &[p])
+    };
+    let (u, v) = (part(cx, "re")?, part(cx, "im_part")?);
+    // the parts must be real expressions, free of complex numbers (or the recursion would not end)
+    for p in [u, v] {
+        if !is_free(b, p, complex) || !is_free(b, p, h.sym_term(h.sym("re"))) || !is_free(b, p, h.sym_term(h.sym("im_part"))) {
+            return Ok(None);
+        }
+    }
+    // 0 for a finite number, the sign for inf or -inf
+    let size = |cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>| -> Res<Option<i8>> {
+        Ok(if t == inf {
+            Some(1)
+        } else if t == b.neg(inf) {
+            Some(-1)
+        } else if apply(cx, b, "is_numeric", &[t])? == truth && apply(cx, b, "is_real", &[t])? == truth {
+            Some(0)
+        } else {
+            None
+        })
+    };
+    let (Outcome::Value(lu), Outcome::Value(lv)) =
+        (limit_with(cx, b, u, x, a, direction, opts)?, limit_with(cx, b, v, x, a, direction, opts)?)
+    else {
+        return Ok(None);
+    };
+    let (Some(su), Some(sv)) = (size(cx, lu)?, size(cx, lv)?) else { return Ok(None) };
+    let i = b.mul(&[h.sym_term(h.sym("im")), b.one()]);
+    let i = cx.eval(i)?;
+    let value = match (su, sv) {
+        (0, 0) => b.add(&[lu, b.mul(&[i, lv])]),
+        (_, 0) => lu,
+        (0, _) => b.mul(&[i, lv]),
+        _ => {
+            let Outcome::Value(r) = limit_with(cx, b, b.div(v, u), x, a, direction, opts)? else {
+                return Ok(None);
+            };
+            match size(cx, r)? {
+                Some(0) => b.mul(&[b.int(su as i64), b.add(&[b.one(), b.mul(&[i, r])]), inf]),
+                Some(_) => b.mul(&[i, lv]),
+                None => return Ok(None),
+            }
+        }
+    };
+    Ok(Some(Outcome::Value(cx.eval(value)?)))
 }
 
 /// The settings of one limit call.
@@ -235,6 +332,7 @@ fn exact_limit<'h>(
                 let g = inverses_on_cuts(cx, b, g, x, a)?;
                 // a log or power reaching its cut from a side that is not decided: no limit is given
                 let Some(g) = off_branch_cuts(cx, b, g, x, a, side)? else { return Ok(None) };
+                let Some(g) = special_cuts(cx, b, g, x, a, side)? else { return Ok(None) };
                 g
             }
             _ => g,
@@ -385,6 +483,150 @@ fn off_branch_cuts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x
             b.mul(&[b.pow(neg_arg, p), b.call("exp", &[b.mul(&[turn, p])])])
         };
         rules.push(h.call(h.sym(names::RULE), &[u, new]));
+    }
+    if rules.is_empty() {
+        return Ok(Some(g));
+    }
+    Ok(Some(apply(cx, b, "rewrite", &[g, cx.list(&rules)])?))
+}
+
+/// The special functions with branch cuts on the real axis, with the index of the argument that has them.
+const REAL_CUTS: &[(&str, usize, usize)] = &[
+    // (name, arity, index of the argument)
+    ("elliptic_k", 1, 0),
+    ("elliptic_e", 1, 0),
+    ("elliptic_e", 2, 1),
+    ("elliptic_f", 2, 1),
+    ("elliptic_pi", 2, 1),
+    ("elliptic_pi", 2, 0),
+    ("bessel_y", 2, 1),
+    ("bessel_k", 2, 1),
+    ("bessel_j", 2, 1),
+    ("bessel_i", 2, 1),
+    ("hankel_h1", 2, 1),
+    ("hankel_h2", 2, 1),
+    ("polylog", 2, 1),
+    ("hypergeometric_2f1", 4, 3),
+    ("gamma", 2, 1),
+    ("gamma_regularized", 2, 1),
+    ("exp_integral_e", 2, 1),
+    ("exp_integral_ei", 1, 0),
+    ("log_integral", 1, 0),
+    ("product_log", 1, 0),
+    ("legendre_q", 2, 1),
+    ("struve_h", 2, 1),
+];
+
+/// `g` with each special function of [`REAL_CUTS`] whose argument tends to a point of a cut on the real axis from
+/// the side where the function is not continuous replaced by its limit there. The jump and the side the principal
+/// value belongs to are read from values at 40 digits at the point and at the point plus or minus 10^-30 im (a
+/// difference above 10^-8 is a jump; the value at the point must equal one side to 10^-8). With the other arguments
+/// real the function is symmetric (f(conj z) = conj f(z), checked by the same values), so the limit from the other
+/// side is `conjugate(f(point))`. The side the argument comes from is the sign of its imaginary part beside the point
+/// (as in [`off_branch_cuts`]); an undecided side on a cut gives `None`: no limit, never the value of the wrong side.
+fn special_cuts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>, a: T<'h>, side: i8) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let mut found = vec![];
+    let mut stack = vec![g];
+    let mut seen = FxHashSet::default();
+    while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
+        let View::App { head, args } = h.view(u) else { continue };
+        if let View::Sym(s) = h.view(head) {
+            let name = h.sym_name(s);
+            for &(n, arity, k) in REAL_CUTS {
+                if n == name.as_str() && args.len() == arity && !is_free(b, args[k], x) && args.iter().enumerate().all(|(j, &p)| j == k || is_free(b, p, x)) {
+                    found.push((u, k));
+                }
+            }
+        }
+        stack.extend_from_slice(args);
+    }
+    if found.is_empty() {
+        return Ok(Some(g));
+    }
+    let im = h.sym_term(h.sym("im"));
+    let rule = |l: T<'h>, r: T<'h>| h.call(h.sym(names::RULE), &[l, r]);
+    let small = |cx: &mut NativeCx<'_, '_, 'h>, d: T<'h>, e: i64| -> Res<bool> {
+        let ad = apply(cx, b, "abs", &[d])?;
+        let lt = apply(cx, b, "less", &[ad, b.pow(b.int(10), b.int(-e))])?;
+        Ok(cx.is_true(lt))
+    };
+    let mut rules = vec![];
+    for (u, k) in found {
+        cx.tick(1)?;
+        let View::App { head, args } = h.view(u) else { continue };
+        let arg = args[k];
+        // the call at the point: every argument a number, the cut argument real
+        let at = apply(cx, b, "rewrite", &[arg, rule(x, a)])?;
+        let atn = apply(cx, b, "n", &[at, b.int(30)])?;
+        if num_of(b, atn).is_none() || args.iter().enumerate().any(|(j, &p)| j != k && num_of(b, p).is_none()) {
+            continue;
+        }
+        let call_at = |p: T<'h>| {
+            let mut v = args.to_vec();
+            v[k] = p;
+            h.app(head, &v)
+        };
+        let eps = b.mul(&[im, b.pow(b.int(10), b.int(-30))]);
+        let f0 = apply(cx, b, "n", &[call_at(at), b.int(40)])?;
+        let fp = apply(cx, b, "n", &[call_at(b.add(&[at, eps])), b.int(40)])?;
+        let fm = apply(cx, b, "n", &[call_at(b.sub(at, eps)), b.int(40)])?;
+        // differences of the values themselves (n of a difference near 0 cannot reach its digits)
+        let jump = apply(cx, b, "subtract", &[fp, fm])?;
+        let ajump = apply(cx, b, "abs", &[jump])?;
+        if num_of(b, ajump).is_none() || small(cx, jump, 8)? {
+            // no jump at the point (or no number to tell): continuous there
+            continue;
+        }
+        // the side whose limit the value at the point is
+        let d_up = apply(cx, b, "subtract", &[f0, fp])?;
+        let d_down = apply(cx, b, "subtract", &[f0, fm])?;
+        let principal = if small(cx, d_up, 8)? {
+            1
+        } else if small(cx, d_down, 8)? {
+            -1
+        } else {
+            return Ok(None);
+        };
+        // the side the argument comes from: the sign of its imaginary part beside the point
+        let mut sgn = 0i8;
+        let mut flat = true;
+        for e in [6i64, 9, 12] {
+            let pt = b.add(&[a, b.mul(&[b.int(side as i64), b.pow(b.int(10), b.int(-e))])]);
+            let v = apply(cx, b, "rewrite", &[arg, rule(x, pt)])?;
+            let v = apply(cx, b, "im_part", &[v])?;
+            let v = apply(cx, b, "n", &[v, b.int(40)])?;
+            let pos = apply(cx, b, "greater", &[v, b.zero()])?;
+            let neg = apply(cx, b, "less", &[v, b.zero()])?;
+            let zero = apply(cx, b, "equal", &[v, b.zero()])?;
+            flat &= cx.is_true(zero);
+            let s = if cx.is_true(pos) { 1 } else if cx.is_true(neg) { -1 } else { 0 };
+            if s == 0 || (sgn != 0 && s != sgn) {
+                sgn = 0;
+                break;
+            }
+            sgn = s;
+        }
+        if flat {
+            // along the cut itself: the principal values, which substitution gives
+            continue;
+        }
+        if sgn == 0 {
+            return Ok(None);
+        }
+        if sgn == principal {
+            continue;
+        }
+        // the other side: the conjugate of the value at the point, when the function is symmetric there
+        let cfp = apply(cx, b, "conjugate", &[fp])?;
+        let sym = apply(cx, b, "subtract", &[cfp, fm])?;
+        if !small(cx, sym, 8)? {
+            return Ok(None);
+        }
+        rules.push(rule(u, b.call("conjugate", &[call_at(at)])));
     }
     if rules.is_empty() {
         return Ok(Some(g));

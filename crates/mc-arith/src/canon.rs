@@ -219,6 +219,23 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
         let tag = self.st.sym_term(self.st.sym(crate::term::failure_tags::INDETERMINATE));
         self.st.app(self.n.failure, &[tag, partial])
     }
+    /// Is `t` a directed infinity: `inf` or `c inf` for a nonzero number `c`, possibly with a root of -1
+    /// (`(-1)^(1/4) inf`) (semantics 3.1)?
+    pub fn is_directed_infinity(&self, t: T<'h>) -> bool {
+        if t == self.n.inf {
+            return true;
+        }
+        match self.st.view(t) {
+            mc_api::View::App { head, args } if head == self.n.mul && args.len() >= 2 && args.contains(&self.n.inf) => {
+                args.iter().all(|&c| {
+                    c == self.n.inf
+                        || self.is_number(c)
+                        || matches!(self.shape(c), Shape::Pow(b, e) if b == self.n.minus_one && self.is_number(e))
+                })
+            }
+            _ => false,
+        }
+    }
     /// The sign of a signed infinity: 1 for `inf`, -1 for `-inf` (`mul(-1, inf)`), `None` for any other term.
     pub fn inf_sign(&self, t: T<'h>) -> Option<i8> {
         if t == self.n.inf {
@@ -274,7 +291,7 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
         if args.contains(&self.indet()) {
             return Some(self.indet());
         }
-        let infinite = args.iter().filter(|&&a| a == self.cinf() || self.inf_sign(a).is_some()).count();
+        let infinite = args.iter().filter(|&&a| a == self.cinf() || self.is_directed_infinity(a)).count();
         Some(if infinite > 1 { self.indet() } else { self.cinf() })
     }
 
@@ -289,7 +306,7 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
         }
         let mut rest = vec![];
         for &a in args {
-            if a == self.cinf() || self.inf_sign(a).is_some() {
+            if a == self.cinf() || self.is_directed_infinity(a) {
                 continue;
             }
             match self.num(a) {
@@ -526,6 +543,22 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
                     nums.clear();
                 }
                 terms[i].1 = vec![Num::int(if pos { 1 } else { -1 })];
+            } else {
+                // directed infinities c inf (semantics 3.1): of one direction they absorb finite numbers and stay
+                // that direction; of two directions, or with a zero coefficient, the sum is indeterminate
+                let dirs: Option<Vec<Num>> = terms[i].1.iter().map(direction).collect();
+                let Some(dirs) = dirs else {
+                    let raw = self.st.app(self.n.add, args);
+                    return self.indeterminate(raw);
+                };
+                if dirs.iter().any(|d| d.cmp_canonical(&dirs[0]) != Ordering::Equal) {
+                    let raw = self.st.app(self.n.add, args);
+                    return self.indeterminate(raw);
+                }
+                if nums.iter().all(num_finite) {
+                    nums.clear();
+                }
+                terms[i].1 = vec![dirs[0].clone()];
             }
         }
         let mut out = Vec::with_capacity(terms.len() + 1);
@@ -760,11 +793,14 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
                         Some(r) if r.is_positive() => {}
                         Some(r) if r.is_negative() => p.coef.push(Num::int(-1)),
                         Some(_) => return self.indeterminate(raw()),
-                        None => p.coef.push(c),
+                        // a complex coefficient keeps only its direction (semantics 3.1)
+                        None => match direction(&c) {
+                            Some(d) => p.coef.push(d),
+                            None => return self.indeterminate(raw()),
+                        },
                     }
-                    if c_is_real(&p.coef) {
-                        p.rad_pos.clear();
-                    }
+                    // positive radicals are positive real factors
+                    p.rad_pos.clear();
                 }
                 _ => {}
             }
@@ -821,9 +857,42 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
 }
 
 /// Whether the collected numeric factors are all real (or none).
-fn c_is_real(coef: &[Num]) -> bool {
-    coef.iter().all(|x| x.as_real().is_some())
+/// Is the number finite (no machine infinity or NaN in a part)?
+fn num_finite(x: &Num) -> bool {
+    match x {
+        Num::Real(r) => r.is_finite(),
+        Num::Complex(a, b) => a.is_finite() && b.is_finite(),
+    }
 }
+
+/// The canonical representative of the direction of a nonzero number `c`, the coefficient of a directed infinity
+/// `c inf` (semantics 3.1): the sign of a real number; the Gaussian integer a + b i with coprime a, b on the ray of
+/// an exact complex number; c/|c| for an inexact one. `None` for zero or a part that is not finite.
+fn direction(c: &Num) -> Option<Num> {
+    if c.is_zero() || !num_finite(c) {
+        return None;
+    }
+    match c {
+        Num::Real(r) => Some(Num::int(if r.is_positive() { 1 } else { -1 })),
+        Num::Complex(Real::Exact(a), Real::Exact(b)) => {
+            // a + b i times the positive lcm of the denominators, divided by the gcd of the integer parts
+            let g = crate::num::gcd::gcd(&a.den, &b.den);
+            let l = a.den.mul(&crate::num::gcd::div_exact(&b.den, &g));
+            let x = a.num.mag.mul(&crate::num::gcd::div_exact(&l, &a.den));
+            let y = b.num.mag.mul(&crate::num::gcd::div_exact(&l, &b.den));
+            let g = crate::num::gcd::gcd(&x, &y);
+            // the positive factor l/g through the number arithmetic, which keeps its results canonical
+            Some(c.mul(&Num::rat(Rat::new(Int::from_nat(l), Int::from_nat(g)))))
+        }
+        Num::Complex(Real::Machine(a), Real::Machine(b)) => {
+            let m = a.hypot(*b);
+            Some(Num::complex(Real::Machine(a / m), Real::Machine(b / m)))
+        }
+        // a ball direction stays as it is
+        Num::Complex(..) => Some(c.clone()),
+    }
+}
+
 
 fn cmp3(o: Ordering) -> Cmp3 {
     match o {

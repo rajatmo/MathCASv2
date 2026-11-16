@@ -1302,6 +1302,7 @@ e	symbolic	Numbers and precision	the constant e, the base of the natural logarit
 euler_gamma	symbolic	Numbers and precision	Euler's constant gamma = 0.5772... (Brent-McMillan under n); a positive real
 catalan	symbolic	Numbers and precision	Catalan's constant G = 0.9159...; a positive real
 golden_ratio	symbolic	Numbers and precision	the golden ratio (1 + sqrt(5))/2 = 1.6180...; a positive real
+glaisher	symbolic	Numbers and precision	Glaisher's constant A = 1.2824..., log A = 1/12 - zeta'(-1); a positive real
 machine_epsilon	symbolic	Numbers and precision	machine_epsilon: the smallest machine number e with 1 + e != 1, 2^-52 (a library definition)
 min_machine_number	symbolic	Numbers and precision	min_machine_number: the smallest positive machine number of full precision, 2^-1022 (a library definition)
 khinchin	symbolic	Numbers and precision	khinchin: Khinchin's constant 2.6854...; n(khinchin, p) sums a zeta-function series (library helper)
@@ -1416,6 +1417,7 @@ ratios	symbolic	Numerics library	ratios(xs): the successive ratios xs[i + 1]/xs[
 linear_recurrence	symbolic	Numerics library	linear_recurrence(ker, init, n): the first n terms of a[k] = ker[1] a[k - 1] + ... + ker[d] a[k - d] from init; (ker, init, [m]), (ker, init, [m1, m2]): term m, terms m1 to m2 (m1 <= 0 runs backwards)
 threshold	symbolic	Numerics library	threshold(data), (data, delta), (data, [hard | soft | firm | piecewise_garrote | smooth_garrote | hyperbola, delta, ...]), (data, [largest_values, k]): data with the small values set to zero
 cantor_staircase	symbolic	Numerics library	cantor_staircase(x): the Cantor function, exact at rational x, numeric at inexact x; 0 for x <= 0 and 1 for x >= 1
+directed_infinity	symbolic	Numerics library	directed_infinity(z): the point at infinity in the direction of z, the product z*inf (directed_infinity(im) is im*inf); directed_infinity() and directed_infinity(0) are complex_infinity
 dirac_comb	symbolic	Numerics library	dirac_comb(x1, ..., xk): the Dirac comb, a sum of delta functions at the integers (a product over the arguments): 0 at numbers that are not integers
 is_mandelbrot_set_member	symbolic	Numerics library	is_mandelbrot_set_member(c): whether the orbit of 0 under z^2 + c stays bounded for max_iterations steps (default 1000); lists elementwise
 interpolating_polynomial	symbolic	Numerics library	interpolating_polynomial(data, x): the polynomial of least degree through values [f1, ...] at 1, 2, ..., points [[x1, f1], ...] or Hermite data [[x1, f1, d1, ...], ...], in Newton form

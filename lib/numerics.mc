@@ -154,6 +154,16 @@ fn nl_cantor_inexact(x) =
     acc + 0*x
   }
 
+# --- directed_infinity ---
+
+# directed_infinity(z): the point at infinity in the direction of z, the product z*inf, whose coefficient the
+# arithmetic reduces to the direction (semantics 3.1); directed_infinity() and directed_infinity(0) are
+# complex_infinity; unevaluated where z is not a number known to be nonzero
+rule directed_infinity() := complex_infinity
+rule directed_infinity(z_) := complex_infinity when is_number(z) and z == 0
+rule directed_infinity(z_) := z*inf when is_numeric(z) and (abs(z) > 0) === true
+rule directed_infinity(l_) := map(directed_infinity, l) when is_list(l)
+
 # --- dirac_comb ---
 
 # dirac_comb(x1, ..., xk): the Dirac comb, a sum of delta functions at the integers (the product over the

@@ -205,6 +205,100 @@ pub fn hurwitz_ball(s: &Ball, a: &Ball, wp: u64) -> Option<Ball> {
     Some(widen(sum, &mag_up(&bound)))
 }
 
+/// The Hurwitz zeta function zeta(s, a) on complex balls, s excluding 1 and Re a > 0, by Euler-Maclaurin as in
+/// [`hurwitz_ball`] with the principal powers (a + k)^-s = exp(-s log(a + k)). The remainder is the integral of
+/// B_2M(t - floor t)/(2M)! (s)_2M (t + a)^(-s-2M) over t >= N (DLMF 2.10.1); with |B_2M(t - floor t)| <= 4 (2M)! /
+/// (2 pi)^2M, |(t + a)^(-s-2M)| = |t + a|^(-sigma-2M) exp(Im s arg(t + a)) <= (t + Re a)^(-sigma-2M) exp(|Im s|
+/// |Im a|/(N + Re a)) (|arg(t + a)| <= |Im a|/(t + Re a), largest at t = N) and the integral of (t + Re a)^(-sigma-2M),
+/// |R| <= 4 |(s)_2M|/(2 pi)^2M (N + Re a)^(1 - sigma - 2M)/(sigma + 2M - 1) exp(|Im s| |Im a|/(N + Re a)) for
+/// sigma + 2M > 1 (the bound of Johansson 2015, theorem 1, with the phase factor of a complex a). At a large negative
+/// real part the terms are far larger than the value; the working precision absorbs that ([`hurwitz_complex`]).
+pub fn hurwitz_cball(s: &CBall, a: &CBall, wp: u64) -> Option<CBall> {
+    use mc_numeric::cball;
+    if !super::is_pos(&lower_ball(&a.re)) {
+        return None;
+    }
+    let one = CBall::from_i64(1);
+    let s1 = s.sub(&one, wp);
+    if s1.contains_zero() {
+        return None;
+    }
+    let sigma = super::f64_of(&lower(&s.re));
+    let sabs = super::f64_of(&cball::abs(s, 64)?.mid) + super::f64_of(&s.re.rad.to_float()) + super::f64_of(&s.im.rad.to_float());
+    let (n, m) = choose(sigma, sabs, wp as f64 + 8.0)?;
+    let pw = |x: &CBall, e: &CBall| -> Option<CBall> { cball::exp(&cball::log(x, wp)?.mul(e, wp), wp) };
+    let ns = s.neg();
+    let mut sum = CBall::from_i64(0);
+    for k in 0..n {
+        if k % 32 == 0 && stopped() {
+            return None;
+        }
+        sum = sum.add(&pw(&a.add(&CBall::from_i64(k as i64), wp), &ns)?, wp);
+    }
+    let na = a.add(&CBall::from_i64(n as i64), wp);
+    let n_s = pw(&na, &ns)?;
+    sum = sum.add(&na.mul(&n_s, wp).div(&s1, wp)?, wp);
+    sum = sum.add(&n_s.mul_real(&Ball::from_ratio(1, 2, wp), wp), wp);
+    let r = na.recip(wp)?;
+    let r2 = r.mul(&r, wp);
+    let mut poch = s.clone();
+    let mut pwr = n_s.mul(&r, wp);
+    let mut fact = Rat::from_i64(2);
+    for j in 1..=m {
+        if stopped() {
+            return None;
+        }
+        let c = b2n(j)?.mul(&fact.recip()?);
+        sum = sum.add(&poch.mul(&pwr, wp).mul_real(&rat_ball(&c, wp), wp), wp);
+        poch = poch.mul(&s.add(&CBall::from_i64(2 * j as i64 - 1), wp), wp).mul(&s.add(&CBall::from_i64(2 * j as i64), wp), wp);
+        pwr = pwr.mul(&r2, wp);
+        fact = fact.mul(&Rat::from_i64(((2 * j + 1) * (2 * j + 2)) as i64));
+    }
+    // |(s)_2M| from above
+    let mut poch2m = int(1);
+    for i in 0..2 * m {
+        let f = cball::abs(&s.add(&CBall::from_i64(i as i64), wp), wp)?;
+        poch2m = poch2m.mul(&Ball::exact(mag_up(&f).to_float()), wp);
+    }
+    let sig = Ball::exact(lower(&s.re));
+    let den = sig.add(&int(2 * m as i64 - 1), wp);
+    if !super::is_pos(&den) {
+        return None;
+    }
+    // N + Re a at its lower end, the exponent 1 - sigma - 2M < 0
+    let base = Ball::exact(lower(&na.re));
+    let e = int(1).sub(&sig, wp).sub(&int(2 * m as i64), wp);
+    let npow = el::exp(&el::log(&base, wp)?.mul(&e, wp), wp)?;
+    let im_s = Ball::exact(mag_up(&s.im).to_float());
+    let im_a = Ball::exact(mag_up(&a.im).to_float());
+    let phase = el::exp(&im_s.mul(&im_a, wp).div(&base, wp)?, wp)?;
+    let twopi = pi(wp)?.mul(&int(2), wp);
+    let tp = el::pow_int(&twopi, &Int::from_u64(2 * m), wp)?;
+    let bound = int(4).mul(&poch2m, wp).mul(&npow, wp).mul(&phase, wp).div(&tp.mul(&den, wp), wp)?;
+    let b = mag_up(&bound);
+    Some(CBall::new(widen(sum.re, &b), widen(sum.im, &b)))
+}
+
+/// The lower end of a ball as an exact ball.
+fn lower_ball(x: &Ball) -> Ball {
+    Ball::exact(lower(x))
+}
+
+/// zeta(s, a) to p bits for complex s (excluding 1) and a with Re a > 0, the working precision raised until the
+/// cancellation of the terms is absorbed. `args(wp)` gives s and a at the working precision (an exact number is
+/// rounded there: its rounding error at p bits would be multiplied by the cancellation).
+pub fn hurwitz_complex(args: &dyn Fn(u64) -> Option<(CBall, CBall)>, p: u64) -> Option<CBall> {
+    let (s, a) = args(64)?;
+    // the terms are as large as |N + a|^-sigma: that many bits more at the start
+    let sigma = super::f64_of(&s.re.mid);
+    let size = super::f64_of(&mc_numeric::cball::abs(&s, 64)?.mid) + super::f64_of(&mc_numeric::cball::abs(&a, 64)?.mid) + 16.0;
+    let guard = if sigma < 0.0 { (-sigma * size.log2()).ceil() as u64 + 24 } else { 24 };
+    refine(p, guard, |wp| {
+        let (s, a) = args(wp)?;
+        hurwitz_cball(&s, &a, wp)
+    })
+}
+
 /// zeta(s, a) to p bits (real s > -1 excluding 1, real a > 0).
 pub fn hurwitz(s: &Real, a: &Real, p: u64) -> Option<CBall> {
     let b = super::real_ball(s, p)?;

@@ -72,3 +72,34 @@ fn longest_and_shortest_in_term_patterns() {
     assert_eq!(ev("rewrite([x, 3, 5, 7, y, 1, 2, 3, 4, z], [a___, longest(b__: Int), c___] :> b)"), "[1, 2, 3, 4]");
     assert_eq!(ev("rewrite([1, 2, 3, 4, 5], [x__, longest(repeated(_: Int, [1, 2]))] :> [x])"), "[[1, 2, 3]]");
 }
+
+/// A marked optional argument is decided before the other arguments: `shortest(optional(..))` absent first,
+/// `longest(optional(..))` present first. Each enumeration equals the matches of the absent case (the variable at
+/// its default) followed by those of the present case, or the reverse, computed with unmarked patterns.
+#[test]
+fn marked_optional_arguments_decide_presence_first() {
+    let t0 = std::time::Instant::now();
+    assert_eq!(ev("replace_list([1, 2, 3, 4], [x___, shortest(optional(y_, 0))] :> [y])"), "[[0], [4]]");
+    for (marked, absent, present) in [
+        (
+            "replace_list([1, 2, 3, 4], [x___, shortest(optional(y_, 0))] :> [y])",
+            "replace_list([1, 2, 3, 4], [x___] :> [0])",
+            "replace_list([1, 2, 3, 4], [x___, y_] :> [y])",
+        ),
+        (
+            "replace_list([1, 2, 3], [shortest(optional(y_, 0)), x___] :> [[y], [x]])",
+            "replace_list([1, 2, 3], [x___] :> [[0], [x]])",
+            "replace_list([1, 2, 3], [y_, x___] :> [[y], [x]])",
+        ),
+        (
+            "replace_list(f(a, b, c), f(x__, shortest(optional(y_, 7)), z___) :> [[x], y, [z]])",
+            "replace_list(f(a, b, c), f(x__, z___) :> [[x], 7, [z]])",
+            "replace_list(f(a, b, c), f(x__, y_, z___) :> [[x], y, [z]])",
+        ),
+    ] {
+        assert_eq!(ev(marked), ev(&format!("join({absent}, {present})")), "{marked}");
+        let longest = marked.replace("shortest", "longest");
+        assert_eq!(ev(&longest), ev(&format!("join({present}, {absent})")), "{longest}");
+    }
+    assert!(t0.elapsed() < std::time::Duration::from_secs(20), "{:?}", t0.elapsed());
+}

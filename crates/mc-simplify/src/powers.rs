@@ -42,13 +42,71 @@ fn split_constant<'h>(b: &B<'h>, e: T<'h>) -> Option<(i64, T<'h>)> {
     (k != 0 && k.abs() <= MAX_SHIFT).then(|| (k, b.add(&rest)))
 }
 
-/// `b^(k + u)` as `b^k b^u` everywhere in `t`, for integer constants `k` (see the module documentation).
+/// Is `t` a positive integer or rational?
+fn positive_rational<'h>(b: &B<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    match h.view(t) {
+        View::Int(v) => v > 0,
+        View::BigInt { neg, .. } => !neg,
+        View::Rational { num, .. } => match h.view(num) {
+            View::Int(v) => v > 0,
+            View::BigInt { neg, .. } => !neg,
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+/// Is `t` an integer or rational of small size (numerator and denominator within [`MAX_SHIFT`])?
+fn small_rational<'h>(b: &B<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    let small = |u: T<'h>| matches!(h.view(u), View::Int(v) if v.abs() <= MAX_SHIFT);
+    match h.view(t) {
+        View::Int(v) => v != 0 && v.abs() <= MAX_SHIFT,
+        View::Rational { num, den } => small(num) && small(den),
+        _ => false,
+    }
+}
+
+/// The rational constant `c` of an exponent `c + u` or `q (k + u)` (q, k rational: c = q k), with the rest `u` (or
+/// `q u`), both evaluated; `None` without such a constant or without a rest.
+fn split_rational_constant<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, ex: T<'h>) -> Res<Option<(T<'h>, T<'h>)>> {
+    let factors = b.factors(ex);
+    let (nums, others): (Vec<T<'h>>, Vec<T<'h>>) = factors.into_iter().partition(|&f| small_rational(b, f));
+    let (q, sum) = match (nums.as_slice(), others.as_slice()) {
+        ([], _) => (None, ex),
+        ([q], [s]) => (Some(*q), *s),
+        _ => return Ok(None),
+    };
+    let terms = b.terms(sum);
+    if terms.len() < 2 {
+        return Ok(None);
+    }
+    let (consts, rest): (Vec<T<'h>>, Vec<T<'h>>) = terms.into_iter().partition(|&u| small_rational(b, u));
+    if consts.len() != 1 || rest.is_empty() {
+        return Ok(None);
+    }
+    let scale = |u: T<'h>| match q {
+        Some(q) => b.mul(&[q, u]),
+        None => u,
+    };
+    let c = cx.eval(scale(consts[0]))?;
+    if !small_rational(b, c) {
+        return Ok(None);
+    }
+    let rest = cx.eval(scale(b.add(&rest)))?;
+    Ok(Some((c, rest)))
+}
+
+/// `b^(k + u)` as `b^k b^u` everywhere in `t`, for integer constants `k`, and for rational constants when `b` is a
+/// positive rational (`3^((1 + n)/2)` as `3^(1/2) 3^(n/2)`: `b^(x + y) = b^x b^y` for every complex x, y when b > 0,
+/// since `b^w = exp(w log b)` with the real logarithm) (see the module documentation).
 pub fn power_split<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
     let h = b.heap();
     if h.mask(t) & h.mask(h.sym_term(b.hd.pow)) == 0 {
         return Ok(t);
     }
-    let r = rewrite(cx, b, t, &mut |_cx, b, node| {
+    let r = rewrite(cx, b, t, &mut |cx, b, node| {
         let Some((s, &[base, ex])) = b.call_of(node) else { return Ok(None) };
         if s != b.hd.pow || b.is_number(ex) {
             return Ok(None);
@@ -58,8 +116,16 @@ pub fn power_split<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Re
         if !(nonzero_number || matches!(h.view(base), View::Sym(_))) {
             return Ok(None);
         }
-        let Some((k, rest)) = split_constant(b, ex) else { return Ok(None) };
-        Ok(Some(b.mul(&[b.powi(base, k), b.pow(base, rest)])))
+        if let Some((k, rest)) = split_constant(b, ex) {
+            return Ok(Some(b.mul(&[b.powi(base, k), b.pow(base, rest)])));
+        }
+        // a positive rational base: the rational constant of the exponent, also inside a numeric multiple of a sum
+        if positive_rational(b, base) {
+            if let Some((c, rest)) = split_rational_constant(cx, b, ex)? {
+                return Ok(Some(b.mul(&[b.pow(base, c), b.pow(base, rest)])));
+            }
+        }
+        Ok(None)
     })?;
     if r == t {
         Ok(t)

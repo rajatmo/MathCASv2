@@ -141,6 +141,20 @@ pub fn digamma(z: C64) -> Option<C64> {
 
 /// The Hurwitz zeta function zeta(s, a) for Re a > 0 (a > 0 real) by Euler-Maclaurin.
 pub fn hurwitz_zeta(s: C64, a: C64) -> Option<C64> {
+    hurwitz_parts(s, a).map(|(v, _)| v)
+}
+
+/// [`hurwitz_zeta`] when the sum keeps 13 digits: `None` when its partial sums or terms are more than 1000 times
+/// the value (at a large negative real part, zeta(-40 + i, 2 + i), the terms (a + k)^40 reach 10^70 for a value of
+/// 10^24: no digit is left), for the caller to take the complex balls.
+pub fn hurwitz_zeta_checked(s: C64, a: C64) -> Option<C64> {
+    let (v, big) = hurwitz_parts(s, a)?;
+    (big <= 1e3 * abs(v)).then_some(v)
+}
+
+/// The value of the Euler-Maclaurin sum of [`hurwitz_zeta`] and the largest magnitude among its terms and partial
+/// sums (the size of the cancellation).
+fn hurwitz_parts(s: C64, a: C64) -> Option<(C64, f64)> {
     if s.re == 1.0 && s.im == 0.0 {
         return None;
     }
@@ -154,8 +168,11 @@ pub fn hurwitz_zeta(s: C64, a: C64) -> Option<C64> {
     let mut sum = r(0.0);
     // the terms' work (a complex power each, about 100 ns), for the evaluator's fuel (mc_api::work)
     mc_api::work::charge(128 * n as u64);
+    let mut big = 0.0f64;
     for k in 0..n {
-        sum = sum + powc(a + r(k as f64), neg(s));
+        let t = powc(a + r(k as f64), neg(s));
+        sum = sum + t;
+        big = big.max(abs(t)).max(abs(sum));
     }
     let an = a + r(n as f64);
     // tail: an^(1-s)/(s-1) + an^-s/2 + sum_j B_2j/(2j)! (s)_(2j-1) an^(-s-2j+1)
@@ -167,6 +184,7 @@ pub fn hurwitz_zeta(s: C64, a: C64) -> Option<C64> {
     for (j, b) in BERNOULLI.iter().enumerate() {
         let term = scale(poch * p, b / fact);
         tail = tail + term;
+        big = big.max(abs(term)).max(abs(tail));
         let j2 = 2.0 * (j + 1) as f64;
         poch = poch * (s + r(j2 - 1.0)) * (s + r(j2));
         fact *= (j2 + 1.0) * (j2 + 2.0);
@@ -175,7 +193,7 @@ pub fn hurwitz_zeta(s: C64, a: C64) -> Option<C64> {
             break;
         }
     }
-    finite(sum + tail)
+    Some((finite(sum + tail)?, big))
 }
 
 /// k^-s for an integer k >= 1 with the phase t log k (t = Im s) formed in double-double and reduced modulo 2 pi there:

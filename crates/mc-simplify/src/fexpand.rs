@@ -431,6 +431,24 @@ fn special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
             b.div(b.mul(&[p, b.pow(b.add(&[one, b.mul(&[b.int(2), *l])]), half)]), b.mul(&[b.int(2), b.pow(pi, half)]))
         }
         ("anger_j", [n, z]) if is_integer(b, *n) => b.call_named("bessel_j", &[*n, *z]),
+        // the power series of the Anger function as two 1F2 (DLMF 11.10.1 with 11.10.4): sin(pi nu)/(pi nu)
+        // 1F2(1; 1 - nu/2, 1 + nu/2; -z^2/4) + z sin(pi nu)/(pi (1 - nu^2)) 1F2(1; 3/2 - nu/2, 3/2 + nu/2; -z^2/4)
+        ("anger_j", [n, z]) if b.ar.num(*n).is_none() => {
+            let w = b.mul(&[b.rat(-1, 4), b.powi(*z, 2)]);
+            let hn = b.mul(&[half, *n]);
+            let f12 = |c: T<'h>| b.call_named("hypergeometric_pfq", &[b.call_named("list", &[one]), b.call_named("list", &[b.sub(c, hn), b.add(&[c, hn])]), w]);
+            let s = b.call_named("sin", &[b.mul(&[pi, *n])]);
+            let t1 = b.div(b.mul(&[s, f12(one)]), b.mul(&[pi, *n]));
+            let t2 = b.div(b.mul(&[*z, s, f12(b.rat(3, 2))]), b.mul(&[pi, b.sub(one, b.powi(*n, 2))]));
+            b.add(&[t1, t2])
+        }
+        // [n]_q! = (q; q)_n/(1 - q)^n = (q; q)_inf/((q^(n + 1); q)_inf (1 - q)^n) for a rational 0 < q < 1 (for
+        // -1 < q < 0 the q-gamma function of a non-integer n is not this quotient: the power q^(n + 1) is complex)
+        ("q_factorial", [n, q]) if matches!(small_fraction(b.heap(), *q), Some((k, d)) if 0 < k && k < d) => {
+            let num = b.call_named("q_pochhammer", &[*q, *q]);
+            let den = b.mul(&[b.call_named("q_pochhammer", &[b.pow(*q, b.add(&[*n, one])), *q]), b.pow(b.sub(one, *q), *n)]);
+            b.div(num, den)
+        }
         ("weber_e", [n, z]) if int(*n).is_some_and(|n| (1..=40).contains(&n)) => {
             let n = int(*n)?;
             let mut terms = vec![b.neg(b.call_named("struve_h", &[b.int(n), *z]))];

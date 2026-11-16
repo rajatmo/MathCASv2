@@ -195,3 +195,21 @@ fn complexity_measure_and_option() {
         ("simplify(abs(x), x < 0, complexity_function: leaf_count)", "abs(x)"),
     ]);
 }
+
+/// Powers of one positive rational base whose exponents differ by a rational constant: the constant is split off,
+/// so equations between the two forms simplify to true; each identity also holds numerically at a complex point
+/// (the definition b^w = exp(w log b) evaluated, an independent route). A negative base is left alone.
+#[test]
+fn powers_of_a_positive_base_split_their_rational_constant() {
+    let t0 = std::time::Instant::now();
+    check(&[
+        ("simplify(3^((1 + n)/2) == 3^(1/2)*3^(n/2))", "true"),
+        ("simplify(2^((3 + n)/3) - 2*2^(n/3))", "0"),
+        ("simplify((2/3)^(n + 1/2) == sqrt(2/3)*(2/3)^n)", "true"),
+        ("abs(n(rewrite(exp(((1 + n)/2)*log(3)) - 3^(1/2)*exp((n/2)*log(3)), n -> 0.37 - 1.3*im))) < 10^-12", "true"),
+        ("abs(n(rewrite(exp(((3 + n)/3)*log(2)) - 2*exp((n/3)*log(2)), n -> -2.1 + 0.4*im))) < 10^-12", "true"),
+        ("abs(n(rewrite(exp((n + 1/2)*log(2/3)) - sqrt(2/3)*exp(n*log(2/3)), n -> 1.7 + 2.9*im))) < 10^-12", "true"),
+        ("simplify((-3)^((1 + n)/2) == (-3)^(1/2)*(-3)^(n/2)) === true", "false"),
+    ]);
+    assert!(t0.elapsed() < Duration::from_secs(20), "{:?}", t0.elapsed());
+}

@@ -160,6 +160,24 @@ Subtraction and division are not separate operators: `a - b` constructs `add(a, 
 *Reason:* a fixed, specified canonicaliser makes the cheap simplifications free and predictable, and keeps them out of
 the rule engine, where they would be retried constantly.
 
+### 3.1 Infinities
+
+There is one infinite symbol, `inf`, and one directionless infinite value, `complex_infinity`. A **directed
+infinity** is the product `c*inf` of a nonzero number `c` and `inf`: the point at infinity in the direction of
+`c/abs(c)`. It is not a separate kind of term, and `directed_infinity(z)` is only a constructor for it: `z*inf` for a
+number `z` known to be nonzero, `complex_infinity` for `directed_infinity()` and `directed_infinity(0)`, unevaluated
+otherwise. So `directed_infinity(1)` is `inf`, `directed_infinity(-1)` is `-inf` and `directed_infinity(im)` is
+`im*inf`, and every directed infinity prints as a product that reads back as itself.
+
+The canonicaliser keeps one coefficient per direction: a real coefficient becomes its sign (`2*inf` is `inf`), an
+exact complex one the Gaussian integer `a + b*im` with coprime `a`, `b` on its ray (`(2 + 2*im)*inf` and
+`exp(im*pi/4)*inf` are `(1 + im)*inf`, `3*im*inf` is `im*inf`), an inexact one `c/abs(c)`; positive radicals beside
+`inf` go. Hence `c*directed_infinity(z)` is `directed_infinity(c*z)` for a nonzero number `c`. In a sum, directed
+infinities of one direction absorb finite numbers and each other; two different directions, or a zero coefficient,
+give `failure(indeterminate, ...)`. Products multiply the directions (`(im*inf)^2` is `-inf`), a negative power of
+a directed infinity is 0, and `complex_infinity` absorbs every directed infinity in a product and is indeterminate
+beside one in a sum. Comparisons order only `inf` and `-inf` (2.5).
+
 ## 4. Evaluation
 
 ### 4.1 The evaluator

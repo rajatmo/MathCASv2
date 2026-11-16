@@ -358,11 +358,53 @@ fn calc_order_curves(kind, f, g, spec, assm) = {
 # ratio); when that is undecided and f, g have parameters, the relation on a region of the parameters (calc_param); a
 # failure when undecided
 fn calc_relation(name, kind, f, g, spec, dir, assm) = {
+  let pv = calc_param_values(kind, f, g, spec, dir, assm)
+  if not (pv === null) then pv else calc_relation0(name, kind, f, g, spec, dir, assm)
+}
+fn calc_relation0(name, kind, f, g, spec, dir, assm) = {
   let v0 = calc_relation1(kind, f, g, spec, dir, assm)
   let v = if v0 === true or v0 === false then v0 else calc_relation_split(kind, f, g, spec, dir, assm)
   let w = if v === true or v === false then v else calc_param(name, kind, f, g, spec, dir, assm)
   if w === null then failure(undecided, name, "the limits of the ratio are not decided") else w
 }
+
+# --- one parameter entering analytically: the limit of the ratio as a rational function of it ---
+# At a finite point, with one parameter p that occurs in no exponent, the limit L(p) of q = f/g (taken with p
+# symbolic) decides where L is finite and nonzero: q -> L gives f = O(g), not f = o(g), the same order, and f ~ g
+# exactly when L == 1. At a zero or pole of L (the values where the leading behaviour can change: sinh(p t) is 0 at
+# p = 0) the relation is decided again with p replaced by the value; a function undefined there (sinh(t/p) at
+# p = 0) is in no relation. The answer is the condition on p; null when L is not a rational function of p or a
+# special value is undecided.
+fn calc_pow_free(e, p) = if is_atom(e) then true else if head(e) === pow and not free_of(e[2], p) then false else if head(e) === exp and not free_of(e, p) then false else every(apply(list, e), u => calc_pow_free(u, p))
+fn calc_undefined(e) = not free_of(e, complex_infinity) or not free_of(e, indeterminate)
+fn calc_param_values(kind, f, g, spec, dir, assm) = {
+  let x = spec[1]
+  let a = spec[2]
+  let ps = if is_symbol(x) then select(calc_syms([f, g]), s => not (s === x)) else []
+  if not (assm === automatic) or length(ps) != 1 or not calc_real(a) or not (dir === automatic or dir === two_sided or dir === reals or dir === from_above or dir === from_below) then null
+  else if not (calc_pow_free(f, ps[1]) and calc_pow_free(g, ps[1])) then null else {
+    let p = ps[1]
+    let l0 = calc_limit(none, f/g, spec, dir, assm)
+    let l = if is_failure(l0) then l0 else together(l0)
+    if is_failure(l) or not free_of(l, x) or calc_held_limit(l) or calc_undefined(l) or not is_polynomial_expression(numerator(l), [p]) or not is_polynomial_expression(denominator(l), [p]) or free_of(l, p) then null
+    else {
+      let generic = if kind === o_big or kind === theta then true else if kind === o_small then false else l == 1
+      let roots = q => if free_of(q, p) then [] else map(r => r[1][2], solve(q == 0, p, reals))
+      let special = join(roots(numerator(l)), roots(denominator(l)))
+      let at = map(c =>
+        if is_failure(rewrite(f, p -> c)) or is_failure(rewrite(g, p -> c)) then false
+        else if calc_undefined(rewrite(f, p -> c)) or calc_undefined(rewrite(g, p -> c)) then false
+        else calc_relation1(kind, rewrite(f, p -> c), rewrite(g, p -> c), spec, dir, assm), special)
+      if some(at, v => not (v === true or v === false)) or not (generic === true or generic === false) and not calc_is_eq(generic) then null
+      else {
+        let outside = fold((u, c) => u and p != c, generic, special)
+        let r = fold((u, i) => if at[i] === true then u or p == special[i] else u, outside, range(length(special)))
+        if r === true or r === false then r else reduce(r, p, reals)
+      }
+    }
+  }
+}
+fn calc_is_eq(e) = not is_atom(e) and head(e) === equal
 
 # --- the relations with parameters: conditional_expression(value, region) ---
 # The leading terms of f and g are found with the exponents as expressions in the parameters: c t^e at a finite point
@@ -625,8 +667,10 @@ fn calc_implicit(eqs, ys, t) = {
 # implicit_d(f, eqs, ys, x), (f, eqs, ys, [x, k]), (f, eqs, ys, x1, x2, ...): the derivative of f in x when the
 # variables ys are functions of x defined implicitly by the equations eqs (a single equation and variable need no
 # list); implicit_d(eq, y, x): the derivative of y itself; a variable list [[x1, x2, ...]] gives the list of derivatives
+# (for a list f, the list of each element's derivatives)
 fn implicit_d(eq, y, x) when head(eq) === equal and not is_list(y) = implicit_d(y, eq, y, x)
-fn implicit_d(f, eqs, ys, specs...) when length(specs) == 1 and is_list(specs[1]) and length(specs[1]) == 1 and is_list(specs[1][1]) = map(v => implicit_d(f, eqs, ys, v), specs[1][1])
+fn implicit_d(f, eqs, ys, specs...) when length(specs) == 1 and is_list(specs[1]) and length(specs[1]) == 1 and is_list(specs[1][1]) =
+  if is_list(f) then map(g => implicit_d(g, eqs, ys, specs[1]), f) else map(v => implicit_d(f, eqs, ys, v), specs[1][1])
 fn implicit_d(f, eqs, ys, specs...) when length(specs) > 0 = {
   let es = if is_list(eqs) then eqs else [eqs]
   let vs = if is_list(ys) then ys else [ys]
@@ -973,10 +1017,16 @@ fn calc_collect(e, xs, h) = {
   }
 }
 # (e, x, modulus: m): e expanded with its coefficients reduced modulo m, then collected
+# x a pattern (_: Head[cos]): every distinct subexpression of e it matches is a variable, in order of appearance
+fn calc_collect_pat(x) = member([any, typed, condition, alternatives, seq1, seq0], head(x))
+fn calc_collect_vars(e, x) = if is_list(x) then x else if calc_collect_pat(x) then unique(cases(expand(e), x, inf)) else [x]
 fn collect(e, x; modulus = 0) =
   if is_list(e) then map(t => collect(t, x, modulus: modulus), e)
-  else calc_collect(if is_integer(modulus) and modulus != 0 then polynomial_mod(expand(e), modulus) else e, if is_list(x) then x else [x], t => t)
-fn collect(e, x, h) = if is_list(e) then map(t => collect(t, x, h), e) else calc_collect(e, if is_list(x) then x else [x], h)
+  else {
+    let f = if is_integer(modulus) and modulus != 0 then polynomial_mod(expand(e), modulus) else e
+    calc_collect(f, calc_collect_vars(f, x), t => t)
+  }
+fn collect(e, x, h) = if is_list(e) then map(t => collect(t, x, h), e) else calc_collect(e, calc_collect_vars(e, x), h)
 
 # cyclotomic(k, x): the k-th cyclotomic polynomial, the product of (x^d - 1)^moebius_mu(k/d) over the divisors d of k
 fn calc_cyclotomic(k, x) = expand(cancel(product(map(dd => (x^dd - 1)^moebius_mu(k/dd), divisors(k)))))
@@ -4418,24 +4468,37 @@ rule sum(f_, s1_) := calc_diag_sum(f[1], s1, f[2]) when not is_atom(f) and head(
 # the angle of the origin is indeterminate
 rule atan(x_, y_) := indeterminate when x === 0 and y === 0
 
-# calc_to_radicals(e): every root(p, k) in e whose polynomial p has degree 2 to 4 and numeric coefficients, replaced by
-# the radical expression (from roots) nearest to the numeric value of the k-th root; others are kept
+# calc_to_radicals(e): every root(p, k) in e whose polynomial p has degree 2 to 32 and numeric coefficients and whose
+# roots (from roots) are all radicals (degree 2 to 4, binomials x^n - c, products of those), replaced by the radical
+# expression nearest to the value of the k-th root at 30 digits (the nearest by a factor 1000 over the others, so the
+# choice is sure); others are kept. algebraic_number(r, [c0, c1, ...]) is c0 + c1 r + ... with r in radicals.
 fn calc_to_rad_root(e) = {
   let p = e[1]
   let k = e[2]
   let poly = p(calc_trx)
-  let eqs = roots(poly == 0, calc_trx)
-  let vals = if head(eqs) === head(cb_a or cb_b) then map(q => q[2], apply(list, eqs)) else (if head(eqs) === equal then [eqs[2]] else [])
-  let target = n(e)
   let deg = degree(poly, calc_trx)
-  if length(vals) == deg and deg >= 2 and deg <= 4 and is_numeric(target) and free_of(vals, root) then {
-    let errs = map(v => abs(n(v) - target), vals)
-    vals[first(select(range(length(vals)), i => errs[i] == min(errs)))]
-  } else e
+  if not (is_integer(deg) and deg >= 2 and deg <= 32) then e else {
+    let eqs = roots(poly == 0, calc_trx)
+    let vals = if head(eqs) === head(cb_a or cb_b) then map(q => q[2], apply(list, eqs)) else (if head(eqs) === equal then [eqs[2]] else [])
+    let target = n(e, 30)
+    if length(vals) == deg and is_numeric(target) and free_of(vals, root) then {
+      # the distances at 30 digits, as machine numbers to compare
+      let errs = map(v => n(abs(n(v, 30) - target)), vals)
+      let best = first(select(range(length(vals)), i => errs[i] == min(errs)))
+      let others = select(range(length(vals)), i => not (i === best))
+      if every(others, i => errs[i] > 1000*errs[best]) and errs[best] < 10^-20*(1 + abs(target)) then vals[best] else e
+    } else e
+  }
+}
+fn calc_to_rad_algebraic(e) = {
+  let r = calc_to_radicals(e[1])
+  let cs = e[2]
+  if free_of(r, root) and is_list(cs) then sum(cs[i]*r^(i - 1), [i, length(cs)]) else e
 }
 fn calc_to_radicals(e) =
   if is_atom(e) then e
   else if head(e) === root and length(e) == 2 then calc_to_rad_root(e)
+  else if head(e) === algebraic_number and length(e) == 2 then calc_to_rad_algebraic(e)
   else apply(head(e), map(calc_to_radicals, apply(list, e)))
 
 # to_radicals(e, options): cubics: false keeps the roots of irreducible cubics other than a x^3 + b (the ones that

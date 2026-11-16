@@ -5,7 +5,10 @@
 //! - e: sum 1/k! by binary splitting;
 //! - catalan: G = pi/8 log(2 + sqrt 3) + 3/8 sum_k 1/((2k + 1)^2 binomial(2k, k)) (a series with ratio below 1/4);
 //! - euler_gamma: Brent and McMillan's method, gamma = A/B - log n with A = sum (n^k/k!)^2 H_k and
-//!   B = sum (n^k/k!)^2, error below pi e^(-4n), with the harmonic sums inside the binary splitting.
+//!   B = sum (n^k/k!)^2, error below pi e^(-4n), with the harmonic sums inside the binary splitting;
+//! - glaisher: Glaisher's constant A from log A = 1/12 - zeta'(-1) = (gamma + log 2 pi)/12 - zeta'(2)/(2 pi^2)
+//!   (the functional equation of zeta; Finch, *Mathematical Constants*, 2.15), with -zeta'(2) = sum log n / n^2
+//!   summed to N - 1 and its tail by the Euler-Maclaurin formula with the remainder of DLMF 2.10.1.
 //!
 //! Every value is an enclosure. The most precise value computed so far is cached per constant (decision L.3) and
 //! rounded for requests at lower precision, so a session pays for pi at 10^6 digits once.
@@ -29,11 +32,14 @@ pub enum Const {
     Degree,
     /// The golden ratio (1 + sqrt 5)/2 = 1.61803...
     GoldenRatio,
+    /// Glaisher's constant A = 1.28242..., with log A = 1/12 - zeta'(-1).
+    Glaisher,
 }
 
 impl Const {
     /// Every constant.
-    pub const ALL: [Const; 6] = [Const::Pi, Const::E, Const::EulerGamma, Const::Catalan, Const::Degree, Const::GoldenRatio];
+    pub const ALL: [Const; 7] =
+        [Const::Pi, Const::E, Const::EulerGamma, Const::Catalan, Const::Degree, Const::GoldenRatio, Const::Glaisher];
 
     /// The symbol name.
     pub fn name(self) -> &'static str {
@@ -44,6 +50,7 @@ impl Const {
             Const::Catalan => "catalan",
             Const::Degree => "degree",
             Const::GoldenRatio => "golden_ratio",
+            Const::Glaisher => "glaisher",
         }
     }
 
@@ -62,6 +69,7 @@ impl Const {
             Const::Degree => std::f64::consts::PI / 180.0,
             #[allow(clippy::approx_constant)]
             Const::GoldenRatio => 1.618_033_988_749_895,
+            Const::Glaisher => 1.282_427_129_100_622_6,
         }
     }
 
@@ -85,6 +93,7 @@ impl Const {
             Const::Catalan => catalan(w)?,
             Const::Degree => Const::Pi.ball(w)?.div(&Ball::from_i64(180), w)?,
             Const::GoldenRatio => Ball::from_i64(1).add(&Ball::from_i64(5).sqrt(w)?, w).div(&Ball::from_i64(2), w)?,
+            Const::Glaisher => glaisher(w)?,
         };
         if stopped() {
             return None;
@@ -105,7 +114,7 @@ impl Const {
 }
 
 /// The most precise ball of each constant so far, with its precision.
-static CACHE: Mutex<[Option<(u64, Ball)>; 6]> = Mutex::new([None, None, None, None, None, None]);
+static CACHE: Mutex<[Option<(u64, Ball)>; 7]> = Mutex::new([None, None, None, None, None, None, None]);
 
 fn nat_mul_u64(x: &Int, v: u64) -> Int {
     Int::new(x.neg, x.mag.mul_u64(v))
@@ -278,6 +287,195 @@ fn euler_gamma(w: u64) -> Option<Ball> {
     Some(ratio.sub(&log_n, w))
 }
 
+// ---------------------------------------------------------------- glaisher
+
+/// The tangent numbers T_0 = 0, T_1, ..., T_n by Brent and Harvey's in-place recurrence ("Fast computation of
+/// Bernoulli, tangent and secant numbers", 2011: O(n^2) multiplications by small integers); `None` after a stop.
+fn tangent_numbers(n: usize) -> Option<Vec<Nat>> {
+    let mut t = vec![Nat::zero(); n + 1];
+    if n >= 1 {
+        t[1] = Nat::from_u64(1);
+    }
+    for k in 2..=n {
+        if stopped() {
+            return None;
+        }
+        t[k] = t[k - 1].mul_u64((k - 1) as u64);
+    }
+    for k in 2..=n {
+        if stopped() {
+            return None;
+        }
+        for j in k..=n {
+            t[j] = t[j - 1].mul_u64((j - k) as u64).add(&t[j].mul_u64((j - k + 2) as u64));
+        }
+    }
+    Some(t)
+}
+
+/// The ratio (2k - 1)/((2k + 1) m^2) of the terms x^k/(2k + 1), x = 1/m^2, of atanh(1/m) m.
+struct AtanhRatio(u64);
+
+impl Ratio for AtanhRatio {
+    fn p(&self, k: u64) -> Int {
+        Int::from_u64(2 * k - 1)
+    }
+    fn q(&self, k: u64) -> Nat {
+        Nat::from_u64(2 * k + 1).mul(&Nat::from_u64(self.0 * self.0))
+    }
+}
+
+/// atanh(1/m) = (1/m) sum_(k >= 0) m^(-2k)/(2k + 1) for an integer 3 <= m < 2^32 by binary splitting; the terms fall
+/// by at least m^2, so the tail after n terms is below 2 m^(-2n).
+fn atanh_inv(m: u64, wp: u64) -> Option<Ball> {
+    // m >= 2^lm
+    let lm = 63 - m.leading_zeros() as u64;
+    let n = (wp + 4).div_ceil(2 * lm) + 1;
+    let s = widen(partial_sum(&AtanhRatio(m), n, wp), &Mag::pow2(1 - (2 * lm * n) as i64));
+    if stopped() {
+        return None;
+    }
+    s.div(&Ball::from_nat(Nat::from_u64(m)), wp)
+}
+
+/// An upper estimate of log2 |B_2K N^-(2K+1) (log N + 2)|, the size of the K-th Euler-Maclaurin term below, from
+/// |B_2K| <= 4 (2K)!/(2 pi)^(2K) and Stirling's upper bound of (2K)!.
+fn glaisher_term_log2(k: u64, n: u64) -> f64 {
+    let m = 2.0 * k as f64;
+    let n = n as f64;
+    let log2_fact = (m * m.ln() - m + 0.5 * (std::f64::consts::TAU * m).ln() + 1.0 / (12.0 * m)) / std::f64::consts::LN_2;
+    2.0 + log2_fact - m * std::f64::consts::TAU.log2() - (m + 1.0) * n.log2() + (n.ln() + 2.0).log2()
+}
+
+/// log A = (gamma + log 2 pi)/12 + S/(2 pi^2) with S = -zeta'(2) = sum_(n >= 2) log n / n^2.
+///
+/// S is summed exactly to N - 1 (the logarithms of primes only: sum_p log p sum_(m < N) v_p(m)/m^2), and its tail
+/// from N by the Euler-Maclaurin formula (DLMF 2.10.1) for f(x) = log x / x^2, whose derivatives are
+/// f^(m)(x) = (-1)^m (m + 1)! x^-(m+2) (log x + 1 - H_(m+1)):
+///
+/// sum_(n >= N) f(n) = (L + 1)/N + L/(2 N^2) + sum_(k=1)^(K-1) B_2k (L + 1 - H_2k)/N^(2k+1) + R, L = log N,
+///
+/// where |R| <= 2 |B_2K|/(2K)! integral_N^inf |f^(2K)| = 2 |B_2K (L + 1 - H_2K)/N^(2K+1)| since f^(2K) keeps
+/// one sign on [N, inf) when log N >= H_(2K+1) - 1 (checked; N = 16K gives it with room). The logarithms of the
+/// primes come from log p = log(p - 1) + 2 atanh(1/(2p - 1)), a series of ratio 1/(2p - 1)^2.
+fn glaisher(w: u64) -> Option<Ball> {
+    let mut k = w / 16 + 2;
+    while glaisher_term_log2(k, 16 * k) > -((w + 8) as f64) {
+        k += 1 + k / 32;
+    }
+    let harmonic = |m: u64| (1..=m).map(|j| 1.0 / j as f64).sum::<f64>();
+    let mut n = 16 * k;
+    while (n as f64).ln() < harmonic(2 * k + 1) - 1.0 + 1e-6 {
+        n += 1;
+    }
+    let wp = w + 16 + 64 - n.leading_zeros() as u64;
+    // the coefficients and logarithms of the primes below N take wp bits each and the tangent numbers about
+    // K^2 log2 K bits: beyond 2^33 bits (1 GB, about 60000 digits) the value is not computed
+    let primes = n as f64 / (n as f64).ln() * 1.3;
+    if 2.0 * primes * wp as f64 + (k * k) as f64 * (k as f64).log2() > 8.0e9 {
+        return None;
+    }
+    // smallest prime factors below N
+    let mut spf = vec![0u32; n as usize];
+    for i in 2..n as usize {
+        if spf[i] == 0 {
+            for j in (i..n as usize).step_by(i) {
+                if spf[j] == 0 {
+                    spf[j] = i as u32;
+                }
+            }
+        }
+    }
+    // fixed point with F fractional bits: every quotient is floored, so a sum of c quotients is below the true sum by
+    // less than c units
+    let f = wp + 32;
+    let unit = Nat::pow2(f);
+    let fixed = |v: Nat, err: u64| Ball {
+        mid: Float::new(false, v, -(f as i64)),
+        rad: Mag::from_float_up(&Float::new(false, Nat::from_u64(err), -(f as i64))),
+    };
+    // the coefficient of log p for each prime p below N: sum_(m < N) v_p(m)/m^2, with the number of its terms
+    let mut coef: Vec<(Nat, u64)> = vec![(Nat::zero(), 0); n as usize];
+    for m in 2..n {
+        if m % 64 == 0 && stopped() {
+            return None;
+        }
+        let x = unit.divrem_u64(m * m).0;
+        let mut r = m as usize;
+        while r > 1 {
+            let p = spf[r] as usize;
+            r /= p;
+            let c = &mut coef[p];
+            c.0 = c.0.add(&x);
+            c.1 += 1;
+        }
+    }
+    // log p = log(p - 1) + 2 atanh(1/(2p - 1)), log(p - 1) from the logarithms of the smaller primes
+    let mut logs: Vec<Option<Ball>> = vec![None; n as usize];
+    let mut s = Ball::from_i64(0);
+    for p in 2..n as usize {
+        if spf[p] as usize != p {
+            continue;
+        }
+        let lp = if p == 2 {
+            elementary::log(&Ball::from_i64(2), wp)?
+        } else {
+            let mut l = atanh_inv(2 * p as u64 - 1, wp)?.mul(&Ball::from_i64(2), wp);
+            let mut r = p - 1;
+            while r > 1 {
+                let q = spf[r] as usize;
+                r /= q;
+                l = l.add(logs[q].as_ref()?, wp);
+            }
+            l
+        };
+        let (c, cnt) = &coef[p];
+        // the sum of the quotients is in [c, c + cnt) units
+        s = s.add(&lp.mul(&fixed(c.add(&Nat::from_u64(*cnt / 2)), cnt.div_ceil(2) + 1), wp), wp);
+        logs[p] = Some(lp);
+    }
+    // the tail from N
+    let nb = Ball::from_nat(Nat::from_u64(n));
+    let l = elementary::log(&nb, wp)?;
+    let inv_n = Ball::from_i64(1).div(&nb, wp)?;
+    let inv_n2 = inv_n.mul(&inv_n, wp);
+    let one = Ball::from_i64(1);
+    let l1 = l.add(&one, wp);
+    s = s.add(&l1.mul(&inv_n, wp), wp);
+    s = s.add(&l.mul(&inv_n2, wp).mul(&Ball::from_ratio(1, 2, wp), wp), wp);
+    let t = tangent_numbers(k as usize)?;
+    let mut h = Ball::from_i64(0);
+    let mut pw = inv_n.mul(&inv_n2, wp);
+    for j in 1..=k {
+        if stopped() {
+            return None;
+        }
+        h = h.add(&Ball::from_ratio(1, 2 * j as i64 - 1, wp), wp).add(&Ball::from_ratio(1, 2 * j as i64, wp), wp);
+        // B_2j = (-1)^(j-1) 2j T_j / (2^(2j) (2^(2j) - 1)), at the precision the term's size needs (an absolute
+        // error near 2^-(wp + 40) at most; the balls carry the rounding either way)
+        let pj = ((wp as f64 + glaisher_term_log2(j, n) + 40.0).max(64.0) as u64).min(wp);
+        let num = elementary::round(Ball::from_nat(t[j as usize].mul_u64(2 * j)), pj);
+        let den = Nat::pow2(2 * j).sub_u64(1);
+        let b = num.div(&elementary::round(Ball::from_nat(den), pj), pj)?;
+        let b = Ball { mid: Float::new(b.mid.neg, b.mid.man, b.mid.exp - 2 * j as i64), rad: b.rad.mul_2exp(-2 * (j as i64)) };
+        let b = if j % 2 == 0 { b.neg() } else { b };
+        let term = b.mul(&l1.sub(&h, pj), pj).mul(&pw, pj);
+        if j == k {
+            let bound = Mag::from_float_up(&term.mid).add(&term.rad).mul_2exp(1);
+            s = widen(s, &bound);
+        } else {
+            s = s.add(&term, wp);
+        }
+        pw = pw.mul(&inv_n2, wp);
+    }
+    let gamma = Const::EulerGamma.ball(wp)?;
+    let pi = Const::Pi.ball(wp)?;
+    let log_2pi = elementary::log(&pi.mul(&Ball::from_i64(2), wp), wp)?;
+    let a = gamma.add(&log_2pi, wp).div(&Ball::from_i64(12), wp)?;
+    let b = s.div(&pi.mul(&pi, wp).mul(&Ball::from_i64(2), wp), wp)?;
+    elementary::exp(&a.add(&b, wp), wp)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -294,6 +492,8 @@ mod tests {
         assert_eq!(digits(Const::E, 50), "27182818284590452353602874713526624977572470936999");
         assert_eq!(digits(Const::EulerGamma, 50), "57721566490153286060651209008240243104215933593992");
         assert_eq!(digits(Const::Catalan, 50), "91596559417721901505460351493238411077414937428167");
+        // Glaisher's constant (OEIS A074962)
+        assert_eq!(digits(Const::Glaisher, 50), "12824271291006226368753425688697917277676889273250");
     }
 
     /// A raised stop flag ends the computation of every constant at 10^6 and 10^7 digits within seconds (the

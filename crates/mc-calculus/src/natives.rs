@@ -183,6 +183,11 @@ impl Native for DerivativeAt {
         if orders.len() != args.len() || orders.iter().any(|&n| n < 0) {
             return Ok(Reply::Decline);
         }
+        // zeta'(-1) = 1/12 - log(glaisher), the definition of Glaisher's constant
+        if orders == [1] && args[0] == h.int(-1) && b.sym_of(f).is_some_and(|s| h.sym_name(s).as_str() == "zeta") {
+            let glaisher = b.sym(h.sym("glaisher"));
+            return Ok(Reply::Again(b.sub(b.rat(1, 12), b.call("log", &[glaisher]))));
+        }
         if let Some(g) = interpolating_derivative(&b, f, &orders) {
             return Ok(Reply::Again(h.app(g, args)));
         }

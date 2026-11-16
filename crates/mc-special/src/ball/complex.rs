@@ -164,10 +164,10 @@ pub fn log_gamma(z: &CBall, p: u64) -> Option<CBall> {
 
 /// Gamma on a complex ball. At a point (both radii zero): exp of Stirling's series at z + N divided by z, z + 1,
 /// ..., z + N - 1 in turn, which needs no logarithms (gamma has no branch) and is several times faster (the exact
-/// points of the boundary walks of `count_roots`). A ball of any radius: exp of the analytic log gamma, whose sum of
-/// logarithms keeps the radius additive; N successive complex divisions compound a radius (8.9 instead of 0.0036
-/// for 2 + 3i +- (1 + i)/100, twice the radius already at 2^-50), so they are used at points only. Where a division
-/// does not exclude 0, the logarithm form too.
+/// points of the boundary walks of `count_roots`). A ball of positive radius: [`gamma_box`], whose radius is
+/// additive as that of the analytic log gamma; N successive complex divisions compound a radius (8.9 instead of
+/// 0.0036 for 2 + 3i +- (1 + i)/100, twice the radius already at 2^-50), so they are used at points only. Where a
+/// division does not exclude 0, the logarithm form.
 pub fn gamma(z: &CBall, p: u64) -> Option<CBall> {
     if !(z.re.rad.is_zero() && z.im.rad.is_zero()) {
         return gamma_box(z, p);
@@ -200,13 +200,13 @@ fn mag_up(x: f64) -> Option<Mag> {
     Some(Mag::from_float_up(&Float::new(neg, man, exp)))
 }
 
-/// Gamma on a ball z = c + d (|d| <= r) of positive radius. A narrow ball (r sum 1/|c + j| <= 1/64, first order):
-/// the logarithm form, as before. A wide ball (the covers of `count_roots`): also exp(S(z + N) - log P(z)) with the
-/// product P(z) = z (z + 1) ... (z + N - 1) taken at the centre c (a point, one logarithm) and P(z) = P(c) (1 + u),
-/// |u| <= prod (1 + r/|c + j|) - 1 <= exp(r sum 1/|c + j|) - 1 = g (each factor moves by at most r), so that
-/// log P(z) is within -log(1 - g) of log P(c); the narrower of the two forms is the answer (each is an enclosure,
-/// neither is always the narrower). The machine sums carry a relative margin of 1e-12 against their rounding. A box
-/// that may reach a pole (g >= 1/2) takes the logarithm form.
+/// Gamma on a ball z = c + d (|d_re| <= r_re, |d_im| <= r_im, |d| <= r) of positive radius: exp(S(z + N) - log
+/// P(z)) with the product P(z) = z (z + 1) ... (z + N - 1) taken at the centre c (a point: N multiplications and one
+/// logarithm instead of the N logarithms of the logarithm form) and log P(z) - log P(c) = sum log(1 + d/(c + j))
+/// bounded to first order by d sum 1/(c + j), part by part, plus the second-order sum (see the body). The first
+/// order of the logarithm form is the same sum of the parts' bounds without the cancellation inside sum 1/(c + j),
+/// so this form is as narrow as it on every ball tested and several times faster on the covers of `count_roots`.
+/// A ball within twice its radius of a pole (r/|c + j| >= 1/2) takes the logarithm form.
 fn gamma_box(z: &CBall, p: u64) -> Option<CBall> {
     let q = p + 32;
     let n = stirling_shift(z, q)?;
@@ -218,17 +218,21 @@ fn gamma_box(z: &CBall, p: u64) -> Option<CBall> {
     if !(r.is_finite() && cr.is_finite() && ci.is_finite()) {
         return gamma_by_log(z, p);
     }
-    let mut sum = 0.0f64;
+    let (rr, ri) = (radius(&z.re.rad) * (1.0 + 1e-12), radius(&z.im.rad) * (1.0 + 1e-12));
+    // S1 = sum 1/(c + j), the sum of 1/|c + j| and the second-order sum
+    let (mut s1r, mut s1i, mut sum, mut second) = (0.0f64, 0.0f64, 0.0f64, 0.0f64);
     for j in 0..n {
-        let d = (cr + j as f64).hypot(ci) * (1.0 - 1e-12);
-        if d.is_nan() || d <= r {
+        let wr = cr + j as f64;
+        let d2 = wr * wr + ci * ci;
+        let d = d2.sqrt() * (1.0 - 1e-12);
+        let rho = r / d;
+        if rho.is_nan() || rho >= 0.5 {
             return gamma_by_log(z, p);
         }
+        s1r += wr / d2;
+        s1i -= ci / d2;
         sum += 1.0 / d;
-    }
-    // a narrow ball (first order, r sum 1/|c + j| <= 1/64): the logarithm form, which is the tighter there
-    if r * sum <= 1.0 / 64.0 {
-        return gamma_by_log(z, p);
+        second += rho * rho / (2.0 * (1.0 - rho));
     }
     let mut prod = CBall::from_i64(1);
     for j in 0..n {
@@ -237,24 +241,23 @@ fn gamma_box(z: &CBall, p: u64) -> Option<CBall> {
         }
         prod = prod.mul(&c.add(&CBall::from_i64(j as i64), w), w);
     }
-    // P(z) = P(c) (1 + u) with |u| <= g < 1, and |log(1 + u)| <= -log(1 - g): in the exponent, Gamma(z) =
-    // exp(S(z + N) - log P(c) - log(1 + u)) (any branch of the logarithm of the point P(c): exp removes it), the
-    // radius added there to both parts
-    let g = (r * sum * (1.0 + 1e-12)).exp_m1() * (1.0 + 1e-12);
-    if g.is_nan() || g >= 0.5 {
-        return gamma_by_log(z, p);
-    }
+    // P(z) = P(c) prod (1 + w_j), w_j = d/(c + j), |w_j| <= rho_j < 1/2: Gamma(z) = exp(S(z + N) - log P(c) - sum
+    // log(1 + w_j)) (any branch of the logarithm of the point P(c): exp removes it). sum log(1 + w_j) = d S1 + E with
+    // |E| <= sum rho_j^2/(2 (1 - rho_j)) (|log(1 + w) - w| <= |w|^2/(2 (1 - |w|))), and for d = d_re + i d_im,
+    // |Re(d S1)| <= r_re |Re S1| + r_im |Im S1|, |Im(d S1)| <= r_re |Im S1| + r_im |Re S1|: those spreads added to the
+    // real and imaginary parts of the exponent (the machine sums with a relative margin of 1e-12 of sum 1/|c + j|)
     let Some(lp) = cball::log(&prod, w) else { return gamma_by_log(z, p) };
     let x = z.add(&CBall::from_i64(n as i64), w);
     let s = stirling(&x, q, q + 20)?.sub(&lp, w);
-    let spread = Ball { mid: Float::zero(), rad: mag_up(-(1.0 - g).ln() * (1.0 + 1e-12))? };
-    let s = CBall::new(s.re.add(&spread, w), s.im.add(&spread, w));
-    let v = cball::exp(&s, p + 16)?.round(p);
-    // neither form is always the narrower on a wide ball: the narrower of the two
-    match gamma_by_log(z, p) {
-        Some(l) if radius(&l.re.rad).max(radius(&l.im.rad)) < radius(&v.re.rad).max(radius(&v.im.rad)) => Some(l),
-        _ => Some(v),
+    let (ar, ai) = (s1r.abs() + 1e-12 * sum, s1i.abs() + 1e-12 * sum);
+    let spread_re = (rr * ar + ri * ai + second) * (1.0 + 1e-12);
+    let spread_im = (rr * ai + ri * ar + second) * (1.0 + 1e-12);
+    if !(spread_re.is_finite() && spread_im.is_finite()) {
+        return gamma_by_log(z, p);
     }
+    let ball = |v: f64| -> Option<Ball> { Some(Ball { mid: Float::zero(), rad: mag_up(v)? }) };
+    let s = CBall::new(s.re.add(&ball(spread_re)?, w), s.im.add(&ball(spread_im)?, w));
+    Some(cball::exp(&s, p + 16)?.round(p))
 }
 
 /// Gamma as the exponential of the analytic log gamma.
@@ -438,5 +441,29 @@ mod tests {
             }
         }
         assert!(worst <= 1.05, "{worst}");
+    }
+
+    /// Gamma on a box holds gamma at the box's corners, edge midpoints and centre (each computed at its point by
+    /// the divisions, an independent route), on a grid of centres and radii up to 1/4.
+    #[test]
+    fn gamma_on_a_box_encloses_its_points() {
+        let p = 64;
+        for re in [-7, -5, -3, -1, 1, 2, 3, 5, 9] {
+            for im in [-6, -3, -1, 1, 2, 3, 7] {
+                for k in [-2i64, -4, -7, -12, -30] {
+                    let part = |n: i64| Ball { mid: Ball::from_ratio(n, 2, p).mid, rad: Mag::pow2(k) };
+                    let z = CBall::new(part(re), part(im));
+                    let Some(g) = gamma(&z, p) else { continue };
+                    let h = 2f64.powi(k as i32);
+                    for (dx, dy) in [(-1.0, -1.0), (-1.0, 0.0), (-1.0, 1.0), (0.0, -1.0), (0.0, 0.0), (0.0, 1.0), (1.0, -1.0), (1.0, 0.0), (1.0, 1.0)] {
+                        let at = |c: i64, d: f64| Ball::exact(Ball::from_ratio(c, 2, p).mid).add(&Ball::exact(crate::ball::float_of(d * h)), p + 64);
+                        let w = CBall::new(at(re, dx), at(im, dy));
+                        let Some(v) = gamma(&w, p) else { continue };
+                        let diff = v.sub(&g, p);
+                        assert!(diff.re.contains_zero() && diff.im.contains_zero(), "z = {re}/2 + {im}/2 i +- 2^{k}, point ({dx}, {dy})");
+                    }
+                }
+            }
+        }
     }
 }

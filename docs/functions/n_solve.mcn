@@ -22,6 +22,9 @@
 # The roots of a polynomial in one unknown are ordered by real part, then imaginary part; complex roots are `complex(re, im)` numbers. `n_solve(eq, x, reals)` keeps the real ones.
 
 #% item
+# The roots of an analytic equation in a region of the complex plane (bounds on `re(x)`, `im_part(x)` or `abs(x - c)`) are ordered by real part, real parts that agree to 9 decimals counting as equal, then by imaginary part from the largest down: of a pair of complex conjugate roots the one in the upper half-plane comes first. (`solve` and `reduce` list the same roots as root objects by real part, then imaginary part from the smallest up.)
+
+#% item
 # Solutions of systems come in the order in which `solve` lists them, a pair of complex conjugate solutions with the negative imaginary part first. Roots that a numeric search adds to reach `max_roots: k` follow the others, by modulus, then the one with the larger imaginary part first.
 
 #% item
@@ -151,6 +154,14 @@ n_solve(x^5 + x + 1 == 0, x) |> select(_, s => is_real(x /. s)) |> map(s => x /.
 n_solve(characteristic_polynomial([[2, 1, 0], [1, 3, 1], [0, 1, 4]], x), x)
 #% output
 #= [[x -> 1.2679491924311228], [x -> 3.0], [x -> 4.732050807568878]]
+
+#% text
+# The roots of an analytic equation in a square, by real part and then the upper half-plane first:
+
+#% cell
+n_solve(sin(e^x) - cos(2*x) == 1 and -1 <= re(x) and re(x) <= 1 and -1 <= im_part(x) and im_part(x) <= 1, x)
+#% output
+#= [[x -> 0.9152269083602887 + 0.20167483871637634im], [x -> 0.9152269083602887 - 0.20167483871637634im]]
 
 #% subsection
 # Properties and relations

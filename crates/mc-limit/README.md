@@ -18,6 +18,8 @@ superior/inferior variants.
   and an undecided side leaves the call unevaluated.
 - A limit that is not decided stays as a call; an answer is never guessed. Every value passes the numeric check first.
 - Inexact numbers in the input are rationalized first and the limit is given numerically.
+- A complex function of a real variable that the other methods leave is split into its real and imaginary parts
+  (`complex_expand`); their limits give a value or a directed infinity `c*inf` (semantics 3.1).
 - A list as first argument maps elementwise.
 - The crate sits on the evaluator (`mc-eval`) and the term builder and derivatives of `mc-calculus`; signs of constants
   come from `mc-decide`, polynomial work from `mc-poly`.

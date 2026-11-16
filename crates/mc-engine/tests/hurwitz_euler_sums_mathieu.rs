@@ -33,6 +33,27 @@ fn hurwitz_zeta_tails() {
     close(&mut e, &u, "sum((k + 1)/(k + 5)^(5/2), [k, 0, 20000])", "2/20000^(1/2)");
 }
 
+/// zeta(s, a) at a large negative real part with complex arguments, where the terms of the sum are 10^40 times the
+/// value: the machine value agrees with the value at 40 digits, which satisfies the recurrence zeta(s, a) -
+/// zeta(s, a + 1) = a^-s; near s = -40 it approaches the polynomial -B_41(a)/41.
+#[test]
+fn hurwitz_zeta_at_a_large_negative_real_part() {
+    let t0 = std::time::Instant::now();
+    let mut e = CoreEngine::new();
+    for (s, a) in [("-40 + im", "2 + im"), ("-20 + 3*im", "1/2 + im"), ("-31/2 - 2*im", "3/2 + im/4")] {
+        let z = format!("zeta({s}, {a})");
+        // machine against 40 digits, relatively
+        assert_eq!(ev(&mut e, &format!("abs(n({z}) - n({z}, 40)) < 10^-13*abs(n({z}, 40))")), "true", "{z}");
+        // the recurrence, an independent relation at 30 digits
+        let rec = format!("abs(n({z} - zeta({s}, {a} + 1), 30) - n(({a})^(-({s})), 30)) < 10^-20*abs(n(({a})^(-({s})), 30))");
+        assert_eq!(ev(&mut e, &rec), "true", "{rec}");
+    }
+    // the imaginary part at s = -40 + 10^-12 i is that of -B_41(2 + i)/41 to 10 digits
+    let near = "abs(im_part(n(zeta(-40 + 10^-12*im, 2 + im))) - im_part(n(-bernoulli_b(41, 2 + im)/41))) < 10^-10*abs(n(bernoulli_b(41, 2 + im)/41))";
+    assert_eq!(ev(&mut e, near), "true");
+    assert!(t0.elapsed() < std::time::Duration::from_secs(30), "{:?}", t0.elapsed());
+}
+
 #[test]
 fn linear_euler_sums() {
     let mut e = CoreEngine::new();

@@ -170,6 +170,9 @@ pub enum Pat {
         var: u16,
         /// the value of the variable when the argument is absent
         default: Raw,
+        /// `longest(optional(..), k)` (true: present first), `shortest(optional(..), k)` (false: absent first), with
+        /// priority k: decided before the other arguments' lengths
+        mark: Option<Mark>,
     },
     /// `key_value_pattern([p1, ..., pk])`: an association (or a list of rules) with k distinct entries matching
     /// `p1`, ..., `pk`, in any order
@@ -595,7 +598,7 @@ fn prepare(h: &Heap, p: Pat, cn: &dyn Canon) -> Pat {
         Pat::Named(v, q) => Pat::Named(v, Box::new(prepare(h, *q, cn))),
         Pat::Repeat { p: q, min, max, mark } => Pat::Repeat { p: Box::new(prepare(h, *q, cn)), min, max, mark },
         Pat::KeyValue(ps) => Pat::KeyValue(ps.into_iter().map(|q| prepare(h, q, cn)).collect()),
-        Pat::Opt { p: q, var, default } => Pat::Opt { p: Box::new(prepare(h, *q, cn)), var, default },
+        Pat::Opt { p: q, var, default, mark } => Pat::Opt { p: Box::new(prepare(h, *q, cn)), var, default, mark },
         p => p,
     }
 }
@@ -638,9 +641,52 @@ fn subtype(a: Ty, b: Ty) -> bool {
         || (b == Ty::Float && matches!(a, Ty::MachineReal | Ty::Ball))
 }
 
+/// How often each variable occurs in `p` (as a blank, a sequence, a name, an optional argument or a variable a
+/// condition reads).
+fn var_uses(p: &Pat, n: &mut Vec<u32>) {
+    let mut note = |v: u16| {
+        let i = v as usize;
+        if n.len() <= i {
+            n.resize(i + 1, 0);
+        }
+        n[i] += 1;
+    };
+    match p {
+        Pat::Blank { var, .. } | Pat::Seq { var, .. } => {
+            if let Some(v) = var {
+                note(*v);
+            }
+        }
+        Pat::Lit(_) => {}
+        Pat::App { args, .. } | Pat::Alt(args) | Pat::KeyValue(args) => args.iter().for_each(|q| var_uses(q, n)),
+        Pat::Named(v, q) => {
+            note(*v);
+            var_uses(q, n);
+        }
+        Pat::Cond(q, c) => {
+            c.vars.iter().for_each(|&v| note(v));
+            var_uses(q, n);
+        }
+        Pat::Opt { p: q, var, .. } => {
+            note(*var);
+            var_uses(q, n);
+        }
+        Pat::Repeat { p: q, .. } => var_uses(q, n),
+    }
+}
+
 /// Identical up to a renaming of pattern variables (semantics 6.3: such a definition replaces the old rule).
-/// Conditions are equal only if they are the same code with the same variables.
+/// A blank or sequence whose variable occurs nowhere else in the left side is the same as an anonymous one
+/// (`f(g(x_))` and `f(g(_))` match the same terms). Conditions are equal only if they are the same code with the
+/// same variables.
 pub(crate) fn same_up_to_renaming(a: &Pat, b: &Pat) -> bool {
+    let (mut ua, mut ub) = (vec![], vec![]);
+    var_uses(a, &mut ua);
+    var_uses(b, &mut ub);
+    // a blank's variable used once only binds nothing that is compared: drop it
+    let anon = |v: Option<u16>, u: &[u32]| v.filter(|&v| u.get(v as usize).copied().unwrap_or(0) > 1);
+    let (fa, fb) = (|v| anon(v, &ua), |v| anon(v, &ub));
+    type Anon<'a> = &'a dyn Fn(Option<u16>) -> Option<u16>;
     fn var_ok(x: Option<u16>, y: Option<u16>, fwd: &mut Vec<Option<u16>>, back: &mut Vec<Option<u16>>) -> bool {
         match (x, y) {
             (None, None) => true,
@@ -664,23 +710,25 @@ pub(crate) fn same_up_to_renaming(a: &Pat, b: &Pat) -> bool {
             _ => false,
         }
     }
-    fn go(a: &Pat, b: &Pat, fwd: &mut Vec<Option<u16>>, back: &mut Vec<Option<u16>>) -> bool {
+    fn go(a: &Pat, b: &Pat, fa: Anon<'_>, fb: Anon<'_>, fwd: &mut Vec<Option<u16>>, back: &mut Vec<Option<u16>>) -> bool {
         match (a, b) {
-            (Pat::Blank { var: v1, ty: t1 }, Pat::Blank { var: v2, ty: t2 }) => t1 == t2 && var_ok(*v1, *v2, fwd, back),
+            (Pat::Blank { var: v1, ty: t1 }, Pat::Blank { var: v2, ty: t2 }) => t1 == t2 && var_ok(fa(*v1), fb(*v2), fwd, back),
             (Pat::Seq { var: v1, min: m1, ty: t1, mark: k1 }, Pat::Seq { var: v2, min: m2, ty: t2, mark: k2 }) => {
-                m1 == m2 && t1 == t2 && k1 == k2 && var_ok(*v1, *v2, fwd, back)
+                m1 == m2 && t1 == t2 && k1 == k2 && var_ok(fa(*v1), fb(*v2), fwd, back)
             }
             (Pat::Lit(s), Pat::Lit(t)) => s == t,
             (Pat::App { head: h1, args: a1, .. }, Pat::App { head: h2, args: a2, .. }) => {
-                h1 == h2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| go(x, y, fwd, back))
+                h1 == h2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| go(x, y, fa, fb, fwd, back))
             }
             (Pat::Alt(a1), Pat::Alt(a2)) | (Pat::KeyValue(a1), Pat::KeyValue(a2)) => {
-                a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| go(x, y, fwd, back))
+                a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| go(x, y, fa, fb, fwd, back))
             }
-            (Pat::Named(v, p), Pat::Named(w, q)) => var_ok(Some(*v), Some(*w), fwd, back) && go(p, q, fwd, back),
-            (Pat::Opt { p, default: d1, .. }, Pat::Opt { p: q, default: d2, .. }) => d1 == d2 && go(p, q, fwd, back),
+            (Pat::Named(v, p), Pat::Named(w, q)) => var_ok(Some(*v), Some(*w), fwd, back) && go(p, q, fa, fb, fwd, back),
+            (Pat::Opt { p, default: d1, mark: k1, .. }, Pat::Opt { p: q, default: d2, mark: k2, .. }) => {
+                d1 == d2 && k1 == k2 && go(p, q, fa, fb, fwd, back)
+            }
             (Pat::Repeat { p, min: m1, max: x1, mark: k1 }, Pat::Repeat { p: q, min: m2, max: x2, mark: k2 }) if k1 == k2 => {
-                m1 == m2 && x1 == x2 && go(p, q, fwd, back)
+                m1 == m2 && x1 == x2 && go(p, q, fa, fb, fwd, back)
             }
             (Pat::Cond(p, c), Pat::Cond(q, d)) => {
                 let same_code = match (&c.code, &d.code) {
@@ -691,13 +739,13 @@ pub(crate) fn same_up_to_renaming(a: &Pat, b: &Pat) -> bool {
                 // the same code reading corresponding variables (they are bound inside, so mapped by then)
                 same_code
                     && c.vars.len() == d.vars.len()
-                    && go(p, q, fwd, back)
+                    && go(p, q, fa, fb, fwd, back)
                     && c.vars.iter().zip(d.vars.iter()).all(|(x, y)| fwd.get(*x as usize).copied().flatten() == Some(*y))
             }
             _ => false,
         }
     }
-    go(a, b, &mut vec![], &mut vec![])
+    go(a, b, &fa, &fb, &mut vec![], &mut vec![])
 }
 
 // ---------------------------------------------------------------------------------------------------------------

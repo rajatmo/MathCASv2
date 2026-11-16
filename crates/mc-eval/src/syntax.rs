@@ -316,6 +316,8 @@ impl<'h> Lower<'_, 'h> {
                 match self.convert(args[0], depth + 1)? {
                     Pat::Seq { var, min, ty, .. } => Pat::Seq { var, min, ty, mark: Some((long, pri)) },
                     Pat::Repeat { p, min, max, .. } => Pat::Repeat { p, min, max, mark: Some((long, pri)) },
+                    // an optional argument: present first (longest) or absent first (shortest)
+                    Pat::Opt { p, var, default, .. } => Pat::Opt { p, var, default, mark: Some((long, pri)) },
                     p => p,
                 }
             }
@@ -339,7 +341,7 @@ impl<'h> Lower<'_, 'h> {
                     _ => None,
                 };
                 match whole_var(&p).or(run) {
-                    Some(v) => Pat::Opt { p: Box::new(p), var: v, default: Raw::new(args[1]) },
+                    Some(v) => Pat::Opt { p: Box::new(p), var: v, default: Raw::new(args[1]), mark: None },
                     None => return Err(DefError::Unsupported("an optional argument without one variable naming it")),
                 }
             }

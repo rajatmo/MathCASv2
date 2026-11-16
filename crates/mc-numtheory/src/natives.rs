@@ -275,7 +275,7 @@ fn rounding<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], mode: Rounding) -
 /// A numeric constant symbol (`pi`, `e`, ...).
 fn is_constant(h: &Heap, x: T<'_>) -> bool {
     match h.view(x) {
-        View::Sym(s) => matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "degree" | "golden_ratio"),
+        View::Sym(s) => matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "degree" | "golden_ratio" | "glaisher"),
         _ => false,
     }
 }

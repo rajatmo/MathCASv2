@@ -96,6 +96,18 @@ pub(crate) fn gather_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
         [xs, f, r] => (xs, f, Some(r)),
         _ => return Ok(Reply::Decline),
     };
+    // a list of functions `[f1, f2, ...]`: gathered by f1, each group gathered by f2 inside it, and so on
+    if let Some(fs) = cx.as_list(f) {
+        if fs.is_empty() {
+            return Ok(Reply::Decline);
+        }
+        let fs = fs.to_vec();
+        let xs = match lib.operand(h, t, xs, 1) {
+            Ok((_, xs)) => xs.to_vec(),
+            Err(r) => return Ok(r),
+        };
+        return Ok(Reply::Done(gather_nested(lib, cx, &xs, &fs, r)?));
+    }
     let (xs, ks) = take!(keyed(lib, cx, t, xs, f)?);
     let (_, gs) = groups(cx, xs, &ks)?;
     let mut out = Vec::with_capacity(gs.len());
@@ -111,6 +123,34 @@ pub(crate) fn gather_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
         out.push(v);
     }
     Ok(Reply::Done(cx.list(&out)))
+}
+
+/// The nested gathering of `xs` by the functions `fs` (outermost first), each innermost group reduced by `r`;
+/// a failure of a key or of `r` is the result.
+fn gather_nested<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, xs: &[T<'h>], fs: &[T<'h>], r: Option<T<'h>>) -> Res<T<'h>> {
+    let h = cx.heap();
+    let Some((&f, rest)) = fs.split_first() else {
+        let mut v = cx.list(xs);
+        if let Some(r) = r {
+            cx.tick(1)?;
+            v = apply(cx, r, &[v])?;
+        }
+        return Ok(v);
+    };
+    let ks = match keys(lib, cx, f, xs)? {
+        Ok(ks) => ks,
+        Err(e) => return Ok(e),
+    };
+    let (_, gs) = groups(cx, xs, &ks)?;
+    let mut out = Vec::with_capacity(gs.len());
+    for g in &gs {
+        let v = gather_nested(lib, cx, g, rest, r)?;
+        if lib.is_failure(h, v) {
+            return Ok(v);
+        }
+        out.push(v);
+    }
+    Ok(cx.list(&out))
 }
 
 /// `unique_by(xs, f)`: the elements with a value `f(x)` not seen before, in order (the first of each key is kept).

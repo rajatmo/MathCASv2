@@ -697,8 +697,8 @@ rule apply_sides(f_, rs_) := map(r => apply_sides(f, r), rs) when is_list(rs)
 # through and, or, piecewise and conditional_expression (calc_side_map), to every side of a chain; true and false stay
 rule apply_sides(f_, r_) := calc_side_map(r, q => calc_sides(q, f)) when not is_list(r) and not rel_head(r) and calc_side_arg(r)
 
-# numerator_denominator(e): [numerator(e), denominator(e)]
-rule numerator_denominator(e_) := [numerator(e), denominator(e)]
+# numerator_denominator(e): [numerator(e), denominator(e)]; a list gives the pair of each element
+rule numerator_denominator(e_) := if is_list(e) then map(numerator_denominator, e) else [numerator(e), denominator(e)]
 
 # is_rational_expression(e, x), (e, [x, y, ...]), (e): whether e is a quotient of polynomials in the variables (every
 # variable of e when none is given)
@@ -799,7 +799,8 @@ rule expand_denominator(e_, o_) := ex_denom_m(e, md_m(o)) when md_opt(e, o)
 rule expand_all(e_, o_) := ex_all_m(e, md_m(o)) when md_opt(e, o)
 rule numerator(e_, o_) := md_frac(numerator(e), denominator(e), md_m(o))[1] when md_opt(e, o) and md_ok(e, md_m(o))
 rule denominator(e_, o_) := md_frac(numerator(e), denominator(e), md_m(o))[2] when md_opt(e, o) and md_ok(e, md_m(o))
-rule numerator_denominator(e_, o_) := md_frac(numerator(e), denominator(e), md_m(o)) when md_opt(e, o) and md_ok(e, md_m(o))
+rule numerator_denominator(e_, o_) := map(t => numerator_denominator(t, o), e) when is_list(e) and md_only(o)
+rule numerator_denominator(e_, o_) := md_frac(numerator(e), denominator(e), md_m(o)) when md_opt(e, o) and md_ok(e, md_m(o)) and not is_list(e)
 rule coefficient_rules(p_, v_, o_) := coefficient_rules(md_red(p, md_m(o)), v) when md_opt(p, o) and denominator(p) === 1
 rule monomial_list(p_, v_, o_) := monomial_list(md_red(p, md_m(o)), v) when md_opt(p, o) and denominator(p) === 1
 # together(e, modulus: m) and cancel(e, modulus: m): the fraction over Z/m as above; for a prime m and a numerator

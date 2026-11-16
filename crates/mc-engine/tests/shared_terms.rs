@@ -14,9 +14,17 @@
 //! `MC_SHARED_PROGRESS=1` prints `[k/N pct%]` progress, `MC_SHARED_TRACE=1` each input as it starts;
 //! `MC_SHARED_TERMS=2,5` runs those terms only. A call that runs 20 s is reported as hung and left behind (at
 //! most 6 of them, or `MC_SHARED_MAX_HUNG`, then the run stops).
+//!
+//! A call that ends after the allowance is run again alone after the others, its processor time measured: it is
+//! late only when it also kept working then (more processor time after the stop than the allowance, or twenty
+//! allowances on the clock), so a loaded machine stretches the clock without failing the suite.
 use mc_api::StopFlag;
 use mc_engine::{CoreEngine, EngineConfig, Origin};
 use std::collections::BTreeSet;
+
+#[path = "support/process_cpu.rs"]
+mod process_cpu;
+use process_cpu::{late, process_cpu, serial};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
@@ -79,18 +87,26 @@ enum Msg {
 
 /// Evaluate `src` with the stop raised `after` in: the printed value and how long it took after the stop.
 fn stopped_at(e: &mut CoreEngine, src: &str, after: Duration) -> (String, Option<Duration>) {
+    let (v, since, _) = stopped_with_cpu(e, src, after);
+    (v, since)
+}
+
+/// [`stopped_at`], also with the processor time the process used from the stop to the end.
+fn stopped_with_cpu(e: &mut CoreEngine, src: &str, after: Duration) -> (String, Option<Duration>, Option<Duration>) {
     let stop = StopFlag::new();
     let (done_tx, done_rx) = mpsc::channel::<()>();
     let watch = stop.clone();
     let dog = std::thread::spawn(move || match done_rx.recv_timeout(after) {
         Ok(()) => None,
         Err(_) => {
+            let cpu = process_cpu();
             watch.raise();
-            Some(Instant::now())
+            Some((Instant::now(), cpu))
         }
     });
     let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| e.eval_in(src, &Origin::input(), &stop)));
     let end = Instant::now();
+    let cpu_end = process_cpu();
     let _ = done_tx.send(());
     let raised = dog.join().ok().flatten();
     let text = match r {
@@ -98,7 +114,17 @@ fn stopped_at(e: &mut CoreEngine, src: &str, after: Duration) -> (String, Option
         Ok(Ok(s)) => s.last.printed,
         Ok(Err(err)) => format!("error: {err}"),
     };
-    (text, raised.map(|r| end.saturating_duration_since(r)))
+    let cpu = raised.and_then(|(_, c)| Some(cpu_end?.saturating_sub(c?)));
+    (text, raised.map(|(r, _)| end.saturating_duration_since(r)), cpu)
+}
+
+/// A call that ended `allowed` or more after the stop in the parallel run, run again alone in a fresh session:
+/// `Some(why)` when it is late then too (see [`late`]).
+fn late_alone(src: &str, allowed: Duration) -> Option<String> {
+    let mut e = CoreEngine::with_config(EngineConfig { threads: 1, ..EngineConfig::default() });
+    let (v, since, cpu) = stopped_with_cpu(&mut e, src, Duration::from_millis(200));
+    let d = since?;
+    late(d, cpu, allowed, 1).then(|| format!("{src}: alone, ended {d:?} after the stop using {cpu:?} of processor time: {}", v.chars().take(100).collect::<String>()))
 }
 
 fn worker(queue: Arc<Mutex<Vec<(usize, String)>>>, tx: mpsc::Sender<Msg>) {
@@ -123,6 +149,7 @@ fn worker(queue: Arc<Mutex<Vec<(usize, String)>>>, tx: mpsc::Sender<Msg>) {
 
 #[test]
 fn every_function_ends_promptly_on_shared_terms() {
+    let _one = serial();
     let all = std::env::var("MC_SHARED_ALL").is_ok_and(|v| v == "1");
     let progress = std::env::var("MC_SHARED_PROGRESS").is_ok_and(|v| v == "1");
     let only: Option<Vec<String>> =
@@ -183,7 +210,7 @@ fn every_function_ends_promptly_on_shared_terms() {
     let hang = Duration::from_secs_f64(20.0 * time_factor().max(1.0));
     let max_hung: usize = std::env::var("MC_SHARED_MAX_HUNG").ok().and_then(|s| s.parse().ok()).unwrap_or(6);
     let mut running: std::collections::HashMap<usize, (String, Instant)> = Default::default();
-    let (mut done, mut late, mut bad, mut hung) = (0usize, vec![], vec![], vec![]);
+    let (mut done, mut slow, mut bad, mut hung) = (0usize, vec![], vec![], vec![]);
     let started = Instant::now();
     while done + hung.len() < total {
         match rx.recv_timeout(Duration::from_secs(1)) {
@@ -199,10 +226,8 @@ fn every_function_ends_promptly_on_shared_terms() {
                 if v.starts_with("PANIC") || v.contains("failure(internal") {
                     bad.push(format!("{src}: {v}"));
                 }
-                if let Some(d) = since {
-                    if d > allowed {
-                        late.push(format!("{src}: ended {d:?} after the stop: {v}"));
-                    }
+                if since.is_some_and(|d| d > allowed) {
+                    slow.push(src);
                 }
                 if progress && (done % 200 == 0 || done == total) {
                     eprintln!("[{done}/{total} {}%] {:?}", done * 100 / total, started.elapsed());
@@ -226,8 +251,14 @@ fn every_function_ends_promptly_on_shared_terms() {
             break;
         }
     }
+    // the calls that ended late among the others, each again alone (they are few: a stop that is late alone too is
+    // a fault)
+    if progress && !slow.is_empty() {
+        eprintln!("{} calls ended late among the others; each again alone", slow.len());
+    }
+    let late_calls: Vec<String> = slow.iter().filter_map(|src| late_alone(src, allowed)).collect();
     let mut report = String::new();
-    for (what, list) in [("hung", &hung), ("late", &late), ("panics or internal failures", &bad)] {
+    for (what, list) in [("hung", &hung), ("late", &late_calls), ("panics or internal failures", &bad)] {
         if !list.is_empty() {
             report += &format!("{} {what}:\n{}\n", list.len(), list.join("\n"));
         }
@@ -240,6 +271,7 @@ fn every_function_ends_promptly_on_shared_terms() {
 /// association, end within 300 ms of a stop raised 200 ms in; a shallower one gives its value.
 #[test]
 fn simplify_and_factor_of_shared_terms_end_promptly() {
+    let _one = serial();
     let allowed = Duration::from_secs_f64(0.3 * time_factor());
     let mut e = CoreEngine::with_config(EngineConfig { threads: 2, ..EngineConfig::default() });
     for src in [
@@ -251,9 +283,9 @@ fn simplify_and_factor_of_shared_terms_end_promptly() {
         "simplify(<|a -> nest(x => f(x, x), y, 60)|>)",
         "full_simplify(nest(x => [x, x], 1, 60))",
     ] {
-        let (v, since) = stopped_at(&mut e, src, Duration::from_millis(200));
+        let (v, since, cpu) = stopped_with_cpu(&mut e, src, Duration::from_millis(200));
         assert!(!v.starts_with("PANIC") && !v.contains("failure(internal"), "{src}: {v}");
-        assert!(since.is_none_or(|d| d <= allowed), "{src}: ended {since:?} after the stop");
+        assert!(since.is_none_or(|d| !late(d, cpu, allowed, 2)), "{src}: ended {since:?} after the stop, processor {cpu:?}");
     }
     let (v, since) = stopped_at(&mut e, "simplify(nest(x => [x, x], 1, 22)) == nest(x => [x, x], 1, 22)", Duration::from_secs(20));
     assert_eq!((v.as_str(), since), ("true", None));

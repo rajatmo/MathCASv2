@@ -4,7 +4,8 @@ Numerics for MathCAS: exact constants, elementary functions on exact, ball and m
 evaluation `n`, with the number functions (`re`, `rationalize`, `chop`, ...) and numbers with uncertainty.
 
 ## Modules
-- `consts`: `pi`, `e`, `euler_gamma`, `catalan` as balls by binary splitting, cached; `series` for hypergeometric-type
+- `consts`: `pi`, `e`, `euler_gamma`, `catalan`, `glaisher` as balls (binary splitting; Glaisher's constant from zeta'(2) by
+  the Euler-Maclaurin formula with a proved remainder), cached; `series` for hypergeometric-type
   sums.
 - `elementary`, `cball`, `machine`, `fun`: elementary functions on real balls, on complex balls (principal branches),
   and on machine numbers, with one enumeration of the functions.

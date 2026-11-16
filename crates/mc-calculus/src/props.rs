@@ -469,6 +469,18 @@ fn conditions_of<'h>(
             continue;
         }
         let [a] = args else {
+            // floor(u, m), ceiling(u, m), round(u, m) = m floor(u/m), ...: undefined at m == 0
+            if matches!(name.as_str(), "floor" | "ceiling" | "round") && args.len() == 2 {
+                if depends(args[1]) {
+                    out.push(rel("unequal", args[1], zero));
+                }
+                continue;
+            }
+            // clip of a non-real argument stays unevaluated
+            if name == "clip" && complex {
+                out.push(b.call("element", &[args[0], h.sym_term(h.sym("reals"))]));
+                continue;
+            }
             if CONTINUOUS.contains(&name.as_str()) {
                 continue;
             }
@@ -520,6 +532,16 @@ fn conditions_of<'h>(
             }
             "atanh" if complex && analytic => out.push(cut_beyond_one(true, *a)),
 
+            // heaviside_theta(0) is undefined (it stays unevaluated), and so are heaviside_theta and unit_step of a
+            // non-real argument
+            "heaviside_theta" => {
+                if complex {
+                    out.push(b.call("or", &[rel("less", *a, zero), rel("greater", *a, zero)]));
+                } else {
+                    out.push(rel("unequal", *a, zero));
+                }
+            }
+            "unit_step" | "clip" if complex => out.push(b.call("element", &[*a, h.sym_term(h.sym("reals"))])),
             n if ENTIRE.contains(&n) || CONTINUOUS.contains(&n) => {}
             "log" if complex && analytic => out.push(branch_cut(b, *a)),
             "log" => out.push(rel(if complex { "unequal" } else { "greater" }, *a, zero)),

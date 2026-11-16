@@ -145,6 +145,30 @@ fn region_solvers() {
     });
 }
 
+/// The order of `n_solve` in a region: by real part, then the larger imaginary part first; each list equals the
+/// roots found another way (closed forms, or `find_root` from each listed value) put in that order.
+#[test]
+fn region_roots_of_n_solve_in_their_order() {
+    timed(60, |e| {
+        let sq = "-1 <= re(x) and re(x) <= 1 and -1 <= im_part(x) and im_part(x) <= 1";
+        // the conjugate pair: upper half-plane first, each a root by find_root at 30 digits
+        let v = ev(e, &format!("n_solve_values(sin(e^x) - cos(2*x) == 1 and {sq}, x)"));
+        assert_eq!(v, "[complex(0.9152269083602887, 0.20167483871637634), complex(0.9152269083602887, -0.20167483871637634)]");
+        for k in 1..=2 {
+            let w = format!("n_solve_values(sin(e^x) - cos(2*x) == 1 and {sq}, x)[{k}]");
+            let check = format!("abs(rewrite(x, find_root(sin(e^x) - cos(2*x) == 1, [x, {w}], working_precision: 30)) - {w}) < 10^-12");
+            assert_eq!(ev(e, &check), "true", "{check}");
+        }
+        // two roots of different real parts: the smaller first, whatever the imaginary parts
+        let v = ev(e, "n_solve_values(gamma(x) - log(x) == im/2 and abs(x - 2) < 3/2, x)");
+        assert_eq!(v, "[complex(1.49328747884441, -0.9848501122597985), complex(2.671009023704611, 0.8195706035753547)]");
+        // cos(x) = 2 in -1 <= re x <= 7, |im x| <= 2: the closed forms 2 pi k +- i acosh(2), k = 0, 1, in the order
+        let got = "n_solve_values(cos(x) == 2 and -1 <= re(x) and re(x) <= 7 and -2 <= im_part(x) and im_part(x) <= 2, x)";
+        let closed = "n([im*acosh(2), -im*acosh(2), 2*pi + im*acosh(2), 2*pi - im*acosh(2)])";
+        assert_eq!(ev(e, &format!("max(abs({got} - {closed})) < 10^-12")), "true", "{}", ev(e, got));
+    });
+}
+
 #[test]
 fn extrema_on_an_interval() {
     timed(120, |e| {

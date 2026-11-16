@@ -372,6 +372,24 @@ fn invariants<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<(T<'h>, T<'h>)> {
 }
 
 /// Are all of the terms numbers, one of them inexact?
+/// The arguments with every exact numeric constant (`2*7^(1/2)`) made a machine number when another argument is a
+/// machine number (`inverse_weierstrass_p([2.0, 2*7^(1/2)], [1, 2])` is then evaluated); the arguments themselves
+/// otherwise.
+fn machine_together<'h>(fx: &mut Fx<'_, '_, '_, 'h>, ts: &mut [T<'h>]) -> Res<()> {
+    if !ts.iter().any(|&t| fx.num(t).is_some_and(|n| n.kind() == Kind::Machine)) {
+        return Ok(());
+    }
+    for t in ts.iter_mut() {
+        if fx.num(*t).is_none() {
+            let v = fx.eval(fx.call("n", &[*t]))?;
+            if fx.num(v).is_some_and(|n| n.kind() == Kind::Machine) {
+                *t = v;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn numeric_terms<'h>(fx: &Fx<'_, '_, '_, 'h>, ts: &[T<'h>]) -> bool {
     let nums: Option<Vec<Num>> = ts.iter().map(|&t| fx.num(t)).collect();
     nums.is_some_and(|ns| ns.iter().any(|n| n.kind() != Kind::Exact))
@@ -500,6 +518,7 @@ fn inverse_weierstrass_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> 
     if let Some(q) = q {
         args.push(q);
     }
+    machine_together(fx, &mut args)?;
     if !numeric_terms(fx, &args) {
         return Ok(None);
     }

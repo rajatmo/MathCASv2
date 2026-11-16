@@ -40,7 +40,7 @@ pub struct Names {
     mul: Sym,
     pow: Sym,
     abs: Sym,
-    consts: [(Sym, Const); 6],
+    consts: [(Sym, Const); 7],
     funs: [(Sym, Fun); 14],
 }
 

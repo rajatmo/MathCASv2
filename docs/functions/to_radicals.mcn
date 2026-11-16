@@ -15,6 +15,9 @@
 #% item
 # Sums over polynomials of other degrees stay as they are.
 
+#% item
+# A root object `root(p, k)` of degree 2 to 32 is written as the radical, among the roots `roots` gives for p, that is nearest to its value at 30 digits, when all of them are radicals (degree 2 to 4, binomials x^n - c, polynomials in x^m of such degrees); otherwise it is kept. An `algebraic_number(r, [c0, c1, ...])` becomes c0 + c1 r + ... with r in radicals.
+
 #% section
 # Examples
 
@@ -28,6 +31,14 @@
 to_radicals(root_sum(x => x^3 - 2, x => x*log(z - x)))
 #% output
 #= log(z - 2^(1/3))*2^(1/3) + log(z - (-1)^(2/3)*2^(1/3))*(-1)^(2/3)*2^(1/3) - log(z + (-1)^(1/3)*2^(1/3))*(-1)^(1/3)*2^(1/3)
+
+#% text
+# A root of a binomial of degree 5:
+
+#% cell
+to_radicals(root(x => x^5 - 2, 3))
+#% output
+#= (-1)^(4/5)*2^(1/5)
 
 #% subsection
 # Scope

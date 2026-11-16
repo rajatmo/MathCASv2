@@ -126,6 +126,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("euler_gamma", "Euler's constant gamma = 0.5772... (Brent-McMillan under n); a positive real"),
     ("catalan", "Catalan's constant G = 0.9159...; a positive real"),
     ("golden_ratio", "the golden ratio (1 + sqrt(5))/2 = 1.6180...; a positive real"),
+    ("glaisher", "Glaisher's constant A = 1.2824..., log A = 1/12 - zeta'(-1); a positive real"),
     ("machine_epsilon", "machine_epsilon: the smallest machine number e with 1 + e != 1, 2^-52 (a library definition)"),
     ("min_machine_number", "min_machine_number: the smallest positive machine number of full precision, 2^-1022 (a library definition)"),
     ("khinchin", "khinchin: Khinchin's constant 2.6854...; n(khinchin, p) sums a zeta-function series (library helper)"),
