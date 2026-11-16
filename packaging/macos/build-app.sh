@@ -79,6 +79,17 @@ codesign --verify --deep --strict "$app"
 echo "[5/5 100%] disk image"
 dmg="$out/$name.dmg"
 rm -f "$dmg"
-hdiutil create -volname "MathCAS v2 $version" -srcfolder "$top" -ov -format UDZO "$dmg" >/dev/null
+# hdiutil now and then fails with "Resource busy" while the system still indexes the staged folder: try again
+made=0
+for attempt in 1 2 3 4 5; do
+  if hdiutil create -volname "MathCAS v2 $version" -srcfolder "$top" -ov -format UDZO "$dmg" >/dev/null; then
+    made=1
+    break
+  fi
+  echo "build-app.sh: hdiutil create failed (attempt $attempt of 5)" >&2
+  rm -f "$dmg"
+  perl -e 'select(undef, undef, undef, 4 * $ARGV[0])' "$attempt"
+done
+[ "$made" = 1 ] || { echo "build-app.sh: could not create the disk image" >&2; exit 1; }
 du -h "$dmg"
 echo "$dmg"
