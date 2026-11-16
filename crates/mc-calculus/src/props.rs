@@ -1390,6 +1390,25 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
     // x != 0 have f' > 0 on their domains and are not monotonic (round 44: both were 1); on a domain of several
     // pieces only the values themselves can answer (a refutation across the gaps)
     if order > 0 && !c.integers && !one_interval(cx, b, c, x, &cs)? {
+        // convexity is inherited by a part of the line: the chord inequality holds between any two points of the
+        // part when it is proved on the whole line (x^2 on x != 0). Monotonicity is inherited too, but that case
+        // is one interval already when the function is defined everywhere.
+        if order == 2 && cs.is_empty() && c.cond.is_some() {
+            let whole = Call {
+                f: c.f,
+                cond: None,
+                vars: c.vars.clone(),
+                complex: c.complex,
+                integers: c.integers,
+                facts: c.facts.clone(),
+                strict: c.strict,
+            };
+            if let Some(v) = sign_of_inner(cx, b, &whole, order)? {
+                if matches!(h.view(v), View::Int(_)) {
+                    return Ok(Some(v));
+                }
+            }
+        }
         return sampled_shape(cx, b, c, x, order);
     }
     let mut facts = cs.clone();

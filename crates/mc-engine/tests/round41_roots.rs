@@ -74,8 +74,10 @@ fn rectangles() {
 
 #[test]
 fn rectangles_declined() {
-    // a pole inside, a zero on the boundary, a function that is not analytic: no count
-    assert!(ev("count_roots(tan(z), [z, 1 - im/2, 2 + im/2])").starts_with("count_roots("));
+    // a pole inside is counted around (tan = sin/cos with no common zero): no root of tan in 1..2, pi in 3..4
+    assert_eq!(ev("count_roots(tan(z), [z, 1 - im/2, 2 + im/2])"), "0");
+    assert_eq!(ev("count_roots(tan(z), [z, 3 - im/2, 4 + im/2])"), "1");
+    // a zero on the boundary, a function that is not analytic: no count
     assert!(ev("count_roots(1/(z^2 + 4) - 1/5, [z, -1 - im/2, 1 + im/2])").starts_with("count_roots("));
     assert!(ev("count_roots(abs(z) - 1, [z, -2 - 2im, 2 + 2im])").starts_with("count_roots("));
     // analytic on the rectangle although tan has poles elsewhere: atan(2) = 1.107... lies outside
@@ -94,8 +96,10 @@ fn intervals() {
     assert_eq!(ev("count_roots(x^3*sin(x), [x, 0, 10])"), "7");
     assert_eq!(ev("count_roots(sin(x), [x, -pi, pi])"), "3");
     assert_eq!(ev("count_roots(sin(x)^2, [x, 0, 3])"), "2");
-    // a double root inside the interval is not proved: no count
-    assert!(ev("count_roots(sin(x)^2, [x, -1, 1])").starts_with("count_roots("));
+    // a double root at an integer inside the interval, where the function is exactly 0, is counted twice; one at
+    // a point that is not exact (pi) is not proved: no count
+    assert_eq!(ev("count_roots(sin(x)^2, [x, -1, 1])"), "2");
+    assert!(ev("count_roots(sin(x)^2, [x, -4, 4])").starts_with("count_roots("));
     // outside the real domain on part of the interval: no count
     assert!(ev("count_roots(sqrt(x) - 1/2, [x, -1, 1])").starts_with("count_roots("));
 }

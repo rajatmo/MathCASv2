@@ -173,10 +173,12 @@ fn residues_at_root_objects_and_root_contagion() {
     // gamma(x^3 - x/3) in |x| <= 1: poles at u = 0 (x = 0, +-1/sqrt 3) and u = -1 (two complex roots of
     // 3 x^3 - x + 3); the residue sum times 2 pi i equals the contour integral over the unit circle
     let s = "{ f = gamma(x^3 - x / 3); pp = function_poles([f, abs(x) <= 1], x); r = root_reduce(2 * pi * im * total(map(&(residue(f, [x, &1[1]])), pp))); chop(n_integrate(rewrite(f, x -> exp(im * t)) * d(exp(im * t), t), [t, 0, 2 * pi]) - r) }";
-    // the orders of these poles came from the growth of |f| near them (no limit in closed form): the poles stay
-    // unevaluated, and so does the residue sum
-    assert_eq!(ev("function_poles([gamma(x^3 - x / 3), abs(x) <= 1], x)"), "function_poles([gamma((-1/3)*x + x^3), abs(x) <= 1], x)");
-    let _ = s;
+    // the orders are the multiplicities of the roots of u = -k, the points are proved inside the disc
+    assert_eq!(
+        ev("function_poles([gamma(x^3 - x / 3), abs(x) <= 1], x)"),
+        "[[0, 1], [(-1/3)*3^(1/2), 1], [(1/3)*3^(1/2), 1], [root(&(3 - &1 + 3*&1^3), 2), 1], [root(&(3 - &1 + 3*&1^3), 3), 1]]"
+    );
+    assert_eq!(ev(s), "0");
     // a root object with exact coefficients joins machine arithmetic like sqrt(2) does
     assert_eq!(ev("1.0 + root(&(&1^3 - 2), 1)"), ev("1.0 + 2^(1/3)"));
 }

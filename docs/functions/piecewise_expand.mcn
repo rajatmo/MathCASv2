@@ -123,7 +123,7 @@ f = max(x, 1 - x, x^2 - 3); g = piecewise_expand(f); [rewrite(f - g, x -> -3), r
 #% cell
 [piecewise_expand(x), piecewise_expand(sign(x)), piecewise_expand(frac(x), 0 < x and x < 2), piecewise_expand(mod(x, 2), 0 < x and x < 5)]
 #% output
-#= [x, sign(x), frac(x), mod(x, 2)]
+#= [x, piecewise([[-1, x < 0], [1, x > 0]], 0), frac(x), piecewise([[x, x < 2], [-2 + x, 2 <= x and x < 4]], -4 + x)]
 
 #% text
 # Without a condition `floor` is not cut (the interval of `x` is unknown):

@@ -1495,8 +1495,11 @@ fn cv_convolve(f, g, x, y) = {
   }
 }
 
+# (the piecewise route gives open pieces, which leave out the breaks: the unit functions go by the integral, whose
+# answer has their values there)
+fn calc_cv_unit(f) = not free_of(f, unit_box) or not free_of(f, unit_triangle)
 fn calc_convolve(f, g, xs, ys, gc) = {
-  let pw = if not is_list(xs) and not is_list(ys) and gc === automatic then cv_convolve(if head(f) === piecewise then f else piecewise_expand(f), if head(g) === piecewise then g else piecewise_expand(g), xs, ys) else null
+  let pw = if not is_list(xs) and not is_list(ys) and gc === automatic and not calc_cv_unit(f) and not calc_cv_unit(g) then cv_convolve(if head(f) === piecewise then f else piecewise_expand(f), if head(g) === piecewise then g else piecewise_expand(g), xs, ys) else null
   if not (pw === null) then pw else calc_convolve2(f, g, xs, ys, gc)
 }
 fn calc_convolve2(f, g, xs, ys, gc) = {

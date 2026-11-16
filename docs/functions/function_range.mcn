@@ -124,7 +124,7 @@ map(t => -1/2 <= t/(1 + t^2) and t/(1 + t^2) <= 1/2, [-10, -1, 0, 0.3, 2, 50])
 #% cell
 function_range(floor(x), x, y)
 #% output
-#= function_range(floor(x), x, y)
+#= element(y, integers)
 
 #% section
 # See also

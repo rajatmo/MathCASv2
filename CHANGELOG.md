@@ -35,6 +35,29 @@ doing.
 **Interrupts.** Drawing a picture honours an interrupt within a quarter of a second (sampling, meshing and
 writing the picture), and so does `prime_pi` of a large argument.
 
+**Wrong answers corrected.** Found by testing exact and proved answers against high-precision numbers:
+`acot`, `fractional_part` and `mod` of an interval across a jump gave too small an image (they stay unevaluated);
+a limit could take a constant that is zero for its leading term; `series` of `sawtooth_wave` and `square_wave`
+at a jump gave one side only; `function_monotonicity` and `function_convexity` answered across the gaps of a
+domain of several pieces (`tan` on `x > 0`); `hypergeometric_1f1(-2, -2, z)`; `legendre_p` of integer order at
+high precision; Laguerre, Jacobi, Gegenbauer and Hermite polynomials at a degree given as a machine number;
+`mittag_leffler_e` with integer parameters; the digits claimed by a numerical derivative. In the language: a
+failure assigned to a part of a list is held by the list, an assignment never stores `break()`, `match` reads a
+failure as data, and `break()`/`continue()` work in `map` over an association and in `array` and `outer`.
+
+**Limits of memory and time.** `to_string` of a value too large to print gives `failure(limit, memory)`;
+`polynomial_gcd`, `together`, `cancel` and `expand` of very large inputs are faster and honour an interrupt;
+`n_dsolve`'s Taylor method stops at the end of its range. Function plots call an `evaluation_monitor`.
+
+**More answers.** Poles of a function composed with a polynomial (`gamma(x^3 - x/3)` in a disc); root counts of
+functions with poles and of Bessel, Airy and gamma functions; products that are q-Pochhammer symbols; expansions
+at infinity of the error, Fresnel, sine and cosine integral, Hankel, Whittaker and polylogarithm functions; many
+closed forms in `function_expand`; `elliptic_f` at a complex amplitude to any precision; `bessel_j` with an
+interval order; number theory under assumptions in `refine` (distinct primes are coprime, Fermat, Wilson);
+`piecewise_expand` of `ramp`, `unit_box`, `unit_triangle`, `floor`, `mod` and the other step functions; areas of
+Boolean combinations of plane regions; symbolic Cholesky factors; facts about primes, algebraic and complex
+numbers in conditions.
+
 **Also new.** Proved images of more special functions on wide intervals; `prime_pi` up to 2^60;
 hypergeometric functions (p+1)Fp beyond the unit circle; Lommel and Weber functions at exceptional orders;
 eigenvectors of matrices with parameters; membership of a symbolic point in convex regions, cylinders, cones
