@@ -114,6 +114,27 @@ eigenvectors of matrices with parameters; membership of a symbolic point in conv
 and tori; list plots of several data sets; `reduce` in one integer variable; balanced Hankel transforms; double
 sums along diagonals; Mathieu characteristic values at complex `q`.
 
+**Limits onto branch cuts and other corrections.** A limit taken onto a branch cut of `elliptic_e`, `elliptic_k`,
+`bessel_y`, `product_log`, `gamma_regularized` and nineteen more functions is the value on the side the limit
+comes from. `function_domain` knows that `heaviside_theta`, `round`, `floor`, `ceiling` and the real-only
+functions (`clip`, `ramp`, `unit_step`) are not defined or not continuous everywhere; `piecewise_expand` of
+`clip` with symbolic bounds; `sum_convergence` on the boundary circle and at poles in a parameter; a second
+definition `f(g(_))` replaces the first; `gather_by` with a list of functions nests; `solve` keeps solutions
+that contain arbitrary constants; `shortest` in `replace_list` tries the shortest match first; the display
+writes `a - b*im/c`.
+
+**Pictures on demand.** The kernel writes the picture files a front end asks for (`pictures` in an `eval`
+request) and the others when a `picture` request names them; a client that does not ask gets every file as
+before. 3D scenes are prepared and sorted faster; `map` over a long vector of machine numbers and `array`
+compile their body.
+
+**New constants and methods.** `glaisher` to any precision and `directed_infinity`; Boolean operations on mesh
+regions and measures of implicit regions; `find_instance` over integers, primes and sums of squares;
+`complete_integral` by characteristics; expansions at infinity of Struve, Kelvin, Mittag-Leffler and Lommel
+functions; spheroidal eigenvalues of any degree and order; extrema on the whole line and on half-lines with
+proved bounds on the tails; Hankel transforms of oscillating products, Casoratians, series coefficients with a
+symbolic index; `to_radicals` up to degree 32.
+
 **Android.** Screens fade in, the sheet and the bars at the bottom slide, and a page that is scrolled runs on when
 the finger is lifted. A long press on a plot opens the share sheet with it; a shared plot is a sharp picture
 (1600 pixels wide) whatever its size on the page. Interface text is a little larger, and plots made in the app
