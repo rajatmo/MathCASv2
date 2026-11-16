@@ -100,7 +100,7 @@ integrate(x^x, [x, 0, 1])
 #% cell
 n_integrate(x^x, [x, 0, 1])
 #% output
-#= 0.7834305107121345
+#= 0.7834305107121347
 
 #% section
 # Integral transforms

@@ -110,7 +110,7 @@ v = from_continued_fraction(continued_fraction(sqrt(13)))
 #% cell
 continued_fraction((1 + sqrt(5))/2)
 #% output
-#= continued_fraction((1/2)*(1 + 5^(1/2)))
+#= [[1]]
 
 #% section
 # See also

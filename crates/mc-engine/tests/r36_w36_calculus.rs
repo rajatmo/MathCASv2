@@ -238,7 +238,7 @@ fn convolution_of_piecewise_polynomials_and_series_equations() {
     let src = "f1 = rewrite(convolve(unit_box(x), unit_box(x), x, y), y -> x); f2 = rewrite(convolve(f1, f1, x, y), y -> x); \
                max(map(v => abs(n(rewrite(f2, x -> v)) - n((2 - abs(v))^3/6 - 4*(1 - abs(v))^3/6*(if abs(v) < 1 then 1 else 0))*(if abs(v) < 2 then 1 else 0)), [-1.7, -0.6, 0.2, 0.9, 1.4])) < 10^-12";
     assert_eq!(ev(src), "true");
-    assert_eq!(ev("convolve(pdf(uniform_distribution([0, 1]), x), pdf(uniform_distribution([0, 1]), x), x, y)"), "piecewise([[y, 0 < y and y < 1], [2 - y, 1 < y and y < 2]], 0)");
+    assert_eq!(ev("convolve(pdf(uniform_distribution([0, 1]), x), pdf(uniform_distribution([0, 1]), x), x, y)"), "piecewise([[y, 0 < y and y <= 1], [2 - y, 1 < y and y <= 2]], 0)");
     assert_eq!(ev("logical_expand(series(f(x)^2, x, 0, 2) == 2 + x)"), "-2 + f(0)^2 == 0 and -1 + 2*f(0)*f'(0) == 0 and f(0)*f''(0) + f'(0)^2 == 0");
 }
 

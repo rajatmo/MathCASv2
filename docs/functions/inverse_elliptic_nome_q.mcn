@@ -24,7 +24,7 @@
 #% cell
 inverse_elliptic_nome_q(0.1)
 #% output
-#= 0.8024032982175758
+#= 0.8024032982175763
 
 #% cell
 inverse_elliptic_nome_q(0)
@@ -34,7 +34,7 @@ inverse_elliptic_nome_q(0)
 #% cell
 inverse_elliptic_nome_q(0.5)
 #% output
-#= 0.99998952213731
+#= 0.9999895221373104
 
 #% subsection
 # Properties and relations
@@ -45,7 +45,7 @@ inverse_elliptic_nome_q(0.5)
 #% cell
 elliptic_nome_q(inverse_elliptic_nome_q(0.2))
 #% output
-#= 0.20000000000000032
+#= 0.2000000000000001
 
 #% section
 # See also

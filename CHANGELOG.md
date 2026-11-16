@@ -45,7 +45,22 @@ high precision; Laguerre, Jacobi, Gegenbauer and Hermite polynomials at a degree
 failure assigned to a part of a list is held by the list, an assignment never stores `break()`, `match` reads a
 failure as data, and `break()`/`continue()` work in `map` over an association and in `array` and `outer`.
 
-**Limits of memory and time.** `to_string` of a value too large to print gives `failure(limit, memory)`;
+More of the same kind, from checking numerical and exact answers independently: `n_integrate` lost the mass
+at a singular end that is not 0 (`(1 - x)^(-2/3)` on 0 to 1 gave 2.9999879 as converged); `find_root` at high
+precision could claim digits it did not have; `sum(x^k, [k, -inf, inf])` gave 0; `simplify` gave 0 for
+`gamma(x + 1)/gamma(x) - sqrt(x^2)`; the series of `asinh(1/x)` for negative `x`; `series` of the Hankel
+functions at 0. Assignments to a span, to several positions or to a column (`l[2:4] = 0`, `m[all, 2] = v`) did
+nothing; they set every selected part, and a position outside the list is a failure.
+
+**Sums carry their conditions.** An infinite sum or product with a parameter gives a `conditional_expression`
+with its condition of convergence (`sum(p^k/k, [k, 1, inf])` holds for `abs(p) < 1` and at `p == -1`);
+`generate_conditions: false` gives the value alone, and a condition that the assumptions imply is dropped.
+
+**Notebook format version.** The first line of a `.mcn` file names the format version. A file of a newer minor
+version opens with a warning; one of a newer major version is refused with a message that says so.
+
+**Limits of memory and time.** `simplify`, `factor` and the other functions that walk a term visit a shared
+subterm once, so a deeply nested value with shared parts no longer takes exponential time. `to_string` of a value too large to print gives `failure(limit, memory)`;
 `polynomial_gcd`, `together`, `cancel` and `expand` of very large inputs are faster and honour an interrupt;
 `n_dsolve`'s Taylor method stops at the end of its range. Function plots call an `evaluation_monitor`.
 
@@ -56,7 +71,12 @@ closed forms in `function_expand`; `elliptic_f` at a complex amplitude to any pr
 interval order; number theory under assumptions in `refine` (distinct primes are coprime, Fermat, Wilson);
 `piecewise_expand` of `ramp`, `unit_box`, `unit_triangle`, `floor`, `mod` and the other step functions; areas of
 Boolean combinations of plane regions; symbolic Cholesky factors; facts about primes, algebraic and complex
-numbers in conditions.
+numbers in conditions. Heun functions at singular points; Ferrers functions of the second kind with an order;
+Zernike functions and spherical harmonics off the integers; centered intervals with complex parts for the
+Fresnel, Hankel, gamma and zeta functions; Bessel functions of half-integer order in elementary functions;
+recurrences solved by products over several steps and by the recurrences of orthogonal polynomials and Bessel
+functions; sums of two, four and eight squares as divisor sums; images of the principal branches of the inverse
+functions; series at the singular points of `acsch`, `asech` and `acoth`.
 
 **Also new.** Proved images of more special functions on wide intervals; `prime_pi` up to 2^60;
 hypergeometric functions (p+1)Fp beyond the unit circle; Lommel and Weber functions at exceptional orders;

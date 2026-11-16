@@ -56,7 +56,7 @@ modular_lambda(0.3 + 0.8*im) - modular_lambda(2.3 + 0.8*im)
 #% cell
 modular_lambda(1.0*im) - inverse_elliptic_nome_q(exp(-pi*1.0))
 #% output
-#= -2.220446049250313e-16 + 0.0im
+#= -1.1102230246251565e-16 + 0.0im
 
 #% section
 # See also

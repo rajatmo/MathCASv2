@@ -257,7 +257,7 @@ cases	core	Lists	cases(xs, p): the elements matching the pattern p; cases(xs, p 
 count	core	Lists	count(xs, p): the number of elements matching the pattern p; count(x, p, levels): of the parts at levels
 sort	core	Lists	sort(xs): the elements in canonical order; sort(xs, by): ordered by the predicate by(a, b)
 ordered	core	Lists	ordered(xs), ordered(xs, by): whether the elements are in canonical order (or by holds for neighbours)
-sort_by	core	Lists	sort_by(xs, f): the elements ordered by the canonical order of f(x), stably
+sort_by	core	Lists	sort_by(xs, f): the elements ordered by the canonical order of f(x), equal keys by the canonical order of the elements
 ordering	core	Lists	ordering(xs): the positions of the elements in sorted order; ordering(xs, n): the first n (last -n)
 max_by	core	Lists	max_by(xs, f): the first element with the largest f(x) in the canonical order
 min_by	core	Lists	min_by(xs, f): the first element with the smallest f(x) in the canonical order
