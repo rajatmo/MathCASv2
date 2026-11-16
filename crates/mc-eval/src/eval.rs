@@ -1632,12 +1632,21 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// A call whose last arguments are two or more `options(...)` terms: the call with them merged into one, in
     /// order (a later value of the same name wins where options are read). `None` otherwise.
     pub(crate) fn merge_options(&self, head: T<'h>, vals: &[T<'h>]) -> Option<T<'h>> {
+        if head == self.sym(self.k.names.scopes.options) {
+            return None;
+        }
+        self.merged_options(vals).map(|args| self.heap.app(head, &args))
+    }
+
+    /// The arguments `vals` with their trailing `options(...)` terms (two or more) merged into one, as
+    /// [`Self::merge_options`] does for a call; `None` when fewer than two end the list.
+    pub(crate) fn merged_options(&self, vals: &[T<'h>]) -> Option<Vec<T<'h>>> {
         let h = self.heap;
         let opts = self.sym(self.k.names.scopes.options);
         // a packed array is never an option list: its head is not read (viewing it would unpack it)
         let is_opts = |t: &T<'h>| h.packed(*t).is_none() && matches!(h.view(*t), View::App { head, .. } if head == opts);
         let n = vals.iter().rev().take_while(|t| is_opts(t)).count();
-        if n < 2 || head == opts {
+        if n < 2 {
             return None;
         }
         let first = vals.len() - n;
@@ -1661,7 +1670,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
         let mut args = vals[..first].to_vec();
         args.push(h.app(opts, &rules));
-        Some(h.app(head, &args))
+        Some(args)
     }
 
     pub(crate) fn maps_associations(&self, head: T<'h>, vals: &[T<'h>]) -> bool {

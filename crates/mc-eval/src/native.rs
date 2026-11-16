@@ -180,6 +180,12 @@ impl<'h> NativeCx<'_, '_, 'h> {
     pub fn fuel_spent(&self) -> u64 {
         self.cx.fuel + (self.cx.ops + mc_api::work::pending_ops()) / mc_api::work::OPS_PER_TICK
     }
+    /// `args` with the `options(...)` terms that end the list merged into one (later rules of a name replace earlier
+    /// ones), as the evaluator does for the evaluated arguments of a call; `None` when fewer than two end it. For a
+    /// native whose arguments are held and evaluated by itself.
+    pub fn merged_options(&self, args: &[T<'h>]) -> Option<Vec<T<'h>>> {
+        self.ev.merged_options(args)
+    }
     /// Evaluate `t` on this task: its reads enter the caller's read set.
     pub fn eval(&mut self, t: T<'h>) -> Res<T<'h>> {
         // an interrupt (or a limit) already requested: a native that swallowed the abort of an earlier step and goes on

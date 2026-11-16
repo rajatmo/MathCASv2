@@ -80,15 +80,24 @@ fn count_of<'h>(h: &'h Heap, k: Option<&T<'h>>) -> Option<usize> {
     }
 }
 
-/// The conjuncts of a condition (a list of conditions is their conjunction).
+/// The conjuncts of a condition (a list of conditions is their conjunction), each once: a shared subterm is read
+/// once, so a condition that is a graph of shared lists ends.
 fn conjuncts<'h>(fr: &Front<'h>, c: T<'h>) -> Vec<T<'h>> {
-    if let Some(items) = fr.list(c) {
-        return items.iter().flat_map(|&t| conjuncts(fr, t)).collect();
+    fn walk<'h>(fr: &Front<'h>, c: T<'h>, seen: &mut std::collections::HashSet<T<'h>>, out: &mut Vec<T<'h>>) {
+        if !seen.insert(c) {
+            return;
+        }
+        if let Some(items) = fr.list(c) {
+            return items.iter().for_each(|&t| walk(fr, t, seen, out));
+        }
+        match fr.head(c) {
+            Some((n, args)) if n == "and" => args.iter().for_each(|&t| walk(fr, t, seen, out)),
+            _ => out.push(c),
+        }
     }
-    match fr.head(c) {
-        Some((n, args)) if n == "and" => args.iter().flat_map(|&t| conjuncts(fr, t)).collect(),
-        _ => vec![c],
-    }
+    let mut out = vec![];
+    walk(fr, c, &mut Default::default(), &mut out);
+    out
 }
 
 /// `find_instance` by the methods of this module; `None` when none applies or none finds the points.

@@ -115,6 +115,10 @@ fn localize<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<(Vec<T<'h>
     for &(from, to) in &renames {
         out[0] = replace_sym(h, out[0], from, to, 0);
     }
+    // stored option lists next to other options (`plot(f, r, opts, k: v)`), merged as for a strict call
+    if let Some(merged) = cx.merged_options(&out) {
+        out = merged;
+    }
     Ok((out, !renames.is_empty()))
 }
 

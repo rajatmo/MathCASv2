@@ -86,6 +86,6 @@ fn higher_degrees_and_algebraic_numbers_in_radicals() {
     assert!(!v.contains("root(") && !v.contains("algebraic_number"), "{v}");
     let direct = "1 + 2*root(&(&1^3 - 11*&1 + 3), 1) + 3*root(&(&1^3 - 11*&1 + 3), 1)^2";
     assert_eq!(ev(&format!("abs(n(to_radicals({a}), 30) - n({direct}, 30)) < 10^-25")), "true");
-    assert_eq!(ev("to_radicals(root(&(&1^7 - 3*&1 + 1), 2))"), "root(&(1 - 3*&1 + &1^7), 2)");
+    assert_eq!(ev("to_radicals(root(&(&1^7 - 3*&1 + 1), 2))"), "root(&(1 + -3*&1 + &1^7), 2)");
     assert!(t0.elapsed() < std::time::Duration::from_secs(60), "{:?}", t0.elapsed());
 }

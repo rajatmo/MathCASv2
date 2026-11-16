@@ -376,6 +376,14 @@ const VECTOR_AS_NUMBER: &str =
     "a vector where a number is expected (an untyped parameter is a vector of machine numbers; arithmetic on vectors is not compiled)";
 
 impl Val {
+    /// The number of values inside this one, itself included.
+    fn size(&self) -> usize {
+        match self {
+            Val::L(items) => items.iter().fold(1usize, |n, v| n.saturating_add(v.size())),
+            _ => 1,
+        }
+    }
+
     fn shape(&self) -> Shape {
         match self {
             Val::S(_, t) => Shape::Scalar(*t),
@@ -921,6 +929,10 @@ impl<'h> Fe<'h, '_> {
                 match self.prims.get(&s).copied() {
                     Some(Prim::List) => {
                         let items = args.iter().map(|&a| self.value(a)).collect::<Res<Vec<_>>>()?;
+                        // a list of shared lists holds each value once per place it stands in: bounded like the nodes
+                        if items.iter().fold(0usize, |n, v| n.saturating_add(v.size())) > MAX_NODES {
+                            return Err("the function is too large (with what it inlines)".into());
+                        }
                         if items.iter().any(|v| matches!(v.shape(), Shape::Vector(_))) {
                             return Err("a list of vectors (a matrix does not compile)".into());
                         }

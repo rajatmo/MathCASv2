@@ -290,3 +290,33 @@ fn simplify_and_factor_of_shared_terms_end_promptly() {
     let (v, since) = stopped_at(&mut e, "simplify(nest(x => [x, x], 1, 22)) == nest(x => [x, x], 1, 22)", Duration::from_secs(20));
     assert_eq!((v.as_str(), since), ("true", None));
 }
+
+/// A function that is evaluated again and again under a stop (a plot sampling a condition that is a list of shared
+/// lists) reaches the point where the numeric compiler is asked for the body: it declines the body, as too large,
+/// at once and each call still ends within 300 ms of the stop.
+#[test]
+fn repeated_calls_on_shared_lists_reach_the_compiler_and_end_promptly() {
+    let _one = serial();
+    let allowed = Duration::from_secs_f64(0.3 * time_factor());
+    let mut e = CoreEngine::with_config(EngineConfig { threads: 1, ..EngineConfig::default() });
+    for round in 0..40 {
+        let src = "dd = nest(x => [x, x], 1, 60); number_line_plot(dd, x)";
+        let (v, since, cpu) = stopped_with_cpu(&mut e, src, Duration::from_millis(60));
+        assert!(!v.starts_with("PANIC") && !v.contains("failure(internal"), "round {round}: {v}");
+        assert!(since.is_none_or(|d| !late(d, cpu, allowed, 1)), "round {round}: ended {since:?} after the stop, processor {cpu:?}");
+    }
+}
+
+/// A table over a very long range ends within 300 ms of a stop: the values of the range are read and copied in
+/// blocks that poll for it.
+#[test]
+fn tables_over_long_ranges_end_promptly() {
+    let _one = serial();
+    let allowed = Duration::from_secs_f64(0.3 * time_factor());
+    let mut e = CoreEngine::with_config(EngineConfig { threads: 1, ..EngineConfig::default() });
+    for src in ["table(k^2, k, range(1, 10^8))", "table(k^2, [k, 1, 10^8])"] {
+        let (v, since, cpu) = stopped_with_cpu(&mut e, src, Duration::from_millis(100));
+        assert!(!v.starts_with("PANIC") && !v.contains("failure(internal"), "{src}: {v}");
+        assert!(since.is_none_or(|d| !late(d, cpu, allowed, 1)), "{src}: ended {since:?} after the stop, processor {cpu:?}");
+    }
+}

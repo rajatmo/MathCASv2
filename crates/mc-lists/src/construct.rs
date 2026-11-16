@@ -506,6 +506,9 @@ fn closed_range(h: &Heap, t: T<'_>, depth: usize) -> bool {
     }
 }
 
+/// Elements read or copied between two polls of the interrupt.
+const POLL_BLOCK: usize = 1 << 18;
+
 /// `table(e, k1, r1, ..., kn, rn)` with closed ranges (`closed_range`) of machine numbers, each iterator's values
 /// of one kind, and a body the numeric compiler takes (`mc_jit::compile_expr`, which gives exactly the
 /// interpreter's value or declines): the values of the body compiled once in all the iterators, the result the
@@ -529,10 +532,21 @@ fn compiled_table<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Opti
     let mut total: usize = 1;
     for &(_, r) in &params {
         let v = cx.eval(r)?;
-        let xs: Vec<T<'h>> = match (cx.as_list(v), h.view(v)) {
-            (Some(xs), _) => xs.to_vec(),
+        // the values are read and copied in blocks, each ending at the interrupt
+        cx.poll()?;
+        let counted: Vec<T<'h>>;
+        let xs: &[T<'h>] = match (cx.as_list(v), h.view(v)) {
+            (Some(xs), _) => xs,
             // a count n: the values 1, ..., n
-            (None, View::Int(n)) if n >= 1 && n as u128 <= MAX_CELLS => (1..=n).map(|i| h.int(i)).collect(),
+            (None, View::Int(n)) if n >= 1 && n as u128 <= MAX_CELLS => {
+                let mut all = Vec::with_capacity(n as usize);
+                for lo in (1..=n).step_by(POLL_BLOCK) {
+                    cx.poll()?;
+                    all.extend((lo..=n.min(lo + POLL_BLOCK as i64 - 1)).map(|i| h.int(i)));
+                }
+                counted = all;
+                &counted
+            }
             _ => return Ok(None),
         };
         if xs.is_empty() {
@@ -540,11 +554,31 @@ fn compiled_table<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Opti
         }
         let (words, arg) = match h.view(xs[0]) {
             View::Real(_) => {
-                let w: Option<Vec<u64>> = xs.iter().map(|&x| if let View::Real(r) = h.view(x) { Some(r.to_bits()) } else { None }).collect();
+                let mut w: Option<Vec<u64>> = Some(Vec::with_capacity(xs.len()));
+                for block in xs.chunks(POLL_BLOCK) {
+                    cx.poll()?;
+                    w = w.and_then(|mut w| {
+                        for &x in block {
+                            let View::Real(r) = h.view(x) else { return None };
+                            w.push(r.to_bits());
+                        }
+                        Some(w)
+                    });
+                }
                 (w, mc_jit::Arg::Real)
             }
             View::Int(_) => {
-                let w: Option<Vec<u64>> = xs.iter().map(|&x| if let View::Int(i) = h.view(x) { Some(i as u64) } else { None }).collect();
+                let mut w: Option<Vec<u64>> = Some(Vec::with_capacity(xs.len()));
+                for block in xs.chunks(POLL_BLOCK) {
+                    cx.poll()?;
+                    w = w.and_then(|mut w| {
+                        for &x in block {
+                            let View::Int(i) = h.view(x) else { return None };
+                            w.push(i as u64);
+                        }
+                        Some(w)
+                    });
+                }
                 (w, mc_jit::Arg::Int)
             }
             _ => return Ok(None),
