@@ -89,7 +89,9 @@ fn run_in<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, def: Def, f: T<'h>, 
     }
     let mut confirmed = false;
     let mut refuted = 0;
-    for round in 0..2 {
+    // without parameters the second round would repeat the first (and count its refutations twice)
+    let rounds = if params.is_empty() { 1 } else { 2 };
+    for round in 0..rounds {
         cx.tick(1)?;
         let mut rules = vec![];
         let mut total = 0.0;
@@ -230,15 +232,27 @@ fn mellin_points<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, strip: Option
     let mut out = vec![];
     if let Some(c) = strip {
         let c = apply(cx, b, "rewrite", &[c, rl])?;
+        // points at distance 1/2 or more from both edges first: near an edge the integrand has an algebraic
+        // singularity at 0 or a slow tail, where the quadrature's error estimate is unreliable
+        let mut inside = vec![];
+        let mut deep = vec![];
         for (n, d) in MELLIN_POINTS {
             cx.tick(1)?;
             let p = b.rat(n, d);
-            let cp = apply(cx, b, "rewrite", &[c, h.call(b.hd.list, &[h.call(h.sym(names::RULE), &[s, p])])])?;
-            if cx.is_true(cp) {
-                out.push(p);
-                if out.len() == 2 {
-                    break;
+            let mut holds = |q: T<'h>| -> Res<bool> {
+                let cp = apply(cx, b, "rewrite", &[c, h.call(b.hd.list, &[h.call(h.sym(names::RULE), &[s, q])])])?;
+                Ok(cx.is_true(cp))
+            };
+            if holds(p)? {
+                inside.push(p);
+                if holds(b.rat(2 * n - d, 2 * d))? && holds(b.rat(2 * n + d, 2 * d))? {
+                    deep.push(p);
                 }
+            }
+        }
+        for p in deep.into_iter().chain(inside) {
+            if out.len() < 2 && !out.contains(&p) {
+                out.push(p);
             }
         }
     }

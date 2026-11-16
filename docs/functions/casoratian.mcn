@@ -5,12 +5,19 @@
 
 #% text
 # `casoratian([f1, ..., fk], m)` gives the Casoratian: the determinant of the matrix with rows `fi(m + j)`, j = 0, ..., k - 1.
+# `casoratian(eq, y, m)` gives the Casoratian of a fundamental set of the linear homogeneous difference equation `eq` of order k.
 
 #% section
 # Details
 
 #% item
 # It is the discrete analogue of the Wronskian: a Casoratian that vanishes for every m shows that the sequences are linearly dependent.
+
+#% item
+# For an equation `a_k(m) y(m + k) + ... + a_0(m) y(m) == 0` the fundamental set is the one with the initial values `y_i(j) = kronecker_delta(i, j)`, j = 0, ..., k - 1, so the value at m = 0 is 1; by Abel's lemma `C(m + 1) = (-1)^k a_0(m)/a_k(m) C(m)`, and C is the product of these ratios. Another fundamental set has a constant multiple of it.
+
+#% item
+# The product is given in closed form for constant, rational, factorial and periodic (`mod(m, p)`) coefficients. When `a_0` or `a_k` vanishes at one of the first indices the call stays unevaluated.
 
 #% section
 # Examples
@@ -32,6 +39,24 @@ casoratian([m, m^2, m^3], m)
 casoratian([m^2, 3*m^2 + 5*m + 1, m^2 + 5*m + 1], m)
 #% output
 #= 0
+
+#% subsection
+# Scope
+
+#% cell
+casoratian(y(m + 2) == y(m + 1) + y(m), y, m)
+#% output
+#= (-1)^m
+
+#% cell
+casoratian(y(m + 2) - (m + 5)*y(m) == 0, y, m)
+#% output
+#= pochhammer(5, m)*(-1)^m
+
+#% cell
+casoratian(y(m + 2) - factorial(m)*y(m) == 0, y, m)
+#% output
+#= barnes_g(1 + m)*(-1)^m
 
 #% section
 # See also

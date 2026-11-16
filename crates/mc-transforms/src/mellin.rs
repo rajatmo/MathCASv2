@@ -238,8 +238,14 @@ fn mel<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, st: &mut State<'h>, f
         let g2 = cx.eval(b.mul(&[rest, b.pow(x, b.sub(s, b.one()))]))?;
         let inf = h.sym_term(h.sym("inf"));
         let (l, u2) = if sign(cx, b, k)? == Some(1) { (a, inf) } else { (b.zero(), a) };
-        if let Some(r) = super::definite(cx, b, g2, x, l, u2, false)? {
-            return Ok(Some(r));
+        // with its conditions: the region of convergence (re(s) > 0 for unit_step(a - x)) is the strip that the
+        // transforms built on the Mellin product read
+        if let Some(r) = super::definite(cx, b, g2, x, l, u2, true)? {
+            let (v, c) = super::conditional(b, r);
+            if let Some(c) = c {
+                st.cond = super::and(b, st.cond, Some(c));
+            }
+            return Ok(Some(v));
         }
         break;
     }
@@ -398,6 +404,10 @@ fn continued_at_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, st:
         }
         q = Some(qk);
     }
+    let q = match q {
+        Some(q) => Some(q),
+        None => oscillating_decay(cx, b, hsum, x)?,
+    };
     let Some(q) = q else { return Ok(None) };
     // M[x^a h](s) = M[h](s + a) on -a < re(s) < q - a
     let r = subst(cx, b, big, s, b.add(&[s, a]))?;
@@ -408,6 +418,43 @@ fn continued_at_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, st:
     st.checked = false;
     st.cond = super::and(b, st.cond, Some(cond));
     Ok(Some(b.mul(&[b.mul(consts), r])))
+}
+
+/// The decay order at infinity of `h = c + g` whose non-constant terms are multiples of `sin_integral(x)` and
+/// `cos_integral(x)` (with `h -> 0` there, checked by the caller): `sin_integral(x) - pi/2 = -f(x) cos(x) - g(x)
+/// sin(x)` and `cos_integral(x) = f(x) sin(x) - g(x) cos(x)` with the auxiliary functions `f(x) ~ 1/x`, `g(x) ~
+/// 1/x^2` (DLMF 6.2.17, 6.2.18, 6.12.3, 6.12.4), so `h = O(1/x)`: the order is 1. The limit of `x h` does not exist
+/// (it oscillates), which is why the search by limits finds nothing; the Mellin integral converges absolutely at
+/// infinity for `re(s) < 1` all the same.
+fn oscillating_decay<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, hsum: T<'h>, x: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let mut order: Option<T<'h>> = None;
+    for t in terms(b, hsum) {
+        if is_free(b, t, x) {
+            continue;
+        }
+        let dep: Vec<T<'h>> = factors(b, t).into_iter().filter(|&g| !is_free(b, g, x)).collect();
+        let [g] = dep.as_slice() else { return Ok(None) };
+        let Some((n, [u])) = call_of(b, *g) else { return Ok(None) };
+        if n != "sin_integral" && n != "cos_integral" {
+            return Ok(None);
+        }
+        // the argument c x^m with c > 0 and m > 0 numbers: the term is O(x^-m)
+        let fs = factors(b, *u);
+        let (dep_u, free_u): (Vec<T<'h>>, Vec<T<'h>>) = fs.iter().partition(|&&f| !is_free(b, f, x));
+        let [p] = dep_u.as_slice() else { return Ok(None) };
+        let Some(m) = power_of(cx, b, *p, x)? else { return Ok(None) };
+        let c = cx.eval(b.mul(&free_u))?;
+        let number = |t: T<'h>| matches!(h.view(t), View::Int(_) | View::Rational { .. });
+        if !number(m) || sign(cx, b, m)? != Some(1) || sign(cx, b, c)? != Some(1) {
+            return Ok(None);
+        }
+        order = Some(match order {
+            None => m,
+            Some(o) => cx.eval(b.call("min", &[o, m]))?,
+        });
+    }
+    Ok(order)
 }
 
 /// `M[g(log x) unit_step(x - 1)] = L[g](-s)` (`above`) and `M[g(log x) unit_step(1 - x)] = L[g(-u)](s)`, when `x`

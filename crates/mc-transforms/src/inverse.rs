@@ -24,7 +24,12 @@ use mc_eval::{NativeCx, Res};
 
 /// The table of the inverse Laplace transform (`s` the variable, `t` the result's; one-letter parameters).
 /// Sources: Abramowitz and Stegun 29.3 (algebraic forms 29.3.4-6 and 29.3.43-46, logarithms 29.3.105-109, Bessel
-/// functions 29.3.55-60, error functions 29.3.112-115).
+/// functions 29.3.55-60, error functions 29.3.112-115); `log(s + a)/s` from `L[E1(a t)] = log(1 + s/a)/s` (DLMF
+/// 6.2.1 under the integral), and `log(s)/(s - a)` by the shift; `s^(-+n/2) bessel_k(n, a sqrt(s))` from
+/// `integrate(t^(n - 1) exp(-s t - a^2/(4 t)), [t, 0, inf]) = 2 (a/(2 sqrt(s)))^n bessel_k(n, a sqrt(s))` (DLMF
+/// 10.32.10); the Legendre functions from their Laplace integrals (Erdelyi et al., Tables of Integral Transforms I,
+/// 4.16), `legendre_p` for -1 < n < 0, where the integrand is integrable at 0, and the function of the second kind
+/// of type 3 (real for s > 1; `legendre_q(n, s)` there is the type 2 value, complex).
 pub(crate) const TABLE: &str = r#"
 [s^n, t^(-n - 1)/gamma(-n)]
 [(s^2 + a)^(-1/2), bessel_j(0, a^(1/2)*t)]
@@ -45,6 +50,12 @@ pub(crate) const TABLE: &str = r#"
 [gamma(a, s)*s^(-a), t^(a - 1)*heaviside_theta(t - 1)]
 [bessel_k(0, a*s), (t^2 - a^2)^(-1/2)*heaviside_theta(t - a)]
 [exp(-a*s)*bessel_i(0, a*s), pi^(-1)*(t*(2*a - t))^(-1/2)*heaviside_theta(2*a - t)]
+[log(s)/(s - a), exp(a*t)*(log(a) - exp_integral_ei(-a*t)), a > 0]
+[log(s + a)/s, log(a) - exp_integral_ei(-a*t), a > 0]
+[s^(-n/2)*bessel_k(n, a*s^(1/2)), (1/2)*(2/a)^n*t^(n - 1)*exp(-a^2/(4*t))]
+[s^(n/2)*bessel_k(n, a*s^(1/2)), (1/2)*(a/2)^n*t^(-n - 1)*exp(-a^2/(4*t))]
+[legendre_q(n, 0, 3, s), (pi/(2*t))^(1/2)*bessel_i(n + 1/2, t), n > -1]
+[legendre_p(n, s), -sin(pi*n)/pi*(2/(pi*t))^(1/2)*bessel_k(n + 1/2, t), -1 < n and n < 0]
 "#;
 
 /// The inverse Laplace transform of `big` in `s` at `t`, or `None`.
@@ -144,6 +155,11 @@ fn inv<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, table: &Table<'h>, bi
             }
         }
     }
+    // (s + c)^(k/2) R(s), k odd and R rational: with u = s + c it is P(u)/sqrt(u), P = u^((k + 1)/2) R(u - c)
+    // rational; P in partial fractions gives terms u^-m (u + p)^-j/sqrt(u) of the table, and the shift exp(-c t)
+    if let Some(r) = half_power(cx, tc, table, &fs, big, s, t, depth)? {
+        return Ok(Some(r));
+    }
     // G(s)/s: the integral of g from 0 to t
     for (i, &g) in fs.iter().enumerate() {
         if args_of(b, g, b.hd.pow) != Some(&[s, b.int(-1)][..]) {
@@ -175,6 +191,59 @@ fn inv<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, table: &Table<'h>, bi
         }
     }
     Ok(None)
+}
+
+/// The rule for `(s + c)^(k/2) R(s)` of [`inv`]: `P = u^((k + 1)/2) R(u - c)` must be bounded at infinity (a
+/// positive power `u^(m - 1/2)` is not the transform of a function), and the rule applies only when it changes
+/// the form (`k != -1` or `c != 0`), so that its own terms do not come back to it.
+#[allow(clippy::too_many_arguments)]
+fn half_power<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    tc: &Cx<'_, 'h>,
+    table: &Table<'h>,
+    fs: &[T<'h>],
+    big: T<'h>,
+    s: T<'h>,
+    t: T<'h>,
+    depth: u32,
+) -> Res<Option<T<'h>>> {
+    let b = tc.b;
+    let h = b.heap();
+    let mut found = None;
+    for (i, &g) in fs.iter().enumerate() {
+        let Some(&[base, e]) = args_of(b, g, b.hd.pow) else { continue };
+        let View::Rational { .. } = h.view(e) else { continue };
+        let twice = cx.eval(b.mul(&[b.int(2), e]))?;
+        let View::Int(k) = h.view(twice) else { continue };
+        let Some((l, c0)) = linear(cx, b, base, s)? else { continue };
+        if l != b.one() || found.is_some() {
+            return Ok(None);
+        }
+        found = Some((i, k, c0));
+    }
+    let Some((i, k, c)) = found else { return Ok(None) };
+    let mut rest: Vec<T<'h>> = fs.to_vec();
+    rest.remove(i);
+    let rest = cx.eval(b.mul(&rest))?;
+    if !rational_in(b, rest, s) || (k == -1 && b.is_zero(c)) {
+        return Ok(None);
+    }
+    let _ = big;
+    let u = h.sym_term(h.sym("transform·u"));
+    let r_shift = subst(cx, b, rest, s, b.sub(u, c))?;
+    let p = cx.eval(b.mul(&[b.pow(u, b.int((k + 1) / 2)), r_shift]))?;
+    let p = apply(cx, b, "together", &[p])?;
+    let inf = h.sym_term(h.sym("inf"));
+    let at_inf = apply(cx, b, "limit", &[b.div(p, u), h.call(h.sym(names::RULE), &[u, inf])])?;
+    if !b.is_zero(at_inf) {
+        return Ok(None);
+    }
+    let parts = apply(cx, b, "apart", &[p, u])?;
+    let g = cx.eval(b.mul(&[parts, b.pow(u, b.rat(-1, 2))]))?;
+    let g = apply(cx, b, "expand", &[g])?;
+    let g = subst(cx, b, g, u, s)?;
+    let Some(r) = inv(cx, tc, table, g, s, t, depth + 1)? else { return Ok(None) };
+    Ok(Some(b.mul(&[b.call("exp", &[b.neg(b.mul(&[c, t]))]), r])))
 }
 
 fn opts_no_conditions<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>) -> T<'h> {

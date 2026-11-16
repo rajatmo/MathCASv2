@@ -12,6 +12,9 @@
 #% item
 # The solution comes from the structure-preserving doubling iteration; the result is a machine-number matrix.
 
+#% item
+# `discrete_riccati_solve([a, b], [q, r, p])` solves the equation with the cross weight p, `a^H . x . a - x - (a^H . x . b + p) . (r + b^H . x . b)^-1 . (b^H . x . a + p^H) + q == 0`, as the one without it for `a - b . r^-1 . p^H` and `q - p . r^-1 . p^H`.
+
 #% section
 # Examples
 
@@ -27,6 +30,11 @@ discrete_riccati_solve([[[0, 2], [1, 0]], [[0], [1]]], [[[1, 0], [0, 4/9]], [[1]
 discrete_riccati_solve([[[-1, 0.5], [-0.5, -2]], [[1], [0.5]]], [[[1, 0], [0, 2]], [[1]]])
 #% output
 #= [[1.9250566939144111, 2.610775872464342], [2.610775872464342, 31.23034923871982]]
+
+#% cell
+discrete_riccati_solve([[[0, 2], [1, 0]], [[0], [1]]], [[[1, 0], [0, 4/9]], [[1]], [[0.1], [0]]])
+#% output
+#= [[1.701839634091653, 0.0], [0.0, 7.251802980811058]]
 
 #% section
 # See also

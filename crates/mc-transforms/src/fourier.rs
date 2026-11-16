@@ -46,7 +46,10 @@ pub(crate) const TABLE: &str = r#"
 "#;
 
 /// The sine transform's table (`t` the variable, `s` the transform's, for `s > 0`). Sources: Erdélyi et al. I,
-/// 2.2-2.4; Oberhettinger, *Tables of Fourier Transforms and Fourier Transforms of Distributions* (1990), part I.
+/// 2.2-2.4; Oberhettinger, *Tables of Fourier Transforms and Fourier Transforms of Distributions* (1990), part I;
+/// `1/(t + a)` (and its cosine transform) by the auxiliary functions f and g of the sine and cosine integrals,
+/// `f(z) = integrate(sin(t)/(t + z), [t, 0, inf])`, `g(z) = integrate(cos(t)/(t + z), [t, 0, inf])` for `|ph z| <
+/// pi` (DLMF sections 6.2 and 6.7).
 pub(crate) const SIN_TABLE: &str = r#"
 [t^(-1), (pi/2)^(1/2)*sign(s)]
 [unit_step(t), (2/pi)^(1/2)/s]
@@ -57,6 +60,7 @@ pub(crate) const SIN_TABLE: &str = r#"
 [log(t)/t, -(pi/2)^(1/2)*(euler_gamma + log(s))]
 [log(t), -(2/pi)^(1/2)*(euler_gamma + log(s))/s]
 [log(1 + a*t^2)/t, -(2*pi)^(1/2)*exp_integral_ei(-s/a^(1/2))]
+[(t + a)^(-1), (2/pi)^(1/2)*(cos_integral(a*s)*sin(a*s) + (pi/2 - sin_integral(a*s))*cos(a*s)), possibly(abs(arg(a)) < pi)]
 "#;
 
 /// The cosine transform's table (for `s > 0`).
@@ -71,6 +75,7 @@ pub(crate) const COS_TABLE: &str = r#"
 [log(t)*t^(-1/2), -(1/2)*s^(-1/2)*(2*euler_gamma + pi + log(16) + 2*log(s))]
 [t^2, -(2*pi)^(1/2)*derivative(2)(dirac_delta)(s)]
 [log(1 + a/t^2), (2*pi)^(1/2)*(1 - exp(-a^(1/2)*s))/s]
+[(t + a)^(-1), (2/pi)^(1/2)*(-cos_integral(a*s)*cos(a*s) + (pi/2 - sin_integral(a*s))*sin(a*s)), possibly(abs(arg(a)) < pi)]
 "#;
 
 /// The transform `kind` of `f` in `t` at `w`, or `None`.
@@ -542,12 +547,18 @@ fn sin_cos<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: Kind, sin: 
         let r = simplify_positive(cx, b, r, wpos)?;
         return Ok(Some(cx.eval(b.mul(&[root, r]))?));
     }
-    // g(t)/t for the sine transform: the integral of the cosine transform of g from 0 to w
+    // g(t)/t for the sine transform: the integral of the cosine transform of g from 0 to w (g = t f; a power t^-k,
+    // k >= 2, leaves t^(1 - k) in g, as for (exp(-t) - exp(-2 t))/t^2)
     if sin {
         let fs = factors(b, f);
-        if let Some(i) = fs.iter().position(|&g| args_of(b, g, b.hd.pow) == Some(&[t, b.int(-1)][..])) {
+        let neg_power = |g: T<'h>| match args_of(b, g, b.hd.pow) {
+            Some(&[base, e]) if base == t => matches!(h.view(e), View::Int(k) if k < 0),
+            _ => false,
+        };
+        if let Some(i) = fs.iter().position(|&g| neg_power(g)) {
             let mut rest = fs.clone();
-            rest.remove(i);
+            let tk = rest.remove(i);
+            rest.push(b.mul(&[tk, t]));
             let rest = cx.eval(b.mul(&rest))?;
             let u = h.sym_term(h.sym("transform·u"));
             let inner = Cx { b, stop: tc.stop, opts: super::Opts { conditions: false, strips: false, fourier: None }, depth: tc.depth + 1 };

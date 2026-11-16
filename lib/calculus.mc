@@ -116,6 +116,13 @@ rule alternating_factorial(m_) := {
 } when calc_count(m)
 rule alternating_factorial(m_) := e*pi*gamma_regularized(-m - 1, 1)/sin(pi*m) - cos(pi*m)*(1 + e*exp_integral_ei(-1)) when calc_inexact([m]) and re(m) < -1
 rule alternating_factorial(m_) := e*gamma(m + 2)*gamma(-m - 1, 1) - cos(pi*m)*(1 + e*exp_integral_ei(-1)) when calc_inexact([m])
+# an interval or a centered interval: the continuation evaluated in interval (ball) arithmetic, an enclosure of the
+# range; around(c, u): the value at c with the uncertainty |a'(c)| u propagated to first order, where e gamma(m +
+# 2) gamma(-m - 1, 1) = integrate(exp(-t) t^(m + 1)/(1 + t), [t, 0, inf]) for re(m) > -2 (the Borel sum of the
+# alternating tail), so a'(c) = pi sin(pi c) (1 + e exp_integral_ei(-1)) + integrate(exp(-t) t^(c + 1) log(t)/(1 +
+# t), [t, 0, inf])
+rule alternating_factorial(m_) := e*gamma(m + 2)*gamma(-m - 1, 1) - cos(pi*m)*(1 + e*exp_integral_ei(-1)) when head(m) === interval or head(m) === centered_interval
+rule alternating_factorial(m_) := around(alternating_factorial(m[1]), abs(n(pi*sin(pi*m[1])*(1 + e*exp_integral_ei(-1))) + n_integrate(exp(-calc_af_t)*calc_af_t^(m[1] + 1)*log(calc_af_t)/(1 + calc_af_t), [calc_af_t, 0, inf]))*m[2]) when head(m) === around and is_real(m[1]) and m[1] > -2
 
 # hyper_harmonic_number(r, m): the hyperharmonic number, H(0, m) = 1/m and H(r, m) = H(r - 1, 1) + ... +
 # H(r - 1, m), which is binomial(m + r - 1, r - 1) (H(m + r - 1) - H(r - 1)) and at inexact arguments
@@ -655,6 +662,61 @@ fn casoratian(fs, m) when is_list(fs) and length(fs) > 0 = {
   simplify(det(map(j => map(f => rewrite(f, m -> m + j), fs), range(0, k - 1))))
 }
 
+# casoratian(eq, y, n): the Casoratian of the fundamental set of the linear homogeneous difference equation eq of
+# order k (a_k(n) y(n + k) + ... + a_0(n) y(n) == 0) with the standard initial values y_i(j) = kronecker_delta(i,
+# j), j = 0..k - 1, so C(0) = 1. By Abel's lemma C(n + 1) = (-1)^k a_0(n)/a_k(n) C(n) (Elaydi, An Introduction to
+# Difference Equations, 3rd ed., 2005, Lemma 2.13), so C(n) is the product of (-1)^k a_0(j)/a_k(j) over j = 0..n -
+# 1. Another fundamental set has a constant multiple of it. The product is taken in closed form: factors free of j
+# as powers, gamma(j + c) and factorial(j + c) by the Barnes G-function (G(z + 1) = gamma(z) G(z), DLMF 5.17.1),
+# a factor periodic in j (n only inside mod(j, p), or f(j + p) = f(j) for p <= 12) as P^floor(n/p) times the partial
+# product over the last mod(n, p) values, the rest by product. Declines when a_0 or a_k vanishes at one of
+# j = 0..30 (the standard set is then not fundamental from 0), or the product has no closed form.
+fn calc_cas_eq(eq, y, n) = {
+  let e = expand(if head(eq) === equal then eq[1] - eq[2] else eq)
+  let us = unique(cases([e], y(u_) :> u, inf))
+  let sh = map(u => simplify(u - n), us)
+  if length(us) < 2 or not every(sh, t => is_integer(t)) then null else {
+    let lo = min(sh)
+    let k = max(sh) - lo
+    let cs = map(j => coefficient(e, y(n + lo + j)), range(0, k))
+    let lin = every(cs, c => free_of(c, y)) and simplify(e - calc_total(map(j => cs[j + 1]*y(n + lo + j), range(0, k)))) === 0
+    let a0 = rewrite(cs[1], n -> n - lo)
+    let ak = rewrite(cs[k + 1], n -> n - lo)
+    let bad = not lin or a0 === 0 or ak === 0 or some(range(0, 30), j => simplify(rewrite(a0, n -> j)) === 0 or simplify(rewrite(ak, n -> j)) === 0)
+    if bad then null else calc_cas_prod(simplify((-1)^k*a0/ak), n)
+  }
+}
+# the product of f(j) over j = 0..n - 1 (f given in n), or null
+fn calc_cas_prod(f, n) = {
+  let j = calc_cas_j
+  let fs = calc_factors(rewrite(f, n -> j))
+  let gam = g => (head(g) === gamma or head(g) === factorial) and is_integer(simplify(g[1] - j))
+  let gs = select(fs, g => gam(g))
+  let rest = product(select(fs, g => not gam(g)))
+  # factorial(j + c) = gamma(j + c + 1); the product of gamma(j + c) over j = 0..n - 1 is G(n + c)/G(c)
+  let gp = product(map(g => {
+    let c = simplify(g[1] - j) + (if head(g) === factorial then 1 else 0)
+    barnes_g(n + c)/barnes_g(c)
+  }, gs))
+  let rp = if free_of(rest, j) then rest^n else calc_cas_periodic(rest, j, n)
+  if rp === null or not free_of(rp, product) or not free_of(rp, j) or not free_of(gp, j) then null else simplify(rp*gp)
+}
+# a periodic f(j): its period p (mod(j, p) the only occurrence of j, or f(j + p) = f(j) for p <= 12) and the product
+# over j = 0..n - 1 as P^floor(n/p) times the partial product over the remaining mod(n, p) values; else product
+fn calc_cas_periodic(f, j, n) = {
+  let ms = unique(cases([f], mod(u_, m_) :> [u, m], inf))
+  let p1 = if length(ms) == 1 and ms[1][1] === j and is_integer(ms[1][2]) and ms[1][2] > 0 and free_of(rewrite(f, mod(j, ms[1][2]) -> calc_cas_r), j) then ms[1][2] else null
+  let p2 = if p1 === null and free_of(f, mod) then first(select(range(1, 12), p => simplify(rewrite(f, j -> j + p) - f) === 0), null) else p1
+  if p2 === null then product(f, [j, 0, n - 1]) else {
+    let vals = map(r => simplify(rewrite(f, j -> r)), range(0, p2 - 1))
+    let pp = simplify(product(vals))
+    let heads = map(r => product(take(vals, r)), range(0, p2 - 1))
+    let pieces = map(r => [heads[r + 1], mod(n, p2) == r], range(0, p2 - 2))
+    if pp === 0 then null else simplify(pp^floor(n/p2)*apply(piecewise, [pieces, heads[p2]]))
+  }
+}
+fn casoratian(eq, y, n) when not is_list(eq) and is_symbol(n) and not (calc_cas_eq(eq, y, n) === null) = calc_cas_eq(eq, y, n)
+
 # calc_implicit(eqs, ys, t): the derivatives of the dependent variables ys in t defined by the equations eqs (each
 # lhs == rhs): the solution of the linear system J y' = -F_t with J the Jacobian of F = lhs - rhs in ys
 fn calc_implicit(eqs, ys, t) = {
@@ -796,6 +858,7 @@ fn calc_sc_h2(h, x, k) = {
     let a = calc_sc_lin(h[3], x)
     product(map(p => pochhammer(p, k), h[1]))/product(map(q => pochhammer(q, k), h[2]))*a^k/factorial(k)
   }
+  else if hd === chebyshev_t or hd === cos then calc_sc_cheb(h, x, k)
   else if (hd === bessel_i or hd === bessel_j) and length(h) == 2 and is_integer(h[1]) and h[1] >= 0 and not (calc_sc_lin(h[2], x) === null) then {
     let a = calc_sc_lin(h[2], x)
     let nu = h[1]
@@ -812,6 +875,12 @@ fn calc_sc_term(t, x, n) = {
   let m = calc_total(map(f => if f === x then 1 else f[2], xs))
   let c = product(cs)
   if length(hs) == 0 then null
+  else if length(hs) == 1 and m >= 1 and calc_sc_bern(hs[1], x) !== null then {
+    # x^m/(exp(a x) - 1) = x^(m - 1) (1/a) sum bernoulli_b(j) (a x)^j/j! (DLMF 24.2.1)
+    let a = calc_sc_bern(hs[1], x)
+    c*piecewise([[bernoulli_b(n - m + 1)*a^(n - m)/factorial(n - m + 1), n >= m - 1]], 0)
+  }
+  else if length(hs) == 2 and some(hs, h => calc_sc_geo(h, x) !== null) then calc_sc_geo_prod(c, m, hs, x, n)
   else if length(hs) > 1 then null
   else {
     let r = calc_sc_hx(hs[1], x, n - m)
@@ -819,6 +888,51 @@ fn calc_sc_term(t, x, n) = {
     if r === null then null
     else if head(r) === piecewise and length(r) == 2 and r[2] === 0 then c*piecewise(map(pc => [pc[1], pc[2] and n >= m], r[1]), 0)
     else c*piecewise([[r, n >= m]], 0)
+  }
+}
+# a in h = (exp(a x) - 1)^-1, or null
+fn calc_sc_bern(h, x) =
+  if head(h) === pow and h[2] === -1 then {
+    let g = simplify(h[1] + 1)
+    let u = if head(g) === exp then g[1] else if head(g) === pow and g[1] === e then g[2] else null
+    if u === null then null else calc_sc_lin(u, x)
+  } else null
+# b in h = (1 - b x)^-1, or null
+fn calc_sc_geo(h, x) =
+  if head(h) === pow and h[2] === -1 and rewrite(h[1], x -> 0) === 1 then {
+    let b = calc_sc_lin(simplify(1 - h[1]), x)
+    if b === null or b === 0 then null else b
+  } else null
+# c x^m g(x)/(1 - b x): the Cauchy product, the coefficient of x^k in g/(1 - b x) is sum(g_j b^(k - j), [j, 0, k]);
+# for g = exp(a x) it is b^k exp(a/b) gamma(k + 1, a/b)/k! (gamma(k + 1, z) = k! exp(-z) sum(z^j/j!, [j, 0, k]),
+# DLMF 8.4.8); otherwise the sum when it has a closed form
+fn calc_sc_geo_prod(c, m, hs, x, n) = {
+  let gi = first(select(range(1, 2), i => calc_sc_geo(hs[i], x) !== null), null)
+  let b = calc_sc_geo(hs[gi], x)
+  let g = hs[3 - gi]
+  let k = n - m
+  let ea = if head(g) === exp then calc_sc_lin(g[1], x) else if head(g) === pow and g[1] === e then calc_sc_lin(g[2], x) else null
+  let v = if ea !== null then b^k*exp(ea/b)*gamma(k + 1, ea/b)/factorial(k) else {
+    let cj = calc_sc_hx(g, x, calc_sc_k)
+    let s = if cj === null then null else sum(cj*b^(k - calc_sc_k), [calc_sc_k, 0, k])
+    if s === null or not free_of(s, sum) then null else s
+  }
+  if v === null then null else c*piecewise([[v, n >= m]], 0)
+}
+# chebyshev_t(k, a x): T_k(x) = cos(k pi/2) cos(k asin(x)) + sin(k pi/2) sin(k asin(x)) with cos(k asin x) =
+# 2F1(-k/2, k/2; 1/2; x^2) and sin(k asin x) = k x 2F1((1 - k)/2, (1 + k)/2; 3/2; x^2) (DLMF 15.4.12, 15.4.16),
+# for every k
+fn calc_sc_cheb(h, x, n) = {
+  # chebyshev_t(k, a x), or cos(k acos(a x)) (its value for a k that is not an integer)
+  let ac = if head(h) === cos then unique(cases([h[1]], acos(u_) :> u, inf)) else []
+  let kc = if length(ac) == 1 then simplify(h[1]/acos(ac[1])) else null
+  let ch = head(h) === chebyshev_t and length(h) == 2 and free_of(h[1], x)
+  let a = if ch then calc_sc_lin(h[2], x) else if kc !== null and free_of(kc, x) then calc_sc_lin(ac[1], x) else null
+  if a === null then null else {
+    let k = if ch then h[1] else kc
+    let ev = cos(k*pi/2)*pochhammer(-k/2, n/2)*pochhammer(k/2, n/2)/(pochhammer(1/2, n/2)*factorial(n/2))
+    let od = k*sin(k*pi/2)*pochhammer((1 - k)/2, (n - 1)/2)*pochhammer((1 + k)/2, (n - 1)/2)/(pochhammer(3/2, (n - 1)/2)*factorial((n - 1)/2))
+    piecewise([[a^n*ev, mod(n, 2) == 0 and n >= 0], [a^n*od, mod(n, 2) == 1 and n >= 0]], 0)
   }
 }
 # a rational function: on its partial fractions over the complex numbers (calc_hb_pf), the
@@ -843,7 +957,13 @@ fn calc_sc_sym(f, x, n) = if head(f) === piecewise and length(f) == 2 and free_o
   } else if free_of(f, x) then piecewise([[f, n == 0]], 0) else calc_sc_sym1(f, x, n)
 fn calc_sc_sym1(f, x, n) = {
   let r = together(f)
-  if is_polynomial_expression(numerator(r), x) and is_polynomial_expression(denominator(r), x) and not free_of(denominator(r), x) then calc_sc_rat(f, x, n)
+  # a polynomial: its coefficients by value
+  if is_polynomial_expression(f, x) then {
+    let pe = expand(f)
+    let pcs = select(map(j => [coefficient(pe, x, j), n == j], range(0, degree(pe, x))), pc => not (pc[1] === 0))
+    if length(pcs) == 0 then 0 else piecewise(pcs, 0)
+  }
+  else if is_polynomial_expression(numerator(r), x) and is_polynomial_expression(denominator(r), x) and not free_of(denominator(r), x) then calc_sc_rat(f, x, n)
   else {
     let ts = calc_terms(expand(f))
     let rs = map(t => calc_sc_term(t, x, n), ts)
@@ -898,6 +1018,8 @@ fn calc_sc_pull(v) = if is_atom(v) or not (head(v) === mul) then v else {
     }
   }
 rule series_coefficient(f_, [x_, x0_, n_]) := calc_sc_tidy(calc_sc_sym(if x0 === 0 then f else rewrite(f, x -> x + x0), x, n), element(n, integers)) when is_symbol(x) and is_symbol(n) and is_numeric(x0) and not (x0 === inf) and not (calc_sc_sym(if x0 === 0 then f else rewrite(f, x -> x + x0), x, n) === null)
+# method: the general term derived here is the same for every method; the option is accepted and has no effect
+rule series_coefficient(f_, [x_, x0_, n_], options(method -> mm_)) := series_coefficient(f, [x, x0, n]) when is_symbol(n)
 # several variables in turn, an order symbolic: the coefficient in the first, then in the others (its conditions are
 # free of the later variables)
 fn calc_sc_spec(sp) = is_list(sp) and length(sp) == 3 and is_symbol(sp[1]) and is_numeric(sp[2]) and not (sp[2] === inf) and (is_symbol(sp[3]) or is_integer(sp[3]))
@@ -1915,7 +2037,53 @@ fn calc_hankel_term(f, r, s, nu) = {
     } else null
   }
 }
+# c cos(a r) and c sin(a r), and c cos(a r)/(r^2 + b^2) and c sin(a r)/(r^2 + b^2), order 0, or null.
+# - cos(a r), sin(a r) have no classical transform; their generalized (Abel) one, the convention of fourier_transform(1),
+#   is the limit e -> 0+ of the transform of exp(-(e -+ i a) r), (e -+ i a)/((e -+ i a)^2 + s^2)^(3/2) (DLMF 10.22.49
+#   at nu = 0, mu = 1): its real part -a heaviside_theta(a - s)/(a^2 - s^2)^(3/2) for cos, and -a heaviside_theta(s -
+#   a)/(s^2 - a^2)^(3/2) for sin (the derivatives in a of the transforms of sin(a r)/r and cos(a r)/r);
+# - with 1/(r^2 + b^2): F(a) = integrate(r bessel_j(0, s r) cos(a r)/(r^2 + b^2)) satisfies F'' - b^2 F = -(the
+#   transform of cos(a r)) = 0 for 0 < a < s, F is even and F(0) = bessel_k(0, b s) (the rule for (r^2 + a^2)^-p below), so F =
+#   cosh(a b) bessel_k(0, b s) for s > a; the sine integral is (pi/2) exp(-a b) bessel_i(0, b s) for s < a
+#   (Gradshteyn and Ryzhik 6.737). The other ranges are incomplete Bessel integrals without a closed form, so the
+#   value carries its range as conditional_expression (b = (b^2)^(1/2), the root with re > 0).
+# A symbolic a is taken positive, the generic answer as for exp(-a r).
+fn calc_hk_trig(f, r, s) = {
+  let fs = calc_factors(f)
+  let dep = select(fs, g => not free_of(g, r))
+  let c = product(select(fs, g => free_of(g, r)))
+  let tr = select(dep, g => head(g) === cos or head(g) === sin)
+  let a0 = if length(tr) == 1 then simplify(tr[1][1]/r) else null
+  let ok = not (a0 === null) and free_of(a0, r) and not (a0 === 0) and (not is_number(a0) or (is_real(a0) and a0 != 0)) and free_of(a0, im)
+  if not ok then null else {
+    let t = tr[1]
+    let a = if is_number(a0) then abs(a0) else a0
+    let sg = if is_number(a0) and head(t) === sin and a0 < 0 then -1 else 1
+    let rest = select(dep, g => not (g === t))
+    if length(rest) == 0 then {
+      if head(t) === cos then -c*a*heaviside_theta(a - s)/(a^2 - s^2)^(3/2) else -sg*c*a*heaviside_theta(s - a)/(s^2 - a^2)^(3/2)
+    } else if length(rest) == 1 and head(rest[1]) === pow and rest[1][2] === -1 and free_of(expand(rest[1][1] - r^2), r) then {
+      let b2 = expand(rest[1][1] - r^2)
+      let be = b2^(1/2)
+      if b2 === 0 or (is_number(b2) and not (is_real(b2) and b2 > 0)) then null
+      else if head(t) === cos then conditional_expression(c*cosh(a*be)*bessel_k(0, be*s), s > a)
+      else conditional_expression(sg*c*pi/2*exp(-a*be)*bessel_i(0, be*s), s < a)
+    } else null
+  }
+}
+# a value with a range: the value where the range holds, null where it fails, the conditional value otherwise
+fn calc_hk_resolve(v) =
+  if v === undefined then null
+  else if v === null or not (head(v) === conditional_expression) then v
+  else {
+    let c = simplify(v[2])
+    if c === true then v[1] else if c === false then null else conditional_expression(v[1], c)
+  }
 fn calc_hankel(f, r, s, nu) = {
+  let tv = if nu === 0 then calc_hk_trig(expand(f), r, s) else null
+  if not (tv === null) then tv else calc_hankel0(f, r, s, nu)
+}
+fn calc_hankel0(f, r, s, nu) = {
   let ts = map(t => calc_hankel_term(t, r, s, nu), calc_terms(expand(f)))
   # a summand without a closed form, or whose own integral diverges (a pole of gamma, as for the summands 1/r^2
   # and exp(-m r)/r^2 of a convergent (1 - exp(-m r))/r^2): the whole f by the Mellin product
@@ -2012,6 +2180,53 @@ fn calc_mb_radius_f(f, w) =
   else if head(f) === pow and free_of(f[1], w) then f[1]^coefficient(expand(f[2]), w, 1)
   else 1
 fn calc_mb_radius(g, w) = simplify(product(map(f => calc_mb_radius_f(f, w), calc_factors(g))))
+# v on one side of k: its steps replaced by their value there
+fn calc_mb_side(v, x, pts) = rewrite(v, [heaviside_theta(z_) :> calc_mb_step(heaviside_theta(z), z, x, pts), unit_step(z_) :> calc_mb_step(unit_step(z), z, x, pts)])
+# a step whose argument has one sign at every sample point of a side: 1 or 0 there (the jump of the balanced case
+# is at k, between the sides)
+fn calc_mb_step(st, z, x, pts) = {
+  let vals = map(p => n(rewrite(z, x -> p)), pts)
+  if every(vals, q => is_number(q) and is_real(q) and q > 0) then 1
+  else if every(vals, q => is_number(q) and is_real(q) and q < 0) then 0
+  else st
+}
+# integrate(f(t), [t, 0, inf]) with fi on (0, k) and fo on (k, inf), each smooth inside, with integrable endpoint
+# singularities and algebraic decay: tanh-sinh nodes on (0, k), t = k/(1 + exp(-2 y)), and exp-sinh nodes on (k,
+# inf), t = k + exp(y), y = (pi/2) sinh(j h), h = 1/16, |j h| <= 9/2 (Takahasi and Mori 1974; Mori and Sugihara
+# 2001): at most 145 nodes a side at machine precision (a fixed amount of work), errors far below 10^-6 for such
+# integrands. The nodes nearest k come first, and the first value that is not a number (a candidate that is complex on
+# the axis, or a function that does not evaluate there) ends the sum: null.
+fn calc_mb_node_in(j, k) = {
+  let u = n(j/16)
+  let y = n(pi/2)*sinh(u)
+  let sg = 1/(1 + exp(-2*y))
+  let t = if y < 0 then k*sg else k - k/(1 + exp(2*y))
+  [t, k/16*n(pi/2)*cosh(u)*2*sg*(1 - sg)]
+}
+fn calc_mb_node_out(j, k) = {
+  let u = n(j/16)
+  let y = n(pi/2)*sinh(u)
+  [k + exp(y), exp(y)*n(pi/2)*cosh(u)/16]
+}
+fn calc_mb_de(fi, fo, k) = {
+  var acc = 0
+  var ok = true
+  for j in range(-72, 72) {
+    for side in [1, 2] {
+      if ok then {
+        let tw = if side == 1 then calc_mb_node_in(-j, k) else calc_mb_node_out(j, k)
+        let t = tw[1]
+        let wt = tw[2]
+        let inside = if side == 1 then t > 0 and t < k and wt > 10^-300 else t > k and wt < 10^300
+        if inside then {
+          let fv = n(if side == 1 then fi(t) else fo(t))
+          if is_number(fv) then acc = acc + wt*fv else ok = false
+        } else null
+      } else null
+    }
+  }
+  if ok then acc else null
+}
 fn calc_mb_check(g, w, x, v, lo, hi) = {
   let ps = select(union(calc_syms(g), calc_syms(v)), p => not (p === w) and not (p === x))
   let vals = [3/4, 5/7, 4/3, 6/5]
@@ -2025,8 +2240,14 @@ fn calc_mb_check(g, w, x, v, lo, hi) = {
     # two points inside the strip, away from the integers and half-integers where removable singularities of the
     # gamma ratio sit
     let pts = [l0 + 3713*(top - l0)/10000, l0 + 6871*(top - l0)/10000]
+    # the candidate on each side of k with its steps decided there (the pieces of the other side, as a 2F1 past its
+    # cut, would be evaluated at every node only to be multiplied by 0)
+    let vin = if is_number(k) and k > 0 then calc_mb_side(vs, x, [k/1000, k/2, 99*k/100]) else vs
+    let vout = if is_number(k) and k > 0 then calc_mb_side(vs, x, [101*k/100, 2*k, 1000*k]) else vs
     if not is_number(n(l0)) or not is_number(n(top)) or not is_number(k) or not (k > 0) then false else not some(pts, w0 => {
-      let iv = n_integrate(rewrite(vs, x -> calc_mb_t)*calc_mb_t^(w0 - 1), [calc_mb_t, 0, k, inf], precision_goal: 6)
+      # a fixed number of nodes (work, not time, so every machine decides alike): adaptive quadrature spent minutes
+      # on the hypergeometric pieces and ran on for a candidate that grows at infinity
+      let iv = calc_mb_de(u => rewrite(vin, x -> u)*u^(w0 - 1), u => rewrite(vout, x -> u)*u^(w0 - 1), k)
       let gv = n(rewrite(gs, w -> w0))
       not (is_number(iv) and is_number(gv) and abs(iv - gv) <= 10^-6*(1 + abs(gv)))
     })
@@ -2146,7 +2367,7 @@ fn calc_hk_cond(f, x, p) = {
 }
 fn calc_hk_run(f, x, p, nu, asm, gc) = {
   # an option read in a condition of the definition arrives as its own name (not yet its default): no assumptions
-  let v = if asm === automatic or is_symbol(asm) then calc_at(w => calc_hankel(f, x, w, nu), p) else assuming(asm, calc_at(w => calc_hankel(f, x, w, nu), p))
+  let v = if asm === automatic or is_symbol(asm) then calc_hk_resolve(calc_at(w => calc_hankel(f, x, w, nu), p)) else assuming(asm, calc_hk_resolve(calc_at(w => calc_hankel(f, x, w, nu), p)))
   if v === null or not gc then v else conditional_expression(v, calc_hk_cond(f, x, p))
 }
 fn hankel_transform(f, r, s; assumptions = automatic, generate_conditions = false) when not (calc_hk_run(f, r, s, 0, assumptions, false) === null) = calc_hk_run(f, r, s, 0, assumptions, generate_conditions)
@@ -2567,6 +2788,74 @@ fn calc_fst_run(f, k, w, asm, fp) = {
   if v === null then null else simplify(scale*v)
 }
 fn calc_fst_ok(f, k, w) = (is_symbol(k) or (is_list(k) and every(k, is_symbol)))
+# a piecewise sequence in k with pieces on half-lines (k >= m, k > m, k <= m, k < m, m an integer) as a sum of
+# one-sided terms: v unit_step(k - m) and v unit_step(m - k); the default on what the pieces leave (a half-line or
+# finitely many points), or null
+fn calc_fst_ind(c, k) = {
+  let hd = if is_atom(c) then null else head(c)
+  let ok = hd !== null and length(c) == 2 and c[1] === k and is_integer(c[2])
+  if not ok then null
+  else if hd === greater_equal then [1, c[2]]
+  else if hd === greater then [1, c[2] + 1]
+  else if hd === less_equal then [-1, c[2]]
+  else if hd === less then [-1, c[2] - 1]
+  else null
+}
+fn calc_fst_step(ind, k) = if ind[1] == 1 then unit_step(k - ind[2]) else unit_step(ind[2] - k)
+fn calc_fst_pw(f, k) = if is_atom(f) or not (head(f) === piecewise) or length(f) > 2 then f else {
+  let pcs = f[1]
+  let d = if length(f) == 2 then f[2] else 0
+  let inds = map(pc => calc_fst_ind(pc[2], k), pcs)
+  let lows = select(inds, i => i !== null and i[1] == 1)
+  let ups = select(inds, i => i !== null and i[1] == -1)
+  if some(inds, i => i === null) or length(lows) > 1 or length(ups) > 1 or length(pcs) == 0 then null
+  else if length(lows) == 1 and length(ups) == 1 and not (ups[1][2] < lows[1][2]) then null
+  else {
+    let main = calc_total(map(j => pcs[j][1]*calc_fst_step(inds[j], k), range(length(pcs))))
+    let rest = if d === 0 then 0
+      else if length(lows) == 1 and length(ups) == 1 then d*calc_total(map(j => discrete_delta(k - j), range(ups[1][2] + 1, lows[1][2] - 1)))
+      else if length(lows) == 1 then d*unit_step(lows[1][2] - 1 - k)
+      else d*unit_step(k - ups[1][2] - 1)
+    main + rest
+  }
+}
+# the region of convergence of the one-sided terms (the Z transforms' conditions at z = exp(+-im w)); with w real,
+# |exp(+-im w)| = 1; true when there is no condition
+fn calc_fst_conds(f, k, w, asm) = {
+  let cs = map(t => {
+    let fs = calc_factors(t)
+    let steps = select(fs, g => head(g) === unit_step and length(g) == 1)
+    let rest = product(select(fs, g => not free_of(g, k) and not (head(g) === unit_step)))
+    let ab = if length(steps) == 1 then calc_lin(steps[1][1], k) else null
+    if ab === null or not (abs(ab[1]) === 1) then true else {
+      let g = if ab[1] === 1 then rewrite(rest, k -> k - ab[2]) else rewrite(rest, k -> -k + ab[2])
+      let zt = z_transform(g, k, calc_fst_z, generate_conditions: true)
+      if head(zt) === conditional_expression then rewrite(zt[2], calc_fst_z -> exp(ab[1]*im*w)) else true
+    }
+  }, calc_terms(expand(f)))
+  let c = apply(`and`, join([true], cs))
+  let real_w = asm !== automatic and simplify(element(w, reals), asm) === true
+  let c2 = if real_w then rewrite(c, [abs(exp(im*w)) -> 1, abs(exp(-im*w)) -> 1]) else c
+  simplify(rewrite(c2, (1 > abs(u_^-1)) :> (abs(u) > 1)))
+}
+fn calc_fst_opt(o, name, dflt) = {
+  let vs = select(apply(list, o), r => r[1] === name)
+  if length(vs) == 0 then dflt else vs[1][2]
+}
+# several options (assumptions:, fourier_parameters:, generate_conditions:)
+fn calc_fst_full(f, k, w, o) = {
+  let asm = calc_fst_opt(o, assumptions, automatic)
+  let fp = calc_fst_opt(o, fourier_parameters, automatic)
+  let gc = calc_fst_opt(o, generate_conditions, false) === true
+  let g = if is_symbol(k) then calc_fst_pw(f, k) else f
+  let v = if g === null then null else calc_fst_run(g, k, w, asm, fp)
+  if v === null or not gc or not is_symbol(k) then v else {
+    let c = calc_fst_conds(g, k, w, asm)
+    if c === true then v else conditional_expression(v, c)
+  }
+}
+rule fourier_sequence_transform(f_, k_, w_) := calc_fst_full(f, k, w, options()) when is_symbol(k) and head(f) === piecewise and calc_fst_full(f, k, w, options()) !== null
+rule fourier_sequence_transform(f_, k_, w_, o_) := calc_fst_full(f, k, w, o) when head(o) === options and calc_fst_ok(f, k, w) and (length(o) > 1 or head(f) === piecewise or some(apply(list, o), r => r[1] === generate_conditions)) and calc_fst_full(f, k, w, o) !== null
 rule fourier_sequence_transform(f_, k_, w_) := calc_fst_run(f, k, w, automatic, automatic) when calc_fst_ok(f, k, w) and not (calc_fst_run(f, k, w, automatic, automatic) === null)
 rule fourier_sequence_transform(f_, k_, w_, options(assumptions -> a_)) := calc_fst_run(f, k, w, a, automatic) when calc_fst_ok(f, k, w) and not (calc_fst_run(f, k, w, a, automatic) === null)
 rule fourier_sequence_transform(f_, k_, w_, options(fourier_parameters -> p_)) := calc_fst_run(f, k, w, automatic, p) when calc_fst_ok(f, k, w) and is_list(p) and length(p) == 2 and not (calc_fst_run(f, k, w, automatic, p) === null)
@@ -2969,6 +3258,16 @@ rule discrete_riccati_solve(ab_, qr_, opts___) := {
   let x = cb_sda(a, g, n(qr[1]), 0)
   (x + conjugate_transpose(x))/2
 } when is_list(ab) and length(ab) == 2 and is_list(qr) and length(qr) == 2 and is_matrix(ab[1]) and is_matrix(ab[2]) and is_matrix(qr[1]) and is_matrix(qr[2])
+# discrete_riccati_solve([a, b], [q, r, p]) with the cross weight p: a^H.x.a - x - (a^H.x.b + p).(r + b^H.x.b)^-1.
+# (b^H.x.a + p^H) + q == 0 is the equation without it for a - b.r^-1.p^H and q - p.r^-1.p^H (the substitution
+# u = v - r^-1.p^H.x of the input; Lancaster and Rodman, Algebraic Riccati Equations, 1995, 12.1)
+rule discrete_riccati_solve(ab_, qr_, opts___) := {
+  let a = n(ab[1])
+  let b = n(ab[2])
+  let ri = inverse(n(qr[2]))
+  let ph = conjugate_transpose(n(qr[3]))
+  discrete_riccati_solve([a - dot(b, ri, ph), b], [n(qr[1]) - dot(n(qr[3]), ri, ph), n(qr[2])])
+} when is_list(ab) and length(ab) == 2 and is_list(qr) and length(qr) == 3 and is_matrix(ab[1]) and is_matrix(ab[2]) and is_matrix(qr[1]) and is_matrix(qr[2]) and is_matrix(qr[3]) and dimensions(qr[3]) == [length(ab[1]), length(qr[2])]
 
 # --- Pade approximants ---
 
