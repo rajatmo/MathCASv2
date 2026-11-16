@@ -1,4 +1,4 @@
-//! Statistics and distributions with values of other crates (round 12): quantities, `around`, intervals and
+//! Statistics and distributions with values of other crates: quantities, `around`, intervals and
 //! distribution parameters with uncertainty.
 use mc_api::{Engine, StopFlag};
 use mc_engine::CoreEngine;

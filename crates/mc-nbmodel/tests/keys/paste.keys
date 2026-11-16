@@ -1,4 +1,4 @@
-Pasting text from other programs (round 19): blocks of code become cells, line breaks and tabs are made the
+Pasting text from other programs: blocks of code become cells, line breaks and tabs are made the
 notebook's own, and copied cells come back as the same cells.
 
 === code pasted at an insertion point makes one Input cell per block between blank lines

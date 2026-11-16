@@ -1,4 +1,4 @@
-# Screenshots of math input (round 32), checked by eye: baseline alignment, script sizes and offsets, fraction bars,
+# Screenshots of math input, checked by eye: baseline alignment, script sizes and offsets, fraction bars,
 # radical fit, placeholders, the caret inside structures, the selection highlight, clipping; both themes at 100 %,
 # 150 % and 200 %. Driven by tests/input_selftest.rs (the run checks only that every picture was written).
 size 1000 700

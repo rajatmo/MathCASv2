@@ -1,4 +1,4 @@
-# Caret, selection, deletion and undo inside the boxes (round 32): Left/Right through every structure, Up/Down
+# Caret, selection, deletion and undo inside the boxes: Left/Right through every structure, Up/Down
 # between numerator and denominator and between base and exponent, Home/End, Tab between placeholders, selection
 # across box boundaries, Backspace and Delete at each structure edge, undo and redo after every kind of edit,
 # typing over a selection, linear text and boxes into each other, and the latency of typing into a long cell.

@@ -1,4 +1,4 @@
-N-th roots (round 19, decision U19.3): Ctrl+5 (Ctrl+%) makes a root with an index, or moves between a root's
+N-th roots: Ctrl+5 (Ctrl+%) makes a root with an index, or moves between a root's
 index and radicand (giving a square root an index). The canonical text is `((surd(x, n)))`, the real n-th root.
 
 === Ctrl+5 makes an n-th root with the caret in its index; Ctrl+5 again goes to the radicand

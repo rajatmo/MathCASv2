@@ -1,4 +1,4 @@
-//! Round 21, through the window's self-test (`tests/selftest/guides.txt`): the home page lists the
+//! Through the window's self-test (`tests/selftest/guides.txt`): the home page lists the
 //! guides and a click on one opens it. It opens a window, so it is ignored by default:
 //! `cargo test -p mc-docs --test guides_selftest -- --ignored`.
 use std::path::PathBuf;
@@ -22,7 +22,7 @@ fn guides_are_one_click_from_the_start_page() {
     let log = std::fs::read_to_string(dir.join("selftest.log")).expect("the self-test log");
     assert!(log.contains("at topic:calculus"), "{log}");
     assert!(log.contains("at topic:plotting-and-graphics"), "{log}");
-    // round 23: guides are searched
+    // Guides are searched
     assert!(log.contains("guides [\"transforms-and-series\""), "{log}");
     assert!(log.contains("at topic:transforms-and-series"), "{log}");
     assert!(dir.join("home.png").exists() && dir.join("plotting.png").exists());

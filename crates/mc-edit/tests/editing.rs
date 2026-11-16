@@ -60,7 +60,7 @@ fn operands_are_primaries() {
         ("f''", "(f''^Q)Z"),
         ("a + \"s\"", "a + (\"s\"^Q)Z"),
         ("m[1]", "(m[1]^Q)Z"),
-        // round 35: after a space the box needs no `*` (the space multiplies)
+        // After a space the box needs no `*` (the space multiplies)
         ("x ", "x (Q^□)Z"),
     ] {
         assert_eq!(run(text, Structure::Superscript), want, "{text}");
@@ -80,7 +80,7 @@ fn selection_becomes_the_first_slot() {
     ed.select(&[], 0..2);
     ed.structure(Structure::Radical);
     assert_eq!(ed.notation(), "√(ab▮)");
-    // spaces at the edges of the selection stay outside the box (round 32)
+    // spaces at the edges of the selection stay outside the box
     let mut ed = Editor::from_text("a + b + c");
     ed.select(&[], 3..9);
     ed.structure(Structure::Radical);
@@ -198,7 +198,7 @@ fn arrows_walk_through_boxes() {
     seen.reverse();
     assert_eq!(back, seen);
     // operator pairs are drawn as their two characters in cells (NBUI.3), so the caret steps over each and
-    // Backspace removes one (round 34: the same in every row, as in cells without boxes)
+    // Backspace removes one (the same in every row, as in cells without boxes)
     let mut ed = Editor::from_text("a->b");
     ed.set_caret(&[], 4);
     ed.move_left(false);
@@ -314,7 +314,7 @@ fn implicit_times_between_boxes_and_operands() {
     assert_eq!(typed("", Structure::Radical, "2"), "√(Q)*2▮");
     assert_eq!(typed("", Structure::Radical, "+y"), "√(Q)+y▮");
     assert_eq!(typed("", Structure::Radical, "[1]"), "√(Q)[1]▮");
-    // round 35: a space multiplies, so a box and an operand apart need no `*`
+    // A space multiplies, so a box and an operand apart need no `*`
     assert_eq!(typed("", Structure::Radical, " y"), "√(Q) y▮");
     assert_eq!(typed("x ", Structure::Radical, ""), "x √(Q)▮");
     // a box after a box
@@ -391,7 +391,7 @@ fn extending_keeps_the_anchor() {
     assert_eq!(ed.notation(), "a+w▮+b");
 }
 
-/// Round 33: a slot whose brackets do not match (the state between typing `(` and `)`) reads back as the same tree,
+/// A slot whose brackets do not match (the state between typing `(` and `)`) reads back as the same tree,
 /// so what is drawn and where the caret is stay what the editor has.
 #[test]
 fn slots_with_unmatched_brackets_read_back() {
@@ -439,7 +439,7 @@ fn slots_with_unmatched_brackets_read_back() {
     assert!(!plain.contains(mc_boxes::ESCAPE));
 }
 
-/// Round 33: the base of a power that is not one operand is drawn in parentheses (`(2m)²`, not `2m²`).
+/// The base of a power that is not one operand is drawn in parentheses (`(2m)²`, not `2m²`).
 #[test]
 fn compound_bases() {
     use mc_boxes::ops::compound_base;
@@ -469,7 +469,7 @@ fn compound_bases() {
     assert!(!compound_base(&root) && !compound_base(&index) && !compound_base(&Row::placeholder()));
 }
 
-/// Round 33: Backspace in an empty pair of brackets removes both; the power key on the whole inside of a bracket
+/// Backspace in an empty pair of brackets removes both; the power key on the whole inside of a bracket
 /// pair takes the brackets as the base.
 #[test]
 fn brackets_pair_up() {
@@ -494,7 +494,7 @@ fn brackets_pair_up() {
     assert_eq!(ed.notation(), "((a + b/▮□))");
 }
 
-/// Round 38: an automatic closer is kept while the caret moves inside its pair (into a box between the brackets and
+/// An automatic closer is kept while the caret moves inside its pair (into a box between the brackets and
 /// back), so the closer typed after the box steps over it; a motion out of the pair forgets it.
 #[test]
 fn closers_survive_motions_inside_their_pair() {

@@ -1,4 +1,4 @@
-Clipboard with boxes (round 13): a copied range holding a square root, fraction or power box goes on the
+Clipboard with boxes: a copied range holding a square root, fraction or power box goes on the
 clipboard as its linear text (for other programs) and as the box flavour (its canonical box text, 4.4); pasting the
 box flavour into a code cell inserts the boxes (a plain cell takes its first boxes, its characters stay characters),
 at an insertion point it makes one Input cell holding them. Text from other programs stays text, `((` included.

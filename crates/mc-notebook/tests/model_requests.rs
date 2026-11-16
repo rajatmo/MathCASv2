@@ -1,5 +1,5 @@
-//! Math input traps found by the round-32 self-tests (`tests/selftest/input-*.txt`) and fixed in the model crate
-//! `mc-nbmodel` (NOTES.md, "Round 32", R32.1 to R32.4): each test is the trap through the model's commands.
+//! Math input traps of the input self-tests (`tests/selftest/input-*.txt`), handled in the model crate
+//! `mc-nbmodel`: each test is the trap through the model's commands.
 use mc_nbmodel::Structure;
 use mc_nbmodel::keys::{Chord, Context, KeyTable};
 use mc_nbmodel::{Command, FakeEnv, Notebook};
@@ -17,7 +17,7 @@ fn typed(nb: &mut Notebook, env: &mut FakeEnv, cmds: Vec<Command>) {
     }
 }
 
-/// R32.1: Redo of the box key that made a plain cell's first box puts the caret back into the new slot. Today the
+/// Redo of the box key that made a plain cell's first box puts the caret back into the new slot. Today the
 /// caret lands after the box, so the next character typed goes outside it (`(u^□)*2`).
 #[test]
 fn redo_of_a_first_box_restores_the_caret_in_its_slot() {
@@ -29,7 +29,7 @@ fn redo_of_a_first_box_restores_the_caret_in_its_slot() {
     assert_eq!(notation(&nb), "(u^▮□)");
 }
 
-/// R32.1: Undo of a Backspace that removed the cell's last box (the cell became plain text) puts the caret back where
+/// Undo of a Backspace that removed the cell's last box (the cell became plain text) puts the caret back where
 /// it was inside the box. Today it lands after the box.
 #[test]
 fn undo_of_an_unwrapping_backspace_restores_the_caret() {
@@ -42,7 +42,7 @@ fn undo_of_an_unwrapping_backspace_restores_the_caret() {
     assert_eq!(notation(&nb), "(x/▮□)");
 }
 
-/// R32.2: An alias finished between automatically closed brackets keeps the closer automatic: the `)` typed next
+/// An alias finished between automatically closed brackets keeps the closer automatic: the `)` typed next
 /// steps over it. Today it is inserted, so `sin(` Esc th Esc `)` gives `sin(θ))`, a syntax error.
 #[test]
 fn an_alias_keeps_the_automatic_closer() {
@@ -64,7 +64,7 @@ fn an_alias_keeps_the_automatic_closer() {
     assert_eq!(nb.cells()[0].text, "n(π)");
 }
 
-/// R32.3: `Ctrl+5` at an insertion point makes an Input cell holding an n-th root, as `Ctrl+2` makes a square root.
+/// `Ctrl+5` at an insertion point makes an Input cell holding an n-th root, as `Ctrl+2` makes a square root.
 /// Today it switches to tab 5 and the following digits go into a new plain cell.
 #[test]
 fn ctrl5_at_an_insertion_point_makes_a_root() {
@@ -102,7 +102,7 @@ fn undo_of_typing_over_a_selection_restores_the_selection() {
     assert_eq!(nb.cells()[0].text, "q + c");
 }
 
-/// R32.2 in a cell with boxes: the alias between automatic brackets keeps the closer automatic there too.
+/// In a cell with boxes, the alias between automatic brackets keeps the closer automatic there too.
 #[test]
 fn an_alias_in_boxes_keeps_the_automatic_closer() {
     let mut nb = Notebook::new();
@@ -119,7 +119,7 @@ fn an_alias_in_boxes_keeps_the_automatic_closer() {
     assert_eq!(notation(&nb), "(x^2) + sin(θ)▮");
 }
 
-/// R32.4: Home or End in a slot goes to the slot's edge; pressed again there, to the line's edge (design 3.1).
+/// Home or End in a slot goes to the slot's edge; pressed again there, to the line's edge (design 3.1).
 #[test]
 fn home_and_end_twice_reach_the_line_edges() {
     let mut nb = Notebook::new();

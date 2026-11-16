@@ -1,4 +1,4 @@
-//! The model never panics (round 11 robustness): damaged notebook texts are read, then random command sequences
+//! The model never panics: damaged notebook texts are read, then random command sequences
 //! (typing, motions with and without Shift, clicks anywhere, clipboard, undo and redo, structure commands, cell
 //! operations, typeset input and the caret in typeset outputs) run on them; after each command the selection must
 //! name a cell that exists and positions on character boundaries. `MC_FUZZ_CASES` sets the number of sequences

@@ -1,4 +1,4 @@
-//! Round 14: functions of truncated series, principal complex values at machine arguments
+//! Functions of truncated series, principal complex values at machine arguments
 //! outside the real domain, the formula fallbacks for complex arguments, and the functions added for coverage.
 use mc_api::{Engine, StopFlag};
 use mc_engine::{CoreEngine, EngineConfig};

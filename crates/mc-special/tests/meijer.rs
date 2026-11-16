@@ -1,4 +1,4 @@
-//! The Meijer G-function (round 22): exact reductions, the precision contract (30 digits agree
+//! The Meijer G-function: exact reductions, the precision contract (30 digits agree
 //! with 60 and the 30-digit ball contains the 60-digit value) on both sides of |z| = 1, at complex and negative
 //! arguments and with coincident poles, values against named functions, threading and the derivative.
 mod common;

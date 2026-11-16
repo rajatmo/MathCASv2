@@ -17,8 +17,8 @@ fn index_at_the_machine_integer_edge_stays_unevaluated() {
 
 #[test]
 fn erfc_deep_in_the_tail_does_not_allocate_without_bound() {
-    // erfc(10^8) ~ 10^(-4.3 10^15) has no representable value: a failure, found at once (the round 20 zero-ball
-    // enclosure was reverted, bugs R20-17)
+    // erfc(10^8) ~ 10^(-4.3 10^15) has no representable value: a failure, found at once (the zero-ball
+    // enclosure was reverted)
     check(&[("n(erfc(10^8), 50)", "failure(precision_not_reached, erfc(100000000))")]);
 }
 

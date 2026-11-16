@@ -1,4 +1,4 @@
-//! The documentation window in use (round 19), through its self-test (`tests/selftest/usability.txt`):
+//! The documentation window in use, through its self-test (`tests/selftest/usability.txt`):
 //! forgiving search (underscores ignored, a typo, a misspelt word of a description) under a few milliseconds a
 //! keystroke, the copy button of an example input, and a page with typeset outputs found by find-in-page, in both
 //! themes. It opens a window, so it is ignored by default: `cargo test -p mc-docs --test usability_selftest -- --ignored`.
@@ -26,7 +26,7 @@ fn search_copy_and_typeset_outputs() {
     assert!(line("typesearch nintegrate:").contains("first [\"n_integrate (Exact)\""), "{log}");
     assert!(line("typesearch intgrate:").contains("first [\"integrate (Similar)\""), "{log}");
     assert!(line("typesearch numericaly:").contains("results, first [\""), "{log}");
-    assert!(!line("typesearch numericaly:").contains(": at search, 0 results"), "{log}"); // not `contains("0 results")`: "170 results" matched it (round 21)
+    assert!(!line("typesearch numericaly:").contains(": at search, 0 results"), "{log}"); // not `contains("0 results")`: "170 results" matched it
     assert!(line("typesearch polynomial roots:").contains("(Summary)"), "{log}");
     // every keystroke's search well under a frame
     for l in log.lines().filter(|l| l.starts_with("typesearch `")) {

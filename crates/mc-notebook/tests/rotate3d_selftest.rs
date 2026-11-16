@@ -1,4 +1,4 @@
-//! Turning 3D pictures (round 13), driven through the window's self-test: a `graphics3d` picture with its scene
+//! Turning 3D pictures, driven through the window's self-test: a `graphics3d` picture with its scene
 //! (made here, no kernel needed) is dragged (it turns), zoomed with the wheel while selected, saved (the view is kept
 //! on its output and the picture embedded with its scene), reopened (the view comes back) and double-clicked (its
 //! own view again). It opens a window, so it is ignored by default:

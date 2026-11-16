@@ -55,7 +55,7 @@ fn tiny(v: &str) -> bool {
 #[test]
 fn number_fields() {
     let mut s = Sys::new();
-    // the result is an algebraic_number term: the generator and the coefficient list (round 36; it was the list alone)
+    // the result is an algebraic_number term: the generator and the coefficient list 
     assert_eq!(s.run("to_number_field(sqrt(2), sqrt(2) + sqrt(3))"), "algebraic_number(root(&(1 + -10*&1^2 + &1^4), 4), [0, -9/2, 0, 1/2])");
     assert_eq!(s.run("to_number_field(sqrt(2), 2^(1/4))"), "algebraic_number(root(&(-2 + &1^4), 2), [0, 0, 1, 0])");
     assert!(s.run("to_number_field(sqrt(3), sqrt(2))").starts_with("failure(not_in_field"));

@@ -1,4 +1,4 @@
-Return and Backspace in code keep the indentation (round 19).
+Return and Backspace in code keep the indentation.
 
 === Return keeps the line's indentation
 --- before

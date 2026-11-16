@@ -182,7 +182,7 @@ fn set_precision() {
         ("set_precision(1.0~3/3, inf)", "683/2048"),
         ("set_precision(complex(0.5, 0.25), inf)", "complex(1/2, 1/4)"),
         ("set_precision(0.1, 0)", "failure(invalid_argument, set_precision(0.1, 0))"),
-        // a real number of digits is rounded up (round 37, decision r37.1)
+        // a real number of digits is rounded up 
         ("set_precision(0.1, 2.5) === set_precision(0.1, 3)", "true"),
         ("set_precision(0.1, -2.5)", "failure(invalid_argument, set_precision(0.1, -2.5))"),
         ("set_precision(0.1, d)", "set_precision(0.1, d)"),

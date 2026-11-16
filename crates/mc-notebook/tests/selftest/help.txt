@@ -1,4 +1,4 @@
-# Help while writing code (round 12): completion, the usage hint, F1, hover and Ctrl+click, in a plain cell and
+# Help while writing code: completion, the usage hint, F1, hover and Ctrl+click, in a plain cell and
 # in a cell with a square root box. Run by `tests/help_selftest.rs` (it opens a window: `cargo test -- --ignored`),
 # which checks the `help:` lines of the log. `MATHCAS_DOCS=-` records the pages asked for instead of opening them.
 size 1000 600

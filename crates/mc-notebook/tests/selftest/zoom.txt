@@ -1,4 +1,4 @@
-# Calm magnification (round 13, user request): Ctrl+wheel moves one 10 % rung per notch, a burst of notches in one
+# Calm magnification (a user request): Ctrl+wheel moves one 10 % rung per notch, a burst of notches in one
 # frame is applied once, touchpad deltas add up to whole steps, keys step and Ctrl+0 resets, and the cell under the
 # pointer stays under it throughout. Run by `tests/zoom_selftest.rs` (it opens a window: `-- --ignored`), which reads
 # the `anchor:` lines of the log.

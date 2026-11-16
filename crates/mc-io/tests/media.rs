@@ -130,7 +130,7 @@ fn plots_to_png_and_pdf() {
     let g = format!("{d}/sized.pdf");
     eval(&mut e, &format!("export_data(\"{g}\", plot(sin(x), [x, 0, 6], image_size: [500, 300]))"));
     assert_eq!(eval(&mut e, &format!("image_dimensions(import_data(\"{g}\", \"page\", 1, dpi: 72))")), "[500, 300]");
-    // round 37: a list of plots is a page each, from the print twins too; a sized plot keeps its own page, and a
+    // A list of plots is a page each, from the print twins too; a sized plot keeps its own page, and a
     // log plot (another plot function) gets the print page as well
     let two = format!("{d}/two.pdf");
     let list = "[p, plot(sin(x), [x, 0, 6], image_size: [500, 300]), log_plot(exp(x), [x, 0, 5])]";

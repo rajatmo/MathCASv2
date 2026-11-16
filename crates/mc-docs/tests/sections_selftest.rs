@@ -1,4 +1,4 @@
-//! Round 20, through the window's self-test (`tests/selftest/sections.txt`): `mc-docs plot#plot_range`
+//! Through the window's self-test (`tests/selftest/sections.txt`): `mc-docs plot#plot_range`
 //! (F1 on an option in the notebook) opens `plot` at the example giving `plot_range`, and a typeset value is
 //! selected by a click and copied with Ctrl+C. It opens a window, so it is ignored by default:
 //! `cargo test -p mc-docs --test sections_selftest -- --ignored`.

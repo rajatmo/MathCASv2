@@ -315,7 +315,7 @@ fn coefficient_fractions_lose_their_parentheses() {
     assert_eq!(parens(&row("f((1/2))")), 4);
 }
 
-/// Round 33: a power whose base is not one operand is drawn with parentheses (they are no items: the caret stops
+/// A power whose base is not one operand is drawn with parentheses (they are no items: the caret stops
 /// are those of the base), a simple base and a base typed in brackets without more; outputs keep their own.
 #[test]
 fn compound_bases_are_drawn_in_parentheses() {
@@ -421,7 +421,7 @@ fn line_by_line_layout_is_the_whole_layout() {
     }
 }
 
-/// Round 37: the layout composed in place where an edit changed the row (`layout_by_lines_shared` keeping its last
+/// The layout composed in place where an edit changed the row (`layout_by_lines_shared` keeping its last
 /// layout) is the layout composed from the start, number for number, after every edit of a random sequence: typing in
 /// a line, deleting, new lines and joined lines (lines move), brackets (the depth of the lines after changes),
 /// boxes (rows and heights change), pastes of several lines, and no change at all.

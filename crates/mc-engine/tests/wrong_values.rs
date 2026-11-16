@@ -1,4 +1,4 @@
-//! Wrong values found in round 27 and fixed one by one. Expected values come from
+//! Wrong values fixed one by one. Expected values come from
 //! identities or hand derivations.
 use mc_api::{Engine, StopFlag};
 use mc_engine::{CoreEngine, EngineConfig};
@@ -130,7 +130,7 @@ fn find_instance_with_an_element_integers_conjunct() {
 
 #[test]
 fn to_number_field_of_rationals_and_combinations() {
-    // round 36: the result is an algebraic_number term (a rational stays a rational)
+    // the result is an algebraic_number term (a rational stays a rational)
     assert_eq!(ev("to_number_field(3, sqrt(2))"), "3");
     assert_eq!(ev("to_number_field(5 - 3*sqrt(2), sqrt(2))"), "algebraic_number(2^(1/2), [5, -3])");
     assert_eq!(ev("last(to_number_field(sqrt(2), 2^(1/4)))"), "[0, 0, 1, 0]");
@@ -270,7 +270,7 @@ fn trig_reduce_hyperbolic_products_and_trig_expand_pythagoras() {
 #[test]
 fn exp_to_trig_keeps_real_exponentials() {
     // the real-exponent rule (exp(x) = cosh(x) + sinh(x)) is off: transforms, d_solve and simplify rely on
-    // exp(-t) staying (round 28)
+    // exp(-t) staying
     assert_eq!(ev("exp_to_trig(exp(x))"), "exp(x)");
     assert_eq!(ev("simplify(1 - exp(-t))"), "1 - exp(-t)");
     assert_eq!(ev("exp_to_trig(exp(im*x))"), "cos(x) + 1im*sin(x)");
@@ -323,14 +323,14 @@ fn numeric_parameter_type_waits_for_numbers() {
 }
 
 #[test]
-fn f32_expand_of_a_large_trinomial_power_ends_cleanly() {
+fn expand_of_a_large_trinomial_power_ends_cleanly() {
     // (x + y + z)^1000 has 501501 terms; the result is either exact or a clean failure, never an abort
     let r = ev("length(expand((x + y + z)^1000))");
     assert!(r == "501501" || r.starts_with("failure(limit"), "{r}");
 }
 
 #[test]
-fn f32_trinomial_power_by_the_recurrence_is_exact() {
+fn trinomial_power_by_the_recurrence_is_exact() {
     assert_eq!(ev("length(expand((x + y + z)^100))"), "5151");
     // the sum of the coefficients is 3^100, and a coefficient is a multinomial
     assert_eq!(ev("rewrite(expand((x + y + z)^100), [x -> 1, y -> 1, z -> 1]) == 3^100"), "true");
@@ -338,7 +338,7 @@ fn f32_trinomial_power_by_the_recurrence_is_exact() {
 }
 
 #[test]
-fn f32_nested_radicals_with_symbolic_parts_denest_under_facts() {
+fn nested_radicals_with_symbolic_parts_denest_under_facts() {
     // x + 2 sqrt(x - 1) = (1 + sqrt(x - 1))^2 for x > 1; checked at x = 3 below (1 + sqrt 2 = 2.4142...)
     assert_eq!(ev("simplify(sqrt(x + 2*sqrt(x - 1)), assumptions: x > 1)"), "1 + (-1 + x)^(1/2)");
     let z = ev("n(simplify(sqrt(x + 2*sqrt(x - 1)), assumptions: x > 1) - sqrt(x + 2*sqrt(x - 1)), 30) /. x -> 3");
@@ -354,7 +354,7 @@ fn f32_nested_radicals_with_symbolic_parts_denest_under_facts() {
 }
 
 #[test]
-fn f32_implicit_d_with_a_variable_list_gives_the_gradient() {
+fn implicit_d_with_a_variable_list_gives_the_gradient() {
     // x^2 + 2 y^2 + 3 z^2 = 1: z_x = -x/(3 z), z_y = -2 y/(3 z)
     assert_eq!(
         ev("surface = x^2 + 2*y^2 + 3*z^2 == 1; implicit_d(surface, z, [[x, y]])"),
@@ -363,7 +363,7 @@ fn f32_implicit_d_with_a_variable_list_gives_the_gradient() {
 }
 
 #[test]
-fn f32_factor_sees_x_and_its_roots_as_powers_of_one_root() {
+fn factor_sees_x_and_its_roots_as_powers_of_one_root() {
     assert_eq!(ev("factor(x + 2*sqrt(x) + 1)"), "(1 + x^(1/2))^2");
     assert_eq!(ev("factor_square_free_list(x + 2*sqrt(x) + 1)"), "[[1, 1], [1 + x^(1/2), 2]]");
     assert_eq!(ev("factor(x^(3/2) - x^(1/2))"), "(-1 + x^(1/2))*(1 + x^(1/2))*x^(1/2)");
@@ -373,7 +373,7 @@ fn f32_factor_sees_x_and_its_roots_as_powers_of_one_root() {
 }
 
 #[test]
-fn f32_exp_to_trig_writes_logarithm_pairs_as_inverse_functions() {
+fn exp_to_trig_writes_logarithm_pairs_as_inverse_functions() {
     assert_eq!(ev("exp_to_trig(log(1 + im*x) - log(1 - im*x))"), "2im*atan(x)");
     assert_eq!(ev("exp_to_trig(log(2 + x) - log(2 - x))"), "2*atanh((1/2)*x)");
     assert_eq!(ev("exp_to_trig(log(z + sqrt(z^2 + 1)))"), "asinh(z)");
@@ -385,13 +385,13 @@ fn f32_exp_to_trig_writes_logarithm_pairs_as_inverse_functions() {
 }
 
 #[test]
-fn f32_power_expand_cancels_an_inverse_function_applied_to_its_function() {
+fn power_expand_cancels_an_inverse_function_applied_to_its_function() {
     assert_eq!(ev("power_expand(atan(tan(x)))"), "x");
     assert_eq!(ev("power_expand(asin(sin(x)) + acosh(cosh(y)))"), "x + y");
 }
 
 #[test]
-fn f32_piecewise_expand_keeps_the_jump_at_a_closed_end_of_the_region() {
+fn piecewise_expand_keeps_the_jump_at_a_closed_end_of_the_region() {
     // floor(1) = 1 at the right end of [-1, 1]
     assert_eq!(ev("piecewise_expand(floor(x), -1 <= x and x <= 1)"), "piecewise([[-1, x < 0], [1, x >= 1]], 0)");
     assert_eq!(ev("piecewise_expand(floor(x), -1 < x and x < 1)"), "piecewise([[-1, x < 0]], 0)");
@@ -399,7 +399,7 @@ fn f32_piecewise_expand_keeps_the_jump_at_a_closed_end_of_the_region() {
 }
 
 #[test]
-fn f32_piecewise_expand_of_the_wave_functions() {
+fn piecewise_expand_of_the_wave_functions() {
     assert_eq!(ev("piecewise_expand(sawtooth_wave(x), -1 <= x and x <= 1)"), "piecewise([[x, 0 <= x and x < 1], [1 + x, x < 0]], -1 + x)");
     assert_eq!(ev("piecewise_expand(square_wave(x), 0 < x and x < 1)"), "piecewise([[1, x < 1/2]], -1)");
     assert_eq!(
@@ -409,28 +409,28 @@ fn f32_piecewise_expand_of_the_wave_functions() {
 }
 
 #[test]
-fn f32_generating_functions_of_the_delta_and_the_step() {
+fn generating_functions_of_the_delta_and_the_step() {
     assert_eq!(ev("generating_function(discrete_delta(n_u - 5), n_u, z)"), "z^5");
     assert_eq!(ev("generating_function(unit_step(n_u - 3), n_u, z)"), "z^3/(1 - z)");
     assert_eq!(ev("generating_function(discrete_delta(n_u + 2), n_u, z)"), "0");
 }
 
 #[test]
-fn f32_refine_heaviside_theta_of_several_arguments() {
+fn refine_heaviside_theta_of_several_arguments() {
     assert_eq!(ev("assuming(a > 0, refine(heaviside_theta(a, a, a, a)))"), "1");
     assert_eq!(ev("assuming(a < 0 and b > 0, refine(heaviside_theta(b, b, a)))"), "0");
     assert_eq!(ev("assuming(a > 0, refine(heaviside_theta(a, x)))"), "heaviside_theta(x)");
 }
 
 #[test]
-fn f32_function_expand_of_the_heaviside_shapes() {
+fn function_expand_of_the_heaviside_shapes() {
     assert_eq!(ev("function_expand(heaviside_pi(x))"), "heaviside_theta(1/2 + x) - heaviside_theta(-1/2 + x)");
     // the triangle is the second difference of x theta(x): at x = 1/2 it is 1/2
     assert_eq!(ev("rewrite(function_expand(heaviside_lambda(x)), x -> 1/2)"), "1/2");
 }
 
 #[test]
-fn f32_polynomial_extended_gcd_with_symbolic_coefficients_ends() {
+fn polynomial_extended_gcd_with_symbolic_coefficients_ends() {
     assert_eq!(ev("polynomial_extended_gcd(a*x^2 + b*x + c, x - r, x)"), "[1, [(c + a*r^2 + b*r)^-1, (-b + -1*a*r + -1*a*x)/(c + a*r^2 + b*r)]]");
     // the gcd is x - a, and g = s p + t q (checked with numbers for the symbols)
     assert_eq!(
@@ -441,7 +441,7 @@ fn f32_polynomial_extended_gcd_with_symbolic_coefficients_ends() {
 }
 
 #[test]
-fn r32_real_digits_of_long_expansions_do_not_exhaust_memory() {
+fn real_digits_of_long_expansions_do_not_exhaust_memory() {
     // a million binary digits of pi (499722 ones) and 100000 base 47 digits, by one big division
     assert_eq!(ev("count(first(real_digits(pi, 2, 10^6)), 1)"), "499722");
     assert_eq!(ev("length(first(real_digits(pi, 47, 100000)))"), "100000");
@@ -452,13 +452,13 @@ fn r32_real_digits_of_long_expansions_do_not_exhaust_memory() {
 }
 
 #[test]
-fn r32_bin_counts_with_two_bounds_and_split_of_digit_runs() {
+fn bin_counts_with_two_bounds_and_split_of_digit_runs() {
     assert_eq!(ev("bin_counts([0, 1, 1, 2, 3, 3], [0, 4])"), "[1, 2, 1, 2]");
     assert_eq!(ev("length(tally(map(length, split(first(real_digits(pi, 2, 10^6))))))"), "19");
 }
 
 #[test]
-fn r32_permanent_of_symbolic_matrices_follows_the_number_of_terms() {
+fn permanent_of_symbolic_matrices_follows_the_number_of_terms() {
     assert_eq!(ev("permanent([[a, b], [c, d]])"), "a*d + b*c");
     assert_eq!(ev("permanent([[a, b, c], [d, e, f]])"), "a*e + a*f + b*d + b*f + c*d + c*e");
     assert_eq!(ev("permanent([[1, 2, 3], [4, 5, 6], [7, 8, 10]])"), "463");
@@ -470,12 +470,12 @@ fn r32_permanent_of_symbolic_matrices_follows_the_number_of_terms() {
 }
 
 #[test]
-fn r32_fixed_point_list_without_count_stops_cleanly() {
+fn fixed_point_list_without_count_stops_cleanly() {
     assert_eq!(ev("fix_point(pf, x0)"), "failure(limit, memory, fixed_point_list(pf, x0))");
 }
 
 #[test]
-fn r32_matrix_exp_action_on_a_nilpotent_matrix_and_negative_sparse_positions() {
+fn matrix_exp_action_on_a_nilpotent_matrix_and_negative_sparse_positions() {
     // exp(m) v = v + m v + m^2 v / 2 for the strictly triangular m, exact
     assert_eq!(ev("matrix_exp([[0, 2, 1], [0, 0, 3], [0, 0, 0]], [1, 1, 1])"), "[7, 4, 1]");
     assert_eq!(ev("matrix_exp([[0, 2, 1], [0, 0, 3], [0, 0, 0]], [1, 1, 1]) == dot(matrix_exp([[0, 2, 1], [0, 0, 3], [0, 0, 0]]), [1, 1, 1])"), "true");
@@ -488,7 +488,7 @@ fn r32_matrix_exp_action_on_a_nilpotent_matrix_and_negative_sparse_positions() {
 }
 
 #[test]
-fn r32_eigensystem_of_exact_matrices_with_radical_entries_stays_exact() {
+fn eigensystem_of_exact_matrices_with_radical_entries_stays_exact() {
     assert_eq!(
         ev("eigensystem([[sqrt(2), 1], [1, 0]])"),
         "[[(1/2)*(2^(1/2) + 6^(1/2)), (1/2)*(-6^(1/2) + 2^(1/2))], [[(1/2)*2^(1/2) + (1/2)*6^(1/2), 1], [(-1/2)*6^(1/2) + (1/2)*2^(1/2), 1]]]"
@@ -501,7 +501,7 @@ fn r32_eigensystem_of_exact_matrices_with_radical_entries_stays_exact() {
 }
 
 #[test]
-fn r32_array_pad_continues_by_differences() {
+fn array_pad_continues_by_differences() {
     assert_eq!(ev("array_pad([a, b, c], 3, reflected_differences)"), "[b + -2*c + 2*a, -c + 2*a, -b + 2*a, a, b, c, -b + 2*c, -a + 2*c, b + -2*a + 2*c]");
     assert_eq!(ev("array_pad([a, b, c], 4, reversed_differences)"), "[-c + 2*a, -c + 2*a, -b + 2*a, a, a, b, c, c, -b + 2*c, -a + 2*c, -a + 2*c]");
     assert_eq!(ev("array_pad([a, b, c], 3, extrapolated)"), "[-3*b + 4*a, -2*b + 3*a, -b + 2*a, a, b, c, -b + 2*c, -2*b + 3*c, -3*b + 4*c]");
@@ -510,14 +510,14 @@ fn r32_array_pad_continues_by_differences() {
 }
 
 #[test]
-fn r32_sparse_band_values_repeat_and_negative_ends_count_from_the_back() {
+fn sparse_band_values_repeat_and_negative_ends_count_from_the_back() {
     assert_eq!(ev("sparse_array(band([1, 1], [5, 5]) -> [x, y, z], [5, 5])"), "[[x, 0, 0, 0, 0], [0, y, 0, 0, 0], [0, 0, z, 0, 0], [0, 0, 0, x, 0], [0, 0, 0, 0, y]]");
     assert_eq!(ev("sparse_array(band([1, 1], [5, 5]) -> [[[a, b], [c, d]]], [5, 5])"), "[[a, b, 0, 0, 0], [c, d, 0, 0, 0], [0, 0, a, b, 0], [0, 0, c, d, 0], [0, 0, 0, 0, a]]");
     assert_eq!(ev("eigenvalues(sparse_array(band([1, 1], [-1, -1]) -> [[[1, 2], [2, 1]]], [4, 4]))"), "[3, 3, -1, -1]");
 }
 
 #[test]
-fn r32_trig_of_inverse_trig_is_algebraic() {
+fn trig_of_inverse_trig_is_algebraic() {
     assert_eq!(ev("[cos(atan(4/3)), cos(atan(2)), sin(atan(x)), cos(asin(x)), sin(acos(1/3)), tan(asin(x)), tan(acos(3/5))]"), "[3/5, (1/5)*5^(1/2), x*(1 + x^2)^(-1/2), (1 - x^2)^(1/2), (2/3)*2^(1/2), x*(1 - x^2)^(-1/2), 4/3]");
     assert_eq!(ev("re_im(3 + 4*im) === from_polar_coordinates(abs_arg(3 + 4*im))"), "true");
     // the poles stay unevaluated, inexact arguments are evaluated numerically
@@ -525,30 +525,30 @@ fn r32_trig_of_inverse_trig_is_algebraic() {
 }
 
 #[test]
-fn r32_numerical_order_puts_non_numbers_after_numbers() {
+fn numerical_order_puts_non_numbers_after_numbers() {
     assert_eq!(ev("[numerical_order(sqrt(2) + 5, e2), numerical_order(e2, sqrt(2) + 5), numerical_order(1/2, e2), numerical_order(6, pi)]"), "[1, -1, 1, -1]");
 }
 
 #[test]
-fn r32_orthogonalize_of_ill_conditioned_numbers_stays_orthogonal() {
+fn orthogonalize_of_ill_conditioned_numbers_stays_orthogonal() {
     assert_eq!(ev("m = n(hilbert_matrix(10)); gs = orthogonalize(m); max(abs(dot(gs, transpose(gs)) - identity_matrix(10))) < 1e-14"), "true");
     assert_eq!(ev("orthogonalize([[1, 2], [3, 4]])"), "[[(1/5)*5^(1/2), (2/5)*5^(1/2)], [(2/5)*5^(1/2), (-1/5)*5^(1/2)]]");
 }
 
 #[test]
-fn r32_total_of_machine_reals_is_compensated_on_request() {
+fn total_of_machine_reals_is_compensated_on_request() {
     // the default is the canonical plain sum (the same packed, unpacked and compiled); compensation is an option
     assert_eq!(ev("x = constant_array(0.1, 10^6); total(x, method: compensated_summation) - 10^5"), "0.0");
 }
 
 #[test]
-fn r32_karhunen_loeve_standardized_takes_the_row_means_off() {
+fn karhunen_loeve_standardized_takes_the_row_means_off() {
     // the second row of the transformed data is the same with and without the sign choice of the basis
     assert_eq!(ev("round(100 * abs(karhunen_loeve_decomposition([[1, 2, 3, 4], [0.8, 2.1, 3.2, 3.9]], standardized: true)[1][2][1]))"), "9");
 }
 
 #[test]
-fn r32_replace_part_with_conditioned_position_patterns_and_association_keys() {
+fn replace_part_with_conditioned_position_patterns_and_association_keys() {
     assert_eq!(
         ev("replace_part(constant_array(0, [5, 5]), [x_, y_] when is_coprime(x, y) :> x + y)"),
         "[[2, 3, 4, 5, 6], [3, 0, 5, 0, 7], [4, 5, 0, 7, 8], [5, 0, 7, 0, 9], [6, 7, 8, 9, 0]]"
@@ -558,27 +558,27 @@ fn r32_replace_part_with_conditioned_position_patterns_and_association_keys() {
 }
 
 #[test]
-fn r32_numeric_arrays_of_single_precision_round_to_24_bits() {
+fn numeric_arrays_of_single_precision_round_to_24_bits() {
     assert_eq!(ev("normal(numeric_array([0.1, 1.1, 2.1], \"Real32\"))"), "[0.10000000149011612, 1.100000023841858, 2.0999999046325684]");
     assert_eq!(ev("normal(numeric_array([1 / 3 + (2 / 3) * im], \"ComplexReal32\", coerce))"), "[complex(0.3333333432674408, 0.6666666865348816)]");
     assert_eq!(ev("normal(numeric_array([0.1, 1.1], \"Real64\"))"), "[0.1, 1.1]");
 }
 
 #[test]
-fn r32_fixed_point_list_stops_at_a_two_cycle_of_neighbouring_doubles() {
+fn fixed_point_list_stops_at_a_two_cycle_of_neighbouring_doubles() {
     // Newton's step for sqrt(3) alternates between 1.7320508075688772 and 1.7320508075688774
     assert_eq!(ev("last(fixed_point_list(&((&1 + 3/&1)/2), 1.))"), "1.7320508075688772");
     assert_eq!(ev("length(fixed_point_list(&((&1 + 3/&1)/2), 1.))"), "7");
 }
 
 #[test]
-fn r32_sparse_band_cycles_only_with_an_explicit_end() {
+fn sparse_band_cycles_only_with_an_explicit_end() {
     assert_eq!(ev("sparse_array(band([1, 1]) -> [x, y], [3, 3])"), "[[x, 0, 0], [0, y, 0], [0, 0, 0]]");
     assert_eq!(ev("sparse_array(band([1, 1], [3, 3]) -> [x, y], [3, 3])"), "[[x, 0, 0], [0, y, 0], [0, 0, x]]");
 }
 
 #[test]
-fn r32_fourier_of_long_vectors_is_fast_and_matches_the_definition() {
+fn fourier_of_long_vectors_is_fast_and_matches_the_definition() {
     // lengths 1000 (mixed radix) and 4099 (prime): a round trip, and one coefficient against the sum
     assert_eq!(ev("x = table(n(sin(i)) + 0.5*i, i, 1000); max(abs(inverse_fourier(fourier(x)) - x)) < 1e-9"), "true");
     assert_eq!(ev("x = table(n(sin(i)), i, 4099); max(abs(inverse_fourier(fourier(x)) - x)) < 1e-10"), "true");
@@ -591,25 +591,25 @@ fn r32_fourier_of_long_vectors_is_fast_and_matches_the_definition() {
 }
 
 #[test]
-fn r32_unbounded_nest_while_list_stops_cleanly_and_quantities_have_a_numerical_order() {
+fn unbounded_nest_while_list_stops_cleanly_and_quantities_have_a_numerical_order() {
     // a test that never fails (the exact comparison of a two-cycle of doubles): the list is cut, not grown to memory
     assert_eq!(ev("nest_while_list(&((&1 + 3/&1)/2), 1., not_same, 2)"), "failure(limit, memory, nest_while_list(&((&1 + 3/&1)/2), 1.0, not_same, 2))");
     assert_eq!(ev("[numerical_order(quantity(1, \"Meters\"), quantity(3, \"Feet\")), numerical_order(-inf, 3), numerical_order(inf, 3)]"), "[-1, 1, -1]");
 }
 
 #[test]
-fn r32_find_root_with_an_exactly_zero_residual_ends() {
+fn find_root_with_an_exactly_zero_residual_ends() {
     let v = ev("r = find_root(sqrt(c - 1 - im) - sqrt(c - 1 - im), [c, 2 + im], working_precision: 30); 1");
     assert_eq!(v, "1");
 }
 
 #[test]
-fn r32_differential_root_is_accurate_to_machine_digits() {
+fn differential_root_is_accurate_to_machine_digits() {
     assert_eq!(ev("f = differential_root((y, x) => [y'(x) - y(x) == 0, y(0) == 1]); abs(f(0.5) - exp(0.5)) < 1e-13"), "true");
 }
 
 #[test]
-fn r33_bitwise_operations_on_integers_of_any_size() {
+fn bitwise_operations_on_integers_of_any_size() {
     assert_eq!(ev("[bit_xor(4*2^62, 7), bit_or(2^70, 1), bit_and(2^70 + 3, 2^70 + 1), bit_not(2^70)]"), "[18446744073709551623, 1180591620717411303425, 1180591620717411303425, -1180591620717411303425]");
     // against the two's-complement identities
     assert_eq!(ev("[bit_xor(-2^70, 5), bit_and(-2^70, 2^71 - 1), bit_or(-2^65, 2^64), bit_and(-3, -2^80)]"), "[-1180591620717411303419, 1180591620717411303424, -18446744073709551616, -1208925819614629174706176]");
@@ -617,7 +617,7 @@ fn r33_bitwise_operations_on_integers_of_any_size() {
 }
 
 #[test]
-fn r33_root_approximant_uses_the_precision_asked_for() {
+fn root_approximant_uses_the_precision_asked_for() {
     // n(pi, 4) carries 16 guard bits: 22/7 is what 4 digits support, not 355/113
     assert_eq!(ev("root_approximant(n(pi, 4))"), "22/7");
     assert_eq!(ev("root_approximant(n(pi, 1))"), "3");
@@ -625,14 +625,14 @@ fn r33_root_approximant_uses_the_precision_asked_for() {
 }
 
 #[test]
-fn r33_find_minimum_with_constraints_from_the_default_start_tries_the_sign_patterns() {
+fn find_minimum_with_constraints_from_the_default_start_tries_the_sign_patterns() {
     // sin(x) sin(2y) on a disk: from (1, 1) alone a shallow boundary minimum, the lowest one is near -1
     assert_eq!(ev("v = find_minimum([sin(x)*sin(2*y), x^2 + y^2 < 3], [x, y]); abs(v[1] + 0.99965627590) < 1e-8"), "true");
     assert_eq!(ev("v = find_maximum([sin(x)*sin(2*y), x^2 + y^2 < 3], [x, y]); abs(v[1] - 0.99965627590) < 1e-8"), "true");
 }
 
 #[test]
-fn r33_find_peaks_interpolation_order_refines_with_the_clamped_spline() {
+fn find_peaks_interpolation_order_refines_with_the_clamped_spline() {
     // values and positions of the maxima of the cubic spline with zero end slopes (scipy CubicSpline 'clamped' gives
     // 5.5661 / 6.251185 and 10.884034 / 7.101697 for the two inner peaks)
     assert_eq!(
@@ -642,7 +642,7 @@ fn r33_find_peaks_interpolation_order_refines_with_the_clamped_spline() {
 }
 
 #[test]
-fn r33_svd_takes_a_shape_thin_full_compact_a_count_or_up_to() {
+fn svd_takes_a_shape_thin_full_compact_a_count_or_up_to() {
     assert_eq!(
         ev("m = [[1.2, 3.4], [5.6, 7.8], [9., 1.2]]; f = svd(m, full); [map(dimensions, f), max(abs(dot(f[1], f[2], transpose(f[3])) - m)) < 1e-13, max(abs(dot(transpose(f[1]), f[1]) - identity_matrix(3))) < 1e-13]"),
         "[[[3, 3], [3, 2], [2, 2]], true, true]"
@@ -652,20 +652,20 @@ fn r33_svd_takes_a_shape_thin_full_compact_a_count_or_up_to() {
 }
 
 #[test]
-fn r33_cellular_automaton_on_a_background_keeps_the_columns_that_differ() {
+fn cellular_automaton_on_a_background_keeps_the_columns_that_differ() {
     // the widths of rules 1 to 20 from one cell, ten steps: a pattern drifting left, dying, flipping the background
     assert_eq!(ev("table(dimensions(cellular_automaton(r, [[1], 0], 10))[2], r, 20)"), "[3, 11, 6, 1, 3, 11, 2, 1, 12, 11, 11, 1, 12, 11, 11, 11, 6, 21, 1, 11]");
 }
 
 #[test]
-fn r33_sequence_position_of_a_literal_run_in_a_long_list() {
+fn sequence_position_of_a_literal_run_in_a_long_list() {
     // a million digits of pi: the first two places of 314159 (the second at 176452, a well-known position)
     assert_eq!(ev("d = first(real_digits(n(pi, 10^6))); sequence_position(d, [3, 1, 4, 1, 5, 9])"), "[[1, 6], [176452, 176457]]");
     assert_eq!(ev("[sequence_position([1, 1, 1, 1], [1, 1]), sequence_count([1, 1, 1, 1], [1, 1]), sequence_position([1, 2, 1, 2], [2, 1])]"), "[[[1, 2], [2, 3], [3, 4]], 2, [[2, 3]]]");
 }
 
 #[test]
-fn r33_sparse_array_with_pattern_positions_is_fast() {
+fn sparse_array_with_pattern_positions_is_fast() {
     // 999 x 999 tridiagonal from two pattern rules (a million positions): about a second, not ten
     assert_eq!(
         ev("s = sparse_array([[i_, i_] -> -2., [i_, j_] when abs(i - j) == 1 -> 1.], [999, 999]); [s[1][1], s[1][2], s[2][1], s[2][3], s[5][9], s[500][500]]"),
@@ -675,13 +675,13 @@ fn r33_sparse_array_with_pattern_positions_is_fast() {
 }
 
 #[test]
-fn r33_number_theory_threading_options_and_irrational_constants() {
+fn number_theory_threading_options_and_irrational_constants() {
     assert_eq!(ev("[mod(sqrt(28), 3), mod(pi, 2), mod(-pi, 2), mod(x, 2), quotient(e^e^e, pi), quotient(7, 3, 1), quotient(x, pi)]"), "[-3 + 2*7^(1/2), -2 + pi, 4 - pi, mod(x, 2), 1214122, 2, quotient(x, pi)]");
     assert_eq!(ev("[divisors([6, 10]), divisor_sum([2, 5, 10], &(&1^2)), prime_pi(10^6, method: lehmer)]"), "[[[1, 2, 3, 6], [1, 2, 5, 10]], [5, 26, 130], 78498]");
 }
 
 #[test]
-fn r33_linear_algebra_options_counts_and_ball_matrices() {
+fn linear_algebra_options_counts_and_ball_matrices() {
     assert_eq!(ev("[hilbert_matrix(3, target_structure: dense), rotation_matrix(pi/2, target_structure: dense), cholesky([[4, 2], [2, 3]], target_structure: dense)[1][1]]"), "[[[1, 1/2, 1/3], [1/2, 1/3, 1/4], [1/3, 1/4, 1/5]], [[0, -1], [1, 0]], 2]");
     assert_eq!(ev("hilbert_matrix(2, working_precision: machine_precision)"), "[[1.0, 0.5], [0.5, 0.3333333333333333]]");
     // eigenvalues of a matrix of 12-digit numbers: the smallest three (machine arithmetic), the Hilbert-type matrix
@@ -690,7 +690,7 @@ fn r33_linear_algebra_options_counts_and_ball_matrices() {
 }
 
 #[test]
-fn r33_nearest_with_radius_distance_function_and_result_forms() {
+fn nearest_with_radius_distance_function_and_result_forms() {
     assert_eq!(ev("[nearest([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 5, [3, 2]), nearest([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 5, [all, 2])]"), "[[5, 4, 6], [5, 4, 6, 3, 7]]");
     assert_eq!(ev("nearest([[1.5, 0.6], [2, 0], [1.25, 1.25]], [0, 0], distance_function: manhattan_distance)"), "[[2, 0]]");
     assert_eq!(ev("[nearest([\"Im\", \"sorry\", \"Dave\"] -> \"Index\", \"David\"), nearest([1, 2, 4, 8, 16, 32] -> [\"Element\", \"Distance\"], 20, 3)]"), "[[3], [[16, 4.0], [8, 12.0], [32, 12.0]]]");
@@ -698,37 +698,37 @@ fn r33_nearest_with_radius_distance_function_and_result_forms() {
 }
 
 #[test]
-fn r33_bin_lists_of_a_rule_gives_the_labels() {
+fn bin_lists_of_a_rule_gives_the_labels() {
     assert_eq!(ev("bin_lists([1.5, 3, 2.5, 1, e, 7] -> [\"a\", \"b\", \"c\", \"d\", \"e\", \"f\"], 2)"), "[[\"a\", \"d\"], [\"b\", \"c\", \"e\"], [], [\"f\"]]");
     assert_eq!(ev("bin_lists([1.5, 3, 2.5, 1, e, 7] -> automatic, 2)"), "[[1, 4], [2, 3, 5], [], [6]]");
 }
 
-// Inputs whose fix belongs to another crate (round 33): kept ignored.
+// Inputs whose fix belongs to another crate: kept ignored.
 #[test]
 #[ignore = "needs mc-numfn: `surd` is not one of the primitives its prep step rewrites (find_root(surd(x, 2) == 1.5, [x, 1]))"]
-fn r33_find_root_of_surd() {
+fn find_root_of_surd() {
     assert_eq!(ev("find_root(surd(x, 2) == 1.5, [x, 1])"), "[x -> 2.25]");
 }
 
 #[test]
 #[ignore = "needs mc-calculus: minimize of a 2-norm residual takes over six seconds"]
-fn r33_minimize_of_a_least_squares_norm() {
+fn minimize_of_a_least_squares_norm() {
     assert_eq!(ev("m = [[1, 1], [1, 2], [1, 3]]; b = [7, 7, 8]; minimize(norm(dot(m, [x, y]) - b), [x, y])"), "[6^(-1/2), [x -> 19/3, y -> 1/2]]");
 }
 
 #[test]
-fn r33_multinomial_with_a_symbolic_argument() {
+fn multinomial_with_a_symbolic_argument() {
     assert_eq!(ev("expand(multinomial(n, 1, 2) - (3 + (11/2)*n + 3*n^2 + (1/2)*n^3))"), "0");
 }
 
 #[test]
-fn r33_trace_of_vectors_nonsquare_matrices_and_with_a_head_and_level() {
+fn trace_of_vectors_nonsquare_matrices_and_with_a_head_and_level() {
     assert_eq!(ev("[trace([1, 2, 3]), trace([[1, 2, 3], [4, 5, 6]], list), trace([[1, 2, 3], [4, 5, 6], [7, 8, 9]], add, 1), trace([[1, 2, 3], [0, 4, 5], [0, 0, 6]], mul), trace([[1, 2, 3], [4, 5, 6], [7, 8, 9]], f)]"), "[6, [1, 5], [12, 15, 18], 24, f(1, 5, 9)]");
     assert_eq!(ev("trace(array(a, [4, 3, 2]))"), "a(1, 1, 1) + a(2, 2, 2)");
 }
 
 #[test]
-fn r33_fit_with_tikhonov_regularization() {
+fn fit_with_tikhonov_regularization() {
     // the normal equations plus lambda on the diagonal; numpy gives 0.499984875, 0.005499611, 5.0496022e-5
     assert_eq!(
         ev("data = [[0, 0], [0.001, 1], [0.01, 1]]; f = fit(data, [1, x, x^2], x, fit_regularization: [tikhonov, 1]); c = coefficient_list(f, x); [abs(c[1] - 0.4999848748) < 1e-9, abs(c[2] - 0.005499610866) < 1e-9, abs(c[3] - 5.0496022e-5) < 1e-12]"),
@@ -737,13 +737,13 @@ fn r33_fit_with_tikhonov_regularization() {
 }
 
 #[test]
-fn r33_time_series_spaces_times_from_start_to_end() {
+fn time_series_spaces_times_from_start_to_end() {
     assert_eq!(ev("ts = time_series([1, 2, 3], [0.1, 0.3]); ts(\"Path\")"), "[[0.1, 1], [0.2, 2], [0.3, 3]]");
     assert_eq!(ev("time_series([1, 2, 3], [10, 20])(\"Times\")"), "[10, 15, 20]");
 }
 
 #[test]
-fn r33_dataset_queries_take_operator_forms() {
+fn dataset_queries_take_operator_forms() {
     let ds = "ds = dataset([assoc(\"a\" -> 1, \"b\" -> \"x\"), assoc(\"a\" -> 2, \"b\" -> \"y\"), assoc(\"a\" -> 3, \"b\" -> \"z\")]); ";
     assert_eq!(ev(&format!("{ds}ds[select(&(&1[\"a\"] < 3)), \"b\"]")), "[\"x\", \"y\"]");
     assert_eq!(ev(&format!("{ds}ds[sort_by(&(-&1[\"a\"])), \"a\"]")), "[3, 2, 1]");
@@ -751,7 +751,7 @@ fn r33_dataset_queries_take_operator_forms() {
 }
 
 #[test]
-fn r33_discrete_plot3d_and_list_step_plot_read_their_data() {
+fn discrete_plot3d_and_list_step_plot_read_their_data() {
     let image = |src: &str| ev(src).starts_with("image(");
     // several surfaces, wrapped functions, a one-bound axis, a list of values on an axis, a density by name
     assert!(image("discrete_plot3d([sin(t + u), cos(t + u)], [t, 0, 2*pi, pi/12], [u, 0, 2*pi, pi/12])"));
@@ -768,7 +768,7 @@ fn r33_discrete_plot3d_and_list_step_plot_read_their_data() {
 }
 
 #[test]
-fn r33_plots_take_infinite_ranges_and_region_domains() {
+fn plots_take_infinite_ranges_and_region_domains() {
     let image = |src: &str| ev(src).starts_with("image(");
     assert!(image("plot(sinc(x), [x, -inf, inf])"));
     assert!(image("plot3d(atan(x)*atan(y), [x, -inf, inf], [y, -inf, inf])"));
@@ -780,7 +780,7 @@ fn r33_plots_take_infinite_ranges_and_region_domains() {
 }
 
 #[test]
-fn r33_check_arguments_reads_a_spread_call_without_running_it() {
+fn check_arguments_reads_a_spread_call_without_running_it() {
     // `apply(f, args)` is how a rule with `args___` writes f(args...): the call must not run f
     assert_eq!(ev("rule f(x_, y_) := 2*x*y; rule f(args___) := null when check_arguments(apply(f, args), 2); f(2)"), "f(2)");
     assert_eq!(ev("rule f(x_, y_) := 2*x*y; rule f(args___) := null when check_arguments(apply(f, args), 2); f(3, 4)"), "24");
@@ -788,13 +788,13 @@ fn r33_check_arguments_reads_a_spread_call_without_running_it() {
 }
 
 #[test]
-fn r33_dataset_part_with_a_list_of_column_names() {
+fn dataset_part_with_a_list_of_column_names() {
     let ds = "ds = dataset([assoc(\"a\" -> 1, \"b\" -> \"x\", \"c\" -> 5), assoc(\"a\" -> 2, \"b\" -> \"y\", \"c\" -> 6)]); ";
     assert_eq!(ev(&format!("{ds}columns(ds[select(&(&1[\"a\"] < 2)), [\"b\", \"c\"]])")), "[\"b\", \"c\"]");
 }
 
 #[test]
-fn r33_measures_of_a_map_with_ranges_and_coordinate_systems() {
+fn measures_of_a_map_with_ranges_and_coordinate_systems() {
     assert_eq!(ev("arc_length([sin(t), cos(t)], [t, 0, 2*pi])"), "2*pi");
     assert_eq!(ev("arc_length([1, t, t], [t, 0, 2*pi], cylindrical)"), "2*pi*2^(1/2)");
     assert_eq!(ev("area([r*sin(t), r*cos(t)], [r, 1, 2], [t, 0, 2*pi])"), "3*pi");
@@ -807,7 +807,7 @@ fn r33_measures_of_a_map_with_ranges_and_coordinate_systems() {
 }
 
 #[test]
-fn r33_implicit_regions_moments_solids_and_nearest_points() {
+fn implicit_regions_moments_solids_and_nearest_points() {
     assert_eq!(ev("region_moment(implicit_region(x^2 + y^2 <= 1, [x, y]), [2, 2])"), "(1/24)*pi");
     // the solid cylinder: the integral of y^2 z^4 is (pi/4)(32/5)
     assert_eq!(ev("region_moment(implicit_region(x^2 + y^2 <= 1, [x, y, [z, 0, 2]]), [0, 2, 4])"), "(8/5)*pi");
@@ -820,7 +820,7 @@ fn r33_implicit_regions_moments_solids_and_nearest_points() {
 }
 
 #[test]
-fn r33_conic_hulls_draw_and_several_closed_curves_have_a_winding_region() {
+fn conic_hulls_draw_and_several_closed_curves_have_a_winding_region() {
     let image = |src: &str| ev(src).starts_with("image(");
     assert!(image("graphics(conic_hull_region([[0, 0]], [[1, -1], [1, 1]]))"));
     assert!(image("graphics([pink, conic_hull_region([[0, 0]], [[1, 1], [-1, 1]])], plot_range: [[-2, 2], [-1, 2]], frame: true)"));
@@ -830,7 +830,7 @@ fn r33_conic_hulls_draw_and_several_closed_curves_have_a_winding_region() {
 }
 
 #[test]
-fn r33_rotate_about_a_position_and_the_area_of_an_annulus_sector() {
+fn rotate_about_a_position_and_the_area_of_an_annulus_sector() {
     let image = |src: &str| ev(src).starts_with("image(");
     assert!(image("graphics([circle(), rotate(rectangle(), pi/4, [right, bottom])], axes: true)"));
     assert!(image("graphics(rotate(circle(), pi/2, right), axes: true)"));
@@ -840,7 +840,7 @@ fn r33_rotate_about_a_position_and_the_area_of_an_annulus_sector() {
 }
 
 #[test]
-fn r33_complex_sector_bijectivity_does_not_run_the_four_variable_decomposition() {
+fn complex_sector_bijectivity_does_not_run_the_four_variable_decomposition() {
     // function_bijective: used to spend 12 s in a decomposition (and ignore an interrupt); now it answers at once
     let t = std::time::Instant::now();
     let v = ev("function_bijective([x^4, re(x) >= 0 and im_part(x) > 0 or x == 0], x, complexes)");
@@ -849,14 +849,14 @@ fn r33_complex_sector_bijectivity_does_not_run_the_four_variable_decomposition()
 }
 
 #[test]
-fn r33_minimize_with_a_kink_in_several_variables() {
+fn minimize_with_a_kink_in_several_variables() {
     // |x + 2y - 3| on the triangle x, y >= 0, x + y <= 2 vanishes on a segment; the gradient never does
     assert_eq!(ev("v = minimize([abs(x + 2*y - 3), x >= 0 and y >= 0 and x + y <= 2], [x, y]); v[1]"), "0");
     assert_eq!(ev("v = minimize([abs(x + 2*y - 3), x >= 0 and y >= 0 and x + y <= 2], [x, y]); p = v[2]; rewrite(abs(x + 2*y - 3) == 0 and x >= 0 and y >= 0 and x + y <= 2, p)"), "true");
 }
 
 #[test]
-fn r33_power_expand_with_explicit_assumptions_keeps_the_branch_corrections() {
+fn power_expand_with_explicit_assumptions_keeps_the_branch_corrections() {
     // arg x and arg y in (pi/2, pi): arg(x y) in (pi, 2 pi) wraps once, so sqrt(x y) = -sqrt(x) sqrt(y)
     assert_eq!(
         ev("power_expand(sqrt(x*y), assumptions: pi/2 < arg(x) and arg(x) < pi and pi/2 < arg(y) and arg(y) < pi)"),
@@ -875,7 +875,7 @@ fn r33_power_expand_with_explicit_assumptions_keeps_the_branch_corrections() {
 }
 
 #[test]
-fn r33_infinite_continued_fraction_k_with_constant_terms() {
+fn infinite_continued_fraction_k_with_constant_terms() {
     assert_eq!(ev("abs(n(continued_fraction_k(1, [n, 1, inf]) - (golden_ratio - 1), 30)) < 10^-25"), "true");
     // K = f/(g + K): 2/(3 + K)
     assert_eq!(ev("v = continued_fraction_k(2, 3, [n, 1, inf]); simplify(v - 2/(3 + v))"), "0");
@@ -884,13 +884,13 @@ fn r33_infinite_continued_fraction_k_with_constant_terms() {
 
 #[test]
 #[ignore = "needs the pattern matcher of mc-eval (a flat sum matched by x_ + y_ takes the first term and the rest)"]
-fn r33_flat_sum_matched_by_two_term_pattern() {
+fn flat_sum_matched_by_two_term_pattern() {
     assert_eq!(ev("rewrite(a + b + c, x_ + y_ -> [x, y])"), "[a, b + c]");
     assert_eq!(ev("replace(a + b + c, x_ + y_ :> [x, y])"), "[a, b + c]");
 }
 
 #[test]
-fn r33_euler_numbers_beyond_600_by_the_beta_series() {
+fn euler_numbers_beyond_600_by_the_beta_series() {
     // sum_j C(n, 2j) E_2j = 0 for even n >= 2: indices on both sides of the switch from the recurrence
     assert_eq!(
         ev("e = table(euler_e(j), j, range(0, 1000)); [total(table(binomial(1000, 2*k)*e[2*k + 1], k, range(0, 500))), total(table(binomial(700, 2*k)*e[2*k + 1], k, range(0, 350))), e[601] > 0, e[603] < 0]"),
@@ -902,7 +902,7 @@ fn r33_euler_numbers_beyond_600_by_the_beta_series() {
 }
 
 #[test]
-fn r33_bell_polynomial_of_large_index_at_a_number_and_two_cubes_of_large_integers() {
+fn bell_polynomial_of_large_index_at_a_number_and_two_cubes_of_large_integers() {
     assert_eq!(ev("bell_b(50, 2) == total(table(stirling_s2(50, j)*2^j, j, range(0, 50)))"), "true");
     assert_eq!(ev("abs(bell_b(1000, 0.5) / (2.0330084852554126e1873~17) - 1) < 1e-12"), "true");
     assert_eq!(ev("powers_representations(48988659276962496, 2, 3)"), "[[38787, 365757], [107839, 362753], [205292, 342952], [221424, 336588], [231518, 331954]]");
@@ -910,7 +910,7 @@ fn r33_bell_polynomial_of_large_index_at_a_number_and_two_cubes_of_large_integer
 }
 
 #[test]
-fn r33_convolution_of_unit_steps_and_boxes_with_a_symbolic_argument() {
+fn convolution_of_unit_steps_and_boxes_with_a_symbolic_argument() {
     assert_eq!(ev("convolve(exp(-x) * unit_step(x), exp(-x) * unit_step(x), x, y)"), "y*exp(-y)*unit_step(y)");
     assert_eq!(ev("convolve(unit_step(x), unit_step(x), x, y)"), "y*unit_step(y)");
     assert_eq!(ev("convolve(a^x * unit_step(x), unit_step(x), x, y)"), "(-1 + a^y)/log(a)*unit_step(y)");
@@ -927,7 +927,7 @@ fn r33_convolution_of_unit_steps_and_boxes_with_a_symbolic_argument() {
 }
 
 #[test]
-fn r33_classical_wronskians_casoratian_and_difference_quotient_under_assumptions() {
+fn classical_wronskians_casoratian_and_difference_quotient_under_assumptions() {
     assert_eq!(ev("wronskian([airy_ai(x), airy_bi(x)], x)"), "pi^-1");
     assert_eq!(ev("abs(rewrite(wronskian([bessel_j(2, x), bessel_y(2, x)], x) - (bessel_j(2, x)*d(bessel_y(2, x), x) - d(bessel_j(2, x), x)*bessel_y(2, x)), x -> 1.3)) < 1e-12"), "true");
     assert_eq!(ev("wronskian([bessel_i(1, x), bessel_k(1, x)], x)"), "-x^-1");
@@ -937,7 +937,7 @@ fn r33_classical_wronskians_casoratian_and_difference_quotient_under_assumptions
 }
 
 #[test]
-fn r33_unit_step_refines_under_a_sign_and_power_expand_uses_the_principal_range_of_arg() {
+fn unit_step_refines_under_a_sign_and_power_expand_uses_the_principal_range_of_arg() {
     assert_eq!(ev("simplify(unit_step(x), x > 0)"), "1");
     assert_eq!(ev("refine(unit_step(-x), x > 0)"), "0");
     assert_eq!(ev("refine(unit_step(x))"), "unit_step(x)");

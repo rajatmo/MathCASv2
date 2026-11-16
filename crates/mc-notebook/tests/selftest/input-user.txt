@@ -1,4 +1,4 @@
-# A user's session of typed formulas (round 38): fractions, powers, roots and brackets mixed, selections, undo and
+# A user's session of typed formulas: fractions, powers, roots and brackets mixed, selections, undo and
 # redo, cut, copy and paste, each typed through the keyboard into a new cell at the end. Every formula checks what the
 # cell shows (its boxes, `expect boxes`) and what it stores (its text, `expect canon`), and that the two agree
 # (`same`: the stored text reads back as the boxes shown); some are evaluated. Driven by tests/input_selftest.rs.

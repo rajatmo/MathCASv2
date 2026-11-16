@@ -70,7 +70,7 @@ fn ranges() {
 }
 
 /// Critical points that solve returns as a family (periodic derivatives: `x -> ... c(1)`) are sampled, and the
-/// range is accepted only when a numeric scan agrees; otherwise the call stays unevaluated (round 18).
+/// range is accepted only when a numeric scan agrees; otherwise the call stays unevaluated.
 #[test]
 fn ranges_from_families_of_critical_points() {
     check(&[

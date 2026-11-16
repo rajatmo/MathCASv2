@@ -1,4 +1,4 @@
-//! Typeset math in the window (round 19), driven through the self-test (`tests/selftest/typeset.txt`):
+//! Typeset math in the window, driven through the self-test (`tests/selftest/typeset.txt`):
 //! building a fraction, an n-th root and a power of a root with the box keys; clicks into a denominator, a radicand
 //! and an index; a double-click and a drag across box boundaries; copying the boxes and pasting them into another
 //! cell, undo and redo of the paste; another program's text pasted as text (Ctrl+V) and as math (Ctrl+Shift+V,

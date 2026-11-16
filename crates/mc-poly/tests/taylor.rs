@@ -39,7 +39,7 @@ fn symbolic_powers_through_logarithms() {
 }
 
 #[test]
-fn round31_series_fixes() {
+fn series_of_symbolic_powers_and_kernels() {
     check(&[
         // a symbolic power of the variable is a factor of every term and of the order term
         ("series(tanh(y)^k, y, 0, 3)", "O(y^(4 + k)) + (-1/3)*k*y^(2 + k) + y^k"),

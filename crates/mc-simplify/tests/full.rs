@@ -1,4 +1,4 @@
-//! Round 19 (phase 12): `full_simplify`, the options of the search, the new moves, the special-function identities
+//! `full_simplify`, the options of the search, the new moves, the special-function identities
 //! of `function_expand` and `simplify`, assumptions, and the spot check of the identities.
 mod common;
 use common::{check, Lcg, Sys};
@@ -125,7 +125,7 @@ fn function_expand_identities() {
             "function_expand(hypergeometric_pfq([1/2, 1/2, 1/2], [1, 1], x))",
             "4*pi^-2*elliptic_k(1/2 + (-1/2)*(1 - x)^(1/2))^2",
         ),
-        // the round 7 forms still apply
+        // the earlier forms still apply
         ("function_expand(sec(x)*cos(x))", "1"),
         ("function_expand(hypergeometric1f1(a, a, z))", "exp(z)"),
         ("function_expand(hypergeometric2f1(1, 1, 2, z))", "-1*log(1 - z)/z"),

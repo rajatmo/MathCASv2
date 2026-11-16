@@ -1,4 +1,4 @@
-//! Interactive controls (round 13) through the window and a real kernel (`mc-kernel` next to the notebook
+//! Interactive controls through the window and a real kernel (`mc-kernel` next to the notebook
 //! binary): a `manipulate` cell is evaluated, its sliders are dragged, the frames stay short, and the saved file keeps
 //! the positions and the last result (the plot embedded). It opens a window and starts a kernel, so it is ignored by
 //! default: `cargo test -p mc-notebook --test manipulate_selftest -- --ignored`.

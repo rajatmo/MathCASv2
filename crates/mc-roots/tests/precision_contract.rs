@@ -1,5 +1,5 @@
 //! The precision contract (roadmap 16B) for root finding and optimisation: `working_precision: 30` agrees with
-//! `working_precision: 60` to 30 digits and its ball contains the 60-digit value (P19-03, P19-04).
+//! `working_precision: 60` to 30 digits and its ball contains the 60-digit value.
 use mc_api::{Engine, StopFlag};
 use mc_engine::{CoreEngine, EngineConfig};
 

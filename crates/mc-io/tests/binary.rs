@@ -1,4 +1,4 @@
-//! Binary data (round 29): `byte_array`, `binary_write`, `binary_read_list`.
+//! Binary data: `byte_array`, `binary_write`, `binary_read_list`.
 use mc_api::{Engine, StopFlag};
 use mc_engine::CoreEngine;
 

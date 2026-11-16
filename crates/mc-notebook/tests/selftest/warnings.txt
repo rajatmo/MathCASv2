@@ -1,4 +1,4 @@
-# Round 20: a call of a variable is marked and fixed; F1 on an option opens its section. Run by
+# A call of a variable is marked and fixed; F1 on an option opens its section. Run by
 # tests/warnings_selftest.rs (it opens a window: `cargo test -- --ignored`), which checks the log.
 size 1000 600
 ppp 1

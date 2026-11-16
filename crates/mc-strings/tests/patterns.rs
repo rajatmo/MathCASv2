@@ -1,4 +1,4 @@
-//! String patterns (round 30): blanks and runs, classes, repetition, alternatives, `longest`/`shortest`, bindings
+//! String patterns: blanks and runs, classes, repetition, alternatives, `longest`/`shortest`, bindings
 //! and conditions, anchors, regular expressions, and the functions that search with them.
 use mc_api::{Engine, StopFlag};
 use mc_engine::{CoreEngine, EngineConfig};

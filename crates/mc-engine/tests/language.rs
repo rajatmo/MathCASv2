@@ -1,7 +1,7 @@
 //! The language features of `mc-eval` through the engine: closures, blocks, locals, loops, `match`,
 //! `rewrite`, definitions with options, defaults, held parameters and decorators, the output channel and the memo
-//! setting; the same results under collection stress at 1 and 4 threads; and the language parts of benchmark cases
-//! R2, R9 and R12 with small library stubs (`mod`, `range`, `max`, `nest`, `depth`) standing in for the library
+//! setting; the same results under collection stress at 1 and 4 threads; and the language parts of three benchmark cases
+//! (memoising Fibonacci, deep nesting, interpreted loops) with small library stubs (`mod`, `range`, `max`, `nest`, `depth`) standing in for the library
 //! crates.
 use mc_api::{Engine, StopFlag};
 use mc_core::{Heap, Store, View, T};
@@ -218,18 +218,18 @@ map(k => { var c = k; () => c }, [1, 2, 3])";
     }
 }
 
-/// R2 (memoising Fibonacci, with a block so the rule returns the value), R9 (deep nesting through a `let`) and R12
-/// (interpreted loops) at their smallest sizes.
+/// Memoising Fibonacci (with a block so the rule returns the value), deep nesting through a `let` and
+/// interpreted loops, at their smallest sizes.
 #[test]
-fn benchmark_cases_r2_r9_r12() {
+fn benchmark_language_cases() {
     let mut e = engine(EngineConfig::default());
-    let r2 = "rule fib(0) = 0\nrule fib(1) = 1\nrule fib(k_: Int) := { let v = fib(k - 1) + fib(k - 2); fib(k) = v; v }\n\
+    let fib_src = "rule fib(0) = 0\nrule fib(1) = 1\nrule fib(k_: Int) := { let v = fib(k - 1) + fib(k - 2); fib(k) = v; v }\n\
               result = fib(m)\nresult^2 - fib(m - 1)*fib(m + 1) == (-1)^(m - 1)";
-    // the smallest size, 10^3, recurses deeper than the debug build's depth limit (decision G.7)
+    // the smallest size, 10^3, recurses deeper than the debug build's depth limit
     let m = if cfg!(debug_assertions) { 200 } else { 1000 };
-    assert_eq!(eval(&mut e, &format!("m = {m}\n{r2}")), "true");
+    assert_eq!(eval(&mut e, &format!("m = {m}\n{fib_src}")), "true");
     assert_eq!(eval(&mut e, "m = 10^4\n{ let t = nest(f, x, m); depth(t) }"), "10001");
-    let r12 = "fn collatz_steps(k: Int) = {\n  var c = k\n  var s = 0\n  while c != 1 {\n    c = if mod(c, 2) == 0 then c/2 else 3c + 1\n    s = s + 1\n  }\n  s\n}\n\
+    let loops_src = "fn collatz_steps(k: Int) = {\n  var c = k\n  var s = 0\n  while c != 1 {\n    c = if mod(c, 2) == 0 then c/2 else 3c + 1\n    s = s + 1\n  }\n  s\n}\n\
                m = 10^4\nrange(m) |> map(collatz_steps, _) |> max";
-    assert_eq!(eval(&mut e, r12), "261");
+    assert_eq!(eval(&mut e, loops_src), "261");
 }

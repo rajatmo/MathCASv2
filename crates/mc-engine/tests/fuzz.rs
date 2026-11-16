@@ -48,7 +48,7 @@ impl Rng {
 }
 
 /// Names whose calls touch the file system or the environment: never introduced by a mutation, and inputs that
-/// name them are left out of the corpus.
+/// name them are left out of the seed inputs.
 fn excluded(name: &str) -> bool {
     ["export", "write", "save", "delete", "directory", "file", "run_", "system", "environment", "import_module"]
         .iter()
@@ -77,9 +77,9 @@ const NUMBERS: &[&str] = &[
 /// Characters inserted at random (the reader's share of the campaign).
 const NOISE: &[&str] = &["(", ")", "[", "]", ",", ";", "=", "->", "=>", ":=", "_", "...", "&", "#", "\"", "\\", "^", "'", ".", "@", "|", "{", "}", "λ", "\u{0}", "\n", "  "];
 
-/// The inputs of the corpus: documentation cells (each page's cells in order, as one input each), REPL session
+/// The seed inputs: documentation cells (each page's cells in order, as one input each), REPL session
 /// inputs, example scripts split at blank lines, and the string literals the crates' tests evaluate.
-fn corpus(root: &Path) -> Vec<String> {
+fn seed_inputs(root: &Path) -> Vec<String> {
     let mut out = vec![];
     let files = |dir: &Path, ext: &str| -> Vec<PathBuf> {
         let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
@@ -464,8 +464,8 @@ fn fresh_engine() -> CoreEngine {
 
 fn campaign(cases: usize, seed: u64, budget: Duration, log: &Path, progress: bool) -> Findings {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let corpus = corpus(&root);
-    assert!(corpus.len() > 100, "the corpus is read from the repository ({} inputs)", corpus.len());
+    let seeds = seed_inputs(&root);
+    assert!(seeds.len() > 100, "the seed inputs are read from the repository ({} inputs)", seeds.len());
     let mut log = std::io::BufWriter::new(std::fs::File::create(log).expect("the log file"));
     let mut rng = Rng(seed.max(1));
     let mut engine = fresh_engine();
@@ -491,9 +491,9 @@ fn campaign(cases: usize, seed: u64, budget: Duration, log: &Path, progress: boo
         }
         used += 1;
         let src = match rng.below(20) {
-            0..=4 => rng.pick(&corpus).clone(),
+            0..=4 => rng.pick(&seeds).clone(),
             5..=12 => {
-                let base = rng.pick(&corpus).clone();
+                let base = rng.pick(&seeds).clone();
                 mutate(&mut rng, &base, &functions)
             }
             13 => deep_call(&mut rng, &functions),

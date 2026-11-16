@@ -1,5 +1,5 @@
-//! Round 14: behaviours added to the core functions, checked through the
-//! whole engine: number-like values in `max`/`min`, sorting and `range` (G54-G56), datasets (G57, G63), iterated
+//! Behaviours of the core functions, checked through the
+//! whole engine: number-like values in `max`/`min`, sorting and `range`, datasets, iterated
 //! and closed-form sums and products, `lookup`/`key_exists` on rules, `replace_part` with position patterns,
 //! `take_largest` in numerical order, and the sort and `sort_by` tie rules.
 use mc_api::{Engine, StopFlag};

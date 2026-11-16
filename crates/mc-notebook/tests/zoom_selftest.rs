@@ -1,4 +1,4 @@
-//! Calm magnification (round 13), driven through the window's self-test (`tests/selftest/zoom.txt`): one rung of
+//! Calm magnification, driven through the window's self-test (`tests/selftest/zoom.txt`): one rung of
 //! the 10 % ladder per wheel notch, bursts and touchpad deltas in whole steps, Ctrl+= / Ctrl+- / Ctrl+0, and the cell
 //! under the pointer kept under it. It opens a window, so it is ignored by default:
 //! `cargo test -p mc-notebook --test zoom_selftest -- --ignored`.

@@ -63,7 +63,7 @@ fn failures_in_lists() {
     }
 }
 
-/// D23-18: a sum over non-integer bounds runs over `a, a + 1, ...` up to `b`; the integer closed forms do not apply.
+/// A sum over non-integer bounds runs over `a, a + 1, ...` up to `b`; the integer closed forms do not apply.
 #[test]
 fn non_integer_bounds() {
     let mut e = CoreEngine::new();

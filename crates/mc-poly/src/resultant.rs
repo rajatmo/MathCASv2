@@ -101,7 +101,7 @@ fn coeffs(p: &Poly, v: usize) -> Vec<Poly> {
 
 /// The resultant over Z[other variables]: the contents in v taken out (`res(c A, d B) = c^deg B d^deg A res(A,
 /// B)`), then Ducos's subresultant chain of `crate::unipoly` (item F2; it replaced Collins' subresultant
-/// algorithm here, 1.3 to 5.5 times faster on the timings of `tests/f2_bench.rs`).
+/// algorithm here, 1.3 to 5.5 times faster on the timings of `tests/subresultant_chain_timings.rs`).
 fn subresultant(a: &Poly, b: &Poly, v: usize, m: &mut Meter) -> WorkResult<Poly> {
     let r = PolyRing { nv: a.nv };
     let (ca, cb) = (coeffs(a, v), coeffs(b, v));

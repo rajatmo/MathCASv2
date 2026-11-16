@@ -1,4 +1,4 @@
-//! Tests of the number-sequence library (round 28): values checked against closed forms and
+//! Tests of the number-sequence library: values checked against closed forms and
 //! hand calculations, evaluated on the assembled core.
 use mc_api::{Engine, StopFlag};
 

@@ -1,4 +1,4 @@
-//! The math input experience in the window (round 32), driven through the self-test scripts
+//! The math input experience in the window, driven through the self-test scripts
 //! `tests/selftest/input-*.txt`: a corpus of everyday formulas typed through the keyboard (each checked for its box
 //! tree, the linear text it lowers to, its value, and its output copied back and pasted as math), and scripts for
 //! the caret, selection, deletion, undo and redo inside the boxes. Each script opens a window, so the tests are
@@ -99,14 +99,14 @@ fn caret() {
     check("input-caret");
 }
 
-/// Round 33: powers of compound bases, brackets that do not match yet, bracket pairs.
+/// Powers of compound bases, brackets that do not match yet, bracket pairs.
 #[test]
 #[ignore = "opens a window"]
 fn brackets() {
     check("input-brackets");
 }
 
-/// Round 35: a space between operands multiplies; the faint multiplication signs, the `sin x` warning and its fix,
+/// A space between operands multiplies; the faint multiplication signs, the `sin x` warning and its fix,
 /// `Esc * Esc`, and screenshots of the signs (looked at by eye).
 #[test]
 #[ignore = "opens a window"]
@@ -128,7 +128,7 @@ fn space() {
     }
 }
 
-/// Round 38: a user's session of typed formulas (fractions, powers, roots and brackets mixed, selections, undo and
+/// A user's session of typed formulas (fractions, powers, roots and brackets mixed, selections, undo and
 /// redo, cut, copy and paste); each formula's boxes and stored text, and that the two agree.
 #[test]
 #[ignore = "opens a window"]
@@ -141,7 +141,7 @@ fn user() {
     assert!(same >= formulas, "every formula compares what is shown with what is stored\n{log}");
 }
 
-/// Round 38: typing at the top and the end of a 2,000-line cell, an opening bracket at its top among it (every line
+/// Typing at the top and the end of a 2,000-line cell, an opening bracket at its top among it (every line
 /// after it one level deeper); prints the frame times (median, 90th percentile, largest) of each probe.
 #[test]
 #[ignore = "opens a window"]

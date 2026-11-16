@@ -46,7 +46,7 @@ fn coefficients_degrees_variables() {
         ("coefficient(x^2 + 3x, x, 7)", "0"),
         ("coefficient(x^4 + x^3, x^2, 2)", "1"),
         ("coefficient([x^2, 2x], x, 1)", "[0, 2]"),
-        // a monomial: the coefficient in each variable in turn (round 37): no term x y, so 0
+        // a monomial: the coefficient in each variable in turn: no term x y, so 0
         ("coefficient(x^2*y + x*y^2, x*y)", "0"),
         ("coefficient(x^2*y + 3*x*y + x*y^2, x*y)", "3"),
         ("coefficient(x^2 + y, x + y)", "failure(argument, coefficient, \"the variable must not be a number, sum or product\")"),

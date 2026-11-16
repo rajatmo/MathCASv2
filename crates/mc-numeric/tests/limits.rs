@@ -11,7 +11,7 @@ fn argument_errors_and_unreachable_precision_are_failures() {
     assert_eq!(e.eval("n(pi, x)"), "failure(invalid_argument, n(pi, x))");
     assert_eq!(e.eval("n(pi, 10^12)"), "failure(limit, memory, n(pi, 1000000000000))");
     // an exact zero that the canonical form does not see: no precision gives a relative digit (spike 3.6), so
-    // the value is a zero with an absolute accuracy (round 19, Q19-15)
+    // the value is a zero with an absolute accuracy 
     let z = e.eval("n(sin(1)^2 + cos(1)^2 - 1, 10)");
     assert!(z.starts_with("ball(0, "), "{z}");
     // a fixed-accuracy ball cannot be refined

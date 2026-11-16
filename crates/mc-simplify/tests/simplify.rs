@@ -165,7 +165,7 @@ fn medium_size_expressions_stay_within_the_budget() {
     assert_eq!(s.run("simplify(x^2 + 2*x + 1)"), "(1 + x)^2");
 }
 
-/// The measure of round 15 (decisions s-cost.1 to s-cost.6): digits and signs count, the measure chooses inside
+/// The measure (decisions s-cost.1 to s-cost.6): digits and signs count, the measure chooses inside
 /// `assuming` too, logarithms of positive rationals combine, and `complexity_function:` replaces the measure.
 #[test]
 fn complexity_measure_and_option() {
@@ -178,7 +178,7 @@ fn complexity_measure_and_option() {
         ("simplify(log(2) + log(3))", "log(6)"),
         ("simplify(2*log(2) + log(x))", "log(4) + log(x)"),
         ("simplify(100*log(2))", "100*log(2)"),
-        // round 19: the logarithms of rationals over their primes (`LogPrimes`): 3 log(2) - log(2)
+        // The logarithms of rationals over their primes (`LogPrimes`): 3 log(2) - log(2)
         ("simplify(log(8) - log(2))", "log(4)"),
         // a user measure
         ("simplify(100*log(2), complexity_function: leaf_count)", "log(1267650600228229401496703205376)"),

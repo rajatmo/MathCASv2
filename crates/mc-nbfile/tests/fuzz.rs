@@ -1,4 +1,4 @@
-//! Damaged notebook files never panic (round 11 robustness): random texts built from the format's own pieces,
+//! Damaged notebook files never panic: random texts built from the format's own pieces,
 //! mutations of the example notebook (lines dropped, repeated, swapped, cut at any character, bytes flipped) and
 //! random bytes go through `Notebook::read`, `print`, `parse_cells` and the picture helpers. Whatever is read prints
 //! and reads again. `MC_FUZZ_CASES` sets the number of cases of each kind (default 3,000).

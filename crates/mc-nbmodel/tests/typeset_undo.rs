@@ -1,4 +1,4 @@
-//! Random editing of typeset input through the model (round 19): box keys (power, fraction, square and n-th
+//! Random editing of typeset input through the model: box keys (power, fraction, square and n-th
 //! root), typing, Backspace and Delete, arrows with and without Shift, Home/End, leaving a box, cut, copy and paste.
 //! After every command: the cell's text is canonical box text that reads back to itself, the selection is valid,
 //! no character typed into the cell is lost except by a deletion, and when the command changed the cell, Undo gives

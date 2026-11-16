@@ -23,7 +23,7 @@ const FOUND: &[(&str, &str)] = &[
     ("polylog(3, 1e300)", "complex(-54934049.43"),
     // dense algorithms allocated one coefficient per degree, tens of gigabytes
     ("factor(x^(2^31) - x + 1)", "failure(limit, memory)"),
-    // round 24: solve declines degrees above 100000 at once, before any allocation
+    // solve declines degrees above 100000 at once, before any allocation
     ("solve(x^(2^31) - x + 1 == 0, x)", "solve("),
     ("n_solve(x^(2^31) - x + 1 == 0, x)", "n_solve("),
     ("coefficient_list(x^(2^31) - x + 1, x)", "failure(limit, memory)"),

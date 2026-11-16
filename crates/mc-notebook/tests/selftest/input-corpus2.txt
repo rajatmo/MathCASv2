@@ -1,4 +1,4 @@
-# Math input corpus, part 2 (round 32): primes and derivatives, sums and integrals written linearly, matrices as
+# Math input corpus, part 2: primes and derivatives, sums and integrals written linearly, matrices as
 # lists, units, long expressions that wrap, everyday algebra. Checks as in part 1. Driven by tests/input_selftest.rs.
 size 1000 700
 ppp 1

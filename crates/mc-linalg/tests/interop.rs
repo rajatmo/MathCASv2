@@ -1,4 +1,4 @@
-//! Linear algebra with values of other crates (round 12): sparse arrays (rule and compressed forms), quantities
+//! Linear algebra with values of other crates: sparse arrays (rule and compressed forms), quantities
 //! and numbers with uncertainty as entries, options, scalars.
 use mc_api::{Engine, StopFlag};
 use mc_engine::CoreEngine;

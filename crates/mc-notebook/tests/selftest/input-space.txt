@@ -1,4 +1,4 @@
-# A space between operands multiplies (round 35): formulas typed with spaces, each checked for its stored text,
+# A space between operands multiplies: formulas typed with spaces, each checked for its stored text,
 # its linear text, the gaps the faint multiplication sign is drawn in, and its value; the warning on `sin x` and its
 # fix; `Esc * Esc`; screenshots of the faint signs in both themes at 100, 150 and 200 %. Driven by
 # tests/input_selftest.rs (`space`).

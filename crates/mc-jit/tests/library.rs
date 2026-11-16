@@ -1,4 +1,4 @@
-//! Library calls in compiled code (round 13): special functions, the step functions and `piecewise`,
+//! Library calls in compiled code: special functions, the step functions and `piecewise`,
 //! interpolations of the local scheme and derivatives of interpolations, and solutions of `n_dsolve`. Every
 //! compiled result is the interpreter's, printed alike, on both back ends; the declines (outside a function's real
 //! domain, at a pole, outside a table) give the interpreter's own answers.

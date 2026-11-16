@@ -1,4 +1,4 @@
-//! Round 20, through the window's self-test (`tests/selftest/warnings.txt`): `x(x - a)` typed in a
+//! Through the window's self-test (`tests/selftest/warnings.txt`): `x(x - a)` typed in a
 //! cell gets a warning, its quick fix inserts the `*`; a product and real calls get none; F1 in an option's value
 //! asks for `plot#plot_range`. It opens a window, so it is ignored by default:
 //! `cargo test -p mc-notebook --test warnings_selftest -- --ignored`.

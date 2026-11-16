@@ -1,4 +1,4 @@
-//! Clipboard with boxes (round 13), driven through the window's self-test (`tests/selftest/clipboard.txt`): a
+//! Clipboard with boxes, driven through the window's self-test (`tests/selftest/clipboard.txt`): a
 //! fraction copied as linear text and boxes, Copy as plain text, pasting into a plain cell of another tab, into a cell
 //! with boxes and at an insertion point, cutting and pasting a power. It opens a window, so it is ignored by default:
 //! `cargo test -p mc-notebook --test clipboard_selftest -- --ignored`.

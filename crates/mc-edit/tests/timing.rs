@@ -38,7 +38,7 @@ fn one_keystroke_in_a_300_line_cell() {
         ed.apply(&Command::Type("q".into()), &cx);
         mc_boxes::layout::layout_by_lines(ed.root(), &MonoMetrics, &opts, &mut cache)
     });
-    // round 37: the composed layout changed in place (the caller lets go of it before the next keystroke)
+    // The composed layout changed in place (the caller lets go of it before the next keystroke)
     drop(mc_boxes::layout::layout_by_lines_shared(ed.root(), &MonoMetrics, &opts, &mut cache));
     time("in place, typed at the end", 20, || {
         ed.apply(&Command::Type("q".into()), &cx);
@@ -51,7 +51,7 @@ fn one_keystroke_in_a_300_line_cell() {
         top.apply(&Command::Type("q".into()), &cx);
         mc_boxes::layout::layout_by_lines_shared(top.root(), &MonoMetrics, &opts, &mut cache).width
     });
-    // round 38: an opening bracket at the top and its deletion, in turn: every line after it changes depth
+    // An opening bracket at the top and its deletion, in turn: every line after it changes depth
     let mut row = Row::text(&text);
     drop(mc_boxes::layout::layout_by_lines_shared(&row, &MonoMetrics, &opts, &mut cache));
     let mut open = false;

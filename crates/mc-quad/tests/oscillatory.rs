@@ -1,4 +1,4 @@
-//! One-dimensional robustness (round 18, 9D): oscillatory infinite ranges by the zeros of the integrand and
+//! One-dimensional robustness: oscillatory infinite ranges by the zeros of the integrand and
 //! Wynn's epsilon-algorithm, rough endpoints by the double-exponential rule, and paths through complex points.
 mod common;
 use common::Sys;

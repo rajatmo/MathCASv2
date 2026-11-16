@@ -164,7 +164,7 @@ Ctrl+/
 --- boxes
 none
 
-=== copy in boxes copies the plain text and the boxes, which paste back as boxes (round 13)
+=== copy in boxes copies the plain text and the boxes, which paste back as boxes
 --- before
 #% cell
 x▮
@@ -281,7 +281,7 @@ Ctrl+2 "x+1" Home Backspace "!"
 --- boxes
 none
 
-=== Shift+arrows select across a box; copying gives it (round 13: as a box); typing replaces the selection
+=== Shift+arrows select across a box; copying gives it (as a box); typing replaces the selection
 --- before
 #% cell
 a+b▮

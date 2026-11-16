@@ -111,7 +111,7 @@ fn simplify_preparation() {
 }
 
 #[test]
-fn exponents_and_radicands_g51() {
+fn exponents_and_radicands() {
     check(&[
         ("assuming(mp > 0, simplify(mp^(-2*(4 - k) - (-2 - (4 - k)))))", "mp^(-2 + k)"),
         ("simplify(x^(3*(a + 1) - 3*a))", "x^3"),

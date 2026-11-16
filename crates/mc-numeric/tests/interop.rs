@@ -1,4 +1,4 @@
-//! Values of this crate flowing into other functions (round 12): quantities, `around` and intervals through the
+//! Values of this crate flowing into other functions: quantities, `around` and intervals through the
 //! number functions, the special and number-theory functions, comparisons and units; exact, ball and machine
 //! numbers mixed.
 use mc_api::{Engine, StopFlag};

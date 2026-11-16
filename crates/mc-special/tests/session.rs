@@ -75,7 +75,7 @@ fn symbolic_and_failures() {
         // outside the real domain or complex: unevaluated
         ("bessel_k(1, -2.0)", "complex(-0.1398658818165231, -4.997133057057808)"),
         ("bessel_k(1, -2)", "bessel_k(1, -2)"),
-        // outside the real domain: the principal complex value (round 14)
+        // outside the real domain: the principal complex value
         ("bessel_i(1/3, -2.0)", "complex(1.0793912906864405, 1.8695605567162608)"),
         ("polygamma(1/2, 2.0)", "polygamma(1/2, 2.0)"),
         ("gamma(1 + 2im)", "gamma(complex(1, 2))"),

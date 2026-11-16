@@ -202,7 +202,7 @@ fn arranging() {
             ("pad_right([a], 3, [0])", "[a, 0, 0]"),
             ("pad_right([a], 3, [[0]])", "[a, [0], [0]]"),
             ("pad_left([], 0)", "[]"),
-            // a negative length pads at the other end (round 37)
+            // a negative length pads at the other end
             ("pad_left([a], -1)", "[a]"),
             ("pad_left([a], -3)", "[a, 0, 0]"),
             ("constant_array(0, 3)", "[0, 0, 0]"),
@@ -301,7 +301,7 @@ fn combinatorics() {
             ("subsets(range(30))", "failure(limit, memory, subsets([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]))"),
             ("length(subsets(range(100), [2]))", "4950"),
             ("subsets([a], -1)", "failure(argument, subsets, 2)"),
-            // [a, b, s]: the sizes a, a + s, ... up to b (round 37)
+            // [a, b, s]: the sizes a, a + s, ... up to b
             ("subsets([a], [1, 2, 3])", "[[a]]"),
             ("subsets([a], [1, 2, 0])", "failure(argument, subsets, 2)"),
             ("subsets([a], [1, 2, 3, 4])", "failure(argument, subsets, 2)"),

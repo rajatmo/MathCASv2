@@ -51,36 +51,36 @@ const FORMULA: &[&str] = &[
     // numeric at machine precision or for integer orders only
     "kelvin_ber", "kelvin_bei", "kelvin_ker", "kelvin_kei", "legendre_q", "elliptic_nome_q", "hypergeometric_0f1_regularized", "hypergeometric_1f1_regularized",
     "hypergeometric_2f1_regularized", "factorial",
-    // list parameters (checked in mc-special tests/meijer.rs, round 22)
+    // list parameters (checked in mc-special tests/meijer.rs)
     "meijer_g",
-    // defined by formulas in mc-special's cover module (round 19 rows)
+    // defined by formulas in mc-special's cover module
     "struve_h", "struve_l", "hypergeometric_u", "logistic_sigmoid", "fresnel_f", "fresnel_g", "jacobi_amplitude", "jacobi_epsilon", "jacobi_zn",
-    // round 28 functions (rows added in round 29): their 25-digit ball values are not reliable yet; the rows are
-    // checked by central differences in tests/round29.rs
+    // their 25-digit ball values are not reliable yet; the rows are checked by central differences in
+    // tests/special_derivative_rows_library.rs
     "scorer_gi", "scorer_hi", "scorer_gi_prime", "scorer_hi_prime", "weierstrass_p", "weierstrass_p_prime",
     "weierstrass_zeta", "weierstrass_sigma", "inverse_weierstrass_p", "elliptic_exp", "coulomb_f", "coulomb_g",
     "coulomb_h1", "coulomb_h2", "lommel_s1", "lommel_s2", "lommel_t1", "lommel_t2", "mathieu_s", "mathieu_s_prime",
     "appell_f1", "appell_f2", "appell_f3", "appell_f4",
-    // round 31: list parameters and a series-defined value; the rows are checked by central differences in
-    // tests/round31.rs
+    // list parameters and a series-defined value; the rows are checked by central differences in
+    // tests/fox_h_spheroidal_derivatives.rs
     "fox_h", "spheroidal_s1", "spheroidal_s1_prime",
-    // round 36: the inverse Jacobi functions are real only inside their own domains (the random arguments
+    // the inverse Jacobi functions are real only inside their own domains (the random arguments
     // leave them), and the modular, nome and Bessel-zero rows need arguments in the upper half plane or real zeros; the
-    // rows are checked by central differences in crates/mc-engine/tests/r36_w36_special.rs
+    // rows are checked by central differences in crates/mc-engine/tests/special_function_values.rs
     "inverse_jacobi_cn", "inverse_jacobi_dn", "inverse_jacobi_cd", "inverse_jacobi_cs", "inverse_jacobi_dc",
     "inverse_jacobi_ds", "inverse_jacobi_nc", "inverse_jacobi_nd", "inverse_jacobi_ns", "inverse_jacobi_sc",
     "inverse_jacobi_sd", "modular_lambda", "klein_invariant_j", "inverse_elliptic_nome_q", "bessel_j_zero",
     "bessel_y_zero", "inverse_gamma_regularized", "inverse_beta_regularized", "barnes_g",
     "spherical_hankel_h1", "spherical_hankel_h2",
-    // round 37: formula-defined (anger_j, weber_e) and integration-defined (Mathieu) values; the rows
-    // are checked by central differences at 30-40 digits in crates/mc-engine/tests/r37_f37_special.rs
+    // formula-defined (anger_j, weber_e) and integration-defined (Mathieu) values; the rows
+    // are checked by central differences at 30-40 digits in crates/mc-engine/tests/anger_lommel_mittag_leffler.rs
     "anger_j", "weber_e", "mathieu_c", "mathieu_c_prime",
-    // round 42: these functions of exact arguments have no 40-digit ball value (formulas evaluated for inexact
+    // these functions of exact arguments have no 40-digit ball value (formulas evaluated for inexact
     // arguments); the rules are checked by central differences at 30 digits in
-    // crates/mc-engine/tests/round42_balls.rs
+    // crates/mc-engine/tests/ball_images.rs
     "log_barnes_g", "factorial2", "binomial", "catalan_number", "whittaker_m", "whittaker_w",
     // the same (a formula for inexact arguments); both partials are checked by central differences at 40 digits in
-    // crates/mc-engine/tests/round45_general.rs
+    // crates/mc-engine/tests/unanswered_inputs_series_recurrences.rs
     "hyper_harmonic_number",
 ];
 

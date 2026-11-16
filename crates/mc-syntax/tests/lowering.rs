@@ -221,7 +221,7 @@ fn unicode_operators() {
     assert!(bad.is_empty(), "\n{}", bad.join("\n"));
 }
 
-/// Round 32 (design 08 section 3.9): `∈` between operands is `element`, `°` after an operand is the degree.
+/// Design 08 section 3.9: `∈` between operands is `element`, `°` after an operand is the degree.
 #[test]
 fn element_and_degree_characters() {
     check(&[

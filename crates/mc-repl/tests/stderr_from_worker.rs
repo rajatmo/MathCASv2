@@ -15,7 +15,7 @@ struct NoteFromWorker;
 impl Native for NoteFromWorker {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, _args: &[T<'h>]) -> Res<Reply<'h>> {
         std::thread::spawn(|| {
-            // straight to the streams (not eprintln!, which the test harness captures)
+            // straight to the streams (not eprintln!, which the test runner captures)
             let _ = writeln!(std::io::stderr(), "note from a worker thread");
             let _ = writeln!(std::io::stdout(), "and on stdout");
         })

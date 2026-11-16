@@ -1,4 +1,4 @@
-//! Packed arrays of machine complex numbers through the engine (gap G48, decisions sp-core.1 to sp-core.3): every
+//! Packed arrays of machine complex numbers through the engine: every
 //! element of an element-wise result computed on the payload is bitwise the value the function gives for that
 //! element alone (`same`, structural identity, so signed zeros and every bit count).
 use mc_api::{Engine, StopFlag};

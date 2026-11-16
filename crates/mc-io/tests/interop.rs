@@ -1,4 +1,4 @@
-//! Imported data feeding other functions (round 12): CSV, JSON and whitespace tables into statistics, datasets and
+//! Imported data feeding other functions: CSV, JSON and whitespace tables into statistics, datasets and
 //! linear algebra.
 use mc_api::{Engine, StopFlag};
 use mc_engine::CoreEngine;

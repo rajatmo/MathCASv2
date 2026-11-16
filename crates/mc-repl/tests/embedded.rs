@@ -1,4 +1,4 @@
-//! One file per notebook (round 13, user decision): `mc-repl --update` embeds the pictures of plots in the `.mcn`
+//! One file per notebook: `mc-repl --update` embeds the pictures of plots in the `.mcn`
 //! itself, with their descriptions (hover) and 3D scenes (rotation); nothing next to the notebook, nothing in the
 //! plots cache named; the file exports with its pictures; a second run gives the same text.
 use std::path::PathBuf;
@@ -35,7 +35,7 @@ fn plots_are_embedded_in_the_notebook_file() {
     assert!(!text.contains(&temp) && !text.contains("mathcas-plots"), "no cache path is named");
     // each plot carries its drawing (round nb-svg: the SVG, deflated) and its description, the 3D plot also its
     // scene; a plot of the default size also its column twin (the drawing the notebook's PDF export uses, `mc-nbfile`
-    // `COLUMN_TWIN`: 2D plots since round 37, 3D pictures since round 38)
+    // `COLUMN_TWIN`: 2D plots and 3D pictures)
     let heads: Vec<&str> = text.lines().filter(|l| l.starts_with("#~ @")).collect();
     assert_eq!(heads.len(), 7, "{heads:?}");
     assert!(heads[0].ends_with(".svg deflate") && heads[1].ends_with(".json deflate"), "{heads:?}");

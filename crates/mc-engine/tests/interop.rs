@@ -1,4 +1,4 @@
-//! Values passing between functions (round 12, decisions io-core.*), checked through the whole engine: solutions
+//! Values passing between functions, checked through the whole engine: solutions
 //! into `replace` and `table`, associations through the list functions and listable functions, tests and options
 //! on the list functions, quantities and uncertain numbers in reductions, and failures passing through.
 use mc_api::{Engine, StopFlag};
@@ -186,7 +186,7 @@ fn maps_lists_functions_are_elementwise() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
-/// Gap G65: a stored option list spliced in next to other options; later options win.
+/// A stored option list spliced in next to other options; later options win.
 #[test]
 fn stored_options_merge_with_the_options_after_them() {
     check(&[
@@ -198,7 +198,7 @@ fn stored_options_merge_with_the_options_after_them() {
     ]);
 }
 
-/// Gap G82: a stored option list may stand among named options (after some of them); it is merged in place.
+/// A stored option list may stand among named options (after some of them); it is merged in place.
 #[test]
 fn stored_options_may_follow_named_options() {
     check(&[
@@ -210,7 +210,7 @@ fn stored_options_may_follow_named_options() {
     ]);
 }
 
-/// Gaps G67 and G76: display wrappers for numbers, and interpolations with many points shown short, in display
+/// Display wrappers for numbers, and interpolations with many points shown short, in display
 /// mode only (the default prints text that reads back).
 #[test]
 fn number_forms_and_interpolations_display_short() {

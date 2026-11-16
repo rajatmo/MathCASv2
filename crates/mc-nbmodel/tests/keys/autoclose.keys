@@ -200,7 +200,7 @@ AutoClose "(\"a"
 #% cell
 f(▮
 
-=== a closer typed after a box inside automatic brackets steps over the automatic one (round 34)
+=== a closer typed after a box inside automatic brackets steps over the automatic one
 --- before
 #% cell
 x

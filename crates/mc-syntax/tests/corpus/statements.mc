@@ -1,6 +1,6 @@
 #! mathcas 2
 # Round-trip corpus: every non-empty line that is not a comment is one statement. Each must parse, lower, print,
-# and read back to the identical term (tests/corpus.rs).
+# and read back to the identical term (tests/print_read_round_trip.rs).
 
 # numbers
 42

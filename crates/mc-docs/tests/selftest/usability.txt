@@ -1,4 +1,4 @@
-# The documentation window's search, copy button and typeset outputs (round 19). Run by `tests/usability_selftest.rs`.
+# The documentation window's search, copy button and typeset outputs. Run by `tests/usability_selftest.rs`.
 size 1100 800
 ppp 1
 theme light

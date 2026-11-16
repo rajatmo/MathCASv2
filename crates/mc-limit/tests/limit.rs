@@ -106,7 +106,7 @@ const FINITE_SIDE: &str = "failure(argument, limit, \"an infinity is approached 
 
 /// Limits this crate does not decide stay unevaluated (decision C.2); other forms.
 const OTHERS: &[(&str, &str)] = &[
-    // an oscillation: max_limit 1 above min_limit -1, so there is no limit (round 37; decision C.1)
+    // an oscillation: max_limit 1 above min_limit -1, so there is no limit (decision C.1)
     ("limit(sin(x), x -> inf)", "failure(no_limit, limit, sin(x), \"the limit superior is above the limit inferior\")"),
     ("limit(sin(1/x), x -> 0)", "failure(no_limit, limit, sin(x^-1), \"the limit superior is above the limit inferior\")"),
     ("limit(f(x), x -> 0)", "limit(f(x), x -> 0)"),
@@ -162,7 +162,7 @@ fn undecided_limits_return_quickly() {
     ] {
         let start = Instant::now();
         let out = s.run(src);
-        // undecided, or (round 37) shown to have no limit by a limit superior above the limit inferior
+        // undecided, or shown to have no limit by a limit superior above the limit inferior
         assert!(out.starts_with("limit(") || out.starts_with("failure(no_limit"), "{src}: {out}");
         assert!(start.elapsed() < Duration::from_secs(5), "{src}: {:?}", start.elapsed());
     }

@@ -93,7 +93,7 @@ fn reloading_a_module_file_replaces_its_definitions() {
 #[test]
 fn reloading_a_module_clears_the_rules_it_attached_to_other_symbols() {
     // the module's `area` has argument-head rules held by the session's `square` and `hexagon` (`@on`): those are
-    // not members, so only the module's record of its attachments clears them on a reload (decision 9.6)
+    // not members, so only the module's record of its attachments clears them on a reload
     let v1 = "module shapes {
   pub @on(square) rule area(square(a_)) := a^2
   pub fn area(s) = 0

@@ -1,4 +1,4 @@
-# Typeset math in the window (round 19): build, click into slots, drag across boxes, copy and paste between cells
+# Typeset math in the window: build, click into slots, drag across boxes, copy and paste between cells
 # and from another program, undo, in both themes and at 150 %.
 size 900 600
 ppp 1

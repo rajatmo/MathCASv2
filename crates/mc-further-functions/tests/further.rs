@@ -1,4 +1,4 @@
-//! Tests of the round 30 coverage library, evaluated on the assembled core.
+//! Tests of the further functions library, evaluated on the assembled core.
 use mc_api::{Engine, StopFlag};
 
 fn ev(src: &str) -> String {

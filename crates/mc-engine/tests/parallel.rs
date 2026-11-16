@@ -1,4 +1,4 @@
-//! Parallel evaluation (decision sp-core.4): `parallel_table`, `parallel_map`, `parallel_sum` and `parallel: true`
+//! Parallel evaluation:`parallel_table`, `parallel_map`, `parallel_sum` and `parallel: true`
 //! give exactly the serial results, keep the order of effects, and stop on interrupts and limits.
 use mc_api::{Engine, EngineError, StopFlag};
 use mc_engine::{CoreEngine, EngineConfig};

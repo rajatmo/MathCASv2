@@ -1,4 +1,4 @@
-//! Regions of two dimensions drawn as primitives (round 37): sphere, ellipsoid with a matrix, cuboid of one corner,
+//! Regions of two dimensions drawn as primitives: sphere, ellipsoid with a matrix, cuboid of one corner,
 //! simplex, empty region. Each shape is checked against its definition.
 use mc_core::{Config, Heap, Store};
 use mc_graphics::model::{shape, Shape};

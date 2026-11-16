@@ -1,5 +1,5 @@
 //! Random printed outputs through typesetting and layout: nothing panics and every row gets its caret stops (the
-//! editor's random command sequences moved to `mc-edit/tests/fuzz.rs` with the editor, round 34). Seeded and
+//! editor's random command sequences moved to `mc-edit/tests/fuzz.rs` with the editor). Seeded and
 //! bounded; `MC_BOXES_SEED` and `MC_BOXES_CASES` override the defaults. The ignored test `measure` prints timings
 //! (run it in release through the guard).
 use mc_boxes::layout::{layout, LayoutOptions, MonoMetrics};

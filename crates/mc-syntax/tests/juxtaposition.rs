@@ -1,4 +1,4 @@
-//! Round 35: a space between two operands multiplies, with the precedence and associativity of `*` (design 04,
+//! A space between two operands multiplies, with the precedence and associativity of `*` (design 04,
 //! section 3.1). Every row of the round's table in both spellings, precedence against the other operators, the
 //! forms that keep their meaning, the gaps the editor marks, and the round trip of the new forms.
 mod common;

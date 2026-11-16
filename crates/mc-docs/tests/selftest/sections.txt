@@ -1,4 +1,4 @@
-# Round 20: a place with an anchor (F1 on an option) and a typeset value selected and copied.
+# A place with an anchor (F1 on an option) and a typeset value selected and copied.
 size 1100 800
 theme light
 place plot#plot_range

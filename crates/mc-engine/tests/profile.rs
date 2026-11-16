@@ -1,4 +1,4 @@
-//! `profile(e)` and `timing(e, breakdown: true)` (decision sp-core.5): the value is the evaluation's, the rows name
+//! `profile(e)` and `timing(e, breakdown: true)`: the value is the evaluation's, the rows name
 //! the functions called with their counts, and the breakdown has its parts.
 use mc_api::{Engine, StopFlag};
 use mc_engine::{CoreEngine, EngineConfig};

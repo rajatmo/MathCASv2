@@ -1,4 +1,4 @@
-Interactive controls (round 13): a manipulate value shows its result at the initial positions; moving a control
+Interactive controls: a manipulate value shows its result at the initial positions; moving a control
 keeps its position on the output and shows the result there. The fake kernel answers a control's evaluation with
 its source, so the scripts show what the kernel was asked.
 

@@ -1,6 +1,6 @@
 //! The precision contract (roadmap 16B) for `n_integrate`: `working_precision: 30` agrees with
 //! `working_precision: 60` to 30 digits and its ball contains the 60-digit value, including the oscillatory stage
-//! (P19-02) and the precision of `n` reaching an integral without a closed form (P19-01).
+//! and the precision of `n` reaching an integral without a closed form.
 use mc_api::{Engine, StopFlag};
 use mc_engine::{CoreEngine, EngineConfig};
 

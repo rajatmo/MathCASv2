@@ -150,7 +150,7 @@ fn diagnostics_with_ranges() {
     assert_eq!(d[0]["severity"], 1);
     let r = range(&d[0]["range"]);
     assert_eq!(r[0], 1, "{d:?}");
-    // fixed: no diagnostics (`2 x` is a product, round 35)
+    // fixed: no diagnostics (`2 x` is a product)
     assert!(c.change(&main, 2, "fn f(x) = x\ny = 2 x\n").is_empty());
     // a function juxtaposed with an operand: a warning with its fix as edits
     let d = c.change(&main, 3, "fn f(x) = x\ny = sin x\n");

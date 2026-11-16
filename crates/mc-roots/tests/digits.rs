@@ -86,7 +86,7 @@ fn unverified_roots() {
     let r = s.run("find_root([x - 1, y - 2], [[x, 0], [y, 0]], digits: 20, verify: true)");
     assert!(r.starts_with("failure(not_verified"), "{r}");
     // goals beyond the working precision: not met, or met because the iteration reached the exact root (the triple root
-    // keeps converging linearly since round 36 and meets the default accuracy goal: a 25-digit ball around 1)
+    // keeps converging linearly and meets the default accuracy goal: a 25-digit ball around 1)
     let r = s.run("find_root((x - 1)^3, [x, 3], digits: 30, precision_goal: 30)");
     assert!(r.starts_with("failure(not_converged, find_root, [x -> 1.0") || r.starts_with("[x -> 1.0000000000"), "{r}");
     if r.starts_with("[x ->") {

@@ -1,5 +1,5 @@
 //! Display printing as the kernel prints (`display: true`): negative arbitrary-precision numbers join sums as
-//! differences, as machine numbers do (P19-06: `0.3465... + -1.5707...im` before round 20).
+//! differences, as machine numbers do (not `0.3465... + -1.5707...im`).
 use mc_api::{Engine, StopFlag};
 use mc_engine::{CoreEngine, EngineConfig};
 

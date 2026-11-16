@@ -1,4 +1,4 @@
-//! Interactive controls (round 13): while a control's evaluation runs, newer positions replace each other (only
+//! Interactive controls: while a control's evaluation runs, newer positions replace each other (only
 //! the newest is evaluated next) and letting go interrupts the stale evaluation; the result shows below.
 use mc_nbmodel::{Command, FakeEnv, FakeKernel, KernelRequest, Notebook};
 

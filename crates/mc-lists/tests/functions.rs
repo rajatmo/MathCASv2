@@ -160,7 +160,7 @@ fn reshaping() {
             ("transpose([])", "[]"),
             ("transpose([[], []])", "[]"),
             ("transpose([[1, 2], [3]])", "failure(shape_mismatch, transpose)"),
-            // a vector of numbers is its own transpose (round 37)
+            // a vector of numbers is its own transpose
             ("transpose([1, 2])", "[1, 2]"),
             ("transpose([1, \"a\"])", "failure(argument, transpose, 1)"),
             ("apply(add, [1, 2, x])", "3 + x"),

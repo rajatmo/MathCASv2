@@ -1,4 +1,4 @@
-//! R20-17: exp of a ball far below zero is None generically and a vanishing ball inside a tail-safe scope.
+//! exp of a ball far below zero is None generically and a vanishing ball inside a tail-safe scope.
 use mc_arith::num::Ball;
 use mc_numeric::elementary::{exp, tail_safe, TailSafe};
 

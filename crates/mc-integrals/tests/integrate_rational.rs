@@ -104,7 +104,7 @@ fn declines() {
     let mut s = Sys::new();
     // not rational in x
     assert_eq!(s.run("integrate(sin(x)/(x^2 + 1), x)"), "integrate((1 + x^2)^-1*sin(x), x)");
-    // not rational in x: answered since round 18 (the algebraic stage, or the rule table's substitution x = t^2)
+    // not rational in x: answered (the algebraic stage, or the rule table's substitution x = t^2)
     assert!(!s.run("integrate(1/(x^2 + sqrt(x)), x)").contains("integrate("));
     // residues of degree 3 (item F1): a sum over the roots of the cubic
     assert_eq!(s.run("integrate(1/(x^3 + x + 1), x)"), "root_sum(t => 1 + t + t^3, t => log(x - t)/(1 + 3*t^2))");

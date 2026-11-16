@@ -57,7 +57,7 @@ fn printed_series_read_back_as_sums_with_an_order_term() {
 }
 
 #[test]
-fn r33_display_orders_a_polynomial_sum_by_power_and_plain_text_keeps_the_term_order() {
+fn display_orders_a_polynomial_sum_by_power_and_plain_text_keeps_the_term_order() {
     let store = RefStore::new();
     let ts = read(&store, "add(1, x, mul(1/24, pow(x, 4)), mul(1/6, pow(x, 3)), mul(1/2, pow(x, 2)))").expect("reads");
     assert_eq!(Printer::new(&store).with_display().expr(ts[0]), "1 + x + (1/2)*x^2 + (1/6)*x^3 + (1/24)*x^4");

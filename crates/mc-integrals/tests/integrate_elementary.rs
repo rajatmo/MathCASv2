@@ -194,7 +194,7 @@ fn trigonometric_powers() {
 #[test]
 fn unsolved_stay() {
     let mut s = Sys::new();
-    // log(sin(x)) is answered by the rule table since round 18 (dilogarithm; crates/mc-integrate-rules/tests/rules.rs)
+    // log(sin(x)) is answered by the rule table (dilogarithm; crates/mc-integrate-rules/tests/rules.rs)
     for f in ["x^x", "exp(exp(x)) + 1/log(x)", "f(x)*x", "sin(sin(x))", "exp(x^3)"] {
         let out = s.run(&format!("integrate({f}, x)"));
         assert!(out.starts_with("integrate("), "{f}: {out}");

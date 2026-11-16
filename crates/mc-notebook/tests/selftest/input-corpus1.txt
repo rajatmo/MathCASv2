@@ -1,4 +1,4 @@
-# Math input corpus, part 1 (round 32): fractions in exponents, nested roots, indexed and scripted names, Greek and
+# Math input corpus, part 1: fractions in exponents, nested roots, indexed and scripted names, Greek and
 # aliases. Every formula is typed through the keyboard into a new cell at the end, then checked: its box tree, the
 # linear text it lowers to (what Copy gives), its value, and that its output copied and pasted as math reads as the
 # same text. Driven by tests/input_selftest.rs.

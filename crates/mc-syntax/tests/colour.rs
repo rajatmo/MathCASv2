@@ -146,7 +146,7 @@ fn brackets() {
 fn errors_and_incomplete_input() {
     // an error before the end colours its token
     assert_eq!(snap("\"a\" b"), "\"a\"/string b/error");
-    // a space between operands multiplies (round 35): no error
+    // a space between operands multiplies: no error
     assert_eq!(snap("a b"), "a/global b/global");
     assert_eq!(snap("x = (1 + )"), "x/global =/op (/op 1/number +/op )/error");
     // unread characters
@@ -311,7 +311,7 @@ fn corpus_snapshot() {
     }
 }
 
-/// Round 20: a colouring moved over an edit agrees with a fresh one where the edit does not change the tokens
+/// A colouring moved over an edit agrees with a fresh one where the edit does not change the tokens
 /// around it (what a long cell shows while typing, until it is coloured again).
 #[test]
 fn a_shifted_colouring_follows_the_edit() {

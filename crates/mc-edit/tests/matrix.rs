@@ -1,4 +1,4 @@
-//! The typeset-math test matrix (round 19): every construct the cell editor makes (power, fraction, square
+//! The typeset-math test matrix: every construct the cell editor makes (power, fraction, square
 //! root, n-th root, and nested combinations) against every editing operation: entering it with the box keys,
 //! walking the caret through every slot and back, Home/End in every slot, selecting whole boxes and every slot,
 //! Backspace into a box from outside, Backspace/Delete at every slot edge (unwrapping keeps the term for fractions
@@ -91,7 +91,7 @@ fn constructs() -> Vec<Construct> {
             linear: "1/(1/x)",
             backspace_first: None,
         },
-        // round 21: deeper nestings and the root-in-index cases
+        // Deeper nestings and the root-in-index cases
         Construct {
             name: "n-th root with a root index",
             keys: &[S(Root), S(Radical), T("y"), Out, S(Root), T("x")],
@@ -272,8 +272,8 @@ fn walk(c: &Construct, _: &Terms) -> Result<(), String> {
 
 fn home_end(c: &Construct, _: &Terms) -> Result<(), String> {
     let mut ed = Editor::from_text(c.canonical);
-    // Home and End go to the slot's edges; pressed at an edge already, to the edges of the line (round 32, R32.4,
-    // now the editor's own rule)
+    // Home and End go to the slot's edges; pressed at an edge already, to the edges of the line
+    // (the editor's own rule)
     for (p, row) in slots(ed.root()) {
         if row.len() < 2 {
             continue;
