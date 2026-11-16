@@ -1,7 +1,6 @@
 #! mathcas 2
-# Round 30 coverage library, evaluated after the other libraries, defined in every session.
-# Helper functions are prefixed `c30_` and not part of the interface. Methods and literature:
-# crates/mc-further-functions/NOTES.md.
+# Further functions library, evaluated after the other libraries, defined in every session.
+# Helper functions are prefixed `c30_` and not part of the interface.
 
 # --- julia_set_iteration_count ---
 
@@ -196,7 +195,7 @@ fn c30_distribute(r) =
 # --- fox_h ---
 # fox_h([[an..], [ap..]], [[bm..], [bq..]], z) with pairs [a_j, A_j], [b_j, B_j]: the Mellin-Barnes integral of
 # prod G(b_j + B_j s) prod G(1 - a_j - A_j s)/(prod G(1 - b_j - B_j s) prod G(a_j + A_j s)) z^(-s) (Kilbas and
-# Saigo, H-Transforms, 2004). Methods: crates/mc-further-functions/NOTES.md, section fox_h.
+# Saigo, H-Transforms, 2004).
 
 fn c30_pairs_ok(l) = is_list(l) and length(l) == 2 and is_list(l[1]) and is_list(l[2]) and every(join(l[1], l[2]), p => is_list(p) and length(p) == 2)
 

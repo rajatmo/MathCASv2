@@ -193,7 +193,7 @@ fn appell<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Which) -> R<'h> {
         // n(appell_f1(1, 1, 3/5, 3, 2/3, 2/5), 22), round 29)
         let ok = crate::cover::accurate(fx, v, goal);
         // the Gauss functions were taken at the midpoint of y: the radius 2^-(p - 8) |v| for the error of the
-        // arguments at the target precision and of the real part of the ball Gauss function (see NOTES.md)
+        // arguments at the target precision and of the real part of the ball Gauss function
         let mv = mag(fx, v) * 2f64.powi(-((wk.p.saturating_sub(8)).min(1000) as i32));
         let m = mc_arith::num::Mag::from_float_up(&crate::ball::float_of(mv.max(1e-300)));
         let v = crate::cover::map_balls(fx, v, |b| crate::ball::widen(b.clone(), &m));

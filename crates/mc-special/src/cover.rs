@@ -3051,7 +3051,7 @@ fn hankel_pair<'h>(fx: &mut Fx<'_, '_, '_, 'h>, nu: T<'h>, z: T<'h>, i_s: T<'h>)
 /// 3 i, 1/3), 30)` had 13 digits), and the input radii (2^-p) limit what a ball evaluation can prove. Ball
 /// arguments are therefore evaluated at their midpoints, exactly, at p + extra bits (extra from 64, doubled
 /// while the quotient lacks the digits, to 4096), and the result is given the radius 2^-(p-8) |q|: the digits the
-/// arguments carry less 8 bits for the conditioning (a good enclosure, not a proof; NOTES.md).
+/// arguments carry less 8 bits for the conditioning (a good enclosure, not a proof).
 pub(crate) fn refined_ratio<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], num: Option<&str>, den: Option<&str>) -> R<'h> {
     let Some((wk0, _)) = work(fx, a, 0) else { return Ok(None) };
     let ev1 = |fx: &mut Fx<'_, '_, '_, 'h>, name: Option<&str>, args: &[T<'h>]| -> Res<Option<T<'h>>> {

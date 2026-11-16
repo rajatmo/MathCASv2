@@ -15,7 +15,7 @@
 //!
 //! Literature: R. Lidl and H. Niederreiter, Finite Fields (2nd ed., Cambridge 1997); J. von zur Gathen and
 //! J. Gerhard, Modern Computer Algebra (3rd ed., Cambridge 2013); L. Heath and N. Loehr, New algorithms for
-//! generating Conway polynomials over finite fields, J. Symbolic Comput. 38 (2004). Details in NOTES.md.
+//! generating Conway polynomials over finite fields, J. Symbolic Comput. 38 (2004).
 #![warn(missing_docs)]
 pub mod conway;
 pub mod conway_table;

@@ -5,7 +5,7 @@
 //! Morlet, Gabor, Paul and derivative-of-Gaussian wavelets, their inverses, the data objects
 //! `discrete_wavelet_data` and `continuous_wavelet_data` with their selections, and the plots of the coefficients.
 //! Everything is MathCAS source (`lib/wavelets.mc`, [`SOURCE`]) built on the list, Fourier, root-finding and plot
-//! libraries, called through the evaluator. Methods and literature: `NOTES.md`.
+//! libraries, called through the evaluator.
 #![warn(missing_docs)]
 
 /// The library's source text.

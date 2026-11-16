@@ -22,7 +22,7 @@
 //!   characteristic polynomial wins (later coefficients by Newton's identities when p is large, else directly).
 //!
 //! Values for composite n whose enumeration is long are in [`crate::conway_table`] (written by this module's
-//! generator test, see NOTES.md). When no Conway polynomial is available within the budget the field takes the
+//! ignored generator test `generate_table`). When no Conway polynomial is available within the budget the field takes the
 //! least primitive polynomial in the same order, and when p^n - 1 cannot be factored the least irreducible one.
 use crate::field::{factor_capped, Capped, El, Field, Repr};
 use crate::fp::{self, Fp, Poly};
@@ -551,7 +551,7 @@ mod tests {
                 eprintln!("C({p},{n}) out of reach");
             }
         }
-        let head = "//! Conway polynomials for composite degrees whose coset enumeration is too long to run at first use, computed by\n//! this crate's own algorithm (`conway::tests::generate_table`, see NOTES.md) and checked against Luebeck's tables\n//! where they overlap. Entries: (p, n, coefficients c0, c1, ..., cn = 1).\n/// The tabulated polynomials.\n#[rustfmt::skip]\npub const TABLE: &[(u64, u32, &[u64])] = &[\n";
+        let head = "//! Conway polynomials for composite degrees whose coset enumeration is too long to run at first use, computed by\n//! this crate's own algorithm (`conway::tests::generate_table`) and checked against Luebeck's tables\n//! where they overlap. Entries: (p, n, coefficients c0, c1, ..., cn = 1).\n/// The tabulated polynomials.\n#[rustfmt::skip]\npub const TABLE: &[(u64, u32, &[u64])] = &[\n";
         let body = format!("{head}{}\n];\n", lines.join("\n"));
         std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/src/conway_table.rs"), body).unwrap();
         if let Some(dir) = &status {

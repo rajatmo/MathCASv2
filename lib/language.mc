@@ -1,7 +1,6 @@
 #! mathcas 2
-# Core-language library (round 30): functions written in MathCAS itself, evaluated after the
+# Core-language library: functions written in MathCAS itself, evaluated after the
 # other libraries, defined in every session. Helper functions are prefixed `l30_` and not part of the interface.
-# Notes: crates/mc-engine/NOTES.md, section "Round 30".
 
 # --- quantity arrays ---
 # An array of quantities is a list of quantity(...) terms (arrays are lists in this language: no separate structured

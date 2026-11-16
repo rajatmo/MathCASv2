@@ -34,7 +34,7 @@
 //! Symbolic bounds (symbols, complex numbers): `F(b) - F(a)` only when `f` and `F` are continuous for every real
 //! `x`, else the call stays (decision 2C4.3).
 //!
-//! Decisions are numbered 2C4.1, ... (`notes/2c-definite.md`) and 14D.1, ... (`NOTES.md`, item 14D).
+//! Decisions are numbered 2C4.1, ... and 14D.1, ... in the comments where they apply.
 pub mod check;
 mod conv;
 mod meijer;

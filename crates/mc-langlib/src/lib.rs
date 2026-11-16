@@ -23,7 +23,7 @@
 //! assert_eq!(e.eval("elementwise(max)([1, -1, 3], 0)", &stop).unwrap().printed, "[1, 0, 3]");
 //! ```
 //!
-//! Decisions are numbered n24c.1, n24c.2, ... in `NOTES.md` and in the comments of the source.
+//! Decisions are numbered n24c.1, n24c.2, ... in the comments of the source.
 #![warn(missing_docs)]
 
 /// The library's source text.

@@ -117,7 +117,7 @@ pub fn os_seed() -> u64 {
 }
 
 /// The generator of one session, shared by this crate's natives (and, later, by the parallel constructs and
-/// compiled code: see NOTES.md). Cloning shares the state.
+/// compiled code). Cloning shares the state.
 #[derive(Clone)]
 pub struct Rng(Arc<Mutex<Generator>>);
 

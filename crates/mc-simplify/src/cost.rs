@@ -76,7 +76,7 @@ pub struct Cost<'h> {
     /// the heads that are not counted as functions, and the bit of every other head seen
     arith: [Sym; 5],
     bits: FxHashMap<Sym, u64>,
-    /// nodes priced (for the measurements of NOTES.md)
+    /// nodes priced (for measurements)
     pub walked: u64,
 }
 

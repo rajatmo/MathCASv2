@@ -5,7 +5,7 @@
 //! first. Permutation groups are terms `permutation_group([g1, g2, ...])` of such generators; every algorithm runs
 //! on a base and strong generating set computed by the deterministic Schreier-Sims algorithm ([`chain`]) and kept
 //! in a small cache. Finitely presented groups are `finitely_presented_group([a, b, ...], [relators])` with words
-//! as lists of letters (`a`, `a^-1`, `a^3`). Methods, literature and decisions: `NOTES.md` (decisions g31.N).
+//! as lists of letters (`a`, `a^-1`, `a^3`).
 // matrix and table code reads best with index loops
 #![allow(clippy::needless_range_loop)]
 mod api;

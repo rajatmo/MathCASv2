@@ -1,7 +1,6 @@
 #! mathcas 2
 # The wavelet library: discrete, stationary, packet and continuous wavelet transforms, their inverses, the data
-# objects that hold the coefficients, and their plots. Helpers are prefixed `wv_`. Methods and literature:
-# crates/mc-wavelets/NOTES.md.
+# objects that hold the coefficients, and their plots. Helpers are prefixed `wv_`.
 
 # ---------------------------------------------------------------- wavelet families
 

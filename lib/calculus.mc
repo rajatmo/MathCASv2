@@ -1,7 +1,6 @@
 #! mathcas 2
 # Calculus library: functions written in MathCAS itself, evaluated after the prelude and the
 # language library, defined in every session. Helper functions are prefixed `calc_` and not part of the interface.
-# Methods and literature: crates/mc-calculus/NOTES.md, section "Round 28: the calculus library".
 
 # calc_real(x): whether x has a real numerical value (inf excluded)
 fn calc_real(x) = is_real(n(x)) === true
@@ -2765,10 +2764,9 @@ fn calc_waves(f) = rewrite(f, [
 ])
 fn calc_has_waves(f) = not free_of(f, sawtooth_wave(_)) or not free_of(f, square_wave(_)) or not free_of(f, triangle_wave(_))
 
-# ====== formerly the round 29 library file (merged in round 34, in load order) ======
+# ====== algebra and calculus functions (in load order) ======
 # Algebra and calculus library: functions written in MathCAS itself, evaluated after the
-# round 28 library above, defined in every session. Helper functions are prefixed `cb_` and not part of the interface.
-# Methods and literature: crates/mc-calculus/NOTES.md, section "Round 29: the algebra and calculus library".
+# calculus functions above, defined in every session. Helper functions are prefixed `cb_` and not part of the interface.
 
 # cb_vars(e): the variables of the numerator and denominator of e
 fn cb_vars(e) = {
@@ -4348,11 +4346,10 @@ fn cb_green_pde(op0, ux, xspec, t, ys) = {
 }
 rule green_function(op_, ux_, xspec_, t_, ys_) := cb_green_pde(op, ux, xspec, t, ys) when not is_atom(ux) and length(ux) == 2 and is_list(xspec) and length(xspec) == 3 and xspec[2] === -inf and xspec[3] === inf and is_symbol(t) and apply(list, ux) === [xspec[1], t] and is_list(ys) and length(ys) == 2 and (not is_list(op) or length(op) == 1) and not (cb_green_pde(op, ux, xspec, t, ys) === null)
 
-# ====== formerly the round 31 library file (merged in round 34; loaded after the libraries above, before the round 30
-# ones, whose helpers it calls only when its functions run) ======
-# Calculus library of round 31: functions written in MathCAS itself, evaluated after the round 30 coverage
-# library (its helpers c30_sph_coefs and c30_sph_j_all are used). Helper functions are prefixed `cf_`.
-# Methods and literature: crates/mc-calculus/NOTES.md, section "Round 31".
+# ====== further calculus functions (loaded after the libraries above, before the further functions library, whose
+# helpers they call only when their functions run) ======
+# Calculus library: functions written in MathCAS itself that call two helpers of the further functions
+# library (c30_sph_coefs and c30_sph_j_all) when they run. Helper functions are prefixed `cf_`.
 
 # --- spheroidal_s1_prime ---
 # The z-derivative of the radial spheroidal function of the first kind. With S1(z) = P(z) N(z)/D, P = (z^2 - 1)^(m/2)

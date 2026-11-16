@@ -1,5 +1,5 @@
 //! Conway polynomials for composite degrees whose coset enumeration is too long to run at first use, computed by
-//! this crate's own algorithm (`conway::tests::generate_table`, see NOTES.md) and checked against Luebeck's tables
+//! this crate's own algorithm (`conway::tests::generate_table`) and checked against Luebeck's tables
 //! where they overlap. Entries: (p, n, coefficients c0, c1, ..., cn = 1).
 /// The tabulated polynomials.
 #[rustfmt::skip]

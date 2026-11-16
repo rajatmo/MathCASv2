@@ -2,8 +2,7 @@
 # The numerics library: numerical and series functions written in MathCAS itself, evaluated
 # after the prelude and the language library when the engine starts. Everything is in the bare namespace; helpers
 # are prefixed `nl_` and are not part of the interface. Every public function is listed in
-# `mc_quad::LIBRARY_FUNCTIONS` and has a page docs/functions/<name>.mcn. Methods and literature are in
-# crates/mc-quad/NOTES.md ("Numerics library").
+# `mc_quad::LIBRARY_FUNCTIONS` and has a page docs/functions/<name>.mcn.
 
 # --- sequences: ratios, linear_recurrence ---
 
@@ -452,7 +451,7 @@ fn nl_spline_top(x, y, mm, p) = {
 # real values: local maxima (plateaus at their middle) of the data blurred by a Gaussian of width sigma (default
 # 0), with sharpness above s and value above t (defaults 0 and -inf); with sigma > 0 the peaks of the blurred data
 # are reported at the nearest peak of the data itself
-# (no `when` clause: with defaults and options it shifts the arguments, see NOTES.md)
+# (no `when` clause: with defaults and options it shifts the arguments)
 fn find_peaks(data, sigma = automatic, s = automatic, t = automatic; interpolation_order = automatic) = if not is_list(data) or length(data) == 0 then failure(argument, find_peaks, 1)
 else if every(data, q => is_match(q, quantity(_, _))) then {
   # quantities (of any compatible units): their magnitudes in the unit of the first, the peaks with that unit

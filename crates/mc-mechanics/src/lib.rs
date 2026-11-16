@@ -4,7 +4,7 @@
 //! brackets, Noether charges, constraints with Lagrange multipliers, small oscillations about an equilibrium, phase
 //! portraits and the numerical integration of the equations of motion. Everything is MathCAS source
 //! (`lib/mechanics.mc`, [`SOURCE`]) built on the calculus, solving, linear algebra, ODE and plot libraries, called
-//! through the evaluator. Methods, literature and decisions: `NOTES.md` (decisions p31.1, p31.2, ...).
+//! through the evaluator.
 #![warn(missing_docs)]
 
 /// The library's source text.

@@ -3,7 +3,6 @@
 //! Functions whose natural home is another crate, written here so that no other crate changes beyond
 //! one-line registrations: most are MathCAS source (`lib/further.mc`, [`SOURCE`]) that calls the other libraries
 //! through the evaluator; the machine-number kernels that need speed are natives of this crate ([`julia`]).
-//! Methods, literature and decisions: `NOTES.md` (decisions e30.1, e30.2, ...).
 #![warn(missing_docs)]
 mod foxh;
 mod julia;

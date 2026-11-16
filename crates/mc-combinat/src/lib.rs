@@ -9,8 +9,6 @@
 //! tangent/secant recurrences; Bell's triangle (Aitken's array); the DLMF chapters 24 (Bernoulli and Euler
 //! polynomials), 26 (partitions and Bell numbers) and 34 (3j, 6j symbols); Varshalovich, Moskalev, Khersonskii,
 //! "Quantum theory of angular momentum" for the Racah formulas.
-//!
-//! Decisions are numbered a28n.1, a28n.2, ... in `NOTES.md`.
 #![warn(missing_docs)]
 pub mod seq;
 

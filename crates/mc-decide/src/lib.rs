@@ -18,7 +18,7 @@
 //! assert_eq!(e.eval("refine(sign(x^2 - x*y + y^2 + 1), element(x | y, reals))", &stop).unwrap().printed, "1");
 //! ```
 //!
-//! Decisions of this crate are numbered F3.1, F3.2, ... in `NOTES.md` and in the comments where they apply.
+//! Decisions of this crate are numbered F3.1, F3.2, ... in the comments where they apply.
 #![warn(missing_docs)]
 pub mod basis;
 pub mod build;

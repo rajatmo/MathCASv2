@@ -120,7 +120,7 @@ These build on the pieces above and go into separate packages (`.mc` modules, or
   error)`; Philox streams per block, `seed:` option (default 0). The lattice generating vector and the Sobol
   parameters come from this project's own searches (64 dimensions). Default above 7 variables: lattice for
   integrands of analytic functions, VEGAS otherwise.
-- Benchmark: `crates/mc-quad/tests/bench.rs` (ignored test `genz_benchmark`), results in `crates/mc-quad/NOTES.md`.
+- Benchmark: `crates/mc-quad/tests/bench.rs` (ignored test `genz_benchmark`, run with `--ignored --nocapture`).
 
 ## 4. Order of work
 

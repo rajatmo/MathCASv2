@@ -1,7 +1,7 @@
 #! mathcas 2
-# Differential equations and differential algebra (round 31), evaluated after the other
+# Differential equations and differential algebra, evaluated after the other
 # libraries, defined in every session. Helper functions are prefixed `dg_` and are not part of the interface.
-# Methods and literature: crates/mc-diffalg/NOTES.md (decisions g31.N).
+# Decisions are numbered g31.N in the comments where they apply.
 
 # --- small list helpers ---
 

@@ -27,7 +27,7 @@
 //! McCallum, Parusiński and Paunescu (2019); Loos and Weispfenning (1993); Weispfenning (1997) for the quadratic
 //! sign rules; Kapur, Sun and Wang (2010) and Gianni (1989), Kalkbrener (1991) for the complex case splits; Basu,
 //! Pollack and Roy, *Algorithms in Real Algebraic Geometry*. Decisions are numbered CAD.1, CAD.2, ... in
-//! `NOTES.md` and where they apply.
+//! the comments where they apply.
 #![warn(missing_docs)]
 pub mod cad;
 pub mod complex;

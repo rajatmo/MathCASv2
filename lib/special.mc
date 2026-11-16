@@ -1,7 +1,6 @@
 #! mathcas 2
 # Special-function library: written in MathCAS itself, evaluated after the other libraries,
 # defined in every session. Helpers are prefixed `ds_` and are not part of the interface.
-# Methods and literature: crates/mc-special/NOTES.md, section "Round 30".
 
 fn ds_total(xs) = fold((p, q) => p + q, 0, xs)
 # the sum and product of f(j) for j = a..b (lambdas, so that no global symbol is an index)

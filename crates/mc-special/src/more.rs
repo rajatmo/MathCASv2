@@ -1605,7 +1605,7 @@ fn branch_index<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<i64> {
 /// The branch k of W(z) at a ball z of `p` bits: Halley's iteration w <- w - f/(e^w (w + 1) - (w + 2) f/(2 w + 2)),
 /// f = w e^w - z (cubic convergence), from the machine value, in ball arithmetic at p + 32 bits. The input radius
 /// propagates through the last step; the convergence error is added as the square of the last correction (the
-/// iteration is not an interval method: the enclosure is a good one, not a proof; NOTES.md).
+/// iteration is not an interval method: the enclosure is a good one, not a proof).
 fn lambert_ball<'h>(fx: &mut Fx<'_, '_, '_, 'h>, k: i64, z: T<'h>, p: u64) -> R<'h> {
     let zc = match fx.num(z) {
         Some(Num::Real(r)) => C64::real(r.to_f64()),

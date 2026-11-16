@@ -345,5 +345,5 @@ Order: P1, M4 with M1, P2, M3, P4 with P5 first (the most value for the least ne
   (F3); after it, phase 11 works on `mc-poly`, phase 12 `mc-simplify`, phase 14 the integration modules of `mc-calculus` (a new
   `mc-integrate` crate if 13 and 14 run at the same time, so no two steps change one crate), 15A `mc-numeric` and
   `mc-special`, new crates for 15B-15D where needed.
-- Every step: its own branch, offline builds, guards and progress for heavy runs, notes saved as the crate's
-  `NOTES.md`, every new function with a `FUNCTIONS` entry, a documentation page and tests.
+- Every step: its own branch, offline builds, guards and progress for heavy runs, every new
+  function with a `FUNCTIONS` entry, a documentation page and tests.

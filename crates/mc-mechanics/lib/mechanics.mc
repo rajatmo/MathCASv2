@@ -1,8 +1,7 @@
 #! mathcas 2
 # Analytical mechanics toolkit (roadmap 3.5 P1), evaluated after the other libraries, defined
 # in every session. Helper functions are prefixed `m31_` and not part of the interface; pattern variables in rules
-# are prefixed `m31` too, so a user's global value cannot shadow them. Methods and literature:
-# crates/mc-mechanics/NOTES.md.
+# are prefixed `m31` too, so a user's global value cannot shadow them.
 
 # --- coordinates ---
 # A coordinate is a function of the independent variables, written x(t) (or u(x, t) for a field), or its bare name

@@ -985,7 +985,7 @@ demand.
 
 ### 7.1 Today
 
-The `.mcn` format of `crates/mc-kernel/NOTES.md`: header `#! mathcas 2 notebook`; marker lines `#% cell` (code),
+The `.mcn` format: header `#! mathcas 2 notebook`; marker lines `#% cell` (code),
 `#% text` (prose as `# ...` lines), `#% output` (`#|` print, `#=` value, `#!` failure/error); any other `#%` line is a
 comment; every marker, text and output line is a comment, so the file is also a script.
 

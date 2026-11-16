@@ -1,4 +1,4 @@
-//! The MathCAS v2 read-eval-print loop, with a pluggable [`Engine`] (the same trait the benchmark harness uses).
+//! The MathCAS v2 read-eval-print loop, with a pluggable [`Engine`] (the same trait the benchmark runner uses).
 //!
 //! The loop reads lines, joins them while brackets are open (`(`, `[`, `{`, ignoring strings and comments), and
 //! hands each complete input to the engine. Lines starting with `:` are commands (see [`HELP`]). Interrupts are a
@@ -237,7 +237,7 @@ impl Repl {
     }
 }
 
-/// A time in seconds with three decimals and a unit (s, ms or us), as the benchmark harness prints times.
+/// A time in seconds with three decimals and a unit (s, ms or us), as the benchmark runner prints times.
 fn seconds(s: f64) -> String {
     if s >= 1.0 {
         format!("{s:.3} s")

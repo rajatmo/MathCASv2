@@ -343,7 +343,7 @@ fn jac_ratio<'h>(b: &Build<'h>, name: &str, a: &[T<'h>]) -> T<'h> {
 }
 
 /// d/dm of the Jacobi amplitude at fixed u: (m sn cn - dn (E - (1 - m) u))/(2 m (1 - m)) with E = `jacobi_epsilon(u, m)`
-/// (Byrd and Friedman 710.00; checked against central differences, see the mc-special NOTES, round 36).
+/// (Byrd and Friedman 710.00; checked against central differences).
 fn jam_m<'h>(b: &Build<'h>, a: &[T<'h>]) -> T<'h> {
     let (u, m) = (a[0], a[1]);
     let om = b.sub(b.one(), m);
@@ -488,7 +488,7 @@ fn coulomb_rho<'h>(b: &Build<'h>, f: &str, a: &[T<'h>]) -> T<'h> {
 
 /// d/dz of a Lommel function f_(mu, nu)(z) (s1, s2, t1, t2): (mu + nu - 1) f_(mu-1, nu-1)(z) - nu/z f_(mu, nu)(z)
 /// (DLMF 11.9.ii for s and S; the same term-by-term computation holds for the modified series t, and T differs from
-/// t by multiples of I_nu, K_nu, whose recurrences match; checked against central differences, see NOTES.md).
+/// t by multiples of I_nu, K_nu, whose recurrences match; checked against central differences).
 fn lommel_z<'h>(b: &Build<'h>, f: &str, a: &[T<'h>]) -> T<'h> {
     let (mu, nu, z) = (a[0], a[1], a[2]);
     // on mu + nu = 1 the lower function has a pole: use the companion (mu - nu - 1) f_(mu-1, nu+1) + nu/z f (the

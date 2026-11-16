@@ -102,7 +102,7 @@ with order about the number of digits and step size from the coefficients' decay
 ### N4 Scale (after N1–N3)
 
 Packed real arrays (semantics 11; `mc-random` measured lists of reals to be heap-bound), parallel batch evaluation
-of effect-free compiled code (semantics 18.2 (2)), random draws from compiled code (design in `mc-random`'s NOTES),
+of effect-free compiled code (semantics 18.2 (2)), random draws from compiled code,
 compiled complex numbers (L9).
 
 ### N5 Optional
@@ -120,7 +120,7 @@ Compiled ball code (decision NUM.5) if measurements call for it; verified ODE en
 
 N0 is the critical path; its four items are developed together because the trait, the compiler extensions and the
 benchmarks constrain each other. N1, N2 and N3 change different crates and can proceed independently. Each step follows the
-project's rules: tests and a `NOTES.md` entry, guarded runs with time limits, and it is done only when the full
+project's rules: tests and documented decisions, guarded runs with time limits, and it is done only when the full
 suite passes.
 
 ## 6. Reading list

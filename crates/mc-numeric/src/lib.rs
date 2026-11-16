@@ -49,7 +49,7 @@
 //! - **L.11** Integer square roots run with the stop flag off (they cannot survive a stopped multiplication).
 //! - **L.12** (superseded by N0C.1) No ball functions of complex balls: such calls stay unevaluated.
 //!
-//! Item N0C (complex balls; details in [`cball`] and `NOTES.md`):
+//! Item N0C (complex balls; details in [`cball`]):
 //!
 //! - **N0C.1** Complex ball functions are ball expressions of the real ball functions of the parts (Arb's `acb`
 //!   approach); the natives evaluate complex-ball arguments (`sqrt(z)` of a complex ball is computed, not left as

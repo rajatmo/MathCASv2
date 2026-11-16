@@ -4,11 +4,11 @@
 #   * must not depend on <crate>         (no crate but <crate> itself)
 # Each rule is added in the round that makes it true (docs/design/12-architecture.md).
 
-# the benchmark runner is a leaf of the tree: engines and their users get the Engine trait from mc-api (round 34)
+# the benchmark runner is a leaf of the tree: engines and their users get the Engine trait from mc-api
 * must not depend on mc-bench
 
 # the UI crates use the graphics model and its renderers without the kernel: mc-graphics reads terms through the
-# store contract only, the natives are mc-graphics-kernel's (round 34)
+# store contract only, the natives are mc-graphics-kernel's
 mc-notebook must not depend on mc-eval
 mc-notebook must not depend on mc-core
 mc-nbmodel must not depend on mc-eval
@@ -26,11 +26,11 @@ mc-edit must not depend on mc-core
 mc-graphics must not depend on mc-eval
 mc-graphics must not depend on mc-core
 
-# the box layout knows no parser of outputs: printed text is read into boxes by mc-typeset, above it (round 38)
+# the box layout knows no parser of outputs: printed text is read into boxes by mc-typeset, above it
 mc-boxes must not depend on mc-typeset
 mc-edit must not depend on mc-typeset
 
-# calculus by area (round 34): differentiation and the shared helpers at the bottom, integration above limits
+# calculus by area: differentiation and the shared helpers at the bottom, integration above limits
 mc-calculus must not depend on mc-limit
 mc-calculus must not depend on mc-integrals
 mc-calculus must not depend on mc-transforms

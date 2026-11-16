@@ -27,7 +27,7 @@
 //! agree. Other functions are accepted when their arguments have finite limits; the series kernels expand them
 //! through their derivatives, and give up at a singular point.
 //!
-//! Beyond the thesis (decisions 13C.x in `NOTES.md`): per call memo tables for limits, signs, mrv sets and
+//! Beyond the thesis (decisions 13C.x in the comments): per call memo tables for limits, signs, mrv sets and
 //! leading terms (terms are hash-consed, so a repeated subproblem costs one lookup); a depth bound, a deadline and
 //! the evaluator's interrupt polled at every step, with `None` (unknown) on expiry; leading terms with symbolic
 //! exponents (`2^x / 3^x`) handled before the series kernels, which need rational ones.

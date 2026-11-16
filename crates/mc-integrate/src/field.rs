@@ -6,7 +6,7 @@
 //! representation stays unique and zero is recognised: the field is `Q(i)(v_1, ..., v_n)`, not `Q(i, v_1, ...)` with
 //! `i` transcendental. Every other constant (a symbol `a`, `pi`, `2^(1/2)`, `log(3)`) is an independent variable;
 //! an identity found with them as indeterminates holds for every value of them (it is a polynomial identity), which
-//! is all the ansatz and the Risch algorithm use (decision 14A.2 in the NOTES).
+//! is all the ansatz and the Risch algorithm use (decision 14A.2).
 use mc_poly::ratfun::RatFun;
 use mc_poly::ring::CoeffRing;
 use mc_poly::work::{Halt, Meter, Work, WorkResult};

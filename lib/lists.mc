@@ -1,7 +1,7 @@
 #! mathcas 2
 # Lists library: vectors, matrices and number functions written in MathCAS itself, evaluated
 # after the numerics library, defined in every session. Helper functions are prefixed `b29_` and not part of the
-# interface. Methods and literature: crates/mc-lists/NOTES.md, section "Round 29: the lists library".
+# interface.
 
 # b29_matrix(rows, cols, f): the matrix of f(i, j) (lexical index names: entries may contain any symbol)
 fn b29_matrix(rows, cols, f) = map(i => map(j => f(i, j), range(cols)), range(rows))

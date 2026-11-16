@@ -4,7 +4,7 @@
 //! which writes each special function of the variable as its truncated expansion at the point (Taylor, logarithmic
 //! or Laurent terms near a finite point; the asymptotic power series at infinity, with an exponential or oscillating
 //! factor kept outside when there is one) and calls `series` again. The helper answers `ds_none` when it has no
-//! expansion, and the call then stays unevaluated as before. Methods and literature: NOTES.md, section "Round 30".
+//! expansion, and the call then stays unevaluated as before.
 use mc_api::{Store, View};
 use mc_core::T;
 use mc_eval::{Kernel, Native, NativeCx, Reply, Res};
