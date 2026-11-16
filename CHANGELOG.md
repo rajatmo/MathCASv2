@@ -65,7 +65,9 @@ and `abs(x^2)` is analytic; strict monotonicity of `x^3` is answered.
 **Faster.** A small input takes about a tenth of the time it took (parsing no longer starts a thread per
 input); a plot draws its PDF and print versions when an export first asks for them; plots of large rasters no
 longer print them; `sign` of a complex constant, root counts with `gamma` and `matrix_exp` of a matrix logarithm
-are much quicker.
+are much quicker. A kernel on a busy machine answers a small input as fast as on an idle one; `table` over
+ranges of machine numbers compiles its body (a million elements in a tenth of a second); large 3D pictures
+are read and written in about half the time.
 
 **Sums carry their conditions.** An infinite sum or product with a parameter gives a `conditional_expression`
 with its condition of convergence (`sum(p^k/k, [k, 1, inf])` holds for `abs(p) < 1` and at `p == -1`);
@@ -96,6 +98,15 @@ Weierstrass and modular functions; alternating series of rational functions; sum
 general series coefficients; sums of squares above degree 2 with an exact certificate; eigenvectors and singular
 value decompositions of high-precision matrices at their precision; `refine` joins facts about several symbols
 (`a > 0` from `a > b and a > -b`); `find_instance` proves an empty answer over the integers.
+
+**Roots of any function.** `root([f, x0])` with a function that is not a polynomial is an exact number: the
+root near `x0` is found and proved on a box, real or complex, `n` gives it to any precision, and it is refused
+at a double root, without a root nearby or on a branch cut. `solve`, `reduce` and `n_solve` give such roots
+for one analytic equation in a bounded region, and `arg_max`, `arg_min`, `max_value`, `min_value`, `maximize`
+and `minimize` on a closed interval compare the proved values at the ends and at the roots of the derivative.
+Also: proved ranges of oscillating functions (`bessel_j(0, x)`, `sinc`); sequences reduced to one
+`difference_root`; systems of recurrences with constant coefficients; asymptotic relations with parameters give
+their conditions; Fibonacci and Lucas numbers of real index; Hankel transforms of more functions.
 
 **Also new.** Proved images of more special functions on wide intervals; `prime_pi` up to 2^60;
 hypergeometric functions (p+1)Fp beyond the unit circle; Lommel and Weber functions at exceptional orders;
