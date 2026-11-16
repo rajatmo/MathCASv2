@@ -111,7 +111,7 @@ pub(crate) fn verify<'h>(
 /// The symbols of `t` other than `x` and the constants, in order of appearance.
 pub fn symbols<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>, out: &mut Vec<T<'h>>) {
     let h = b.heap();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) if u != x => {
@@ -315,7 +315,7 @@ fn oscillatory<'h>(
 fn slowest_frequency<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<Option<f64>> {
     let h = b.heap();
     let im = h.sym_term(h.sym("im"));
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     let mut best: Option<f64> = None;
     while let Some(t) = stack.pop() {
         if is_free(b, t, x) {

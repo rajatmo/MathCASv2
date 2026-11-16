@@ -92,7 +92,7 @@ fn given_labels<'h>(cx: &NativeCx<'_, '_, 'h>, o: Option<T<'h>>) -> Vec<String> 
                     .iter()
                     .map(|&t| match h.view(t) {
                         View::Str(s) => s.to_string(),
-                        _ => mc_syntax::Printer::new(h).expr(t),
+                        _ => mc_syntax::Printer::brief(h).expr(t),
                     })
                     .collect();
             }

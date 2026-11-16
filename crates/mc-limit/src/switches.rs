@@ -277,7 +277,7 @@ pub fn step_cuts<'h>(
 /// Is `t` a rational function of `x` (sums, products, integer powers; other subterms free of `x`)?
 fn rational_in<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
     let h = b.heap();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == x || is_free(b, u, x) {
             continue;
@@ -540,7 +540,7 @@ fn steps<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>, memo: &mut FxHashMap<T<'h>, T<'h
 /// Does `t` hold a function of `x` with jumps (`round`, `floor`, steps, ...)?
 fn has_jumps<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
     let h = b.heap();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if is_free(b, u, x) {
             continue;

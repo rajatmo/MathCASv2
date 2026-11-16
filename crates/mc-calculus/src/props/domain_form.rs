@@ -18,7 +18,7 @@ use mc_eval::{NativeCx, Res};
 pub fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, cs: &mut Vec<T<'h>>, vars: &[T<'h>], complex: bool) -> Res<Option<T<'h>>> {
     let h = b.heap();
     let ordering = |t: T<'h>| {
-        let mut stack = vec![t];
+        let mut stack = mc_api::walk::Walk::new(t);
         while let Some(u) = stack.pop() {
             if let View::App { head, args } = h.view(u) {
                 if b.sym_of(head).is_some_and(|s| matches!(h.sym_name(s).as_str(), "less" | "less_equal" | "greater" | "greater_equal")) {

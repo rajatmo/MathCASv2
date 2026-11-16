@@ -137,6 +137,14 @@ pub fn power_collect<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> 
 
 /// The angles `u` with both `sin(u)` and `cos(u)` in `t`.
 fn sin_cos_angles<'h>(b: &B<'h>, t: T<'h>, out: &mut Vec<T<'h>>, seen_sin: &mut Vec<T<'h>>, seen_cos: &mut Vec<T<'h>>) {
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    sin_cos_angles_in(b, t, out, seen_sin, seen_cos, &mut mc_api::walk::seen())
+}
+
+fn sin_cos_angles_in<'h>(b: &B<'h>, t: T<'h>, out: &mut Vec<T<'h>>, seen_sin: &mut Vec<T<'h>>, seen_cos: &mut Vec<T<'h>>, seen: &mut mc_api::walk::Seen<T<'h>>) {
+    if !seen.insert(t) {
+        return;
+    }
     if let Some((s, args)) = b.call_of(t) {
         if let [u] = args {
             if s == b.hd.sin && !seen_sin.contains(u) {
@@ -153,7 +161,7 @@ fn sin_cos_angles<'h>(b: &B<'h>, t: T<'h>, out: &mut Vec<T<'h>>, seen_sin: &mut 
             }
         }
         for &a in args {
-            sin_cos_angles(b, a, out, seen_sin, seen_cos);
+            sin_cos_angles_in(b, a, out, seen_sin, seen_cos, seen);
         }
     }
 }
@@ -217,6 +225,14 @@ pub fn sqrt_parity<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Re
 
 /// The kernels `(u^2)^e` with `e` a half of an odd integer: (kernel, u, e).
 fn collect_root_squares<'h>(b: &B<'h>, t: T<'h>, out: &mut Vec<(T<'h>, T<'h>, T<'h>)>) {
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    collect_root_squares_in(b, t, out, &mut mc_api::walk::seen())
+}
+
+fn collect_root_squares_in<'h>(b: &B<'h>, t: T<'h>, out: &mut Vec<(T<'h>, T<'h>, T<'h>)>, seen: &mut mc_api::walk::Seen<T<'h>>) {
+    if !seen.insert(t) {
+        return;
+    }
     if let Some((s, args)) = b.call_of(t) {
         if let (true, [base, e]) = (s == b.hd.pow, args) {
             let odd_half = matches!(b.heap().view(*e), View::Rational { den, .. } if den == b.int(2));
@@ -228,7 +244,7 @@ fn collect_root_squares<'h>(b: &B<'h>, t: T<'h>, out: &mut Vec<(T<'h>, T<'h>, T<
             }
         }
         for &a in args {
-            collect_root_squares(b, a, out);
+            collect_root_squares_in(b, a, out, seen);
         }
     }
 }

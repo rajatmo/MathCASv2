@@ -281,22 +281,29 @@ fn even_abs_powers<'h>(h: &'h mc_core::Heap, t: T<'h>, vars: &[T<'h>]) -> T<'h> 
 
 /// Whether `u` is built from the variables and real numbers by sums, products and powers with natural exponents.
 fn real_polynomial<'h>(h: &'h mc_core::Heap, u: T<'h>, vars: &[T<'h>]) -> bool {
-    match h.view(u) {
-        View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. } => true,
-        View::Sym(_) => vars.contains(&u),
-        View::App { head, args } => {
-            let View::Sym(s) = h.view(head) else { return false };
-            let n = h.sym_name(s);
-            if n == names::ADD || n == names::MUL {
-                args.iter().all(|&a| real_polynomial(h, a, vars))
-            } else if n == names::POW {
-                matches!(args, [b, e] if matches!(h.view(*e), View::Int(k) if k >= 0) && real_polynomial(h, *b, vars))
-            } else {
-                false
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    real_polynomial_in(h, u, vars, &mut mc_api::walk::memo())
+}
+
+fn real_polynomial_in<'h>(h: &'h mc_core::Heap, u: T<'h>, vars: &[T<'h>], memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, u, |memo| {
+        match h.view(u) {
+            View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. } => true,
+            View::Sym(_) => vars.contains(&u),
+            View::App { head, args } => {
+                let View::Sym(s) = h.view(head) else { return false };
+                let n = h.sym_name(s);
+                if n == names::ADD || n == names::MUL {
+                    args.iter().all(|&a| real_polynomial_in(h, a, vars, memo))
+                } else if n == names::POW {
+                    matches!(args, [b, e] if matches!(h.view(*e), View::Int(k) if k >= 0) && real_polynomial_in(h, *b, vars, memo))
+                } else {
+                    false
+                }
             }
+            View::Str(_) => false,
         }
-        View::Str(_) => false,
-    }
+    })
 }
 
 fn alg(c: &Coord) -> RealAlg {

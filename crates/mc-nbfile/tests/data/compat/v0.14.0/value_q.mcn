@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# value_q
+
+#% text
+# `value_q(x)` tests whether `x` has a value: whether it evaluates to something other than itself.
+
+#% section
+# Details
+
+#% item
+# The argument is held.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+v = 3; value_q(v)
+#% output
+#= true
+
+#% cell
+value_q(undefined_symbol)
+#% output
+#= false
+
+#% cell
+value_q(1 + 1)
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% cell
+fn f(n) = n^2
+value_q(f(2))
+#% output
+#= true
+
+#% cell
+value_q(f)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `attributes`, `is_symbol`

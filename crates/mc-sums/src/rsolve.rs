@@ -42,7 +42,7 @@ fn flatten<'h>(sx: &Sx<'_, '_, '_, 'h>, t: T<'h>, out: &mut Vec<T<'h>>) {
 fn occurrences<'h>(sx: &Sx<'_, '_, '_, 'h>, t: T<'h>, a: T<'h>) -> Vec<(T<'h>, T<'h>)> {
     let h = sx.h();
     let mut out = vec![];
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if head == a {

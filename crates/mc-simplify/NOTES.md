@@ -645,3 +645,10 @@ the formal step is gone. The duplication and triplication identities and the Cat
 
 `(-1)^k` drops the even part of each integer term of k even when the rest of k is not an integer: `(-1)^(a + 2t) =
 (-1)^a` for an integer t and any complex a (principal power `exp(i pi k)`). Used by the divisor sums of mc-numtheory.
+## Round 45: shared subterms, continued
+
+- What round 44 found and left: `simplify(nest(x => [x, x], 1, 60))` and `factor` of it now end within 300 ms of a
+  stop and depth 22 gives its value in about a second. The causes were outside the search: the groundness test of
+  every library function's catch-all, the Boolean improvement of the result over lists (`boolean::improve`, now
+  with a memo), the root and angle collectors of the moves and the predicates of `boolean.rs`, `trigconst.rs`,
+  `element.rs` (each distinct subterm once, `mc_api::walk`).

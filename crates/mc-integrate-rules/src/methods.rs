@@ -342,7 +342,7 @@ fn lcm(a: i128, b: i128) -> i128 {
 
 /// Visit the subterms of `t` (pre-order); `f` returning false skips the subterm's arguments.
 fn walk<'h>(h: &'h mc_core::Heap, t: T<'h>, f: &mut dyn FnMut(T<'h>) -> bool) {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if !f(u) {
             continue;
@@ -403,21 +403,28 @@ fn map_pows<'h>(
 
 /// Is `t` a rational function of the symbols `vars` (sums, products, integer powers; anything free of them)?
 fn rational_in<'h>(h: &'h mc_core::Heap, t: T<'h>, vars: &[T<'h>]) -> bool {
-    if vars.contains(&t) {
-        return true;
-    }
-    if vars.iter().all(|&v| free_of(h, t, v)) {
-        return true;
-    }
-    let Some((s, args)) = call_of(h, t) else {
-        return false;
-    };
-    let name = h.sym_name(s);
-    match name.as_str() {
-        mc_api::names::ADD | mc_api::names::MUL => args.iter().all(|&a| rational_in(h, a, vars)),
-        mc_api::names::POW => matches!(h.view(args[1]), View::Int(_)) && rational_in(h, args[0], vars),
-        _ => false,
-    }
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    rational_in_in(h, t, vars, &mut mc_api::walk::memo())
+}
+
+fn rational_in_in<'h>(h: &'h mc_core::Heap, t: T<'h>, vars: &[T<'h>], memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        if vars.contains(&t) {
+            return true;
+        }
+        if vars.iter().all(|&v| free_of(h, t, v)) {
+            return true;
+        }
+        let Some((s, args)) = call_of(h, t) else {
+            return false;
+        };
+        let name = h.sym_name(s);
+        match name.as_str() {
+            mc_api::names::ADD | mc_api::names::MUL => args.iter().all(|&a| rational_in_in(h, a, vars, memo)),
+            mc_api::names::POW => matches!(h.view(args[1]), View::Int(_)) && rational_in_in(h, args[0], vars, memo),
+            _ => false,
+        }
+    })
 }
 
 /// A fractional (or symbolic) power of a product, `(c g1^k1 g2^k2 ...)^n` with `c` free of `x`, among the factors

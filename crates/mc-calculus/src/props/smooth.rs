@@ -168,11 +168,18 @@ fn genuine_pole<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, vars
 
 /// Does `t` contain the generator `c(...)` of a family of solutions?
 fn contains_generator<'h>(b: &Build<'h>, t: T<'h>) -> bool {
-    let h = b.heap();
-    match h.view(t) {
-        View::App { head, args } => b.sym_of(head) == Some(h.sym("c")) || args.iter().any(|&a| contains_generator(b, a)),
-        _ => false,
-    }
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    contains_generator_in(b, t, &mut mc_api::walk::memo())
+}
+
+fn contains_generator_in<'h>(b: &Build<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        let h = b.heap();
+        match h.view(t) {
+            View::App { head, args } => b.sym_of(head) == Some(h.sym("c")) || args.iter().any(|&a| contains_generator_in(b, a, memo)),
+            _ => false,
+        }
+    })
 }
 
 /// A single component `a g` with factors `a` free of the variables that are not numbers: (`[g]`, the factors).

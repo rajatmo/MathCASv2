@@ -108,7 +108,7 @@ impl Scopes {
     /// The pattern variables of pattern term `l`: the names in `any(x)`, `seq1(x)`, `seq0(x)` and `named(x, p)`.
     pub(crate) fn pattern_vars<'h>(&self, h: &'h Heap, l: T<'h>, out: &mut Vec<Sym>) {
         let pmask = [self.any, self.seq0, self.seq1, self.named].iter().fold(0, |m, &x| m | h.mask(h.sym_term(x)));
-        let mut stack = vec![l];
+        let mut stack = mc_api::walk::Walk::new(l);
         while let Some(u) = stack.pop() {
             if h.mask(u) & pmask == 0 {
                 continue;

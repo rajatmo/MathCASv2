@@ -142,7 +142,7 @@ pub(crate) fn definite<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h
 /// Is `t` a polynomial in `x`?
 fn polynomial<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
     let h = b.heap();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == x || is_free(b, u, x) {
             continue;

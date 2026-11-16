@@ -1299,7 +1299,7 @@ fn period<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>) -> Res<Option<i64
     let h = sx.h();
     let modh = sx.sym("mod");
     let mut p: i64 = 1;
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     let mut seen_mod = false;
     while let Some(u) = stack.pop() {
         if u == k {

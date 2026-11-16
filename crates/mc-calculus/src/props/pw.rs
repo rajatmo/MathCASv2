@@ -175,36 +175,43 @@ pub fn expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) 
 
 /// Does `t` contain a piecewise head (or a step function)?
 fn contains_piecewise<'h>(b: &Build<'h>, t: T<'h>) -> bool {
-    let h = b.heap();
-    match h.view(t) {
-        View::App { head, args } => {
-            b.sym_of(head).is_some_and(|s| {
-                matches!(
-                    h.sym_name(s).as_str(),
-                    "piecewise"
-                        | "if"
-                        | "max"
-                        | "min"
-                        | "clip"
-                        | "unit_step"
-                        | "boole"
-                        | "abs"
-                        | "sign"
-                        | "floor"
-                        | "ceiling"
-                        | "round"
-                        | "integer_part"
-                        | "prime_pi"
-                        | "ramp"
-                        | "real_abs"
-                        | "real_sign"
-                        | "unit_box"
-                        | "unit_triangle"
-                )
-            }) || args.iter().any(|&a| contains_piecewise(b, a))
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    contains_piecewise_in(b, t, &mut mc_api::walk::memo())
+}
+
+fn contains_piecewise_in<'h>(b: &Build<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        let h = b.heap();
+        match h.view(t) {
+            View::App { head, args } => {
+                b.sym_of(head).is_some_and(|s| {
+                    matches!(
+                        h.sym_name(s).as_str(),
+                        "piecewise"
+                            | "if"
+                            | "max"
+                            | "min"
+                            | "clip"
+                            | "unit_step"
+                            | "boole"
+                            | "abs"
+                            | "sign"
+                            | "floor"
+                            | "ceiling"
+                            | "round"
+                            | "integer_part"
+                            | "prime_pi"
+                            | "ramp"
+                            | "real_abs"
+                            | "real_sign"
+                            | "unit_box"
+                            | "unit_triangle"
+                    )
+                }) || args.iter().any(|&a| contains_piecewise_in(b, a, memo))
+            }
+            _ => false,
         }
-        _ => false,
-    }
+    })
 }
 
 /// `t` with the step functions that are written by others (module comment) rewritten into them: `floor(u, a)`,
@@ -238,27 +245,34 @@ fn step_forms<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, bounde
 
 /// Is some condition of a piecewise or `if` in `t` a symbol (not a relation)?
 fn has_symbol_condition<'h>(b: &Build<'h>, t: T<'h>) -> bool {
-    let h = b.heap();
-    let View::App { head, args } = h.view(t) else { return false };
-    let name = b.sym_of(head).map(|s| h.sym_name(s).to_string()).unwrap_or_default();
-    let sym = |c: T<'h>| matches!(h.view(c), View::Sym(s) if !matches!(h.sym_name(s).as_str(), "true" | "false"));
-    if name == "if" && args.first().is_some_and(|&c| sym(c)) {
-        return true;
-    }
-    if name == "piecewise" {
-        if let Some(&l) = args.first() {
-            if let View::App { args: rows, .. } = h.view(l) {
-                for &r in rows {
-                    if let View::App { args: &[_, c], .. } = h.view(r) {
-                        if sym(c) {
-                            return true;
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    has_symbol_condition_in(b, t, &mut mc_api::walk::memo())
+}
+
+fn has_symbol_condition_in<'h>(b: &Build<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        let h = b.heap();
+        let View::App { head, args } = h.view(t) else { return false };
+        let name = b.sym_of(head).map(|s| h.sym_name(s).to_string()).unwrap_or_default();
+        let sym = |c: T<'h>| matches!(h.view(c), View::Sym(s) if !matches!(h.sym_name(s).as_str(), "true" | "false"));
+        if name == "if" && args.first().is_some_and(|&c| sym(c)) {
+            return true;
+        }
+        if name == "piecewise" {
+            if let Some(&l) = args.first() {
+                if let View::App { args: rows, .. } = h.view(l) {
+                    for &r in rows {
+                        if let View::App { args: &[_, c], .. } = h.view(r) {
+                            if sym(c) {
+                                return true;
+                            }
                         }
                     }
                 }
             }
         }
-    }
-    args.iter().any(|&a| has_symbol_condition(b, a))
+        args.iter().any(|&a| has_symbol_condition_in(b, a, memo))
+    })
 }
 
 /// The rows and default of a `piecewise` or `if`.

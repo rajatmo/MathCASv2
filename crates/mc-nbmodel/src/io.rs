@@ -115,6 +115,7 @@ impl Notebook {
     pub fn from_file(f: &file::Notebook) -> Notebook {
         let mut nb = Notebook::new();
         nb.header = f.header.clone();
+        nb.version = f.version;
         let mut cells = vec![];
         for fc in &f.cells {
             let c = cell_from_file(&mut nb, fc);
@@ -141,6 +142,7 @@ impl Notebook {
     pub fn to_file_mapped(&self) -> (file::Notebook, Vec<Option<usize>>) {
         let mut f = file::Notebook::new();
         f.header = self.header.clone();
+        f.version = self.version;
         let mut map = vec![];
         let mut i = 0;
         while i < self.cells.len() {

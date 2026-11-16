@@ -32,6 +32,9 @@ const MAX_DEPTH: usize = 8;
 /// The constants that are never unknowns when the unknowns are not given.
 const CONSTANTS: &[&str] = &["pi", "e", "im", "euler_gamma", "catalan", "inf", "true", "false", "null"];
 
+/// The most equations [`read_equations`] reads.
+const MAX_EQUATIONS: usize = 1 << 16;
+
 /// The equations of `t` as differences `lhs - rhs`: `Ok(None)` for `false`, an error message for inequalities and
 /// other relations.
 pub(crate) fn read_equations<'h>(env: &Env<'h>, t: T<'h>) -> Result<Option<Vec<T<'h>>>, &'static str> {
@@ -64,6 +67,10 @@ pub(crate) fn read_equations<'h>(env: &Env<'h>, t: T<'h>) -> Result<Option<Vec<T
         }
         // a bare expression e means e == 0
         out.push(u);
+        // a list with shared parts can stand for exponentially many equations
+        if out.len() > MAX_EQUATIONS || stack.len() > MAX_EQUATIONS {
+            return Err("more than 65536 equations");
+        }
     }
     Ok(Some(out))
 }
@@ -597,23 +604,30 @@ fn positive_log<'h>(env: &Env<'h>, t: T<'h>, xs: &[T<'h>], m: &mut Meter) -> Wor
 /// Is `w` real for every real value of the unknowns where it is defined? Rational functions of the unknowns
 /// with real constant coefficients (rationals, or closed constants with a real machine value).
 fn real_rational<'h>(env: &Env<'h>, w: T<'h>, xs: &[T<'h>]) -> bool {
-    let h = env.h();
-    if xs.contains(&w) {
-        return true;
-    }
-    if !env.contains_any(w, xs) {
-        if let Some(n) = env.ar.num(w) {
-            return n.as_rat().is_some() || matches!(env.machine(w), Some((_, im)) if im == 0.0);
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    real_rational_in(env, w, xs, &mut mc_api::walk::memo())
+}
+
+fn real_rational_in<'h>(env: &Env<'h>, w: T<'h>, xs: &[T<'h>], memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, w, |memo| {
+        let h = env.h();
+        if xs.contains(&w) {
+            return true;
         }
-        return !env.contains_any(w, &[env.sym("im")]) && matches!(env.machine(w), Some((_, im)) if im == 0.0);
-    }
-    match h.view(w) {
-        View::App { head, args } if head == env.hd.add || head == env.hd.mul => args.iter().all(|&a| real_rational(env, a, xs)),
-        View::App { head, args: &[b, k] } if head == env.hd.pow => {
-            env.ar.num(k).is_some_and(|n| n.as_int().is_some()) && real_rational(env, b, xs)
+        if !env.contains_any(w, xs) {
+            if let Some(n) = env.ar.num(w) {
+                return n.as_rat().is_some() || matches!(env.machine(w), Some((_, im)) if im == 0.0);
+            }
+            return !env.contains_any(w, &[env.sym("im")]) && matches!(env.machine(w), Some((_, im)) if im == 0.0);
         }
-        _ => false,
-    }
+        match h.view(w) {
+            View::App { head, args } if head == env.hd.add || head == env.hd.mul => args.iter().all(|&a| real_rational_in(env, a, xs, memo)),
+            View::App { head, args: &[b, k] } if head == env.hd.pow => {
+                env.ar.num(k).is_some_and(|n| n.as_int().is_some()) && real_rational_in(env, b, xs, memo)
+            }
+            _ => false,
+        }
+    })
 }
 
 /// `v` under the condition `c`: `conditional_expression(v, c)`, conjoined with the condition v already has.
@@ -804,7 +818,7 @@ pub(crate) struct Branch<'h> {
 fn next_parameter<'h>(env: &Env<'h>, v: T<'h>) -> T<'h> {
     let h = env.h();
     let mut k = 0i64;
-    let mut stack = vec![v];
+    let mut stack = mc_api::walk::Walk::new(v);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if head == env.gen {
@@ -1029,23 +1043,15 @@ fn range_condition<'h>(env: &Env<'h>, name: &str, v: T<'h>, _m: &mut Meter) -> W
 
 /// The number of nodes of a term (a size for choosing between equal forms).
 pub(crate) fn size<'h>(env: &Env<'h>, t: T<'h>) -> usize {
-    let h = env.h();
-    let mut n = 0;
-    let mut stack = vec![t];
-    while let Some(u) = stack.pop() {
-        n += 1;
-        if let View::App { args, .. } = h.view(u) {
-            stack.extend_from_slice(args);
-        }
-    }
-    n
+    // the number of nodes of the tree, each distinct subterm counted once and its count reused
+    mc_api::walk::tree_size(env.h(), t) as usize
 }
 
 /// Does `t` contain a power with a fractional exponent whose denominator exceeds 2 (a cube root of Cardano's
 /// formula, kept in the formula's form)?
 fn has_higher_radical<'h>(env: &Env<'h>, t: T<'h>) -> bool {
     let h = env.h();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if head == env.hd.pow && args.len() == 2 {
@@ -1065,26 +1071,22 @@ fn has_higher_radical<'h>(env: &Env<'h>, t: T<'h>) -> bool {
 /// nodes and one per term)?
 pub(crate) fn not_larger<'h>(env: &Env<'h>, t: T<'h>, v: T<'h>) -> bool {
     let h = env.h();
-    let mut terms = 0;
-    let mut stack = vec![t];
-    while let Some(u) = stack.pop() {
-        if let View::App { head, args } = h.view(u) {
-            if head == env.hd.add {
-                terms += args.len();
-            }
-            if head == env.hd.add || head == env.hd.mul {
-                stack.extend_from_slice(args);
-            }
+    // the terms of the sums reached through sums and products, counted over the tree (each distinct subterm once)
+    let terms = mc_api::walk::fold(h, t, &mut mc_api::walk::memo(), |u, vs: &[u64]| match h.view(u) {
+        View::App { head, args } if head == env.hd.add || head == env.hd.mul => {
+            let own = if head == env.hd.add { args.len() as u64 } else { 0 };
+            vs.iter().fold(own, |a, &v| a.saturating_add(v))
         }
-    }
-    size(env, t) <= size(env, v) + 2 + terms
+        _ => 0,
+    }) as usize;
+    size(env, t) <= size(env, v).saturating_add(2).saturating_add(terms)
 }
 
 /// Does `t` contain a call of the head `name`?
 pub(crate) fn has_head<'h>(env: &Env<'h>, t: T<'h>, name: &str) -> bool {
     let h = env.h();
     let hd = env.sym(name);
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if head == hd {
@@ -1099,7 +1101,7 @@ pub(crate) fn has_head<'h>(env: &Env<'h>, t: T<'h>, name: &str) -> bool {
 /// The symbols of `t` (other than the constants) that are not in `xs`, and the generated parameters `c(k)`.
 fn free_symbols<'h>(env: &Env<'h>, t: T<'h>, xs: &[T<'h>], out: &mut Vec<T<'h>>) {
     let h = env.h();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) => {

@@ -85,10 +85,18 @@ pub fn conjunction<'h>(h: &'h Heap, cs: &[T<'h>]) -> T<'h> {
 
 /// The conjuncts of `c`, `and`s flattened.
 fn conjuncts<'h>(h: &'h Heap, c: T<'h>, out: &mut Vec<T<'h>>) {
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    conjuncts_in(h, c, out, &mut mc_api::walk::seen())
+}
+
+fn conjuncts_in<'h>(h: &'h Heap, c: T<'h>, out: &mut Vec<T<'h>>, seen: &mut mc_api::walk::Seen<T<'h>>) {
+    if !seen.insert(c) {
+        return;
+    }
     match h.view(c) {
         View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "and") => {
             for &a in args {
-                conjuncts(h, a, out);
+                conjuncts_in(h, a, out, seen);
             }
         }
         _ => {

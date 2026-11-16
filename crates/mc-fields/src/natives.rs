@@ -662,34 +662,48 @@ fn rational_irreducible<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, ext: Option
 /// exact numbers include complex rationals and algebraic constants (`2^(1/2)`, `(1 + 3^(1/2))/2`): coefficients
 /// that `factor` takes as they are.
 fn polynomial_shape(h: &Heap, s: &Syms, t: T<'_>) -> bool {
-    match h.view(t) {
-        View::Sym(_) | View::Int(_) | View::BigInt { .. } | View::Rational { .. } => true,
-        View::App { head, args } => match h.view(head) {
-            View::Sym(x) if x == s.add || x == s.mul => args.iter().all(|&a| polynomial_shape(h, s, a)),
-            View::Sym(x) if x == s.pow => match args {
-                [b, e] if matches!(h.view(*e), View::Int(k) if k >= 0) => polynomial_shape(h, s, *b),
-                [b, e] => exact_constant(h, s, *b) && exact_constant(h, s, *e),
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    polynomial_shape_in(h, s, t, &mut mc_api::walk::memo())
+}
+
+fn polynomial_shape_in<'a>(h: &'a Heap, s: &Syms, t: T<'a>, memo: &mut mc_api::walk::Memo<T<'a>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        match h.view(t) {
+            View::Sym(_) | View::Int(_) | View::BigInt { .. } | View::Rational { .. } => true,
+            View::App { head, args } => match h.view(head) {
+                View::Sym(x) if x == s.add || x == s.mul => args.iter().all(|&a| polynomial_shape_in(h, s, a, memo)),
+                View::Sym(x) if x == s.pow => match args {
+                    [b, e] if matches!(h.view(*e), View::Int(k) if k >= 0) => polynomial_shape_in(h, s, *b, memo),
+                    [b, e] => exact_constant(h, s, *b) && exact_constant(h, s, *e),
+                    _ => false,
+                },
+                View::Sym(x) if h.sym_name(x) == mc_api::names::COMPLEX => args.iter().all(|&a| exact_constant(h, s, a)),
                 _ => false,
             },
-            View::Sym(x) if h.sym_name(x) == mc_api::names::COMPLEX => args.iter().all(|&a| exact_constant(h, s, a)),
             _ => false,
-        },
-        _ => false,
-    }
+        }
+    })
 }
 
 /// A term without symbols built from exact rationals by sums, products, powers and `complex`.
 fn exact_constant(h: &Heap, s: &Syms, t: T<'_>) -> bool {
-    match h.view(t) {
-        View::Int(_) | View::BigInt { .. } | View::Rational { .. } => true,
-        View::App { head, args } => match h.view(head) {
-            View::Sym(x) if x == s.add || x == s.mul || x == s.pow || h.sym_name(x) == mc_api::names::COMPLEX => {
-                args.iter().all(|&a| exact_constant(h, s, a))
-            }
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    exact_constant_in(h, s, t, &mut mc_api::walk::memo())
+}
+
+fn exact_constant_in<'a>(h: &'a Heap, s: &Syms, t: T<'a>, memo: &mut mc_api::walk::Memo<T<'a>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        match h.view(t) {
+            View::Int(_) | View::BigInt { .. } | View::Rational { .. } => true,
+            View::App { head, args } => match h.view(head) {
+                View::Sym(x) if x == s.add || x == s.mul || x == s.pow || h.sym_name(x) == mc_api::names::COMPLEX => {
+                    args.iter().all(|&a| exact_constant_in(h, s, a, memo))
+                }
+                _ => false,
+            },
             _ => false,
-        },
-        _ => false,
-    }
+        }
+    })
 }
 
 /// `is_primitive_polynomial(f, p)`.

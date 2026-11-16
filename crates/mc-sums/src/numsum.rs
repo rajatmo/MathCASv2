@@ -68,7 +68,7 @@ fn add_up<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: i64, hi: i64,
 /// Does `t` contain an inexact number?
 pub fn inexact<'h>(sx: &Sx<'_, '_, '_, 'h>, t: T<'h>) -> bool {
     let h = sx.h();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Real(_) | View::Ball { .. } => return true,
@@ -994,7 +994,7 @@ fn until_small<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: i64, w: 
 fn real_summand<'h>(sx: &Sx<'_, '_, '_, 'h>, f: T<'h>) -> bool {
     let h = sx.h();
     let im = sx.sym("im");
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     while let Some(u) = stack.pop() {
         if u == im || matches!(sx.ar.num(u), Some(mc_arith::Num::Complex(..))) {
             return false;

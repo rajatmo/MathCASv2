@@ -698,7 +698,7 @@ fn log_factor<'h>(b: &Build<'h>, a: T<'h>, t: T<'h>) -> bool {
 
 /// Is `u` built from `t` and constants by sums, products and constant numeric powers?
 fn algebraic<'h>(b: &Build<'h>, u: T<'h>, t: T<'h>) -> bool {
-    let mut stack = vec![u];
+    let mut stack = mc_api::walk::Walk::new(u);
     while let Some(v) = stack.pop() {
         if v == t || is_free(b, v, t) {
             continue;

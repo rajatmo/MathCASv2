@@ -610,7 +610,7 @@ fn sort_by_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, sols: &mut Vec<T<'h>>) -> Re
 
 /// Does `t` have a machine or ball real?
 fn has_real<'h>(h: &'h impl Store, t: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Real(_) | View::Ball { .. } => return true,
@@ -623,7 +623,7 @@ fn has_real<'h>(h: &'h impl Store, t: T<'h>) -> bool {
 
 /// Does `t` have a function of `x` other than sums, products and powers with constant exponents?
 fn transcendental<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         let View::App { head, args } = h.view(u) else { continue };
         if !mentions(h, u, &[x]) {
@@ -1505,7 +1505,7 @@ fn real_conditions<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: T<'h>, vars: &[T<'h>]) 
 
 /// The radicands u of the powers `u^(p/q)` with q even in `t`.
 fn even_radicands<'h>(h: &'h impl Store, t: T<'h>, out: &mut Vec<T<'h>>) {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if let (View::Sym(sy), [b, e]) = (h.view(head), args) {
@@ -1524,7 +1524,7 @@ fn even_radicands<'h>(h: &'h impl Store, t: T<'h>, out: &mut Vec<T<'h>>) {
 
 /// The symbols of `t` other than `vars` and the constants.
 fn symbols<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>], out: &mut Vec<T<'h>>) {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(sy) => {
@@ -1637,7 +1637,7 @@ fn is_root_object<'h>(h: &'h impl Store, t: T<'h>) -> bool {
 
 /// Does `t` mention one of `vars`?
 fn mentions<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if vars.contains(&u) {
             return true;
@@ -1692,7 +1692,7 @@ fn split_points<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, z: T<'h>) -> Res<T<
 
 /// The first `abs(u)` of `t` with `u` mentioning the unknowns.
 fn first_abs<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> Option<(T<'h>, T<'h>)> {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if let (View::Sym(s), [a]) = (h.view(head), args) {
@@ -1750,7 +1750,7 @@ pub fn strip_no_facts<'a, 'h>(h: &'h impl Store, args: &'a [T<'h>]) -> (&'a [T<'
 
 /// Does `t` have a power with a non-integer exponent whose base mentions the unknowns?
 fn has_radical<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if let (View::Sym(s), [b, e]) = (h.view(head), args) {

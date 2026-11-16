@@ -312,7 +312,7 @@ pub fn transformed<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<
 /// Does `t` contain the symbol `name` (a small explicit walk)?
 fn mentions(h: &mc_core::Heap, t: T<'_>, name: &str) -> bool {
     let s = h.sym_term(h.sym(name));
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     let mut budget = 10_000usize;
     while let Some(u) = stack.pop() {
         if u == s {

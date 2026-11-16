@@ -366,7 +366,7 @@ fn poly_coefficients<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>,
 
 fn has_trig_linear<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, t: T<'h>) -> Res<bool> {
     let h = b.heap();
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     while let Some(u) = stack.pop() {
         if is_free(b, u, t) {
             continue;

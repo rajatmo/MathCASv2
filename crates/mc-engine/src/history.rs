@@ -396,15 +396,22 @@ impl Native for Values {
 
 /// Whether a left side holds a pattern construct (a variable, a condition, alternatives, ...).
 fn has_pattern(h: &Heap, t: T<'_>) -> bool {
-    match h.view(t) {
-        View::App { head, args } => {
-            let construct = matches!(h.view(head), View::Sym(s) if matches!(&*h.sym_name(s),
-                "any" | "seq0" | "seq1" | "typed" | "named" | "condition" | "alternatives" | "optional" | "repeated"
-                    | "key_value_pattern" | "held"));
-            construct || has_pattern(h, head) || args.iter().any(|&a| has_pattern(h, a))
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    has_pattern_in(h, t, &mut mc_api::walk::memo())
+}
+
+fn has_pattern_in<'a>(h: &'a Heap, t: T<'a>, memo: &mut mc_api::walk::Memo<T<'a>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        match h.view(t) {
+            View::App { head, args } => {
+                let construct = matches!(h.view(head), View::Sym(s) if matches!(&*h.sym_name(s),
+                    "any" | "seq0" | "seq1" | "typed" | "named" | "condition" | "alternatives" | "optional" | "repeated"
+                        | "key_value_pattern" | "held"));
+                construct || has_pattern_in(h, head, memo) || args.iter().any(|&a| has_pattern_in(h, a, memo))
+            }
+            _ => false,
         }
-        _ => false,
-    }
+    })
 }
 
 /// A head without definitions: its calls stay as they are (`subscript(x, i)`).

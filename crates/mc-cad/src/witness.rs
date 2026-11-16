@@ -183,7 +183,7 @@ fn substitute<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, x: T<'h>, v: T<'h>) -
 /// Is every call in `t` (with a variable inside) one of [`CONTINUOUS`]?
 fn continuous_heads<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
     let mentions = |u: T<'h>| {
-        let mut st = vec![u];
+        let mut st = mc_api::walk::Walk::new(u);
         while let Some(w) = st.pop() {
             if vars.contains(&w) {
                 return true;
@@ -194,7 +194,7 @@ fn continuous_heads<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
         }
         false
     };
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if !mentions(u) {

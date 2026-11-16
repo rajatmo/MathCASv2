@@ -53,7 +53,7 @@ pub(crate) fn exp_rational<'h>(
 
 /// Does `f` hold an exponential or hyperbolic function of `x`?
 fn has_exp<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     while let Some(t) = stack.pop() {
         if is_free(b, t, x) {
             continue;

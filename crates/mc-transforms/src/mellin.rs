@@ -391,7 +391,7 @@ fn power_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>
 fn scale_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<Option<(T<'h>, T<'h>)>> {
     let h = b.heap();
     let mut found: Option<(T<'h>, T<'h>)> = None;
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     while let Some(u) = stack.pop() {
         if is_free(b, u, x) {
             continue;

@@ -318,7 +318,7 @@ fn numeric_point<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: Kind,
 /// Does `t` mention no symbol but `x` and the constants?
 fn only_symbol<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
     let h = b.heap();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) if u != x => {
@@ -612,7 +612,7 @@ pub(crate) fn split_constant<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> (T<'h>, T
 /// only be written with the transform itself?
 pub(crate) fn unknown_function<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
     let h = b.heap();
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     while let Some(u) = stack.pop() {
         if is_free(b, u, x) {
             continue;
@@ -632,17 +632,24 @@ pub(crate) fn unknown_function<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>,
 /// Is `t` free of `x` outside the transforms it holds (`laplace_transform(g(t), t, s)` mentions `t` as its own
 /// bound variable)?
 pub(crate) fn free_outside<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
-    let h = b.heap();
-    if t == x {
-        return false;
-    }
-    let View::App { head, args } = h.view(t) else { return true };
-    if let Some(s) = b.sym_of(head) {
-        if Kind::ALL.iter().any(|k| h.sym(k.name()) == s) {
-            return true;
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    free_outside_in(b, t, x, &mut mc_api::walk::memo())
+}
+
+fn free_outside_in<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        let h = b.heap();
+        if t == x {
+            return false;
         }
-    }
-    free_outside(b, head, x) && args.iter().all(|&a| free_outside(b, a, x))
+        let View::App { head, args } = h.view(t) else { return true };
+        if let Some(s) = b.sym_of(head) {
+            if Kind::ALL.iter().any(|k| h.sym(k.name()) == s) {
+                return true;
+            }
+        }
+        free_outside_in(b, head, x, memo) && args.iter().all(|&a| free_outside_in(b, a, x, memo))
+    })
 }
 
 /// `name(f, x, y)` unevaluated (a part of a transform no rule reaches).

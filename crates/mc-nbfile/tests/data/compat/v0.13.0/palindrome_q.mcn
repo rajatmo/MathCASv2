@@ -1,0 +1,47 @@
+#! mathcas 2 notebook
+
+#% title
+# palindrome_q
+
+#% text
+# `palindrome_q(x)` gives true when the list, the string or the decimal digits of the integer x read the same backwards.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+palindrome_q("racecar")
+#% output
+#= true
+
+#% cell
+palindrome_q([1, 2, 3, 2, 1])
+#% output
+#= true
+
+#% cell
+palindrome_q(12321)
+#% output
+#= true
+
+#% cell
+palindrome_q(1232)
+#% output
+#= false
+
+#% text
+# The numbers below 200 whose squares are palindromes:
+
+#% cell
+select(range(200), k => palindrome_q(k^2))
+#% output
+#= [1, 2, 3, 11, 22, 26, 101, 111, 121]
+
+#% section
+# See also
+
+#% text
+# `string_reverse`, `integer_digits`

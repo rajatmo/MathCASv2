@@ -45,7 +45,7 @@ fn head<'h>(h: &'h impl Store, t: T<'h>) -> Option<String> {
 }
 
 fn mentions<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == x {
             return true;
@@ -185,7 +185,7 @@ pub(crate) fn reduce<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<O
         None => cond,
     };
     // only conditions with a step function
-    let mut stack = vec![cond];
+    let mut stack = mc_api::walk::Walk::new(cond);
     let mut any = false;
     while let Some(u) = stack.pop() {
         if let View::App { args, .. } = h.view(u) {

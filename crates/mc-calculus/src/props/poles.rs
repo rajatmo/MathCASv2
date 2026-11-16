@@ -626,6 +626,14 @@ fn split_roots<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'h>, c: T<
 }
 
 fn collect_sqrt<'h>(b: &Build<'h>, t: T<'h>, out: &mut Vec<T<'h>>) {
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    collect_sqrt_in(b, t, out, &mut mc_api::walk::seen())
+}
+
+fn collect_sqrt_in<'h>(b: &Build<'h>, t: T<'h>, out: &mut Vec<T<'h>>, seen: &mut mc_api::walk::Seen<T<'h>>) {
+    if !seen.insert(t) {
+        return;
+    }
     let h = b.heap();
     if let View::App { head, args } = h.view(t) {
         if b.sym_of(head) == Some(b.hd.pow) && args.len() == 2 && args[1] == b.rat(1, 2) {
@@ -635,7 +643,7 @@ fn collect_sqrt<'h>(b: &Build<'h>, t: T<'h>, out: &mut Vec<T<'h>>) {
             return;
         }
         for &a in args {
-            collect_sqrt(b, a, out);
+            collect_sqrt_in(b, a, out, seen);
         }
     }
 }
@@ -688,15 +696,22 @@ fn equation_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, a: T<'h>) -> Re
 
 /// Does the condition bound `x` (`abs(x) < r`, `abs(x - a) <= r`, `-a < x < b` and conjunctions with such)?
 fn bounds<'h>(b: &Build<'h>, c: T<'h>, x: T<'h>) -> bool {
-    let h = b.heap();
-    let View::App { head, args } = h.view(c) else { return false };
-    let Some(s) = b.sym_of(head) else { return false };
-    match h.sym_name(s).as_str() {
-        "and" => args.iter().any(|&a| bounds(b, a, x)),
-        "less" | "less_equal" => sets::is_head(b, args[0], "abs") && !is_free(b, args[0], x) && is_free(b, args[1], x),
-        "greater" | "greater_equal" => sets::is_head(b, args[1], "abs") && !is_free(b, args[1], x) && is_free(b, args[0], x),
-        _ => false,
-    }
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    bounds_in(b, c, x, &mut mc_api::walk::memo())
+}
+
+fn bounds_in<'h>(b: &Build<'h>, c: T<'h>, x: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, c, |memo| {
+        let h = b.heap();
+        let View::App { head, args } = h.view(c) else { return false };
+        let Some(s) = b.sym_of(head) else { return false };
+        match h.sym_name(s).as_str() {
+            "and" => args.iter().any(|&a| bounds_in(b, a, x, memo)),
+            "less" | "less_equal" => sets::is_head(b, args[0], "abs") && !is_free(b, args[0], x) && is_free(b, args[1], x),
+            "greater" | "greater_equal" => sets::is_head(b, args[1], "abs") && !is_free(b, args[1], x) && is_free(b, args[0], x),
+            _ => false,
+        }
+    })
 }
 
 /// Merge `a + P c(1)` and `a + P/2 + P c(1)` into one family with the period `P/2`.
@@ -771,20 +786,27 @@ fn numeric_key<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, p: T<'h>) -> Re
 
 /// Is `f` a rational function of `x` (sums, products, integer powers of polynomials)?
 fn is_rational<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
-    let h = b.heap();
-    match h.view(f) {
-        View::App { head, args } => {
-            let Some(s) = b.sym_of(head) else { return false };
-            if s == b.hd.add || s == b.hd.mul {
-                args.iter().all(|&a| is_rational(b, a, x))
-            } else if s == b.hd.pow {
-                matches!(h.view(args[1]), View::Int(_)) && is_rational(b, args[0], x)
-            } else {
-                is_free(b, f, x)
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    is_rational_in(b, f, x, &mut mc_api::walk::memo())
+}
+
+fn is_rational_in<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, f, |memo| {
+        let h = b.heap();
+        match h.view(f) {
+            View::App { head, args } => {
+                let Some(s) = b.sym_of(head) else { return false };
+                if s == b.hd.add || s == b.hd.mul {
+                    args.iter().all(|&a| is_rational_in(b, a, x, memo))
+                } else if s == b.hd.pow {
+                    matches!(h.view(args[1]), View::Int(_)) && is_rational_in(b, args[0], x, memo)
+                } else {
+                    is_free(b, f, x)
+                }
             }
+            _ => true,
         }
-        _ => true,
-    }
+    })
 }
 
 /// The multiplicity of the root `p` of the polynomial `den`: the number of its derivatives (from the 0th) that

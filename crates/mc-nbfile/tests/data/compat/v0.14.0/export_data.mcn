@@ -1,0 +1,223 @@
+#! mathcas 2 notebook
+
+#% title
+# export_data
+
+#% text
+# `export_data(file, data)` writes `data` to `file` in the format named by the file's extension and gives the file name.
+
+#% text
+# `export_data(file, data, format)` writes `data` in the named format, whatever the extension.
+
+#% section
+# Details
+
+#% item
+# The path is relative to the current directory. The folder must exist already.
+
+#% item
+# The formats are `csv`, `tsv`, `txt` and `dat` (fields separated by spaces), `lines` (one value per line), `json`, `png`, `pdf` and `svg`.
+
+#% item
+# A list of lists is written one row per line; a flat list is written one value per line.
+
+#% item
+# Integers and machine reals are written as numbers, and reals keep a decimal point, so they read back as reals. Strings are written as their text, and any other value as its printed form.
+
+#% item
+# In `json`, a list of rules `key -> value` becomes an object.
+
+#% item
+# A `png` file takes an image value (a plot is one) or an array of reals in [0, 1], height x width, or height x width x channels.
+
+#% item
+# A `pdf` file takes an image, a plot or an array as one page, or a list of them as one page each. Plots stay vector graphics.
+
+#% item
+# A single plot written to `pdf` or `svg` is laid out for print when it has the default size: on a page of 360 by 225 points (5 by 3.125 inches) with the same text size as on screen, so the numbers stay readable when the figure is placed in a document. A plot with `image_size:` or `aspect_ratio:` keeps its own page.
+
+#% item
+# A dataset is written with a header line of column names (to `json` as an array of objects).
+
+#% item
+# Options for `png`:
+
+#% subitem
+# `scale: s` resamples the image by the factor `s`.
+
+#% subitem
+# `dpi: d` records the resolution, and renders a plot again from its vector form at that resolution.
+
+#% subitem
+# `bit_depth: 16` writes 16-bit samples instead of 8-bit ones.
+
+#% item
+# `dpi: d` is also an option for `pdf`, for raster pages.
+
+#% item
+# `export_data` is an effect: it runs in program order, every time it is evaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A table of rows as a CSV file:
+
+#% cell
+export_data("squares.csv", table([k, k^2], k, 5))
+#% output
+#= "squares.csv"
+
+#% text
+# Read it back:
+
+#% cell
+import_data("squares.csv")
+#% output
+#= [[1, 1], [2, 4], [3, 9], [4, 16], [5, 25]]
+
+#% text
+# A plot as a PNG image:
+
+#% cell
+p = plot(sin(x), [x, 0, 2pi]); export_data("sine.png", p)
+#% output
+#= "sine.png"
+
+#% cell
+import_data("sine.png", "dimensions")
+#% output
+#= [640, 400]
+
+#% subsection
+# Scope
+
+#% text
+# A flat list is written one value per line:
+
+#% cell
+export_data("values.txt", [1.5, 2.5, 3]); import_data("values.txt")
+#% output
+#= [[1.5], [2.5], [3]]
+
+#% text
+# Strings and numbers in a tab-separated file:
+
+#% cell
+export_data("pairs.tsv", [["x", 1.0], ["y", 2]]); import_data("pairs.tsv")
+#% output
+#= [["x", 1.0], ["y", 2]]
+
+#% text
+# Rules become a JSON object:
+
+#% cell
+export_data("settings.json", ["steps" -> 100, "range" -> [0, 1]]); import_data("settings.json")
+#% output
+#= ["range" -> [0, 1], "steps" -> 100]
+
+#% text
+# A list of plots as a PDF file with one page each:
+
+#% cell
+export_data("two.pdf", [p, plot(cos(x), [x, 0, 2pi])]); import_data("two.pdf", "page_count")
+#% output
+#= 2
+
+#% text
+# An array of gray levels as a 2 x 2 image:
+
+#% cell
+export_data("gray.png", [[0, 0.5], [1, 0.25]]); import_data("gray.png", "data")
+#% output
+#= [[[0.0], [0.5019607843137255]], [[1.0], [0.25098039215686274]]]
+
+#% text
+# The format named explicitly, whatever the extension:
+
+#% cell
+export_data("grid.out", [[1, 2], [3, 4]], csv); import_data("grid.out", csv)
+#% output
+#= [[1, 2], [3, 4]]
+
+#% subsection
+# Options
+
+#% text
+# A PNG at half the size:
+
+#% cell
+export_data("small.png", p, scale: 0.5); import_data("small.png", "dimensions")
+#% output
+#= [320, 200]
+
+#% text
+# A plot rendered again at a higher resolution:
+
+#% cell
+export_data("sharp.png", p, dpi: 144); import_data("sharp.png", "dimensions")
+#% output
+#= [1280, 800]
+
+#% subsection
+# Applications
+
+#% text
+# Save a computed solution to a file, as a script would before plotting it elsewhere:
+
+#% cell
+sol = n_dsolve([y'(t) == -y(t), y(0) == 1], y, [t, 0, 1]); export_data("decay.csv", table([t, y(t) /. sol], t, range(0, 1, 0.25)))
+#% output
+#= "decay.csv"
+
+#% cell
+import_data("decay.csv")
+#% output
+#= [[0.0, 1.0], [0.25, 0.7788007814349273], [0.5, 0.6065306602814926], [0.75, 0.4723665512453787], [1.0, 0.3678794422457897]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Integers and machine reals read back unchanged:
+
+#% cell
+data = [[1, 0.5], [2, 0.25]]; export_data("half.csv", data); import_data("half.csv") == data
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# Symbolic values are written as their printed form and read back as strings:
+
+#% cell
+export_data("symbolic.csv", [[x, sin(x)], [1/2, pi]]); import_data("symbolic.csv")
+#% output
+#= [["x", "sin(x)"], ["1/2", "pi"]]
+
+#% text
+# An extension that names no format:
+
+#% cell
+export_data("points.xyz", [1, 2])
+#% output
+#! failure(unknown_format, "points.xyz")
+
+#% text
+# The folder of the file must exist:
+
+#% cell
+export_data("no_such_folder/a.csv", [1])
+#% output
+#! failure(io, "no_such_folder/a.csv", "The system cannot find the path specified. (os error 3)")
+
+#% section
+# See also
+
+#% text
+# `import_data`, `image`, `table`, `dataset`, `plot`

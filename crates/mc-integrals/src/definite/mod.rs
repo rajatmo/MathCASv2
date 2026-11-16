@@ -198,7 +198,7 @@ fn under_facts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'h>) -> Re
     }
     let h = b.heap();
     let mut worth = false;
-    let mut stack = vec![v];
+    let mut stack = mc_api::walk::Walk::new(v);
     while let Some(u) = stack.pop() {
         if let Some((n, args)) = call_of(b, u) {
             worth |= match (n.as_str(), args) {
@@ -411,7 +411,7 @@ fn solve_in<'h>(
 fn on_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, p: Pt<'h>, q: Pt<'h>) -> Res<Option<T<'h>>> {
     let h = b.heap();
     let mut simplifiable = false;
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     while let Some(u) = stack.pop() {
         if is_free(b, u, x) {
             continue;
@@ -751,7 +751,7 @@ fn realify_conditions<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, cs: &[T<
 /// Is `t` built without the non-analytic functions (`abs`, `re`, `im`, `sign`, `conjugate`, `arg`, steps, cases)?
 fn analytic<'h>(b: &Build<'h>, t: T<'h>) -> bool {
     let h = b.heap();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if let Some(s) = b.sym_of(head) {
@@ -1293,7 +1293,7 @@ fn divergent<'h>(b: &Build<'h>, f: T<'h>) -> T<'h> {
 /// Is `t` continuous for every real `x` (and every real value of the other symbols)? Polynomials, and `exp`,
 /// `sin`, `cos`, `sinh`, `cosh`, `tanh`, `atan` of such, sums, products and non-negative integer powers.
 fn continuous<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if is_free(b, u, x) || u == x {
             continue;

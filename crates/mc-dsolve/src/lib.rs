@@ -303,16 +303,28 @@ impl<'h> Cx<'_, '_, '_, '_, 'h> {
     }
 }
 
-/// The equations, flattened from lists and `and`.
+/// The most equations [`flatten`] gives: a list with shared parts can stand for exponentially many.
+const MAX_EQUATIONS: usize = 1 << 16;
+
+/// The equations, flattened from lists and `and`. Past [`MAX_EQUATIONS`] the result is `t` itself (not an
+/// equation, so no method takes it).
 pub(crate) fn flatten<'h>(b: &Build<'h>, t: T<'h>, out: &mut Vec<T<'h>>) {
     let h = b.heap();
-    match h.view(t) {
-        View::App { head, args } if b.sym_of(head) == Some(b.hd.list) || b.sym_of(head) == Some(h.sym("and")) => {
-            for &a in args {
-                flatten(b, a, out);
+    let (list, and) = (b.hd.list, h.sym("and"));
+    let start = out.len();
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        match h.view(u) {
+            View::App { head, args } if b.sym_of(head) == Some(list) || b.sym_of(head) == Some(and) => {
+                stack.extend(args.iter().rev().copied());
             }
+            _ => out.push(u),
         }
-        _ => out.push(t),
+        if out.len() - start > MAX_EQUATIONS || stack.len() > MAX_EQUATIONS {
+            out.truncate(start);
+            out.push(t);
+            return;
+        }
     }
 }
 
@@ -352,6 +364,14 @@ fn unknowns<'h>(b: &Build<'h>, eqs: &[T<'h>]) -> Vec<(T<'h>, Vec<T<'h>>)> {
     let h = b.heap();
     let mut out: Vec<(T<'h>, Vec<T<'h>>)> = vec![];
     fn walk<'h>(b: &Build<'h>, t: T<'h>, out: &mut Vec<(T<'h>, Vec<T<'h>>)>) {
+        // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+        walk_in(b, t, out, &mut mc_api::walk::seen())
+    }
+
+    fn walk_in<'h>(b: &Build<'h>, t: T<'h>, out: &mut Vec<(T<'h>, Vec<T<'h>>)>, seen: &mut mc_api::walk::Seen<T<'h>>) {
+        if !seen.insert(t) {
+            return;
+        }
         let h = b.heap();
         if let View::App { head, args } = h.view(t) {
             if let Some((_, f)) = b.as_derivative(head) {
@@ -359,9 +379,9 @@ fn unknowns<'h>(b: &Build<'h>, eqs: &[T<'h>]) -> Vec<(T<'h>, Vec<T<'h>>)> {
                     out.push((f, args.to_vec()));
                 }
             }
-            walk(b, head, out);
+            walk_in(b, head, out, seen);
             for &a in args {
-                walk(b, a, out);
+                walk_in(b, a, out, seen);
             }
         }
     }

@@ -191,7 +191,7 @@ impl<'a, 'c, 'k, 'h> Sx<'a, 'c, 'k, 'h> {
     /// Is `t` free of `x` (structurally)?
     pub fn free(&self, t: T<'h>, x: T<'h>) -> bool {
         let h = self.h();
-        let mut stack = vec![t];
+        let mut stack = mc_api::walk::Walk::new(t);
         while let Some(u) = stack.pop() {
             if u == x {
                 return false;
@@ -207,7 +207,7 @@ impl<'a, 'c, 'k, 'h> Sx<'a, 'c, 'k, 'h> {
     pub fn contains_any(&self, t: T<'h>, names: &[&str]) -> bool {
         let syms: Vec<T<'h>> = names.iter().map(|n| self.sym(n)).collect();
         let h = self.h();
-        let mut stack = vec![t];
+        let mut stack = mc_api::walk::Walk::new(t);
         while let Some(u) = stack.pop() {
             if syms.contains(&u) {
                 return true;

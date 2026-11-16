@@ -26,6 +26,14 @@ pub const TRIES: usize = 12;
 const CONSTANTS: &[&str] = &["e", "pi", "euler_gamma", "catalan", "golden_ratio", "degree", "glaisher", "khinchin", "inf", "true", "false", "complex_infinity", "indeterminate"];
 
 fn free_symbols<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, out: &mut Vec<Sym>) {
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    free_symbols_in(cx, b, t, out, &mut mc_api::walk::seen())
+}
+
+fn free_symbols_in<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, out: &mut Vec<Sym>, seen: &mut mc_api::walk::Seen<T<'h>>) {
+    if !seen.insert(t) {
+        return;
+    }
     let h = b.heap();
     match h.view(t) {
         View::Sym(s) => {
@@ -37,10 +45,10 @@ fn free_symbols<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, out: &mu
         View::App { head, args } => {
             // the head of a call is a function, not a variable
             if b.sym_of(head).is_none() {
-                free_symbols(cx, b, head, out);
+                free_symbols_in(cx, b, head, out, seen);
             }
             for &a in args {
-                free_symbols(cx, b, a, out);
+                free_symbols_in(cx, b, a, out, seen);
             }
         }
         _ => {}

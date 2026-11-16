@@ -1987,7 +1987,7 @@ fn directives<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Result<b
 
 /// A failure for a primitive or directive that cannot be drawn.
 fn bad_item<S: Store + ?Sized>(h: &S, t: T<'_>, bad: Bad) -> Failure {
-    let printed = mc_syntax::Printer::new(h).expr(t);
+    let printed = mc_syntax::Printer::brief(h).expr(t);
     match bad {
         Bad::Symbolic => Failure::new("not_numeric", printed),
         _ => Failure::new("not_graphics", printed),
@@ -2008,7 +2008,7 @@ pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Resu
             [c, o] => (*c, Some(*o)),
             _ => return Err(Failure::new("not_graphics", "graphics takes content and options")),
         },
-        _ => return Err(Failure::new("not_graphics", mc_syntax::Printer::new(h).expr(t))),
+        _ => return Err(Failure::new("not_graphics", mc_syntax::Printer::brief(h).expr(t))),
     };
     let mut g = Graphic { items: Vec::new(), styles: vec![Style::uncoloured()], opts: Opts::default() };
     // the content, with the options `prolog` (drawn first) and `epilog` (drawn last)
@@ -2351,19 +2351,19 @@ pub fn styled<S: Store + ?Sized>(h: &S, specs: &[T<'_>], style: &mut Style) -> R
 /// The rules of an `options(...)` term as (name, value) pairs.
 pub fn rules<'h, S: Store + ?Sized>(h: &'h S, o: T<'h>) -> Result<Vec<(String, T<'h>)>, Failure> {
     let Some((n, args)) = head_name(h, o) else {
-        return Err(Failure::new("option", mc_syntax::Printer::new(h).expr(o)));
+        return Err(Failure::new("option", mc_syntax::Printer::brief(h).expr(o)));
     };
     if n != "options" {
-        return Err(Failure::new("option", mc_syntax::Printer::new(h).expr(o)));
+        return Err(Failure::new("option", mc_syntax::Printer::brief(h).expr(o)));
     }
     let mut out = Vec::with_capacity(args.len());
     for &r in args {
         match head_name(h, r) {
             Some((n, &[k, v])) if n == names::RULE => match h.view(k) {
                 View::Sym(k) => out.push((h.sym_name(k), v)),
-                _ => return Err(Failure::new("option", mc_syntax::Printer::new(h).expr(r))),
+                _ => return Err(Failure::new("option", mc_syntax::Printer::brief(h).expr(r))),
             },
-            _ => return Err(Failure::new("option", mc_syntax::Printer::new(h).expr(r))),
+            _ => return Err(Failure::new("option", mc_syntax::Printer::brief(h).expr(r))),
         }
     }
     Ok(out)
@@ -2383,7 +2383,7 @@ pub fn options<S: Store + ?Sized>(h: &S, o: T<'_>, styles: &mut Vec<Style>) -> R
             continue;
         }
         if option(h, &name, v, &mut opts, styles).is_none() {
-            opts.ignored.push(format!("{name}: {}", mc_syntax::Printer::new(h).expr(v)));
+            opts.ignored.push(format!("{name}: {}", mc_syntax::Printer::brief(h).expr(v)));
         }
     }
     Ok(opts)

@@ -210,7 +210,7 @@ pub(crate) fn re_condition<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: 
 /// Is `t` free of symbols other than the known constants (`pi`, `e`, ...)? A rough test: its `n` is a number.
 fn closed<'h>(b: &Build<'h>, t: T<'h>) -> bool {
     let h = b.heap();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) => {
@@ -410,7 +410,7 @@ fn real_coefficients<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, a: T<'h>)
 /// Are all exponents of powers of terms in `t` numbers?
 fn numeric_exponents<'h>(b: &Build<'h>, g: T<'h>, t: T<'h>) -> bool {
     let h = b.heap();
-    let mut stack = vec![g];
+    let mut stack = mc_api::walk::Walk::new(g);
     while let Some(u) = stack.pop() {
         if is_free(b, u, t) {
             continue;

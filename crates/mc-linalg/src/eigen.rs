@@ -771,7 +771,7 @@ fn has_root<'h>(env: &Env<'h>, vals: &[T<'h>]) -> bool {
 /// Does `t` contain a call of `s` (an explicit stack, bounded by the term's size)?
 fn mentions<'h>(env: &Env<'h>, t: T<'h>, s: mc_api::Sym) -> bool {
     let h = env.h();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(x) = stack.pop() {
         if let mc_api::View::App { head, args } = h.view(x) {
             if head == h.sym_term(s) {
@@ -840,7 +840,7 @@ pub fn is_zero_term(env: &Env<'_>, t: T<'_>) -> bool {
 
 /// Does `t` contain a symbol other than the numeric constants (pi, e, im, euler_gamma, catalan, golden_ratio)?
 fn has_free_symbol<'h>(h: &'h mc_core::Heap, t: mc_api::T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             mc_api::View::Sym(s) => {

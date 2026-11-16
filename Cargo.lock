@@ -2795,6 +2795,7 @@ dependencies = [
 name = "mc-nbfile"
 version = "0.15.0"
 dependencies = [
+ "mc-syntax",
  "miniz_oxide 0.8.9",
  "resvg",
 ]

@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# echo_evaluation
+
+#% text
+# `echo_evaluation(e)` prints `e` before it is evaluated, then its value, and gives the value; `echo_evaluation(e, label)` prints both after the label, `echo_evaluation(e, before -> after)` after their own labels, and `echo_evaluation(e, label, f)` prints `f` of the value.
+
+#% section
+# Details
+
+#% item
+# The argument is held; constructors such as `add` have already folded numbers when it is printed.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+echo_evaluation(2^3)
+#% output
+#| quote(2^3)
+#| 8
+#= 8
+
+#% cell
+echo_evaluation(reverse(range(4)), "input:" -> "result:")
+#% output
+#| input: quote(reverse(range(4)))
+#| result: [4, 3, 2, 1]
+#= [4, 3, 2, 1]
+
+#% section
+# See also
+
+#% text
+# `echo`, `print`, `echo_label`

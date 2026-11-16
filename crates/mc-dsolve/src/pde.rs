@@ -39,7 +39,7 @@ pub(crate) fn solve<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, all: &[T<'h>], u: T<'h>,
     let (x, y) = (*x, *y);
     // occurrences
     let mut occ: Vec<((i64, i64), T<'h>)> = vec![];
-    let mut stack = vec![*eq];
+    let mut stack = mc_api::walk::Walk::new(*eq);
     while let Some(t) = stack.pop() {
         if let Some(o) = occurrence(c, t, u, vars) {
             if !occ.iter().any(|p| p.1 == t) {

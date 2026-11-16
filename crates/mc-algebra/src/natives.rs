@@ -352,7 +352,7 @@ fn to_radicals<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: 
     if found.is_empty() {
         // `root(p, k)` objects of degree 2 to 4 are written with radicals by the library (`calc_to_radicals`)
         let root = h.sym_term(h.sym("root"));
-        let mut stack = vec![e];
+        let mut stack = mc_api::walk::Walk::new(e);
         while let Some(u) = stack.pop() {
             if let View::App { head, args } = h.view(u) {
                 if head == root {
@@ -477,13 +477,20 @@ fn is_failure_reply<'h>(h: &'h Heap, r: &Reply<'h>) -> bool {
 /// Does the term hold an exact non-real number (`im`)? Polynomials with such coefficients are taken over the
 /// Gaussian rationals; roots of rationals need `extension: automatic` asked for.
 fn has_algebraic_constant<'h>(env: &Env<'h>, t: T<'h>) -> bool {
-    if let Some(n) = env.ar.num(t) {
-        return matches!(n, Num::Complex(..)) && n.is_exact();
-    }
-    match env.h().view(t) {
-        View::App { args, .. } => args.iter().any(|&a| has_algebraic_constant(env, a)),
-        _ => false,
-    }
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    has_algebraic_constant_in(env, t, &mut mc_api::walk::memo())
+}
+
+fn has_algebraic_constant_in<'h>(env: &Env<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        if let Some(n) = env.ar.num(t) {
+            return matches!(n, Num::Complex(..)) && n.is_exact();
+        }
+        match env.h().view(t) {
+            View::App { args, .. } => args.iter().any(|&a| has_algebraic_constant_in(env, a, memo)),
+            _ => false,
+        }
+    })
 }
 
 /// `(polys, a)` for `f(polys..., options(extension -> a))`.

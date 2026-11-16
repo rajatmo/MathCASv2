@@ -59,6 +59,9 @@ pub struct DefaultNumberFormat;
 
 impl NumberFormat for DefaultNumberFormat {}
 
+/// The most bytes of a label's or a message's text ([`Printer::brief`]).
+pub const BRIEF_LIMIT: usize = 1 << 12;
+
 /// Prints terms of one store.
 pub struct Printer<'h, S: Store + ?Sized> {
     store: &'h S,
@@ -83,6 +86,12 @@ pub struct Printer<'h, S: Store + ?Sized> {
 impl<'h, S: Store + ?Sized> Printer<'h, S> {
     pub fn new(store: &'h S) -> Self {
         Self::with_numbers(store, Box::new(DefaultNumberFormat))
+    }
+
+    /// A printer for a label or a message: at most [`BRIEF_LIMIT`] bytes ([`Printer::with_limit`]), so a term with
+    /// shared subterms (a tree exponentially larger than itself) gives a short text instead of an endless one.
+    pub fn brief(store: &'h S) -> Self {
+        Self::new(store).with_limit(BRIEF_LIMIT)
     }
 
     pub fn with_numbers(store: &'h S, numbers: Box<dyn NumberFormat + 'h>) -> Self {
@@ -1985,7 +1994,7 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
     /// unions and `where` types.
     fn type_printable(&self, t: T<'h>) -> bool {
         let st = self.store();
-        let mut stack = vec![t];
+        let mut stack = mc_api::walk::Walk::new(t);
         while let Some(t) = stack.pop() {
             match st.view(t) {
                 View::Sym(_) => {}

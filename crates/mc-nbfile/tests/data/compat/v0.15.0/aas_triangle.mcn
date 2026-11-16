@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# aas_triangle
+
+#% text
+# `aas_triangle(alpha, beta, a)`: the triangle with angles alpha and beta and the side a opposite alpha
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+aas_triangle(pi/6, pi/3, 1)
+#% output
+#= triangle([[0, 0], [2, 0], [3/2, (1/2)*3^(1/2)]])
+
+#% cell
+area(aas_triangle(pi/6, pi/3, 1))
+#% output
+#= (1/2)*3^(1/2)
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

@@ -190,13 +190,20 @@ pub fn region_moment<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Repl
 }
 
 fn mc_api_contains<'h>(h: &'h Heap, t: T<'h>, vars: &[T<'h>]) -> bool {
-    if vars.contains(&t) {
-        return true;
-    }
-    match h.view(t) {
-        View::App { head, args } => mc_api_contains(h, head, vars) || args.iter().any(|&x| mc_api_contains(h, x, vars)),
-        _ => false,
-    }
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    mc_api_contains_in(h, t, vars, &mut mc_api::walk::memo())
+}
+
+fn mc_api_contains_in<'h>(h: &'h Heap, t: T<'h>, vars: &[T<'h>], memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        if vars.contains(&t) {
+            return true;
+        }
+        match h.view(t) {
+            View::App { head, args } => mc_api_contains_in(h, head, vars, memo) || args.iter().any(|&x| mc_api_contains_in(h, x, vars, memo)),
+            _ => false,
+        }
+    })
 }
 
 /// Whether a term is free of symbols other than numeric constants (and `bound`).

@@ -38,6 +38,14 @@ fn size<'h>(h: &'h mc_core::Heap, t: T<'h>) -> usize {
 }
 
 fn vars_of<'h>(h: &'h mc_core::Heap, t: T<'h>, vars: &[Sym], out: &mut Vec<Sym>) {
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    vars_of_in(h, t, vars, out, &mut mc_api::walk::seen())
+}
+
+fn vars_of_in<'h>(h: &'h mc_core::Heap, t: T<'h>, vars: &[Sym], out: &mut Vec<Sym>, seen: &mut mc_api::walk::Seen<T<'h>>) {
+    if !seen.insert(t) {
+        return;
+    }
     match h.view(t) {
         View::Sym(s) if vars.contains(&s) => {
             if !out.contains(&s) {
@@ -45,9 +53,9 @@ fn vars_of<'h>(h: &'h mc_core::Heap, t: T<'h>, vars: &[Sym], out: &mut Vec<Sym>)
             }
         }
         View::App { head, args } => {
-            vars_of(h, head, vars, out);
+            vars_of_in(h, head, vars, out, seen);
             for &a in args {
-                vars_of(h, a, vars, out);
+                vars_of_in(h, a, vars, out, seen);
             }
         }
         _ => {}

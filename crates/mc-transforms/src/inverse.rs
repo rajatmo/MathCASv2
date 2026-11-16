@@ -191,7 +191,7 @@ fn has_log_like<'h>(b: &Build<'h>, t: T<'h>) -> bool {
 fn shift_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, s: T<'h>) -> Res<Option<T<'h>>> {
     let h = b.heap();
     let mut found: Option<T<'h>> = None;
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     while let Some(u) = stack.pop() {
         if is_free(b, u, s) {
             continue;
@@ -236,20 +236,27 @@ fn shift_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, s: T<'h>
 
 /// Is `f` a rational function of `s` (sums, products, integer powers of polynomials in `s`)?
 pub(crate) fn rational_in<'h>(b: &Build<'h>, f: T<'h>, s: T<'h>) -> bool {
-    let h = b.heap();
-    if is_free(b, f, s) {
-        return true;
-    }
-    if f == s {
-        return true;
-    }
-    if let Some(args) = args_of(b, f, b.hd.add).or_else(|| args_of(b, f, b.hd.mul)) {
-        return args.iter().all(|&a| rational_in(b, a, s));
-    }
-    match args_of(b, f, b.hd.pow) {
-        Some(&[base, e]) => matches!(h.view(e), View::Int(_)) && rational_in(b, base, s),
-        _ => false,
-    }
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    rational_in_in(b, f, s, &mut mc_api::walk::memo())
+}
+
+fn rational_in_in<'h>(b: &Build<'h>, f: T<'h>, s: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, f, |memo| {
+        let h = b.heap();
+        if is_free(b, f, s) {
+            return true;
+        }
+        if f == s {
+            return true;
+        }
+        if let Some(args) = args_of(b, f, b.hd.add).or_else(|| args_of(b, f, b.hd.mul)) {
+            return args.iter().all(|&a| rational_in_in(b, a, s, memo));
+        }
+        match args_of(b, f, b.hd.pow) {
+            Some(&[base, e]) => matches!(h.view(e), View::Int(_)) && rational_in_in(b, base, s, memo),
+            _ => false,
+        }
+    })
 }
 
 /// The poles of the rational function `n/d` (numerator and denominator polynomials in `s`): each root with its
@@ -677,7 +684,7 @@ fn strip_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: T<'h>, s: T
     let re = cx.eval(b.call("re", &[s]))?;
     let mut lo = None;
     let mut hi = None;
-    let mut stack = vec![c];
+    let mut stack = mc_api::walk::Walk::new(c);
     while let Some(u) = stack.pop() {
         let Some((n, args)) = call_of(b, u) else { continue };
         match n.as_str() {

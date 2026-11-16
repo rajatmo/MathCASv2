@@ -174,7 +174,7 @@ fn options<'h>(cx: &NativeCx<'_, '_, 'h>, o: T<'h>) -> Option<Opts<'h>> {
         match ok {
             Some(true) => {}
             Some(false) => out.ignored.push(key),
-            None => out.ignored.push(format!("{key}: {}", mc_syntax::Printer::new(h).expr(v))),
+            None => out.ignored.push(format!("{key}: {}", mc_syntax::Printer::brief(h).expr(v))),
         }
     }
     Some(out)

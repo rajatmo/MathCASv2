@@ -84,3 +84,38 @@ search of `simplify` reads its allowance between levels on its own task.
 The work of the tower methods of integration was counted too low at first (a nested integrand of 40 functions spent
 13 s in `risch_integrate` for 330k units): the allocation of every number, gcds and the merges of sparse polynomials
 were not reported. With them it reports about 200 units per ms, and the budgets of those methods use that rate.
+
+## Round 45: walks over shared terms
+
+Terms are hash-consed, so a term is a graph: `nest(x => [x, x], 1, 60)` is 61 distinct terms and a tree of 2^60
+leaves. A walker that recurses into every argument without remembering what it has seen takes time exponential in
+the depth and, without a poll of the stop flag, cannot be interrupted. `walk` makes visiting the graph the default:
+
+- `Walk`: the `vec![t]` + `pop` stack of a predicate or collector, handing out each item once (items may carry a
+  context, `(T, bool)`); the first 48 pops are not remembered, so small terms cost no set.
+- `fold`, `Memo`, `cached`: bottom-up folds and recursive predicates with a memo keyed by the term (`cached` is the
+  step of a recursive `-> bool` walker: `f(t) = cached(memo, t, |memo| body)` with the recursion passing `memo` on).
+- `any`, `free_of`, `symbols`, `leaf_count`, `tree_size`, `depth`, `distinct_count`, `map`.
+
+Counts over the tree (sizes, leaf counts) stay the same numbers, saturating at `u64::MAX`.
+
+What moved onto it (each a mechanical change: the same answer, each distinct subterm visited once):
+- 117 stack walkers that are predicates or collectors with a duplicate test (free-of and contains tests, symbol
+  and head collection, pattern variables, step, jump and piecewise detection) in 50 files of 25 crates;
+- 32 recursive predicates (`-> bool`) memoized with `cached`, 8 recursive collectors with a set of terms seen, and
+  the recursive rewrites `shift::reduce` (sums), `reduce::regions` (solve), `boolean::improve` (simplify),
+  `tidy_cond_with` (calculus properties) with a memo of results;
+- the size measures of `solve` (`size`, `not_larger`) as memoized folds; the groundness test of a `fn`'s catch-all
+  (every call of a library function with no matching clause walked its arguments as a tree);
+- equation lists flattened by `d_solve` and read by `solve`/`eliminate` stop at 65536 equations (a shared list stands
+  for exponentially many; past the bound the call stays unevaluated or reports the number);
+- labels and messages of graphics and plots print with `Printer::brief` (at most 4 KiB) instead of the whole text.
+
+Already graph walks before (left as they were): about 95 walkers with their own set or memo (the evaluator's
+substitution and rewriting, the derivative, list measures, the simplifier's `rewrite`, polynomial reading).
+
+Left (the catalogue test `mc-engine/tests/round45_shared_terms.rs` lists them in `LEFT`): recursive transformations
+of the algebra, calculus and solving crates (about 260 recursive functions over terms returning `Res`, `Option` or a
+term; the scan is `recursive functions whose body calls themselves and walks args`), stack walkers whose visits are
+capped (capped work, not exponential), collectors that keep multiplicity, and functions that do exponential work on
+purpose with a meter that does not reach the stop flag (layout of nested grids, Hyper on large recurrences).

@@ -80,6 +80,8 @@ pub struct Notebook {
     index: HashMap<CellId, usize>,
     /// the header attributes of the file (kept for saving)
     pub header: Attrs,
+    /// the format version of the file (kept for saving: a newer minor version stays the file's version)
+    pub version: mc_nbfile::Version,
     pub(crate) groups: Groups,
     pub(crate) sel: Selection,
     /// the style the cell typing at the insertion point will create (Alt+digit at an insertion point)
@@ -129,6 +131,7 @@ impl Notebook {
             cells: vec![],
             index: HashMap::new(),
             header: Attrs::new(),
+            version: mc_nbfile::Version::CURRENT,
             groups: Groups::default(),
             sel: Selection::Gap(0),
             gap_style: None,

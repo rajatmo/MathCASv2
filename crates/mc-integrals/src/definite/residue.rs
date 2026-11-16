@@ -76,7 +76,7 @@ fn even<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) ->
 
 /// Does `f` contain trigonometric or hyperbolic functions of `x`?
 fn has_trig<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     while let Some(u) = stack.pop() {
         if is_free(b, u, x) {
             continue;

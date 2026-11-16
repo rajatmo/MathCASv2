@@ -895,7 +895,7 @@ fn options3<S: Store + ?Sized>(h: &S, o: Option<T<'_>>) -> Result<Opts3, Failure
             }
         };
         if ok.is_none() {
-            opts.ignored.push(format!("{name}: {}", mc_syntax::Printer::new(h).expr(v)));
+            opts.ignored.push(format!("{name}: {}", mc_syntax::Printer::brief(h).expr(v)));
         }
     }
     Ok(opts)
@@ -1019,7 +1019,7 @@ pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Resu
             [c, o] => (*c, Some(*o)),
             _ => return Err(Failure::new("not_graphics", "graphics3d takes content and options")),
         },
-        _ => return Err(Failure::new("not_graphics", mc_syntax::Printer::new(h).expr(t))),
+        _ => return Err(Failure::new("not_graphics", mc_syntax::Printer::brief(h).expr(t))),
     };
     let sc = scene(h, content, stop)?;
     let o3 = options3(h, o)?;
@@ -1125,7 +1125,7 @@ impl Prepared {
                 [c, o] => (*c, Some(*o)),
                 _ => return Err(Failure::new("not_graphics", "graphics3d takes content and options")),
             },
-            _ => return Err(Failure::new("not_graphics", mc_syntax::Printer::new(h).expr(t))),
+            _ => return Err(Failure::new("not_graphics", mc_syntax::Printer::brief(h).expr(t))),
         };
         let sc = scene(h, content, stop)?;
         let o3 = options3(h, o)?;

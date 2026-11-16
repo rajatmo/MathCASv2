@@ -529,15 +529,22 @@ fn drop_abs<'h>(b: &Build<'h>, t: T<'h>, us: &[T<'h>], mask: u32) -> T<'h> {
 
 /// Does `t` contain a jump function (the range of a step function is not an interval)?
 pub(super) fn has_jumps<'h>(b: &Build<'h>, t: T<'h>) -> bool {
-    let h = b.heap();
-    match h.view(t) {
-        View::App { head, args } => {
-            b.sym_of(head).is_some_and(|s| {
-                matches!(h.sym_name(s).as_str(), "floor" | "ceiling" | "round" | "integer_part" | "sign" | "unit_step" | "mod" | "fractional_part" | "heaviside_theta" | "unit_box" | "piecewise" | "if" | "boole" | "real_sign" | "square_wave" | "sawtooth_wave" | "kronecker_delta" | "prime_pi")
-            }) || args.iter().any(|&a| has_jumps(b, a))
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    has_jumps_in(b, t, &mut mc_api::walk::memo())
+}
+
+fn has_jumps_in<'h>(b: &Build<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        let h = b.heap();
+        match h.view(t) {
+            View::App { head, args } => {
+                b.sym_of(head).is_some_and(|s| {
+                    matches!(h.sym_name(s).as_str(), "floor" | "ceiling" | "round" | "integer_part" | "sign" | "unit_step" | "mod" | "fractional_part" | "heaviside_theta" | "unit_box" | "piecewise" | "if" | "boole" | "real_sign" | "square_wave" | "sawtooth_wave" | "kronecker_delta" | "prime_pi")
+                }) || args.iter().any(|&a| has_jumps_in(b, a, memo))
+            }
+            _ => false,
         }
-        _ => false,
-    }
+    })
 }
 
 /// Smaller (`min`) or larger value of the current one and `new`, compared by the proved sign of their difference; a

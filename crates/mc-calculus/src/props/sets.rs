@@ -187,7 +187,7 @@ fn piecewise_atoms<'h>(
     // boundaries of the conditions
     let mut points: Vec<T<'h>> = vec![];
     for &(_, c) in &pieces {
-        let mut stack = vec![c];
+        let mut stack = mc_api::walk::Walk::new(c);
         while let Some(t) = stack.pop() {
             let View::App { head, args: ra } = h.view(t) else { continue };
             let Some(sy) = b.sym_of(head) else { continue };
@@ -667,15 +667,22 @@ fn walk<'h>(
 
 /// Is `t` a real numeric quantity built of numbers and constants (`-1/e`, `2^(1/2)/2`)?
 fn numeric_quantity<'h>(h: &'h mc_core::Heap, t: T<'h>) -> bool {
-    match h.view(t) {
-        View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) => true,
-        View::Sym(_) => is_constant(h, t),
-        View::App { head, args } => {
-            matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "add" | "mul" | "pow"))
-                && args.iter().all(|&a| numeric_quantity(h, a))
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    numeric_quantity_in(h, t, &mut mc_api::walk::memo())
+}
+
+fn numeric_quantity_in<'h>(h: &'h mc_core::Heap, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        match h.view(t) {
+            View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) => true,
+            View::Sym(_) => is_constant(h, t),
+            View::App { head, args } => {
+                matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "add" | "mul" | "pow"))
+                    && args.iter().all(|&a| numeric_quantity_in(h, a, memo))
+            }
+            _ => false,
         }
-        _ => false,
-    }
+    })
 }
 
 /// Is the symbol `t` a constant (`pi`, `euler_gamma`, ...)?
@@ -954,22 +961,29 @@ pub fn poly_degree<'h>(b: &Build<'h>, t: T<'h>, syms: &[T<'h>]) -> Option<u32> {
 
 /// Is every relation in `t` (through `and`, `or`, `not`) between polynomials in `syms` and the parameters?
 pub fn polynomial_formula<'h>(b: &Build<'h>, t: T<'h>, syms: &[T<'h>]) -> bool {
-    let h = b.heap();
-    match h.view(t) {
-        View::Sym(s) => matches!(h.sym_name(s).as_str(), "true" | "false"),
-        View::App { head, args } => {
-            let Some(s) = b.sym_of(head) else { return false };
-            match h.sym_name(s).as_str() {
-                "and" | "or" | "not" | "implies" => args.iter().all(|&a| polynomial_formula(b, a, syms)),
-                "equal" | "unequal" | "less" | "less_equal" | "greater" | "greater_equal" => {
-                    args.iter().all(|&a| poly_degree(b, a, syms).is_some())
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    polynomial_formula_in(b, t, syms, &mut mc_api::walk::memo())
+}
+
+fn polynomial_formula_in<'h>(b: &Build<'h>, t: T<'h>, syms: &[T<'h>], memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        let h = b.heap();
+        match h.view(t) {
+            View::Sym(s) => matches!(h.sym_name(s).as_str(), "true" | "false"),
+            View::App { head, args } => {
+                let Some(s) = b.sym_of(head) else { return false };
+                match h.sym_name(s).as_str() {
+                    "and" | "or" | "not" | "implies" => args.iter().all(|&a| polynomial_formula_in(b, a, syms, memo)),
+                    "equal" | "unequal" | "less" | "less_equal" | "greater" | "greater_equal" => {
+                        args.iter().all(|&a| poly_degree(b, a, syms).is_some())
+                    }
+                    "element" => args.len() == 2 && args[1] == h.sym_term(h.sym("reals")),
+                    _ => false,
                 }
-                "element" => args.len() == 2 && args[1] == h.sym_term(h.sym("reals")),
-                _ => false,
             }
+            _ => false,
         }
-        _ => false,
-    }
+    })
 }
 
 /// Does the set meet the region?
@@ -992,29 +1006,36 @@ fn positive_exponent<'h>(b: &Build<'h>, e: T<'h>) -> bool {
 
 /// Is `u` never negative for real values of the variables (by its structure)?
 pub fn nonneg<'h>(b: &Build<'h>, u: T<'h>) -> bool {
-    let h = b.heap();
-    match h.view(u) {
-        View::Int(k) => k >= 0,
-        View::Rational { .. } => b.ar.compare(u, b.zero()) != Some(mc_arith::Cmp3::Less),
-        View::App { head, args } => {
-            let Some(s) = b.sym_of(head) else { return false };
-            if s == b.hd.add || s == b.hd.mul && args.iter().all(|&a| nonneg(b, a)) {
-                return args.iter().all(|&a| nonneg(b, a));
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    nonneg_in(b, u, &mut mc_api::walk::memo())
+}
+
+fn nonneg_in<'h>(b: &Build<'h>, u: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, u, |memo| {
+        let h = b.heap();
+        match h.view(u) {
+            View::Int(k) => k >= 0,
+            View::Rational { .. } => b.ar.compare(u, b.zero()) != Some(mc_arith::Cmp3::Less),
+            View::App { head, args } => {
+                let Some(s) = b.sym_of(head) else { return false };
+                if s == b.hd.add || s == b.hd.mul && args.iter().all(|&a| nonneg_in(b, a, memo)) {
+                    return args.iter().all(|&a| nonneg_in(b, a, memo));
+                }
+                if s == b.hd.pow {
+                    let [base, ex] = args else { return false };
+                    return match h.view(*ex) {
+                        View::Int(k) => k % 2 == 0 || nonneg_in(b, *base, memo),
+                        View::Rational { num, den } => {
+                            matches!(h.view(den), View::Int(d) if d % 2 == 0) && nonneg_in(b, *base, memo) || matches!(h.view(num), View::Int(_)) && nonneg_in(b, *base, memo)
+                        }
+                        _ => *base == h.sym_term(b.hd.e),
+                    };
+                }
+                matches!(h.sym_name(s).as_str(), "abs" | "exp" | "cosh") 
             }
-            if s == b.hd.pow {
-                let [base, ex] = args else { return false };
-                return match h.view(*ex) {
-                    View::Int(k) => k % 2 == 0 || nonneg(b, *base),
-                    View::Rational { num, den } => {
-                        matches!(h.view(den), View::Int(d) if d % 2 == 0) && nonneg(b, *base) || matches!(h.view(num), View::Int(_)) && nonneg(b, *base)
-                    }
-                    _ => *base == h.sym_term(b.hd.e),
-                };
-            }
-            matches!(h.sym_name(s).as_str(), "abs" | "exp" | "cosh") 
+            _ => false,
         }
-        _ => false,
-    }
+    })
 }
 
 /// Whether the atoms meet the region `cond` (with the facts about the parameters); see the module comment.
@@ -1227,25 +1248,32 @@ fn propositionally_false<'h>(b: &Build<'h>, t: T<'h>) -> bool {
         }
     }
     fn value<'h>(b: &Build<'h>, t: T<'h>, atoms: &[T<'h>], bits: u32) -> bool {
-        let h = b.heap();
-        let at = |u: T<'h>| atoms.iter().position(|&a| a == u).is_some_and(|i| bits >> i & 1 == 1);
-        if let View::Sym(s) = h.view(t) {
-            match h.sym_name(s).as_str() {
-                "true" => return true,
-                "false" => return false,
-                _ => {}
+        // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+        value_in(b, t, atoms, bits, &mut mc_api::walk::memo())
+    }
+
+    fn value_in<'h>(b: &Build<'h>, t: T<'h>, atoms: &[T<'h>], bits: u32, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+        mc_api::walk::cached(memo, t, |memo| {
+            let h = b.heap();
+            let at = |u: T<'h>| atoms.iter().position(|&a| a == u).is_some_and(|i| bits >> i & 1 == 1);
+            if let View::Sym(s) = h.view(t) {
+                match h.sym_name(s).as_str() {
+                    "true" => return true,
+                    "false" => return false,
+                    _ => {}
+                }
             }
-        }
-        if let View::App { head, args } = h.view(t) {
-            match b.sym_of(head).map(|s| h.sym_name(s)).as_deref() {
-                Some("and") => return args.iter().all(|&a| value(b, a, atoms, bits)),
-                Some("or") => return args.iter().any(|&a| value(b, a, atoms, bits)),
-                Some("not") if args.len() == 1 => return !value(b, args[0], atoms, bits),
-                Some("not_element") => return !at(h.call(h.sym("element"), args)),
-                _ => {}
+            if let View::App { head, args } = h.view(t) {
+                match b.sym_of(head).map(|s| h.sym_name(s)).as_deref() {
+                    Some("and") => return args.iter().all(|&a| value_in(b, a, atoms, bits, memo)),
+                    Some("or") => return args.iter().any(|&a| value_in(b, a, atoms, bits, memo)),
+                    Some("not") if args.len() == 1 => return !value_in(b, args[0], atoms, bits, memo),
+                    Some("not_element") => return !at(h.call(h.sym("element"), args)),
+                    _ => {}
+                }
             }
-        }
-        at(t)
+            at(t)
+        })
     }
     let mut ats = vec![];
     atoms(b, t, &mut ats);
@@ -1564,6 +1592,20 @@ pub fn tidy_cond_split<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h
 }
 
 fn tidy_cond_with<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, collapse: bool) -> Res<T<'h>> {
+    // shared parts are tidied once (a condition can be a tree exponentially larger than itself)
+    tidy_cond_in(cx, b, t, collapse, &mut mc_api::walk::memo())
+}
+
+fn tidy_cond_in<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, collapse: bool, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> Res<T<'h>> {
+    if let Some(&r) = memo.get(&t) {
+        return Ok(r);
+    }
+    let r = tidy_cond_node(cx, b, t, collapse, memo)?;
+    memo.insert(t, r);
+    Ok(r)
+}
+
+fn tidy_cond_node<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, collapse: bool, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> Res<T<'h>> {
     let h = b.heap();
     let flip = |n: &str| match n {
         "less" => Some("greater"),
@@ -1593,7 +1635,7 @@ fn tidy_cond_with<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, co
             }
             let mut v = vec![];
             for &a in args {
-                v.push(tidy_cond_with(cx, b, a, collapse)?);
+                v.push(tidy_cond_in(cx, b, a, collapse, memo)?);
             }
             cx.eval(h.app(head, &v))
         }
@@ -1605,7 +1647,7 @@ fn tidy_cond_with<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, co
                     Some((_, l, r)) if is_num(l) && !is_num(r) => args.iter().any(|&o| o != a && rel_parts(o).is_some_and(|(_, l2, r2)| l2 == r && is_num(r2))),
                     _ => true,
                 };
-                v.push(if keep { if rel_parts(a).is_some() { a } else { tidy_cond_with(cx, b, a, collapse)? } } else { tidy_cond_with(cx, b, a, collapse)? });
+                v.push(if keep { if rel_parts(a).is_some() { a } else { tidy_cond_in(cx, b, a, collapse, memo)? } } else { tidy_cond_in(cx, b, a, collapse, memo)? });
             }
             cx.eval(h.app(head, &v))
         }

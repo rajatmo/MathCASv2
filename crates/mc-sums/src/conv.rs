@@ -127,7 +127,7 @@ fn eventual<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, n: T<'h>) -> Res<T<'h>> {
     let mut g = f;
     // a bounded number of passes (each replaces at least one step function, innermost first)
     for _ in 0..16 {
-        let mut stack = vec![g];
+        let mut stack = mc_api::walk::Walk::new(g);
         let mut found = None;
         while let Some(u) = stack.pop() {
             let View::App { head, args } = h.view(u) else { continue };

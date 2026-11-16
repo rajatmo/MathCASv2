@@ -215,7 +215,7 @@ impl<'h> Lower<'_, 'h> {
     /// The names of the variables bound anywhere in pattern term `t` (not inside condition bodies or types).
     fn collect(&mut self, t: T<'h>) -> Result<(), DefError> {
         let (h, hd) = (self.h, self.hd);
-        let mut stack = vec![t];
+        let mut stack = mc_api::walk::Walk::new(t);
         while let Some(u) = stack.pop() {
             if h.mask(u) & self.mask == 0 {
                 continue;
@@ -1251,22 +1251,38 @@ impl Native for DefineSym {
 const CONSTANTS: [&str; 7] = ["pi", "e", "euler_gamma", "catalan", "golden_ratio", "inf", "im"];
 
 /// Is `t` ground: no free symbol other than the numeric constants, at any depth below compound heads? Numbers,
-/// strings and packed arrays are ground; heads are not inspected (`square(1)` is ground).
-pub(crate) fn is_ground(h: &Heap, t: T<'_>) -> bool {
-    if h.packed(t).is_some() {
-        return true;
-    }
-    match h.view(t) {
-        View::Sym(s) => {
-            let n = h.sym_name(s);
-            CONSTANTS.contains(&n.as_str()) || n == "true" || n == "false" || n == "null"
+/// strings and packed arrays are ground; heads are not inspected (`square(1)` is ground). With `args`, `t` is the
+/// arguments of a call ([`is_ground_arg`]). Each distinct subterm is visited once in each mode (a term with shared
+/// subterms is a graph: walking it as a tree takes time exponential in its depth).
+fn ground(h: &Heap, t: T<'_>, args: bool) -> bool {
+    let list = h.sym_term(h.sym(mc_api::names::LIST));
+    let options = h.sym_term(h.sym("options"));
+    let ground_syms: Vec<Sym> = CONSTANTS.iter().chain(&["true", "false", "null"]).map(|n| h.sym(n)).collect();
+    let mut w = mc_api::walk::Walk::new((t, args));
+    while let Some((u, arg)) = w.pop() {
+        if h.packed(u).is_some() {
+            continue;
         }
-        View::App { args, .. } => args.iter().all(|&a| is_ground(h, a)),
-        _ => true,
+        match h.view(u) {
+            View::Sym(s) => {
+                if !ground_syms.contains(&s) {
+                    return false;
+                }
+            }
+            View::App { head, args } if arg && head == list => w.extend(args.iter().rev().map(|&a| (a, true))),
+            // in an `options(name -> v, ...)` argument only the values are inspected
+            View::App { head, args } if arg && head == options => w.extend(args.iter().rev().map(|&r| match h.view(r) {
+                View::App { args: &[_, v], .. } => (v, false),
+                _ => (r, false),
+            })),
+            View::App { args, .. } => w.extend(args.iter().rev().map(|&a| (a, false))),
+            _ => {}
+        }
     }
+    true
 }
 
-/// `is_ground(args...)`: `true` when every argument is ground ([`is_ground`]); the condition of a `fn`'s catch-all.
+/// `is_ground(args...)`: `true` when every argument is ground ([`ground`]); the condition of a `fn`'s catch-all.
 struct IsGround;
 
 impl Native for IsGround {
@@ -1280,25 +1296,11 @@ impl Native for IsGround {
     }
 }
 
-/// [`is_ground`] for the arguments of a call (the catch-all's `args$`, bound to the list of them): in an
+/// [`ground`] for the arguments of a call (the catch-all's `args$`, bound to the list of them): in an
 /// `options(name -> v, ...)` argument the names are names, not free symbols, so only the values are inspected
 /// (`k(10, a: 5)` is a ground call).
 fn is_ground_arg(h: &Heap, t: T<'_>) -> bool {
-    if h.packed(t).is_some() {
-        return true;
-    }
-    match h.view(t) {
-        View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == mc_api::names::LIST) => {
-            args.iter().all(|&a| is_ground_arg(h, a))
-        }
-        View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "options") => {
-            args.iter().all(|&r| match h.view(r) {
-                View::App { args: &[_, v], .. } => is_ground(h, v),
-                _ => is_ground(h, r),
-            })
-        }
-        _ => is_ground(h, t),
-    }
+    ground(h, t, true)
 }
 
 pub(crate) fn register(k: &mut Kernel, h: &Heap) {

@@ -172,13 +172,20 @@ impl Native for Primitive {
 
 /// Whether `t` is a positive integer or a (nested) list of them: indices of points rather than coordinates.
 fn indices_only(h: &Heap, t: T<'_>) -> bool {
-    match h.view(t) {
-        View::Int(k) => k >= 1,
-        View::App { head, args } => {
-            matches!(h.view(head), View::Sym(s) if h.sym_name(s) == names::LIST) && !args.is_empty() && args.iter().all(|&a| indices_only(h, a))
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    indices_only_in(h, t, &mut mc_api::walk::memo())
+}
+
+fn indices_only_in<'a>(h: &'a Heap, t: T<'a>, memo: &mut mc_api::walk::Memo<T<'a>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        match h.view(t) {
+            View::Int(k) => k >= 1,
+            View::App { head, args } => {
+                matches!(h.view(head), View::Sym(s) if h.sym_name(s) == names::LIST) && !args.is_empty() && args.iter().all(|&a| indices_only_in(h, a, memo))
+            }
+            _ => false,
         }
-        _ => false,
-    }
+    })
 }
 
 /// Whether `t` is a point of one coordinate, or a list (of lists) of such points.

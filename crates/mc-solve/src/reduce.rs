@@ -133,7 +133,7 @@ pub(crate) fn several<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>,
 
 /// Does `t` hold a symbol (outside the heads) that is not one of `vars` nor a constant?
 fn other_symbols<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) => {
@@ -152,7 +152,7 @@ fn other_symbols<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
 /// and relational heads?
 fn rational_in<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
     let holds = |u: T<'h>| {
-        let mut stack = vec![u];
+        let mut stack = mc_api::walk::Walk::new(u);
         while let Some(w) = stack.pop() {
             if w == x {
                 return true;
@@ -163,7 +163,7 @@ fn rational_in<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
         }
         false
     };
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         let View::App { head, args } = h.view(u) else { continue };
         if !holds(u) {
@@ -230,6 +230,20 @@ pub(crate) fn modulus<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<
 /// The formula with every `element(points, region)` of a geometric region replaced by the region's membership
 /// condition (`region_member`); `None` when there is none, or a region gives no condition.
 pub(crate) fn regions<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<T<'h>>> {
+    // shared subterms are rewritten once (a term can be a tree exponentially larger than itself)
+    regions_in(cx, t, &mut mc_api::walk::memo())
+}
+
+fn regions_in<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, Option<T<'h>>>) -> Res<Option<T<'h>>> {
+    if let Some(&r) = memo.get(&t) {
+        return Ok(r);
+    }
+    let r = regions_node(cx, t, memo)?;
+    memo.insert(t, r);
+    Ok(r)
+}
+
+fn regions_node<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, Option<T<'h>>>) -> Res<Option<T<'h>>> {
     let h = cx.heap();
     let View::App { head, args } = h.view(t) else { return Ok(None) };
     let name = match h.view(head) {
@@ -250,7 +264,7 @@ pub(crate) fn regions<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option
             let mut any = false;
             let mut new = vec![];
             for &a in args {
-                match regions(cx, a)? {
+                match regions_in(cx, a, memo)? {
                     Some(b) => {
                         any = true;
                         new.push(b);
@@ -283,7 +297,7 @@ fn integer_points<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
 
 /// Does the formula have an order relation (which makes its variables real)?
 fn inequality<'h>(h: &'h impl Store, t: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if let View::Sym(s) = h.view(head) {
@@ -299,7 +313,7 @@ fn inequality<'h>(h: &'h impl Store, t: T<'h>) -> bool {
 
 /// Does the formula have a symbol other than `x` and the logical and numeric constants?
 fn has_parameters<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) if u != x => {

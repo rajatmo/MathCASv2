@@ -161,7 +161,7 @@ pub(crate) fn iterated<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>,
 /// non-negative integer exponent?
 fn polynomial_in<'h>(h: &'h mc_core::Heap, t: T<'h>, k: T<'h>) -> bool {
     let contains = |u: T<'h>| {
-        let mut stack = vec![u];
+        let mut stack = mc_api::walk::Walk::new(u);
         while let Some(v) = stack.pop() {
             if v == k {
                 return true;
@@ -175,7 +175,7 @@ fn polynomial_in<'h>(h: &'h mc_core::Heap, t: T<'h>, k: T<'h>) -> bool {
         }
         false
     };
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == k || !contains(u) {
             continue;
@@ -198,7 +198,7 @@ fn polynomial_in<'h>(h: &'h mc_core::Heap, t: T<'h>, k: T<'h>) -> bool {
 /// free of `k`? (`c k^-s` and `(2 k)^-3`, not `k^-2 + k^-3` or `k cos(k y)`.)
 fn monomial_in<'h>(h: &'h mc_core::Heap, t: T<'h>, k: T<'h>) -> bool {
     let contains = |u: T<'h>| {
-        let mut stack = vec![u];
+        let mut stack = mc_api::walk::Walk::new(u);
         while let Some(v) = stack.pop() {
             if v == k {
                 return true;
@@ -212,7 +212,7 @@ fn monomial_in<'h>(h: &'h mc_core::Heap, t: T<'h>, k: T<'h>) -> bool {
         }
         false
     };
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == k || !contains(u) {
             continue;

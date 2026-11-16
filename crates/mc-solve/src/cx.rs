@@ -266,7 +266,7 @@ impl<'h> Env<'h> {
         // exact complex numbers as a + b j with a symbol j for i, so that their parts share the content
         let h = self.h();
         let mut rules = vec![];
-        let mut stack = vec![t];
+        let mut stack = mc_api::walk::Walk::new(t);
         let j = self.sym("solve`i");
         while let Some(u) = stack.pop() {
             if let Some(n) = self.ar.num(u) {

@@ -187,7 +187,7 @@ pub(super) fn critical<'h>(
 /// Is `t` a rational function of `x` (sums, products, integer powers; other subterms free of `x`)?
 fn rational<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
     let h = b.heap();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == x || is_free(b, u, x) {
             continue;
@@ -589,7 +589,7 @@ fn replace<'h>(b: &Build<'h>, t: T<'h>, from: T<'h>, to: T<'h>) -> T<'h> {
 
 /// Does `t` depend on `x` only through logarithms `log(x - w)` (`w` the root_sum's bound variable)?
 fn only_logs_of_x_minus<'h>(b: &Build<'h>, t: T<'h>, w: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == x {
             return false;

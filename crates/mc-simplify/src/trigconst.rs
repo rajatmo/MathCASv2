@@ -257,13 +257,20 @@ pub fn atan_sum<'h>(b: &B<'h>, t: T<'h>, exact: bool) -> Option<T<'h>> {
 
 /// Is `t` free of symbols other than numeric constants (a closed number)?
 fn closed<'h>(b: &B<'h>, t: T<'h>) -> bool {
-    let h = b.heap();
-    match h.view(t) {
-        View::Sym(s) => matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio"),
-        View::App { head, args } => b.sym_of(head).is_some() && args.iter().all(|&a| closed(b, a)),
-        View::Str(_) => false,
-        _ => true,
-    }
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    closed_in(b, t, &mut mc_api::walk::memo())
+}
+
+fn closed_in<'h>(b: &B<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        let h = b.heap();
+        match h.view(t) {
+            View::Sym(s) => matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio"),
+            View::App { head, args } => b.sym_of(head).is_some() && args.iter().all(|&a| closed_in(b, a, memo)),
+            View::Str(_) => false,
+            _ => true,
+        }
+    })
 }
 
 /// `log(z)` for a closed complex `z` as `log(abs(z)) + i arg(z)` with `arg` written by `atan` (see the module
@@ -303,11 +310,18 @@ pub fn closed_log<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, nm: &numeval::Na
 }
 
 fn mentions_complex<'h>(b: &B<'h>, t: T<'h>) -> bool {
-    if b.complex_parts(t).is_some() {
-        return true;
-    }
-    match b.heap().view(t) {
-        View::App { args, .. } => args.iter().any(|&a| mentions_complex(b, a)),
-        _ => false,
-    }
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    mentions_complex_in(b, t, &mut mc_api::walk::memo())
+}
+
+fn mentions_complex_in<'h>(b: &B<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        if b.complex_parts(t).is_some() {
+            return true;
+        }
+        match b.heap().view(t) {
+            View::App { args, .. } => args.iter().any(|&a| mentions_complex_in(b, a, memo)),
+            _ => false,
+        }
+    })
 }

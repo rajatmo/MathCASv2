@@ -582,7 +582,7 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
         }
         if !dropped.is_empty() {
             let who = if look.who.is_empty() { "plot" } else { look.who };
-            let printed: Vec<String> = dropped.iter().map(|&d| mc_syntax::Printer::new(h).expr(d)).collect();
+            let printed: Vec<String> = dropped.iter().map(|&d| mc_syntax::Printer::brief(h).expr(d)).collect();
             let text = format!("left out of the drawing (coordinates that are not numbers): {}", printed.join(", "));
             cx.emit(h.call(h.sym("message"), &[h.sym_term(h.sym(who)), h.string(&text)]))?;
         }
@@ -1546,11 +1546,11 @@ pub(crate) fn plot_options<'h>(cx: &NativeCx<'_, '_, 'h>, o: T<'h>, base: Look<'
     look.who = who;
     for &r in args {
         let View::App { args: &[k, v], .. } = h.view(r) else {
-            look.ignored.push(mc_syntax::Printer::new(h).expr(r));
+            look.ignored.push(mc_syntax::Printer::brief(h).expr(r));
             continue;
         };
         let View::Sym(k) = h.view(k) else {
-            look.ignored.push(mc_syntax::Printer::new(h).expr(r));
+            look.ignored.push(mc_syntax::Printer::brief(h).expr(r));
             continue;
         };
         let key = h.sym_name(k);
@@ -1558,7 +1558,7 @@ pub(crate) fn plot_options<'h>(cx: &NativeCx<'_, '_, 'h>, o: T<'h>, base: Look<'
             Some(true) => {}
             Some(false) if SILENT.contains(&key.as_str()) => {}
             Some(false) => look.ignored.push(key),
-            None => look.ignored.push(format!("{key}: {}", mc_syntax::Printer::new(h).expr(v))),
+            None => look.ignored.push(format!("{key}: {}", mc_syntax::Printer::brief(h).expr(v))),
         }
     }
     Some(look)
@@ -1803,7 +1803,7 @@ fn one_option<'h>(cx: &NativeCx<'_, '_, 'h>, key: &str, v: T<'h>, look: &mut Loo
                 }
             }
             let items = legend_items(cx, v)?;
-            look.legend = items.iter().map(|&e| text(e).unwrap_or_else(|| mc_syntax::Printer::new(h).expr(e))).collect();
+            look.legend = items.iter().map(|&e| text(e).unwrap_or_else(|| mc_syntax::Printer::brief(h).expr(e))).collect();
             look.legend_terms = if items.iter().all(|&e| text(e).is_some()) { vec![] } else { items.to_vec() };
         }
         "legend_position" => look.legend_at = corner_option(h, v)?,
@@ -2018,7 +2018,7 @@ fn one_option<'h>(cx: &NativeCx<'_, '_, 'h>, key: &str, v: T<'h>, look: &mut Loo
                 None if is(v, "automatic") || is(v, "none") => return Some(true),
                 None => return None,
             };
-            look.labels = items.iter().map(|&e| text(e).unwrap_or_else(|| mc_syntax::Printer::new(h).expr(e))).collect()
+            look.labels = items.iter().map(|&e| text(e).unwrap_or_else(|| mc_syntax::Printer::brief(h).expr(e))).collect()
         }
         k if mc_graphics::model::known_option(k) => {
             if !mc_graphics::model::HARMLESS.contains(&k) {

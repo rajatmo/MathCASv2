@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# hold_pattern
+
+#% text
+# `hold_pattern(p)` is the pattern `p`, kept unevaluated where it is written.
+
+#% section
+# Details
+
+#% item
+# Its argument is held: `hold_pattern(_ + _)` stays a sum of two blanks, where `_ + _` alone is evaluated to `2*_`.
+
+#% item
+# A rule kept in `hold_pattern` is a pattern for rules, not a replacement: `cases(xs, hold_pattern(_ -> automatic))` selects the rules with the right side `automatic`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cases([1, b -> automatic, c -> 3], hold_pattern(_ -> automatic))
+#% output
+#= [b -> automatic]
+
+#% cell
+match_q(a + b, hold_pattern(_ + _))
+#% output
+#= true
+
+#% cell
+match_q(a + b, _ + _)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `verbatim`, `quote`, `cases`

@@ -134,7 +134,7 @@ fn read_table<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Table>>
     if let Some((n, &[x, l])) = crate::values::call_of(h, t) {
         if n == mc_api::names::RULE {
             if let Some(ls) = cx.as_list(l) {
-                names = ls.iter().map(|&s| sym_named(h, s).unwrap_or_else(|| mc_syntax::Printer::new(h).expr(s))).collect();
+                names = ls.iter().map(|&s| sym_named(h, s).unwrap_or_else(|| mc_syntax::Printer::brief(h).expr(s))).collect();
                 t = x;
             }
         }
@@ -963,7 +963,7 @@ fn cluster_items<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<(Vec<String
     };
     let (mut names, v, s) = cluster_values(cx, &items)?;
     if let Some(ls) = labels {
-        names = ls.iter().map(|&l| sym_named(h, l).unwrap_or_else(|| mc_syntax::Printer::new(h).expr(l))).collect();
+        names = ls.iter().map(|&l| sym_named(h, l).unwrap_or_else(|| mc_syntax::Printer::brief(h).expr(l))).collect();
     }
     Ok((names, v, s))
 }
@@ -982,7 +982,7 @@ fn cluster_values<'h>(cx: &mut NativeCx<'_, '_, 'h>, items: &[T<'h>]) -> Res<(Ve
         let n = chartdata::read(cx, e)?;
         let v = n.num().map(|x| vec![x]).or_else(|| n.numbers());
         if let Some(v) = v {
-            names.push(n.label_text(h).unwrap_or_else(|| mc_syntax::Printer::new(h).expr(e)));
+            names.push(n.label_text(h).unwrap_or_else(|| mc_syntax::Printer::brief(h).expr(e)));
             vecs.push(v);
         }
     }

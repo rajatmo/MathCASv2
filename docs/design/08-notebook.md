@@ -1146,6 +1146,35 @@ block** under a content-hash name, with the files that make it interactive:
 - Older notebooks that carry PNGs read and show as before; saving them again keeps the PNG unless the session's SVG
   sibling is still there.
 
+### 7.6 The format version (a condition of 1.0)
+
+The first line states the format version: `#! mathcas VERSION notebook`, VERSION being `MAJOR` or `MAJOR.MINOR`
+(`mc_nbfile::Version`). Every notebook written so far, by 0.12 to 1.0, is format **2** (2.0): the number began as
+the 2 of MathCAS v2 and from 1.0 on is counted on its own, independent of the program's version. The scripts'
+first line `#! mathcas 2` and the value files' `#! mathcas 2 value` are other formats and keep their own word.
+
+- **Reading:** a reader of format M.m reads every major version from the oldest it knows (2) to M, converting what
+  older files wrote differently (7.4: label and kind names, the predicates renamed before 1.0); a file of a newer
+  minor version of M (M.n with n > m) is read with a warning on line 1, and everything the reader does not know is
+  kept as written (unknown attributes, `#%` comment lines). A file of a newer major version is refused with an
+  error that says so: "this notebook is in format 3, which a newer version of MathCAS wrote; this version reads
+  formats 2 to 2.x". A version older than 2, or a first line that is not a header, is refused with its own message.
+- **Writing:** the writer writes the current version; a file read in a newer minor version is written back with
+  that version (what it does not know was kept, so the file still is that version). The notebook application keeps
+  the version through open and save (`mc_nbmodel::Notebook::version`).
+- **Changing the format:** a change that an older reader of the same major version keeps without changing the
+  meaning of the rest raises the **minor** version: a new attribute of the header, of a cell or of an output block, a
+  new `#%` line that older readers keep as a comment line. A change that an older reader would reject or read with
+  another meaning raises the **major** version: a new cell kind (an older reader merges its body into the cell
+  above), a new prefix of output lines (rejected in an output block), a different meaning of an existing line,
+  attribute or kind. A new major version comes with a converter in the reader (as 7.4's names), so the newer reader
+  still reads every older file, and with fixtures of the older version in the compatibility test.
+- **Compatibility test:** `crates/mc-nbfile/tests/compat.rs` reads a fixed set of notebooks written by earlier
+  versions (`tests/data/compat/<version>/`, taken from the documentation and the examples of the tagged releases)
+  and checks the cells, kinds, outputs and conversions against an independent reading of the lines, that the
+  converted code still parses, and that writing and reading again is a fixed point; and that a newer major version
+  is refused and a newer minor version read with a warning.
+
 ## 8. Themes
 
 ### 8.1 Palettes

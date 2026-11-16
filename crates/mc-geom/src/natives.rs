@@ -372,7 +372,7 @@ fn exact_implicit_integral<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>, f:
     }
     let Some(cells) = dnf(h, cad, 64) else { return Ok(None) };
     let mentions = |t: T<'h>, xs: &[T<'h>]| {
-        let mut stack = vec![t];
+        let mut stack = mc_api::walk::Walk::new(t);
         while let Some(u) = stack.pop() {
             if xs.contains(&u) {
                 return true;

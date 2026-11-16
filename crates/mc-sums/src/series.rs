@@ -80,7 +80,7 @@ fn probe<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, j: i64, log: bool)
 fn nested_numeric<'h>(sx: &Sx<'_, '_, '_, 'h>, f: T<'h>) -> bool {
     let h = sx.h();
     let heads = ["n_sum", "n_product", "sum", "product"].map(|n| sx.sym(n));
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if heads.contains(&head) {
@@ -531,7 +531,7 @@ pub fn alternating_sum<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: 
 /// Does `g` contain a power with a numeric exponent that is not an integer?
 fn has_fractional_power<'h>(sx: &mut Sx<'_, '_, '_, 'h>, g: T<'h>) -> Res<bool> {
     let h = sx.h();
-    let mut stack = vec![g];
+    let mut stack = mc_api::walk::Walk::new(g);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if let (true, &[_, e]) = (head == sx.sym(mc_api::names::POW), args) {

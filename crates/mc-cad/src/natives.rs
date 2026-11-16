@@ -252,7 +252,7 @@ fn quantifier<'h>(cx: &mut NativeCx<'_, '_, 'h>, exists: bool, args: &[T<'h>]) -
 }
 
 fn mentions<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == x {
             return true;
@@ -267,7 +267,7 @@ fn mentions<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
 
 /// Does a formula have an inequality (which makes its variables real)?
 fn has_inequality<'h>(fr: &Front<'h>, t: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     let h = fr.ar.store();
     while let Some(u) = stack.pop() {
         if let Some((n, args)) = fr.head(u) {

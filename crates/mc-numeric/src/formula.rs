@@ -173,7 +173,7 @@ impl<'h> Fx<'_, '_, '_, 'h> {
     /// Does `t` contain a call of `name` (or the symbol)?
     pub fn contains(&self, t: T<'h>, name: &str) -> bool {
         let s = self.sym(name);
-        let mut stack = vec![t];
+        let mut stack = mc_api::walk::Walk::new(t);
         while let Some(u) = stack.pop() {
             if u == s {
                 return true;

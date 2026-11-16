@@ -5,8 +5,8 @@
 //!
 //! ```text
 //! file         = header { blank } { cell }
-//! header       = "#! mathcas 2 notebook" [ attrs ] NL
-//! cell         = marker NL body { output-block }
+//! header       = "#! mathcas " version " notebook" [ attrs ] NL      version = major [ "." minor ], now 2
+//! cell        = marker NL body { output-block }
 //! marker       = "#% " kind [ attrs ]
 //! kind         = "cell" | "input" | "code" | "text" | "title" | "subtitle" | ... (see [`Kind`])
 //! attrs        = { " " attr }            attr = name | name "=" value      value: [0-9A-Za-z_.:x-]+
@@ -25,6 +25,9 @@
 //! from when the text is in the canonical layout (a marker before every cell, `cell` rather than `input`, single
 //! spaces in marker lines, no blank lines between output blocks).
 //!
+//! The format carries its version in the first line ([`Version`]; the rule for changing it is design 08-notebook
+//! 7.6): a newer major version is refused with a message that says so, a newer minor version is read with a warning.
+//!
 //! A notebook that uses only `cell` and `text` cells without attributes and at most one output block per cell
 //! without attributes is exactly the format before the extensions, which older readers understand.
 pub mod embed;
@@ -34,8 +37,54 @@ use std::fmt;
 use std::io::{self, Write};
 use std::path::Path;
 
-/// The first line of a notebook (compared word by word, so extra spaces are accepted).
+/// The first line of a notebook as this version writes it (compared word by word, so extra spaces are accepted).
+/// The word after `mathcas` is the format [`Version`].
 pub const HEADER: &str = "#! mathcas 2 notebook";
+
+/// The version of the notebook format: the word after `mathcas` in the first line, `MAJOR` or `MAJOR.MINOR`
+/// (design 08-notebook 7.6). A reader reads every major version from [`Version::OLDEST`] to its own (older files
+/// converted), and a newer minor version of its own major with a warning (what it does not know is kept as
+/// written); a newer major version is an error that says so. The writer writes [`Version::CURRENT`], or the newer
+/// minor version a file was read in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Version {
+    pub major: u32,
+    pub minor: u32,
+}
+
+impl Version {
+    /// The version this crate writes.
+    pub const CURRENT: Version = Version { major: 2, minor: 0 };
+    /// The oldest version this crate reads: the first `.mcn` notebooks (MathCAS v2 0.x) were format 2.
+    pub const OLDEST: Version = Version { major: 2, minor: 0 };
+
+    /// The version written as `word` (`2`, `2.1`), if it is one.
+    pub fn parse(word: &str) -> Option<Version> {
+        let (major, minor) = word.split_once('.').unwrap_or((word, "0"));
+        let digits = |s: &str| !s.is_empty() && s.len() <= 6 && s.bytes().all(|b| b.is_ascii_digit());
+        if !digits(major) || !digits(minor) {
+            return None;
+        }
+        Some(Version { major: major.parse().ok()?, minor: minor.parse().ok()? })
+    }
+}
+
+impl Default for Version {
+    fn default() -> Version {
+        Version::CURRENT
+    }
+}
+
+impl fmt::Display for Version {
+    /// `2` for 2.0, `2.1` otherwise: the word of the first line.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.minor == 0 {
+            write!(f, "{}", self.major)
+        } else {
+            write!(f, "{}.{}", self.major, self.minor)
+        }
+    }
+}
 /// The marker line before a code cell (the canonical spelling of [`Kind::Input`]).
 pub const CELL: &str = "#% cell";
 /// The marker line before a text cell.
@@ -580,6 +629,9 @@ pub struct Notebook {
     pub cells: Vec<Cell>,
     /// whether lines end with CR LF (as the parsed text did); printing uses the same line ends
     pub crlf: bool,
+    /// the format version the text was written in ([`Version::CURRENT`] for a new notebook); printing writes this
+    /// or the current version, whichever is newer
+    pub version: Version,
 }
 
 /// What a line of a notebook is.
@@ -765,15 +817,40 @@ impl Notebook {
         let (lines, crlf) = lines_of(text);
         let header = lines.first().copied().unwrap_or("");
         let mut words = header.split(' ').filter(|w| !w.is_empty());
-        if !words.by_ref().take(4).eq(HEADER.split_whitespace()) {
+        let first: Vec<&str> = words.by_ref().take(4).collect();
+        let version = match first.as_slice() {
+            ["#!", "mathcas", v, "notebook"] => Version::parse(v),
+            _ => None,
+        };
+        let Some(version) = version else {
             let message = format!("a notebook starts with the line `{HEADER}`");
+            return Err(ParseError { line: 1, message });
+        };
+        let (cur, oldest) = (Version::CURRENT, Version::OLDEST);
+        if version.major > cur.major {
+            let message = format!(
+                "this notebook is in format {version}, which a newer version of MathCAS wrote; this version reads \
+                 formats {oldest} to {}.x: open it with a newer version",
+                cur.major
+            );
+            return Err(ParseError { line: 1, message });
+        }
+        if version < oldest {
+            let message = format!("format {version} is not a notebook format this version reads (formats {oldest} to {}.x)", cur.major);
             return Err(ParseError { line: 1, message });
         }
         let (header, mut warnings) = Attrs::parse(&words.collect::<Vec<_>>().join(" "));
         let mut warnings: Vec<ParseError> = warnings.drain(..).map(|message| ParseError { line: 1, message }).collect();
+        if version > cur {
+            let message = format!(
+                "this notebook is in format {version}, newer than this version writes ({cur}): what it does not know \
+                 is kept as written"
+            );
+            warnings.insert(0, ParseError { line: 1, message });
+        }
         let (preamble, cells, more) = read_cells(&lines[1..], 2)?;
         warnings.extend(more);
-        let mut nb = Notebook { header, crlf, ..Notebook::default() };
+        let mut nb = Notebook { header, crlf, version, ..Notebook::default() };
         if preamble.iter().all(|l| is_blank(l)) {
             nb.gap = preamble.len();
         } else {
@@ -800,7 +877,7 @@ impl Notebook {
             out.push_str(s);
             out.push_str(nl);
         };
-        line(&format!("{HEADER}{}", self.header));
+        line(&format!("#! mathcas {} notebook{}", self.version.max(Version::CURRENT), self.header));
         (0..self.gap).for_each(|_| line(""));
         for cell in &self.cells {
             cell.print_into(&mut line);

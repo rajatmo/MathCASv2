@@ -439,25 +439,39 @@ fn strip_big_power<'h>(b: &Build<'h>, f: T<'h>) -> T<'h> {
 
 /// Does `f` contain a function that is constant between jumps?
 fn has_steps<'h>(b: &Build<'h>, f: T<'h>) -> bool {
-    let h = b.heap();
-    match h.view(f) {
-        View::App { head, args } => {
-            b.sym_of(head).is_some_and(|s| {
-                matches!(h.sym_name(s).as_str(), "floor" | "ceiling" | "round" | "integer_part" | "sign" | "unit_step" | "mod" | "fractional_part" | "heaviside_theta" | "unit_box" | "clip" | "square_wave")
-            }) || args.iter().any(|&a| has_steps(b, a))
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    has_steps_in(b, f, &mut mc_api::walk::memo())
+}
+
+fn has_steps_in<'h>(b: &Build<'h>, f: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, f, |memo| {
+        let h = b.heap();
+        match h.view(f) {
+            View::App { head, args } => {
+                b.sym_of(head).is_some_and(|s| {
+                    matches!(h.sym_name(s).as_str(), "floor" | "ceiling" | "round" | "integer_part" | "sign" | "unit_step" | "mod" | "fractional_part" | "heaviside_theta" | "unit_box" | "clip" | "square_wave")
+                }) || args.iter().any(|&a| has_steps_in(b, a, memo))
+            }
+            _ => false,
         }
-        _ => false,
-    }
+    })
 }
 
 /// A number (real, complex or a ball)?
 fn numeric<'h>(h: &'h mc_core::Heap, t: T<'h>) -> bool {
-    match h.view(t) {
-        View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. } => true,
-        View::App { head, args } => {
-            matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "add" | "mul" | "complex"))
-                && args.iter().all(|&a| numeric(h, a) || matches!(h.view(a), View::Sym(s) if h.sym_name(s) == "im"))
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    numeric_in(h, t, &mut mc_api::walk::memo())
+}
+
+fn numeric_in<'h>(h: &'h mc_core::Heap, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        match h.view(t) {
+            View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. } => true,
+            View::App { head, args } => {
+                matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "add" | "mul" | "complex"))
+                    && args.iter().all(|&a| numeric_in(h, a, memo) || matches!(h.view(a), View::Sym(s) if h.sym_name(s) == "im"))
+            }
+            _ => false,
         }
-        _ => false,
-    }
+    })
 }

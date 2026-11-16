@@ -151,7 +151,7 @@ impl Label {
             }
         }
         let row = term_row(h, t, 0);
-        Label { row, traditional: true, math: true, text: mc_syntax::Printer::new(h).expr(t), size: None }
+        Label { row, traditional: true, math: true, text: mc_syntax::Printer::brief(h).expr(t), size: None }
     }
 
     /// The label of an integer too long to print: `≈ d.dddd×10^k` from its top limbs (the value to six digits).
@@ -205,7 +205,7 @@ fn term_row<S: Store + ?Sized>(h: &S, t: T<'_>, depth: usize) -> Row {
         }
         _ => {}
     }
-    let printed = mc_syntax::Printer::new(h).expr(t);
+    let printed = mc_syntax::Printer::brief(h).expr(t);
     mc_typeset::typeset_output(&printed).row
 }
 

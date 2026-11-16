@@ -161,7 +161,7 @@ impl<'h> Node<'h> {
     pub(crate) fn label_text(&self, h: &'h Heap) -> Option<String> {
         self.label.map(|l| match h.view(l) {
             View::Str(s) => s.to_string(),
-            _ => mc_syntax::Printer::new(h).expr(l),
+            _ => mc_syntax::Printer::brief(h).expr(l),
         })
     }
 

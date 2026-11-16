@@ -48,7 +48,7 @@ pub type Pieces<'h> = (Vec<(T<'h>, T<'h>)>, Option<T<'h>>);
 
 /// Does `t` contain an explicit complex number (`complex(re, im)`)?
 pub fn has_complex<'h, S: Store + ?Sized>(h: &S, t: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if matches!(h.view(head), View::Sym(s) if &*h.sym_name(s) == "complex") {
@@ -116,7 +116,7 @@ impl<'b, 'h> Diff<'b, 'h> {
             // derivative is 0, not a list of zeros (R22-03)
             if !ready && self.b.sym_of(head) == Some(self.b.hd.list) && self.is_free(u) {
                 // the parts too (a rule may ask for the derivative of an argument inside the list)
-                let mut parts = vec![u];
+                let mut parts = mc_api::walk::Walk::new(u);
                 while let Some(w) = parts.pop() {
                     self.memo.insert(w, self.b.zero());
                     if let View::App { head, args } = h.view(w) {

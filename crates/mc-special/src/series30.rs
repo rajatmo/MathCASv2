@@ -90,7 +90,7 @@ impl Native for SeriesSpecial {
 /// Does `t` mention the symbol `derivative`?
 fn mentions_derivative<'h>(h: &'h mc_core::Heap, t: T<'h>) -> bool {
     let d = h.sym_term(h.sym("derivative"));
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == d {
             return true;

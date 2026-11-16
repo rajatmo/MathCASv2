@@ -1000,7 +1000,7 @@ pub(crate) fn resultant<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> Wor
     let h = env.h();
     let ff = h.sym_term(h.sym("finite_field_element"));
     let has_ff = |u: T<'h>| {
-        let mut stack = vec![u];
+        let mut stack = mc_api::walk::Walk::new(u);
         while let Some(w) = stack.pop() {
             if let mc_api::View::App { head, args } = h.view(w) {
                 if head == ff {
@@ -1021,7 +1021,7 @@ pub(crate) fn resultant<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> Wor
 fn x_in_denominator<'h>(env: &Env<'h>, t: T<'h>, x: T<'h>) -> bool {
     let h = env.h();
     let contains = |t: T<'h>| {
-        let mut stack = vec![t];
+        let mut stack = mc_api::walk::Walk::new(t);
         while let Some(u) = stack.pop() {
             if u == x {
                 return true;
@@ -1034,7 +1034,7 @@ fn x_in_denominator<'h>(env: &Env<'h>, t: T<'h>, x: T<'h>) -> bool {
         false
     };
     let pow = h.sym_term(h.sym(names::POW));
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let mc_api::View::App { head, args } = h.view(u) {
             if head == pow && args.len() == 2 {

@@ -702,7 +702,7 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
         .filter(|&&l| !matches!(h.view(l), mc_core::View::Sym(s) if h.sym_name(s) == "none"))
         .map(|&l| match h.view(l) {
             mc_core::View::Str(t) => t.chars().count(),
-            _ => mc_syntax::Printer::new(h).expr(l).chars().count(),
+            _ => mc_syntax::Printer::brief(h).expr(l).chars().count(),
         })
         .max()
         .unwrap_or(0);

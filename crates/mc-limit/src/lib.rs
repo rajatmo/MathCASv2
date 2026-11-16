@@ -1055,7 +1055,7 @@ impl Native for LimitFn {
                         let l = cx.eval(h.call(h.sym("limit"), &[body, h.call(h.sym(names::RULE), &[*x, *a])]))?;
                         // a finite value: no limit left, no infinity, no failure
                         let mut finite = true;
-                        let mut stack = vec![l];
+                        let mut stack = mc_api::walk::Walk::new(l);
                         while let Some(u) = stack.pop() {
                             match h.view(u) {
                                 View::Sym(s) if matches!(h.sym_name(s).as_str(), "inf" | "complex_infinity" | "indeterminate") => finite = false,

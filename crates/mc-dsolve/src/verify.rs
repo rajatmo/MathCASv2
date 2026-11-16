@@ -59,7 +59,7 @@ pub(crate) fn zero<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, r: T<'h>) -> Res<Verdict>
 fn unknowns<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, t: T<'h>) -> Vec<T<'h>> {
     let h = c.b.heap();
     let mut out: Vec<T<'h>> = vec![];
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) => {

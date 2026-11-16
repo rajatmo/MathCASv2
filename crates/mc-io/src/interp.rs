@@ -36,11 +36,18 @@ fn symbolic_value<'h>(h: &'h mc_core::Heap, it: T<'h>) -> bool {
         _ => it,
     };
     fn free<'h>(h: &'h mc_core::Heap, t: T<'h>) -> bool {
-        match h.view(t) {
-            View::Sym(_) => true,
-            View::App { args, .. } => args.iter().any(|&a| free(h, a)),
-            _ => false,
-        }
+        // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+        free_in(h, t, &mut mc_api::walk::memo())
+    }
+
+    fn free_in<'h>(h: &'h mc_core::Heap, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+        mc_api::walk::cached(memo, t, |memo| {
+            match h.view(t) {
+                View::Sym(_) => true,
+                View::App { args, .. } => args.iter().any(|&a| free_in(h, a, memo)),
+                _ => false,
+            }
+        })
     }
     matches!(h.view(v), View::App { .. }) && free(h, v)
 }

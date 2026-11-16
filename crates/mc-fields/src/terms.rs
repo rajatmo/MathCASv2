@@ -433,6 +433,14 @@ pub fn q_poly_of(h: &Heap, s: &Syms, k: &Field, t: T<'_>, x: T<'_>, b: &mut dyn 
 
 /// The variables of a polynomial term: symbols other than the heads, outside elements and fields.
 pub fn variables<'h>(h: &'h Heap, s: &Syms, t: T<'h>, out: &mut Vec<T<'h>>) {
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    variables_in(h, s, t, out, &mut mc_api::walk::seen())
+}
+
+fn variables_in<'h>(h: &'h Heap, s: &Syms, t: T<'h>, out: &mut Vec<T<'h>>, seen: &mut mc_api::walk::Seen<T<'h>>) {
+    if !seen.insert(t) {
+        return;
+    }
     match h.view(t) {
         View::Sym(_) => {
             if !out.contains(&t) {
@@ -444,7 +452,7 @@ pub fn variables<'h>(h: &'h Heap, s: &Syms, t: T<'h>, out: &mut Vec<T<'h>>) {
                 return;
             }
             for &a in args {
-                variables(h, s, a, out);
+                variables_in(h, s, a, out, seen);
             }
         }
         _ => {}

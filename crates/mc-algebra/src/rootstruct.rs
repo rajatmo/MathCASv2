@@ -45,7 +45,7 @@ fn mul_factors<'h>(h: &'h Heap, t: T<'h>) -> Vec<T<'h>> {
 
 /// Does `t` contain a machine real or a ball?
 fn inexact<'h>(h: &'h Heap, t: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Real(_) | View::Ball { .. } => return true,
@@ -72,7 +72,7 @@ fn rational_in<'h>(env: &Env<'h>, e: T<'h>, v: T<'h>, m: &mut Meter) -> Option<(
 /// Does `t` hold a symbol other than `y` that is not a numeric constant (in argument positions)?
 fn other_symbols<'h>(env: &Env<'h>, t: T<'h>, y: T<'h>) -> bool {
     let h = env.h();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(_) => {

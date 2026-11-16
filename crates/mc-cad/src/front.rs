@@ -114,7 +114,7 @@ impl<'h> Front<'h> {
     /// Does `t` contain a quantifier?
     pub fn has_quantifier(&self, t: T<'h>) -> bool {
         let h = self.h();
-        let mut stack = vec![t];
+        let mut stack = mc_api::walk::Walk::new(t);
         while let Some(u) = stack.pop() {
             if let View::App { head, args } = h.view(u) {
                 if let View::Sym(s) = h.view(head) {
@@ -676,7 +676,7 @@ fn occurs<'h>(h: &'h Heap, f: &QFm<'h>, x: T<'h>) -> bool {
 }
 
 fn contains<'h>(h: &'h Heap, t: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == x {
             return true;

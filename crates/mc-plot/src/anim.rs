@@ -111,7 +111,7 @@ fn frame_pixels<'h>(h: &'h Heap, t: T<'h>) -> Result<(u32, u32, Vec<u8>), String
             }
         }
     }
-    Err(format!("{} is not a graphic", mc_syntax::Printer::new(h).expr(t)))
+    Err(format!("{} is not a graphic", mc_syntax::Printer::brief(h).expr(t)))
 }
 
 /// The exporter of graphics for `export_data`: a `graphics` or `graphics3d` term as PNG (at `dpi`/72 pixels per

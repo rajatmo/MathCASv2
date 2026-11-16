@@ -178,11 +178,18 @@ fn closed_numeric(h: &Heap, c: &Consts, t: T<'_>) -> bool {
             // (exact coefficients only: evaluating one with inexact ones does arithmetic with the root object again)
             View::App { head, args: &[p, k, ..] } if head == h.sym_term(h.sym("root")) && matches!(h.view(k), View::Int(_)) => {
                 fn exact(h: &Heap, t: T<'_>) -> bool {
-                    match h.view(t) {
-                        View::Real(_) | View::Ball { .. } => false,
-                        View::App { head, args } => exact(h, head) && args.iter().all(|&a| exact(h, a)),
-                        _ => true,
-                    }
+                    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+                    exact_in(h, t, &mut mc_api::walk::memo())
+                }
+
+                fn exact_in<'a>(h: &'a Heap, t: T<'a>, memo: &mut mc_api::walk::Memo<T<'a>, bool>) -> bool {
+                    mc_api::walk::cached(memo, t, |memo| {
+                        match h.view(t) {
+                            View::Real(_) | View::Ball { .. } => false,
+                            View::App { head, args } => exact_in(h, head, memo) && args.iter().all(|&a| exact_in(h, a, memo)),
+                            _ => true,
+                        }
+                    })
                 }
                 matches!(h.view(p), View::App { head: f, .. } if f == h.sym_term(h.sym("fn")) || f == h.sym_term(h.sym("function")) || f == h.sym_term(h.sym("&")))
                     && exact(h, p)

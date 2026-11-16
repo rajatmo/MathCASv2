@@ -18,7 +18,7 @@ const CONSTANTS: &[&str] = &["pi", "e", "euler_gamma", "catalan", "golden_ratio"
 pub fn symbols<'h>(sx: &Sx<'_, '_, '_, 'h>, t: T<'h>, except: &[T<'h>]) -> Vec<T<'h>> {
     let h = sx.h();
     let mut out = vec![];
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) => {

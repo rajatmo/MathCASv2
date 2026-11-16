@@ -82,3 +82,20 @@ picture helpers (`svg_size`, `image_path`, `ImageFormat::sniff`): 3,000 cases of
   `#` comments and backquoted names; a qualified `M.match_q` is the module's own), so an old notebook runs; the
   language itself keeps no aliases. String option values of old code (`method: "LeastSquares"`) are not converted:
   a string there may be data (`"Polynomial"` as a value), so the reader cannot tell; the call stays unevaluated.
+
+## Round 45: the format version
+
+- The first line states the format version: `#! mathcas VERSION notebook`, `VERSION` = `MAJOR` or `MAJOR.MINOR`
+  (`Version`). Every notebook written so far (0.12 to 1.0) is format 2, so the header did not change and no file
+  needs rewriting; from 1.0 on the number is counted on its own, independent of the program's version.
+- The reader takes formats 2 to 2.x: a newer minor version reads with a warning on line 1 (unknown attributes and
+  comment lines are kept) and is written back as that version; a newer major version (`3`, `12.4`) is an error that
+  names it and says a newer version wrote it; a version below 2 or a first line that is no header have their own
+  messages. `mc-nbmodel` keeps the version through open and save. The rule for changing the format (minor: what an
+  older reader of the same major keeps unchanged; major: what it would reject or misread, with a converter) is
+  design 08-notebook 7.6.
+- `tests/compat.rs` reads 19 notebooks of the tagged releases 0.12.0 to 0.15.0 (`tests/data/compat/<tag>/`: pages
+  with old predicate names, item and subitem cells, print and failure lines, `examples/notebook.mcn`) and checks the
+  kinds, the output lines of every cell against a plain reading of the lines, that no old predicate name is left and
+  each was written by its new name (31 calls), that the converted code parses with as many errors as before, and that
+  printing and reading again is a fixed point. Tags before 0.12.0 do not exist in the repository's history.

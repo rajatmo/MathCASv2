@@ -167,7 +167,7 @@ impl<'h> Bld<'h> {
                 return true;
             }
         }
-        let mut stack = vec![t];
+        let mut stack = mc_api::walk::Walk::new(t);
         while let Some(u) = stack.pop() {
             if u == x {
                 return false;

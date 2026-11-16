@@ -298,7 +298,7 @@ type Factors<'h> = Vec<(T<'h>, u64)>;
 /// Does `t` contain `x` as a subterm?
 fn contains<'h>(env: &Env<'h>, t: T<'h>, x: T<'h>) -> bool {
     let h = env.h();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == x {
             return true;

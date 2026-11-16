@@ -175,9 +175,16 @@ pub fn real_term<'h>(h: &'h Heap, v: f64) -> T<'h> {
 
 /// Whether a term contains a real (inexact) number: results are then numbers too.
 pub fn inexact<'h>(h: &'h Heap, t: T<'h>) -> bool {
-    match h.view(t) {
-        View::Real(_) => true,
-        View::App { head, args } => inexact(h, head) || args.iter().any(|&a| inexact(h, a)),
-        _ => h.packed(t).is_some_and(|p| matches!(p.elem(), mc_api::Elem::Real | mc_api::Elem::Complex)),
-    }
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    inexact_in(h, t, &mut mc_api::walk::memo())
+}
+
+fn inexact_in<'h>(h: &'h Heap, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        match h.view(t) {
+            View::Real(_) => true,
+            View::App { head, args } => inexact_in(h, head, memo) || args.iter().any(|&a| inexact_in(h, a, memo)),
+            _ => h.packed(t).is_some_and(|p| matches!(p.elem(), mc_api::Elem::Real | mc_api::Elem::Complex)),
+        }
+    })
 }

@@ -38,7 +38,7 @@ fn is_head<'h>(h: &'h Heap, t: T<'h>, name: &str) -> bool {
 
 /// Does `t` contain one of `syms`?
 fn mentions<'h>(h: &'h Heap, t: T<'h>, syms: &[T<'h>]) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if syms.contains(&u) {
             return true;
@@ -217,7 +217,7 @@ fn dnf<'h>(h: &'h Heap, t: T<'h>, cap: usize) -> Option<Vec<Vec<T<'h>>>> {
 
 /// Does `t` contain `sin(u)^k` or `cos(u)^k` (k >= 2) with u depending on `x`?
 fn has_trig_power<'h>(h: &'h Heap, t: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if head == h.sym_term(h.sym(names::POW)) {
@@ -261,7 +261,7 @@ pub(crate) fn squared_trig_tail<'h>(
         _ => vec![r],
     };
     let oscillates = |t: T<'h>| {
-        let mut stack = vec![t];
+        let mut stack = mc_api::walk::Walk::new(t);
         while let Some(u) = stack.pop() {
             if let View::App { head, args } = h.view(u) {
                 if (head == h.sym_term(h.sym("sin")) || head == h.sym_term(h.sym("cos"))) && mentions(h, u, &[x]) {
@@ -311,7 +311,7 @@ pub(crate) fn squared_trig_tail<'h>(
 
 /// Does `t` contain `log(u)` with u depending on `x`?
 fn has_log_of<'h>(h: &'h Heap, t: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if head == h.sym_term(h.sym("log")) && args.len() == 1 && mentions(h, args[0], &[x]) {

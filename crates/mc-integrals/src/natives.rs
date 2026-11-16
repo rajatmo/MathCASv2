@@ -220,7 +220,7 @@ fn generated_parameter<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
 fn is_free_head<'h>(b: &Build<'h>, t: T<'h>, name: &str) -> bool {
     let h = b.heap();
     let s = h.sym(name);
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if matches!(h.view(head), View::App { head: inner, .. } if b.sym_of(inner) == Some(s)) {
@@ -237,7 +237,7 @@ fn is_free_head<'h>(b: &Build<'h>, t: T<'h>, name: &str) -> bool {
 fn closed_in<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
     let h = b.heap();
     let interp = h.sym("interpolating_function");
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     while let Some(u) = stack.pop() {
         if matches!(h.view(u), View::App { head, .. } if b.sym_of(head) == Some(interp)) {
             continue;

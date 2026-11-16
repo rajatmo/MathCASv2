@@ -25,11 +25,25 @@ pub fn offset<'h>(sx: &mut Sx<'_, '_, '_, 'h>, u: T<'h>) -> Res<(T<'h>, i64)> {
 
 /// `t` with the shifted values of known functions of arguments containing `k` reduced.
 pub fn reduce<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, k: T<'h>) -> Res<T<'h>> {
+    // shared subterms are reduced once (a term can be a tree exponentially larger than itself)
+    reduce_in(sx, t, k, &mut mc_api::walk::memo())
+}
+
+fn reduce_in<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, k: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> Res<T<'h>> {
+    if let Some(&r) = memo.get(&t) {
+        return Ok(r);
+    }
+    let r = reduce_node(sx, t, k, memo)?;
+    memo.insert(t, r);
+    Ok(r)
+}
+
+fn reduce_node<'h>(sx: &mut Sx<'_, '_, '_, 'h>, t: T<'h>, k: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> Res<T<'h>> {
     let h = sx.h();
     let View::App { head, args } = h.view(t) else { return Ok(t) };
     let mut new = Vec::with_capacity(args.len());
     for &a in args {
-        new.push(reduce(sx, a, k)?);
+        new.push(reduce_in(sx, a, k, memo)?);
     }
     let name = match h.view(head) {
         View::Sym(s) => h.sym_name(s),

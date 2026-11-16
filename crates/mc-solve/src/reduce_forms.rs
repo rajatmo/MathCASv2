@@ -233,7 +233,7 @@ pub(crate) fn integers_one<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) ->
         return Ok(None);
     }
     // the symbols of the answer outside root objects (whose polynomials are functions of a slot)
-    let mut stack = vec![r];
+    let mut stack = mc_api::walk::Walk::new(r);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(_) => {

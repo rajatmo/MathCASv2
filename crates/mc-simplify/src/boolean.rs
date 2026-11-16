@@ -16,25 +16,39 @@ const CONNECTIVES: &[&str] = &["and", "or", "not", "implies", "xor", "equivalent
 
 /// Is `t` built from the connectives over symbols and `true`/`false` only, with at least one connective?
 fn propositional<'h>(b: &B<'h>, t: T<'h>, top: bool) -> bool {
-    let h = b.heap();
-    match h.view(t) {
-        View::Sym(_) => !top,
-        View::App { head, args } => match h.view(head) {
-            View::Sym(s) if CONNECTIVES.contains(&h.sym_name(s).as_str()) => args.iter().all(|&a| propositional(b, a, false)),
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    propositional_in(b, t, top, &mut mc_api::walk::memo())
+}
+
+fn propositional_in<'h>(b: &B<'h>, t: T<'h>, top: bool, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        let h = b.heap();
+        match h.view(t) {
+            View::Sym(_) => !top,
+            View::App { head, args } => match h.view(head) {
+                View::Sym(s) if CONNECTIVES.contains(&h.sym_name(s).as_str()) => args.iter().all(|&a| propositional_in(b, a, false, memo)),
+                _ => false,
+            },
             _ => false,
-        },
-        _ => false,
-    }
+        }
+    })
 }
 
 fn mentions<'h>(b: &B<'h>, t: T<'h>, name: &str) -> bool {
-    let h = b.heap();
-    match h.view(t) {
-        View::App { head, args } => {
-            matches!(h.view(head), View::Sym(s) if h.sym_name(s) == name) || args.iter().any(|&a| mentions(b, a, name))
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    mentions_in(b, t, name, &mut mc_api::walk::memo())
+}
+
+fn mentions_in<'h>(b: &B<'h>, t: T<'h>, name: &str, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        let h = b.heap();
+        match h.view(t) {
+            View::App { head, args } => {
+                matches!(h.view(head), View::Sym(s) if h.sym_name(s) == name) || args.iter().any(|&a| mentions_in(b, a, name, memo))
+            }
+            _ => false,
         }
-        _ => false,
-    }
+    })
 }
 
 /// `1 - (1 - x1)(1 - x2)...`
@@ -118,13 +132,27 @@ fn parity<'h>(b: &B<'h>, xs: &[T<'h>]) -> T<'h> {
 
 /// The simplest of `t` and its boolean candidates.
 pub fn improve<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, cost: &mut Cost<'h>, t: T<'h>) -> Res<T<'h>> {
+    // shared elements are improved once (a list can be a tree exponentially larger than itself)
+    improve_in(cx, b, cost, t, &mut mc_api::walk::memo())
+}
+
+fn improve_in<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, cost: &mut Cost<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> Res<T<'h>> {
+    if let Some(&r) = memo.get(&t) {
+        return Ok(r);
+    }
+    let r = improve_node(cx, b, cost, t, memo)?;
+    memo.insert(t, r);
+    Ok(r)
+}
+
+fn improve_node<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, cost: &mut Cost<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> Res<T<'h>> {
     // a list: element by element
     if let Some((s, xs)) = b.call_of(t) {
         if b.heap().sym_name(s) == "list" {
             let xs = xs.to_vec();
             let mut out = Vec::with_capacity(xs.len());
             for x in xs {
-                out.push(improve(cx, b, cost, x)?);
+                out.push(improve_in(cx, b, cost, x, memo)?);
             }
             return Ok(b.heap().app(b.heap().sym_term(s), &out));
         }

@@ -1277,7 +1277,7 @@ fn to_machine<'h>(env: &Env<'h>, t: T<'h>) -> Option<T<'h>> {
 /// Does `t` hold a non-real number (an `im` part)?
 fn complex<'h>(h: &'h Heap, t: T<'h>) -> bool {
     let ar = Arith::new(h);
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let Some(Num::Complex(..)) = ar.num(u) {
             return true;
@@ -1784,7 +1784,7 @@ fn kernel_head(name: &str) -> bool {
 
 /// Does `t` mention `x`?
 fn mentions<'h>(h: &'h Heap, t: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == x {
             return true;
@@ -1800,7 +1800,7 @@ fn mentions<'h>(h: &'h Heap, t: T<'h>, x: T<'h>) -> bool {
 /// Is `v` a usable coefficient: no infinity, failure, indeterminate, unresolved derivative or `d` call?
 fn finite_value<'h>(h: &'h Heap, v: T<'h>) -> bool {
     let bad = ["inf", "complex_infinity", "indeterminate", "failure", "d", "nan", "limit", "series"];
-    let mut stack = vec![v];
+    let mut stack = mc_api::walk::Walk::new(v);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) if bad.contains(&h.sym_name(s).as_str()) => return false,
@@ -1874,7 +1874,7 @@ pub(crate) fn non_analytic_table<'h>(
 
 /// Is every call in `t` one of the series kernels' own?
 fn kernel_only<'h>(h: &'h Heap, t: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             let View::Sym(s) = h.view(head) else { return false };
@@ -1915,7 +1915,7 @@ fn taylor_table_with<'h>(
     // negative powers of terms in x: bessel_i(3, 2 x)/x^7 to order -4 needs bessel_i to order 3; round 37)
     let mut extra = 0i64;
     {
-        let mut stack = vec![*e];
+        let mut stack = mc_api::walk::Walk::new(*e);
         while let Some(t) = stack.pop() {
             let View::App { head, args: fargs } = h.view(t) else { continue };
             if let (true, &[b, k]) = (head == h.sym_term(h.sym("pow")), fargs) {
@@ -2183,7 +2183,7 @@ fn non_analytic_form<'h>(
 /// Does `t` contain a call with the head `name`?
 fn mentions_head<'h>(h: &'h Heap, t: T<'h>, name: &str) -> bool {
     let head = h.sym_term(h.sym(name));
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head: hd, args } = h.view(u) {
             if hd == head {

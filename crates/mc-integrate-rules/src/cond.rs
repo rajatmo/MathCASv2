@@ -149,7 +149,7 @@ pub fn compare<'h>(ar: &Arith<'h, Heap>, op: Cmp, a: T<'h>, b: T<'h>) -> bool {
 
 fn complex_free<'h>(ar: &Arith<'h, Heap>, t: T<'h>) -> bool {
     let h = ar.store();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let Some(n) = ar.num(u) {
             if n.as_real().is_none() {

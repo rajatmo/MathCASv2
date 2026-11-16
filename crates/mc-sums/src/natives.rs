@@ -100,7 +100,7 @@ fn option<'h>(h: &'h mc_core::Heap, rules: &[T<'h>], name: &str) -> Option<T<'h>
 
 /// Does `t` hold the subterm `x` (a head or an argument)?
 fn contains_head<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == x {
             return true;
@@ -116,7 +116,7 @@ fn contains_head<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
 /// The base q of the infinite q-Pochhammer symbols `q_pochhammer(a, q)` in `t`, when they all share one.
 fn q_base<'h>(h: &'h mc_core::Heap, t: T<'h>) -> Option<T<'h>> {
     let mut found: Option<T<'h>> = None;
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     let qp = h.sym_term(h.sym("q_pochhammer"));
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {

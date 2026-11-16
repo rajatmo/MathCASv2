@@ -357,7 +357,7 @@ pub(crate) fn size<'h>(b: &Build<'h>, t: T<'h>, cap: usize) -> usize {
 
 /// Is `t` a polynomial in `x` (sums, products and non-negative integer powers of `x` and of terms free of it)?
 pub(crate) fn is_poly<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if u == x || is_free(b, u, x) {
             continue;

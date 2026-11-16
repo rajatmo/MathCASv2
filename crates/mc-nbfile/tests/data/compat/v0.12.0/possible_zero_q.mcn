@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# possible_zero_q
+
+#% text
+# `possible_zero_q(e)` gives true when e is probably zero.
+
+#% section
+# Details
+
+#% item
+# True when `simplify` gives 0; otherwise e is evaluated at three complex sample points for its symbols, first in machine numbers and then to 40 digits, and counts as zero when no value can be told from 0.
+
+#% item
+# `assumptions:` is passed to `simplify`. A true answer from the numerical test is a probability, not a proof.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+possible_zero_q((e + pi)^2 - e^2 - pi^2 - 2*e*pi)
+#% output
+#= true
+
+#% cell
+possible_zero_q(exp(pi) - pi^e)
+#% output
+#= false
+
+#% cell
+possible_zero_q(1/x + 1/y - (x + y)/(x*y))
+#% output
+#= true
+
+#% cell
+possible_zero_q(sqrt(x^2) - x)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `simplify`, `n`

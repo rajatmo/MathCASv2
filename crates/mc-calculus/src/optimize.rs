@@ -235,7 +235,7 @@ fn minimize1<'h>(
         return steps::minimize_steps(c, g, cond, x);
     }
     // no other symbols
-    let mut stack = vec![g];
+    let mut stack = mc_api::walk::Walk::new(g);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) if u != x && !matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma") => return Ok(None),
@@ -517,7 +517,7 @@ fn gcd(a: i64, b: i64) -> i64 {
 
 /// Does `t` contain a machine real?
 fn has_machine(h: &mc_core::Heap, t: T<'_>) -> bool {
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     let mut budget = 100_000usize;
     while let Some(u) = stack.pop() {
         match h.view(u) {
@@ -939,7 +939,7 @@ fn solve_staged<'h>(c: &mut C<'_, '_, '_, '_, 'h>, system: &[T<'h>], unknowns: &
 fn boolean_declared<'h>(h: &'h impl Store, cond: T<'h>, v: T<'h>) -> bool {
     let el = h.sym_term(h.sym("element"));
     let bools = h.sym_term(h.sym("booleans"));
-    let mut stack = vec![cond];
+    let mut stack = mc_api::walk::Walk::new(cond);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if head == el && args.len() == 2 && args[0] == v && args[1] == bools {
@@ -1121,7 +1121,7 @@ mod steps {
         let b = c.b;
         let h = b.heap();
         let mut out = vec![];
-        let mut stack = vec![g];
+        let mut stack = mc_api::walk::Walk::new(g);
         while let Some(u) = stack.pop() {
             if let View::App { head, args } = h.view(u) {
                 if args.len() == 1 && b.sym_of(head).is_some_and(|s| STEP.contains(&h.sym_name(s).as_str())) && !is_free(b, u, x) && !out.contains(&u) {
@@ -1304,7 +1304,7 @@ mod steps {
         let b = c.b;
         let h = b.heap();
         // no other symbols
-        let mut stack = vec![g];
+        let mut stack = mc_api::walk::Walk::new(g);
         while let Some(u) = stack.pop() {
             match h.view(u) {
                 View::Sym(s) if u != x && !matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma") => return Ok(None),

@@ -96,14 +96,21 @@ fn constant_rules<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, e: T<'h>) ->
 }
 
 fn contains<'h>(b: &Build<'h>, t: T<'h>, s: T<'h>) -> bool {
-    let h = b.heap();
-    if t == s {
-        return true;
-    }
-    match h.view(t) {
-        View::App { head, args } => head == s || args.iter().any(|&a| contains(b, a, s)),
-        _ => false,
-    }
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    contains_in(b, t, s, &mut mc_api::walk::memo())
+}
+
+fn contains_in<'h>(b: &Build<'h>, t: T<'h>, s: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        let h = b.heap();
+        if t == s {
+            return true;
+        }
+        match h.view(t) {
+            View::App { head, args } => head == s || args.iter().any(|&a| contains_in(b, a, s, memo)),
+            _ => false,
+        }
+    })
 }
 
 /// The sign of a closed real term, proved: `Some(0)` only when it is exactly 0, `Some(1)` or `Some(-1)` when its

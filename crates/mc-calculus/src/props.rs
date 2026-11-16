@@ -718,7 +718,7 @@ fn analytic<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> R
         }
     }
     // non-analytic continuous functions of the variables: not decided here
-    let mut stack = vec![c.f];
+    let mut stack = mc_api::walk::Walk::new(c.f);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if b.sym_of(head).is_some_and(|s| CONTINUOUS.contains(&h.sym_name(s).as_str())) && c.vars.iter().any(|&x| !is_free(b, u, x)) {
@@ -751,7 +751,7 @@ fn analytic<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> R
 /// (`x^a`, `log(x)^n`)? Its domain conditions are those of generic exponents.
 fn symbolic_power<'h>(b: &Build<'h>, f: T<'h>, vars: &[T<'h>]) -> bool {
     let h = b.heap();
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     while let Some(u) = stack.pop() {
         let View::App { head, args } = h.view(u) else { continue };
         if b.sym_of(head) == Some(b.hd.pow) {
@@ -923,7 +923,7 @@ fn defined_on<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'
         return Ok(false);
     }
     let incomplete = {
-        let mut stack = vec![f];
+        let mut stack = mc_api::walk::Walk::new(f);
         let mut found = false;
         while let Some(u) = stack.pop() {
             if let View::App { head, args } = h.view(u) {
@@ -1923,7 +1923,7 @@ fn nonsmooth_any<'h>(b: &Build<'h>, f: T<'h>, vars: &[T<'h>]) -> bool {
 /// Does `f` contain a function with jumps or kinks (one of [`CONTINUOUS`], or not smooth by the table) of `x`?
 fn nonsmooth<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
     let h = b.heap();
-    let mut stack = vec![f];
+    let mut stack = mc_api::walk::Walk::new(f);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if b.sym_of(head).is_some_and(|s| {
@@ -2306,7 +2306,7 @@ fn grid_witness<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, 
 /// The symbols of `t` (not heads).
 fn symbols<'h>(b: &Build<'h>, t: T<'h>, out: &mut rustc_hash::FxHashSet<T<'h>>) {
     let h = b.heap();
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) => {
@@ -2405,7 +2405,7 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> 
     // strictly monotonic: the derivative of one sign (zero at isolated points only); not for functions with jumps or
     // flat pieces (`floor`, `fractional_part`, `ramp`, ...), whose derivative says nothing about that
     let jumps = {
-        let mut stack = vec![c.f];
+        let mut stack = mc_api::walk::Walk::new(c.f);
         let mut found = false;
         while let Some(u) = stack.pop() {
             if let View::App { head, args } = h.view(u) {
@@ -2518,7 +2518,7 @@ fn realified<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: 
 fn parts_of_polynomials<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
     let h = b.heap();
     let mut found = false;
-    let mut stack = vec![t];
+    let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         let View::App { head, args } = h.view(u) else { continue };
         if b.sym_of(head).is_some_and(|s| matches!(h.sym_name(s).as_str(), "conjugate" | "re" | "im_part")) && !is_free(b, u, x) {
@@ -2535,11 +2535,18 @@ fn parts_of_polynomials<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
 
 /// Does `t` contain a call of `name`?
 fn contains_call<'h>(b: &Build<'h>, t: T<'h>, name: &str) -> bool {
-    let h = b.heap();
-    match h.view(t) {
-        View::App { head, args } => b.sym_of(head) == Some(h.sym(name)) || args.iter().any(|&a| contains_call(b, a, name)),
-        _ => false,
-    }
+    // shared subterms are decided once (a term can be a tree exponentially larger than itself)
+    contains_call_in(b, t, name, &mut mc_api::walk::memo())
+}
+
+fn contains_call_in<'h>(b: &Build<'h>, t: T<'h>, name: &str, memo: &mut mc_api::walk::Memo<T<'h>, bool>) -> bool {
+    mc_api::walk::cached(memo, t, |memo| {
+        let h = b.heap();
+        match h.view(t) {
+            View::App { head, args } => b.sym_of(head) == Some(h.sym(name)) || args.iter().any(|&a| contains_call_in(b, a, name, memo)),
+            _ => false,
+        }
+    })
 }
 
 /// The first arguments of the calls of the gamma-type functions in `t` that depend on `x`.
