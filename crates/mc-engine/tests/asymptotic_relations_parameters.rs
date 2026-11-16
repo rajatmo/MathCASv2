@@ -80,8 +80,8 @@ fn powers_at_a_finite_point() {
         trend(&mut e, "sin(p*(x - 1))/(x - 1)^q", "[p -> 3, q -> 3/2]", "x -> 1 + 10^-k", false);
         trend(&mut e, "sin(p*(x - 1))/(x - 1)^q", "[p -> 3, q -> 3/2]", "x -> 1 - 10^-k", false);
 
-        // the ratio tends to 1/p: the equation
-        same(&mut e, "asymptotic_equivalent(1 / sinh(p * (x - 1)), 1 / (x - 1), x -> 1)", "p^-1 == 1");
+        // the ratio tends to 1/p: the equation 1/p == 1, solved for p
+        same(&mut e, "asymptotic_equivalent(1 / sinh(p * (x - 1)), 1 / (x - 1), x -> 1)", "p == 1");
         same(&mut e, "asymptotic_equivalent(1 / sinh(1 * (x - 1)), 1 / (x - 1), x -> 1)", "true");
         same(&mut e, "asymptotic_equivalent(1 / sinh(2 * (x - 1)), 1 / (x - 1), x -> 1)", "false");
     });

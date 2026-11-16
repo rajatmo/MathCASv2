@@ -74,9 +74,10 @@ fn asymptotic_relations_with_a_parameter() {
 fn convergence_on_the_boundary_circle() {
     assert_eq!(
         ev("sum_convergence((-3)^n_u * (x^(2 * n_u) / n_u), n_u)"),
-        "-3*x^2 != 1 and abs(x) <= (1/3)*3^(1/2) or abs(x) < (1/3)*3^(1/2)"
+        "abs(x) <= (1/3)*3^(1/2) and -3*x^2 != 1"
     );
-    assert_eq!(ev("sum_convergence(x^n_u / n_u, n_u)"), "x != 1 and abs(x) <= 1 or abs(x) < 1");
+    // the open disc lies in the closed one less the point 1, so the boundary condition is the whole condition
+    assert_eq!(ev("sum_convergence(x^n_u / n_u, n_u)"), "abs(x) <= 1 and x != 1");
     assert_eq!(ev("sum_convergence(x^n_u / n_u^2, n_u)"), "abs(x) <= 1");
     assert_eq!(ev("sum_convergence(x^n_u * n_u, n_u)"), "abs(x) < 1");
     // a pole in the range where the parameter is an integer from the lower end on

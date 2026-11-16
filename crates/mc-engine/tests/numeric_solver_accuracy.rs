@@ -719,7 +719,11 @@ fn integrals_keep_the_mass_at_singular_ends() {
 #[test]
 fn infinite_sums_with_parameters_carry_their_condition() {
     let mut e = CoreEngine::new();
-    assert_eq!(ev(&mut e, "sum(p^k/k, [k, 1, inf])"), "conditional_expression(-log(1 - p), abs(p) < 1)");
+    // on the unit circle the terms p^k/k converge everywhere but at p = 1 (Dirichlet's test)
+    assert_eq!(ev(&mut e, "sum(p^k/k, [k, 1, inf])"), "conditional_expression(-log(1 - p), abs(p) <= 1 and p != 1)");
+    // nowhere on the circle (the terms do not tend to 0), everywhere on it (absolutely)
+    assert_eq!(ev(&mut e, "sum(p^k, [k, 1, inf])"), "conditional_expression(-1*p/(-1 + p), abs(p) < 1)");
+    assert_eq!(ev(&mut e, "sum(p^k/k^2, [k, 1, inf])"), "conditional_expression(polylog(2, p), abs(p) <= 1)");
     assert_eq!(ev(&mut e, "sum(1/k^p, [k, 1, inf])"), "conditional_expression(zeta(p), re(p) > 1)");
     assert_eq!(ev(&mut e, "sum(p^k/k, [k, 1, inf], generate_conditions: false)"), "-log(1 - p)");
     assert_eq!(ev(&mut e, "sum(x^k, [k, 0, inf], assumptions: abs(x) < 1/2)"), "(1 - x)^-1");

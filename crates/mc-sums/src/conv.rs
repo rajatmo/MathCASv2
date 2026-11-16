@@ -289,7 +289,8 @@ fn ratio_test<'h>(sx: &mut Sx<'_, '_, '_, 'h>, r: T<'h>, n: T<'h>, m: &mut Meter
             return Ok(Some(inside));
         }
         // on the circle |z| = 1 Raabe's s decides as below: s > 1 converges everywhere on it, 0 < s <= 1 everywhere
-        // but at z = 1 (Dirichlet's test: the moduli of the terms decrease to 0 from some n on), s <= 0 nowhere
+        // but at z = 1 (Dirichlet's test: the moduli of the terms decrease to 0 from some n on), s <= 0 nowhere; the
+        // open disc lies inside the closed one less z = 1, so the boundary condition alone is the whole condition
         let n1 = crate::w!(sx, sx.pterm(&c(&rf.num, dn - 1), &ring, m));
         let d1 = crate::w!(sx, sx.pterm(&c(&rf.den, dd - 1), &ring, m));
         let a = sx.div(d1, ld)?;
@@ -307,8 +308,7 @@ fn ratio_test<'h>(sx: &mut Sx<'_, '_, '_, 'h>, r: T<'h>, n: T<'h>, m: &mut Meter
         if sx.is_true(positive) {
             let closed = condition(sx, z, "less_equal")?;
             let ne = sx.ev("unequal", &[z, one])?;
-            let edge = sx.ev("and", &[ne, closed])?;
-            return Ok(Some(sx.ev("or", &[edge, inside])?));
+            return Ok(Some(sx.ev("and", &[closed, ne])?));
         }
         return Ok(Some(inside));
     }

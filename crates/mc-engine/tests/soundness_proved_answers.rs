@@ -1364,7 +1364,11 @@ fn limits_onto_branch_cuts_stay_quick() {
     assert!(holds(&mut e, "abs(limit(log(-2 + t*im), t -> 0, direction: from_below) - (log(2) - im*pi)) < 10^-25"));
     assert!(holds(&mut e, "abs(n(elliptic_k(2 - 10^-20*im), 20) - n(elliptic_k(2), 20)) < 10^-15"));
     // variations: elliptic_e on its cut, and the zero constant of the sinh limit still seen
-    assert_eq!(ev(&mut e, "limit(elliptic_e(2 + t*im), t -> 0, direction: from_above)"), "elliptic_e(2)");
+    // elliptic_e(2) = 0.5991 + 0.5991 i is the value from below (at 40 digits it agrees with elliptic_e(2 - 10^-30 im)
+    // to 10^-27), while elliptic_e(2 + 10^-30 im) = 0.5991 - 0.5991 i: from above the limit is the conjugate
+    assert_eq!(ev(&mut e, "limit(elliptic_e(2 + t*im), t -> 0, direction: from_above)"), "conjugate(elliptic_e(2))");
+    assert!(holds(&mut e, "abs(n(elliptic_e(2 + 10^-30*im), 40) - n(conjugate(elliptic_e(2)), 40)) < 10^-25"));
+    assert!(holds(&mut e, "abs(n(elliptic_e(2 - 10^-30*im), 40) - n(elliptic_e(2), 40)) < 10^-25"));
     let l = ev(&mut e, "limit((fresnel_c(x) - fresnel_c(2))/(sinh(x) - sinh(2)), x -> 2)");
     assert!(holds(&mut e, &format!("abs(({l}) - 1/cosh(2)) < 10^-25")), "{l}");
     let limit = Duration::from_secs(4).mul_f64(std::env::var("MC_TEST_TIME_FACTOR").ok().and_then(|v| v.parse().ok()).unwrap_or(1.0));
