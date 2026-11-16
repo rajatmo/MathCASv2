@@ -424,7 +424,7 @@ mod tests {
             for im in [-6, -3, -1, 1, 2, 3, 7] {
                 for k in [0i64, -50, -40, -30, -20, -12, -7, -4] {
                     let rad = if k == 0 { Mag::ZERO } else { Mag::pow2(k) };
-                    let part = |n: i64| Ball { mid: Ball::from_ratio(n, 2, p).mid, rad: rad.clone() };
+                    let part = |n: i64| Ball { mid: Ball::from_ratio(n, 2, p).mid, rad };
                     let z = CBall::new(part(re), part(im));
                     let (Some(a), Some(b)) = (gamma(&z, p), gamma_by_log(&z, p)) else { continue };
                     let (ra, rb) = (mag(&a.re.rad).max(mag(&a.im.rad)), mag(&b.re.rad).max(mag(&b.im.rad)));
