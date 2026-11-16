@@ -29,9 +29,9 @@ fn relations_with_a_parameter_on_the_boundary() {
     assert_eq!(ev("asymptotic_greater_equal(1, x^a, x -> 0, assumptions: a >= 0)"), "true");
     assert_eq!(ev("asymptotic_less(1, x^a, x -> 0, assumptions: a >= 0)"), "false");
     assert_eq!(ev("asymptotic_less_equal(x^a, x, x -> inf, assumptions: a <= 1)"), "true");
-    // the cases disagree (x^a = o(1) only for a > 0): undecided
-    assert!(ev("asymptotic_greater(1, x^a, x -> 0, assumptions: a >= 0)").starts_with("failure(undecided"));
-    assert!(ev("asymptotic_equivalent(1 + x^n_u, x^n_u, x -> inf, assumptions: n_u >= 0)").starts_with("failure(undecided"));
+    // the cases disagree (x^a = o(1) only for a > 0): the answer holds on the part where it is proved
+    assert_eq!(ev("asymptotic_greater(1, x^a, x -> 0, assumptions: a >= 0)"), "conditional_expression(true, a > 0)");
+    assert_eq!(ev("asymptotic_equivalent(1 + x^n_u, x^n_u, x -> inf, assumptions: n_u >= 0)"), "conditional_expression(true, n_u > 0)");
 }
 
 #[test]

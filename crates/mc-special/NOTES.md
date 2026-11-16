@@ -1325,3 +1325,25 @@ no branch, so it is now exp(Stirling at z + N) divided by the factors in turn (f
 a division does not exclude 0). The box covers of `count_roots(gamma(z) - z - 1, [z, -2 - 2 im, 2 + 2 im])` take
 1.5 s instead of 8.7 s (the cover needs 17 boxes instead of 435 at 64 bits, the boundary walk the same steps).
 The guard scan of a (p+1)Fp series near |z| = 1 (millions of terms) polls the stop flag.
+
+## Round 47: Fibonacci and Lucas of real index
+
+- The continuation in the order is Binet's (Koshy, *Fibonacci and Lucas Numbers with Applications*, 2001, ch. 37,
+  with `cos(pi n)` for `(-1)^n`): `a = (x + sqrt(x^2 + 4))/2`, `F_n(x) = (a^n - cos(pi n) a^-n)/sqrt(x^2 + 4)`,
+  `L_n(x) = a^n + cos(pi n) a^-n`, the formula the numerical `fibonacci(n, x)` already used. `x + sqrt(x^2 + 4)` never
+  vanishes and is never a negative real, so the only non-analytic set is the cut of the square root on the imaginary
+  axis beyond `+-2i`.
+- `more.rs`: `lucas_l(n, x)` gets the numerical value at inexact arguments (it had none); both give the exact values
+  at `x = 0` for a numeric order, `F_n(0) = (1 - cos(pi n))/2`, `L_n(0) = 1 + cos(pi n)` (`a = 1`).
+- `mc-simplify/src/fexpand.rs`: `function_expand` of `fibonacci(n, x)`, `lucas_l(n, x)` for an order that is not an
+  integer literal gives Binet's forms, `a^(+-n)` written `2^(-+n) (x + sqrt(x^2 + 4))^(+-n)`.
+- `lib/special.mc`: the derivatives in x, `L_n' = n F_n` and `F_n' = (n L_n - x F_n)/(x^2 + 4)` (from `a' = a/r`),
+  valid for every order, so `series` at an analytic point takes its Taylor coefficients by differentiation (at 0 they
+  are rational for a rational order). Where they fail (the branch points `+-2i`, infinity) `ds_at` substitutes the
+  Binet forms and `series` expands those: a Puiseux series in `(x -+ 2i)^(1/2)`, valid off the cut of
+  `(x -+ 2i)^(1/2)` and of `sqrt(x^2 + 4)` (so not for `x` straight beyond the branch point along the imaginary
+  axis), and the expansion at `+inf`.
+- Checks: `mc-engine/tests/round47_fibonacci_real.rs` (closed forms against the numerical values at 30 digits for
+  negative and complex x, the three-term recurrence, the numbers at `x = 1`, the integer orders; Taylor coefficients
+  against Cauchy integrals by the trapezoidal rule; derivatives against central differences; the Puiseux series and
+  the expansion at infinity against the function near the point).

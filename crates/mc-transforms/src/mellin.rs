@@ -6,7 +6,9 @@
 //! steps `unit_step(x - a)` (and `g(log x) unit_step(x - 1)` as a Laplace transform at `-s`); the scaling rules
 //! `M[f(a x)] = a^-s F(s)` and `M[f(x^b)] = F(s/b)/|b|`; then the definite integral (item 14D). Sources:
 //! Titchmarsh, *Introduction to the Theory of Fourier Integrals* (1948), section 1.5; Oberhettinger, *Tables of
-//! Mellin Transforms* (1974), sections 1-8 for the table.
+//! Mellin Transforms* (1974), sections 1-8 for the table (the sine integral from 8.1 and Airy's Ai from DLMF
+//! 9.10(vi)). A sum `c + g(x)` with `g -> -c` at 0 or at infinity takes the continuation of `M[g]` past
+//! the pole at 0 (`continued`).
 //!
 //! Inverse, in order: linearity; the table ([`INVERSE_TABLE`]); the rules `a^s G(s) -> g(x/a)` and `G(s + b) ->
 //! x^b g(x)`; then the Mellin-Barnes residue series: the contour of `1/(2 pi i) integrate(F(s) x^-s, s on a vertical
@@ -42,6 +44,8 @@ pub(crate) const TABLE: &str = r#"
 [erf(t), -pi^(-1/2)*gamma(1/2 + s/2)/s, true, -1 < re(s) and re(s) < 0]
 [erfc(t), pi^(-1/2)*gamma(1/2 + s/2)/s, true, re(s) > 0]
 [exp_integral_e(n, t), gamma(s)/(s + n - 1), true, re(s) > 0]
+[sin_integral(t), -gamma(s)*sin(pi*s/2)/s, true, -1 < re(s) and re(s) < 0]
+[airy_ai(t), 3^(-s/3 - 2/3)*gamma(s)/gamma(s/3 + 2/3), true, re(s) > 0]
 [exp_integral_ei(-t), -gamma(s)/s, true, re(s) > 0]
 [exp(-t - 1/t), 2*bessel_k(-s, 2)]
 [exp(-t - t^(-1)), 2*bessel_k(-s, 2)]
@@ -332,7 +336,12 @@ fn continued<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, st: &mut State<
         }
         p = Some(pk);
     }
-    let Some(p) = p else { return Ok(None) };
+    let Some(p) = p else {
+        // g -> -c at infinity instead (the strip of G ends at 0 on the right): h = c + g = O(x^-q) there, h(0+)
+        // is finite, and M[h] is the continuation of G to 0 < re(s) < q (as for M[erf(x) - 1] and
+        // M[sin_integral(x) - pi/2], Oberhettinger 1974, 6.1 and 8.1)
+        return continued_at_infinity(cx, tc, st, ContinuedParts { hsum: *sumf, consts: &consts, a, big }, x, s);
+    };
     // M[x^a h](s) = M[h](s + a) on -p - a < re(s) < -a
     let sa = b.add(&[s, a]);
     let r = subst(cx, b, big, s, sa)?;
@@ -343,6 +352,62 @@ fn continued<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, st: &mut State<
     st.checked = false;
     st.cond = super::and(b, st.cond, Some(cond));
     Ok(Some(b.mul(&[b.mul(&consts), r])))
+}
+
+/// The pieces of `x^a (c + g)` for [`continued_at_infinity`].
+struct ContinuedParts<'a, 'h> {
+    /// `c + g`
+    hsum: T<'h>,
+    /// the constant factors
+    consts: &'a [T<'h>],
+    /// the power `a`
+    a: T<'h>,
+    /// `G = M[g]`
+    big: T<'h>,
+}
+
+/// The continuation of [`continued`] to the right: `x^a (c + g)` with `g -> -c` at infinity and `h = c + g` finite
+/// at 0. `q` is the largest of 1/2, 1, ..., 4 with `x^q h` tending to a finite limit at infinity; then `M[h](s) =
+/// G(s)` on `0 < re(s) < q` (the pole of G at 0 from the constant limit is removed by subtracting it; Titchmarsh
+/// 1948, section 1.5), shifted by `a`. The result is checked numerically by the caller.
+fn continued_at_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, st: &mut State<'h>, parts: ContinuedParts<'_, 'h>, x: T<'h>, s: T<'h>) -> Res<Option<T<'h>>> {
+    let b = tc.b;
+    let h = b.heap();
+    let ContinuedParts { hsum, consts, a, big } = parts;
+    let bad = |l: T<'h>| {
+        ["inf", "complex_infinity", "indeterminate", "limit", "interval"].iter().any(|n| !is_free(b, l, h.sym_term(h.sym(n)))) || !is_free(b, l, x) || is_failure(b, l)
+    };
+    let inf = h.sym_term(h.sym("inf"));
+    let to_inf = b.call(names::RULE, &[x, inf]);
+    let zero_rule = b.call(names::RULE, &[x, b.zero()]);
+    let dir = h.call(h.sym("options"), &[b.call(names::RULE, &[h.sym_term(h.sym("direction")), h.sym_term(h.sym("from_above"))])]);
+    // h(0+) finite and h -> 0 at infinity
+    let l0 = apply(cx, b, "limit", &[hsum, zero_rule, dir])?;
+    let li = apply(cx, b, "limit", &[hsum, to_inf])?;
+    if bad(l0) || bad(li) || li != b.zero() {
+        return Ok(None);
+    }
+    let mut q = None;
+    for k in 1..=8 {
+        cx.tick(1)?;
+        let qk = b.rat(k, 2);
+        let t = cx.eval(b.mul(&[hsum, b.pow(x, qk)]))?;
+        let l = apply(cx, b, "limit", &[t, to_inf])?;
+        if bad(l) {
+            break;
+        }
+        q = Some(qk);
+    }
+    let Some(q) = q else { return Ok(None) };
+    // M[x^a h](s) = M[h](s + a) on -a < re(s) < q - a
+    let r = subst(cx, b, big, s, b.add(&[s, a]))?;
+    let re = b.call("re", &[s]);
+    let lo = b.call("less", &[b.neg(a), re]);
+    let hi = b.call("less", &[re, b.sub(q, a)]);
+    let cond = cx.eval(b.call("and", &[lo, hi]))?;
+    st.checked = false;
+    st.cond = super::and(b, st.cond, Some(cond));
+    Ok(Some(b.mul(&[b.mul(consts), r])))
 }
 
 /// `M[g(log x) unit_step(x - 1)] = L[g](-s)` (`above`) and `M[g(log x) unit_step(1 - x)] = L[g(-u)](s)`, when `x`

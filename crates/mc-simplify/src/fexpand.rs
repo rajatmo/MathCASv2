@@ -11,6 +11,7 @@
 //! | `sinc(x)` | `sin(x)/x` |
 //! | `sec`, `csc`, `cot`, `sech`, `csch`, `coth` | reciprocals of `cos`, `sin`, `cosh`, `sinh` |
 //! | `chebyshev_t(n, x)`, `chebyshev_u(n, x)` (symbolic n) | `cos(n acos(x))`, `sin((n + 1) acos(x))/sqrt(1 - x^2)` |
+//! | `fibonacci(n, x)`, `lucas_l(n, x)` (symbolic n) | Binet's forms `(a^n - cos(pi n) a^-n)/sqrt(x^2 + 4)`, `a^n + cos(pi n) a^-n`, `a = (x + sqrt(x^2 + 4))/2` |
 //! | `catalan_number(n)` (symbolic n), `factorial_power(x, n[, h])` | gamma functions |
 //! | `dirac_delta(x, y, ...)` | `dirac_delta(x) dirac_delta(y) ...` |
 //! | `elliptic_nome_q(m)` | `exp(-pi elliptic_k(1 - m)/elliptic_k(m))` |
@@ -288,6 +289,21 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
         ("chebyshev_u", [n, x]) if !is_integer(b, *n) => {
             let s = b.call_named("sin", &[b.mul(&[b.add(&[*n, one]), b.call_named("acos", &[*x])])]);
             b.div(s, b.mul(&[b.pow(b.add(&[one, *x]), half), b.pow(b.sub(one, *x), half)]))
+        }
+        // Binet's formulas continued in the order (Koshy, Fibonacci and Lucas Numbers with Applications, 2001,
+        // ch. 37): with r = sqrt(x^2 + 4) and a = (x + r)/2, F_n(x) = (a^n - cos(pi n) a^-n)/r and
+        // L_n(x) = a^n + cos(pi n) a^-n; a^(+-n) is written 2^(-+n) (x + r)^(+-n) (2 > 0, so the power splits)
+        ("fibonacci" | "lucas_l", [n, x]) if !is_integer(b, *n) => {
+            let r = b.pow(b.add(&[b.int(4), b.powi(*x, 2)]), half);
+            let s = b.add(&[*x, r]);
+            let up = b.mul(&[b.pow(b.int(2), b.neg(*n)), b.pow(s, *n)]);
+            let c = b.call_named("cos", &[b.mul(&[*n, pi])]);
+            let down = b.mul(&[c, b.pow(b.int(2), *n), b.pow(s, b.neg(*n))]);
+            if name == "fibonacci" {
+                b.div(b.sub(up, down), r)
+            } else {
+                b.add(&[up, down])
+            }
         }
         ("catalan_number", [n]) if !is_integer(b, *n) => {
             let num = b.mul(&[b.pow(b.int(2), b.mul(&[b.int(2), *n])), g(b.add(&[*n, half]))]);

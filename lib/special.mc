@@ -29,7 +29,7 @@ fn ds_heads() = [sin_integral, sinh_integral, cos_integral, cosh_integral, exp_i
   hypergeometric_pfq_regularized, anger_j, weber_e, zeta, factorial2, barnes_g, hyperfactorial, elliptic_theta_prime,
   hypergeometric_u, airy_ai, airy_bi, airy_ai_prime, airy_bi_prime, airy_ai_zero, airy_bi_zero, riemann_siegel_z,
   bessel_j_zero, bessel_y_zero, erf, erfc, fresnel_c, fresnel_s, gamma_regularized, hankel_h1, hankel_h2,
-  spherical_hankel_h1, spherical_hankel_h2, lerch_phi]
+  spherical_hankel_h1, spherical_hankel_h2, lerch_phi, fibonacci, lucas_l]
 fn ds_known(t) = not is_atom(t) and some(ds_heads(), f => f === head(t))
 
 rule ds_series(e_, x_, x0_, k_, opts___) := ds_series_at(e, x, x0, k)
@@ -957,3 +957,19 @@ rule prime_zeta_p(s_) := {
 } when is_inexact(s) and is_real(s) and s >= 1/5 and s < 1
 # prime_zeta_p over a list or matrix of arguments
 rule prime_zeta_p(xs_) := map(prime_zeta_p, xs) when is_list(xs)
+
+# --- Fibonacci and Lucas functions of any order: derivatives in x ---
+# With r = sqrt(x^2 + 4) and a = (x + r)/2, a' = a/r, so Binet's forms F_n(x) = (a^n - cos(pi n) a^-n)/r and
+# L_n(x) = a^n + cos(pi n) a^-n (Koshy, Fibonacci and Lucas Numbers with Applications, 2001, ch. 37) give
+# L_n' = n F_n and F_n' = (n L_n - x F_n)/(x^2 + 4), for every order n (for natural n the polynomial identities).
+rule derivative(0, 1)(lucas_l)(n_, x_) := n*fibonacci(n, x)
+rule derivative(0, 1)(fibonacci)(n_, x_) := (n*lucas_l(n, x) - x*fibonacci(n, x))/(x^2 + 4)
+# where the Taylor coefficients fail (the branch points x = +-2i of sqrt(x^2 + 4), or infinity), series expands
+# Binet's forms themselves
+fn ds_binet(n, u, s) = {
+  let r = sqrt(u^2 + 4)
+  if s === 1 then 2^-n*(u + r)^n + cos(n*pi)*2^n*(u + r)^-n
+  else (2^-n*(u + r)^n - cos(n*pi)*2^n*(u + r)^-n)/r
+}
+rule ds_at(fibonacci(n_, u_), 2, u0_, k_) := ds_binet(n, u, 0) when not is_integer(n)
+rule ds_at(lucas_l(n_, u_), 2, u0_, k_) := ds_binet(n, u, 1) when not is_integer(n)

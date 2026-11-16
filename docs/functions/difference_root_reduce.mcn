@@ -4,19 +4,48 @@
 # difference_root_reduce
 
 #% text
-# `difference_root_reduce(lhs == rhs, n)` decides an identity between sequences of the integer n: `true` when it holds, `false` when it fails.
+# `difference_root_reduce(expr, n)` writes the sequence expr of the integer n as one `difference_root`: a linear recurrence with polynomial coefficients and the initial values that start it. `difference_root_reduce(lhs == rhs, n)` decides an identity between sequences: `true` when it is proved, `false` when it fails at an integer.
 
 #% section
 # Details
 
 #% item
-# The two sides are compared exactly at n = 0, 1, ..., 40. For holonomic sides (Fibonacci and Lucas numbers, polynomials, factorials, binomials, ...) whose difference satisfies a recurrence of order below that, agreement on these terms proves the identity.
+# Periodic sequences (built from mod(a n + b, m) and Kronecker symbols of an odd modulus) give y(n + p) == y(n) with the period p; quotient(n, m) gives y(n + m) == y(n) + 1.
+
+#% item
+# Hypergeometric terms (polynomials, rational functions, powers, exp, factorials, gamma, binomials and Catalan numbers of arguments linear in n) give a first-order recurrence B(n) y(n + 1) == A(n) y(n) with y(0); a term whose leading coefficient B vanishes at some n >= 0 is left unevaluated.
+
+#% item
+# Sums and products of powers, Fibonacci and Lucas numbers, difference_root sequences with constant coefficients and partial sums of these give their recurrence with constant coefficients. A constant added to such a sequence gives an inhomogeneous recurrence; `method: homogeneous` gives a homogeneous one of one order more.
+
+#% item
+# An identity is true when the difference of the sides has a recurrence with constant coefficients of order d and vanishes at n = 0, ..., d - 1 (a symbolic index in Fibonacci and Lucas numbers is handled through Binet's form). Agreement at finitely many integers without such a bound is no proof: the call then stays unevaluated.
 
 #% section
 # Examples
 
 #% subsection
 # Basic examples
+
+#% cell
+difference_root_reduce(fibonacci(n), n)
+#% output
+#= difference_root((FormalY, FormalN) => [-FormalY(FormalN) - FormalY(1 + FormalN) + FormalY(2 + FormalN) == 0, FormalY(0) == 0, FormalY(1) == 1])(n)
+
+#% cell
+difference_root_reduce(catalan_number(n), n)
+#% output
+#= difference_root((FormalY, FormalN) => [(-2 - 4*FormalN)*FormalY(FormalN) + (2 + FormalN)*FormalY(1 + FormalN) == 0, FormalY(0) == 1])(n)
+
+#% cell
+difference_root_reduce(mod(n, 3), n)
+#% output
+#= difference_root((FormalY, FormalN) => [-FormalY(FormalN) + FormalY(3 + FormalN) == 0, FormalY(0) == 0, FormalY(1) == 1, FormalY(2) == 2])(n)
+
+#% cell
+difference_root_reduce(fibonacci(n) + 1, n, method: homogeneous)
+#% output
+#= difference_root((FormalY, FormalN) => [FormalY(FormalN) - 2*FormalY(2 + FormalN) + FormalY(3 + FormalN) == 0, FormalY(0) == 1, FormalY(1) == 2, FormalY(2) == 2])(n)
 
 #% cell
 difference_root_reduce(fibonacci(n + 1)*fibonacci(n - 1) - fibonacci(n)^2 == (-1)^n, n)
@@ -29,7 +58,7 @@ difference_root_reduce(fibonacci(2*n) == fibonacci(n)*lucas_l(n), n)
 #= true
 
 #% cell
-difference_root_reduce(fibonacci(n + 1) == (fibonacci(n) + lucas_l(n))/2, n)
+difference_root_reduce(fibonacci(m + n) == (fibonacci(m)*lucas_l(n) + lucas_l(m)*fibonacci(n))/2, n)
 #% output
 #= true
 
@@ -42,4 +71,4 @@ difference_root_reduce(fibonacci(n) == n, n)
 # See also
 
 #% text
-# `difference_root`, `fibonacci`, `lucas_l`
+# `difference_root`, `fibonacci`, `lucas_l`, `r_solve`

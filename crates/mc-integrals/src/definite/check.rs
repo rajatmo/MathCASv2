@@ -245,8 +245,11 @@ fn numerical<'h>(
 ) -> Res<Option<(f64, f64, Option<f64>)>> {
     let h = b.heap();
     let rule = h.call(h.sym(names::RULE), &[h.sym_term(h.sym("error_estimate")), cx.bool(true)]);
+    // a modest precision goal: the comparison uses the error estimate, and a goal that is not met would print a
+    // warning, which inside a `when` condition is an effect and fails the caller
+    let goal = h.call(h.sym(names::RULE), &[h.sym_term(h.sym("precision_goal")), b.int(6)]);
     let spec = h.call(b.hd.list, &[x, l, r]);
-    let ni = apply(cx, b, "n_integrate", &[f, spec, h.call(h.sym("options"), &[rule])])?;
+    let ni = apply(cx, b, "n_integrate", &[f, spec, h.call(h.sym("options"), &[rule, goal])])?;
     let (val, err) = match call_of(b, ni).as_ref().map(|(n, a)| (n.as_str(), *a)) {
         Some(("around", [val, err])) => (*val, Some(*err)),
         _ => (ni, None),

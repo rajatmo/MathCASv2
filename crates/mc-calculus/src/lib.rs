@@ -102,7 +102,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("d_solve", "d_solve(eqs, y, x): the solutions [[y -> fn([x], sol)]] of differential equations for y(x) (linear of any order, the classical first-order classes, Riccati, special-function and Liouvillian bases, linear systems, first-order linear and wave PDEs, delay equations), with conditions y(x0) == v; constants c(1), c(2), ...; every solution checked by substitution"),
     ("d_solve_value", "d_solve_value(eqs, y(x), x): the solution of d_solve as an expression (fn([x], sol) for y, any expression in y such as y(3) or y'(x))"),
     ("asymptotic_d_solve_value", "asymptotic_d_solve_value(eqs, y(x), [x, x0, n]): a series solution of degree n at x0 (Taylor at an ordinary point, Frobenius at a regular singular point); asymptotic_d_solve_value(eqs, y(x), x, [e, 0, n]) the regular perturbation series in e"),
-    ("r_solve", "r_solve(eqs, a, n): the solutions [[a -> fn([n], sol)]] of a linear recurrence with constant coefficients, with initial values a(k) == v"),
+    ("r_solve", "r_solve(eqs, a, n): the solutions [[a -> fn([n], sol)]] of a linear recurrence with constant coefficients, with initial values a(k) == v; r_solve(eqs, [a, b], n) for systems"),
     ("r_solve_value", "r_solve_value(eqs, a(n), n): the solution of r_solve as an expression"),
     ("laplace_transform", "laplace_transform(f, t, s): the Laplace transform integrate(f exp(-s t), [t, 0, inf]); laplace_transform(f, [t1, t2], [s1, s2]) in several variables; generate_conditions: true for the region of convergence"),
     ("inverse_laplace_transform", "inverse_laplace_transform(F, s, t): the inverse Laplace transform (rational functions by residues, delays, shifts, a table, the derivative rule for logarithms)"),
@@ -188,7 +188,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("asymptotic_solve", "asymptotic_solve(eqs, [y, y0], [x, x0, k]): the solution y(x) through y(x0) = y0 as a power series to order k (regular points; systems with [[y1, y2], [a1, a2]])"),
     ("d_stability_conditions", "d_stability_conditions(eqs, vs, t), (..., points): [equilibrium, condition for asymptotic stability] for autonomous differential equations"),
     ("r_stability_conditions", "r_stability_conditions(eqs, vs, n), (..., points): [equilibrium, condition for asymptotic stability] for autonomous recurrence equations"),
-    ("difference_root_reduce", "difference_root_reduce(lhs == rhs, n): true when the identity of the sequences holds for n = 0, ..., 40, false when it fails there"),
+    ("difference_root_reduce", "difference_root_reduce(expr, n): the sequence as one difference_root (periodic, hypergeometric and C-finite sequences); difference_root_reduce(lhs == rhs, n): true when the identity is proved, false at a counterexample"),
     ("green_function", "green_function([L, bc1, bc2], u(x), [x, a, b], y): the Green's function of a second-order linear operator with two homogeneous conditions (boundary or initial)"),
 ];
 

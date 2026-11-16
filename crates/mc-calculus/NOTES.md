@@ -1951,3 +1951,81 @@ expected arrangement `(1 + (-1)^n)/2` of even-only coefficients (ours is `mod(n,
   invariants, half-periods and roots, of the inverse Jacobi functions of a numeric parameter (the cuts of the principal
   branches in the plane are not proved) and of Lommel functions with parameters.
   Tests: `mc-engine/tests/round47_props.rs`.
+## Round 47: asymptotic relations with parameters
+When the parameter-free decision (`calc_order`, the weak-assumption split) is undecided and f, g have parameters,
+`calc_param` (lib/calculus.mc, asymptotic-relations section) answers `conditional_expression(value, region)`:
+- leading terms with the exponents as expressions in the parameters: c t^e at a finite point (`cb_lead` on each
+  side, x = a +- t; the exponents of both sides must agree), the dominant term c x^k exp(b x) at inf (the terms of
+  `trig_to_exp(h)`, each dominant under the condition that its b, or its k when the b agree, exceeds the others');
+- with the sizes s = -e (b or k at inf), q = f/g -> 0 where s_f < s_g and |q| -> inf where s_f > s_g (de Bruijn,
+  Asymptotic Methods in Analysis, 1.2-1.4; exp-power comparison as in Rosenlicht, Hardy fields, J. Math. Anal. Appl.
+  93 (1983)); the value of each relation there is fixed (greater and greater_equal read the user's f/g);
+- the region reported is one sufficient region, reduced in the parameters with the assumptions: q -> 0 when f/g is a
+  single power c t^e; otherwise f between g and 1 (both vanish and f more slowly, or both grow and f more slowly),
+  then q -> 0, then |q| -> inf. A leading coefficient that can vanish adds c > 0. Equal sizes: equivalence is the
+  equation c_f/c_g == 1 (`1/p == 1`);
+- products over `[x, y] -> [a, b]` with factors in one variable each: every variable but one must have a finite
+  nonzero limit of its part of f/g (y^(1 - n) at y -> 1), the other is decided alone.
+A weak assumption `a >= 0` whose two cases disagree now gives the region of the open case:
+`asymptotic_greater(1, x^a, x -> 0, assumptions: a >= 0)` is `conditional_expression(true, a > 0)` (at a = 0 x^a = 1
+is not o(1)), `asymptotic_equivalent(1 + x^n, x^n, x -> inf, assumptions: n >= 0)` is
+`conditional_expression(true, n > 0)` (at n = 0 the ratio is 2); a plain `true` would be wrong at the boundary.
+Checked in `round47_asymptotic.rs`: the parameter-free relation at sample values inside each region and the ratio
+|f/g| at points approaching the limit point, inside and outside.
+
+## Round 47: Hankel transforms by Meijer G
+
+`hankel_transform` (lib/calculus.mc, `calc_hankel_mb`): f is the Meijer G-function its Mellin transform defines,
+and the Hankel transform of a G-function is again one (Luke 1969, 5.6; Prudnikov, Brychkov and Marichev 3, 1990,
+2.24.1; Adamchik and Marichev, ISSAC 1990); the existing Mellin-product inversion computes it and reduces it to
+named functions where `meijer_g` can. Changes:
+- a summand with a pole of gamma in its closed form (its own integral diverges, as 1/r^2 and exp(-m r)/r^2 in
+  (1 - exp(-m r))/r^2), a step (r d(f)/f free of r without f being a power), or a growing exp(-a r), a <= 0, no
+  longer fails or gives a divergent value: the whole f goes to the Mellin product;
+- a Mellin transform that needs a symbolic scale (f(a r), a^2/r^2) is taken for positive parameters, the generic
+  answer as for exp(-a r) (no condition attached);
+- generalized transforms, the convention of `fourier_transform(1)`: f -> L != 0 at
+  infinity (erf(r)) has no classical transform; its Abel value lim e -> 0+ of integrate(exp(-e r) f J_nu(s r) r) is
+  that of f - L plus L times the one of 1, which is 0 for nu = 0 and s > 0 (e/(e^2 + s^2)^(3/2) -> 0; the
+  L dirac_delta(s)/s at s = 0 is left out) and 2 L gamma(1 + nu/2)/(gamma(nu/2) s^2) otherwise;
+- a G-function with p = q is also tried flipped, G^{n,m}_{q,p}(1/x | 1 - b; 1 - a) (DLMF 16.19.1), whose Slater sum
+  may have simple poles; R asin(u)/u is written R asinh(t)/t, t = (-u^2)^(1/2) (the same even series).
+Evaluate now: unit_step(a - r) (a J1(a s) unit_step(a)/s), (1 - exp(-m r))/r^2 (asinh(m/s), m > 0), log(1 + a^2/r^2)
+(a G^{2,1}_{1,3}, coincident b's do not reduce), airy_ai(r) (three 2F3 terms in -s^6/36), erf(r). Decline: cos(r)
+(the inversion gives -heaviside_theta(1 - s^2)/(1 - s^2)^(3/2), the Abel value, but the balanced-case check by
+forward Mellin quadrature cannot run on a non-integrable singularity, so it is not accepted unchecked);
+cos(r)/(1 + r^2) and sin(r)/(b^2 + r^2) (the products have no single G; the closed forms cosh(1) K0(s) and
+(pi/2) exp(-b) I0(b s) hold only for s > 1 resp. s < 1, Gradshteyn-Ryzhik 6.737); airy_bi(r) (diverges, no Abel
+value); elliptic_k(r), elliptic_e(r) (complex on r > 1, the branch on the cut is a convention); sin_integral(r^2)
+(see mc-transforms NOTES); (1 - bessel_j(0, a r))/r^2 of order 1 (the check.rs warning in a condition). Checked in
+`round47_hankel.rs` against n_integrate of the defining integral at two s values each.
+
+## Round 47: sequences as one difference_root
+
+Source in `lib/calculus.mc` (helpers `cb_drr_`), after the identity rule of `difference_root_reduce`.
+- `difference_root_reduce(expr, n)` (and of a pure function, and of a list, all elements or none) gives one
+  `difference_root` for three classes, each proved: periodic sequences (n only inside `mod(a n + b, m)` with integer
+  a, b, or `kronecker_symbol(n, m)` with odd m > 0, a Jacobi symbol periodic mod m; period the lcm, at most 200):
+  y(n + p) = y(n); `quotient(n, m)`: y(n + m) = y(n) + 1; hypergeometric terms (ratio t(n + 1)/t(n) rational, from
+  pochhammer forms of gamma, factorial, binomial, Catalan and powers; Petkovsek, Wilf and Zeilberger, A = B, ch. 5):
+  B(n) y(n + 1) = A(n) y(n) with y(0), declined when B has a root among n = 0, 1, 2, ... (decided by `reduce` over
+  the integers); C-finite sequences (Kauers and Paule, The Concrete Tetrahedron, ch. 4): characteristic polynomials
+  of sums by lcm, of products by the resultant res_y(P(y), y^q Q(x/y)), of an argument a n + b by res_y(P(y), x - y^a),
+  of a partial sum times (x - 1), of a `difference_root` with constant coefficients read from its equation. A
+  constant c gives P(S) y = P(1) c, or with `method: homogeneous` the lcm with x - 1.
+- The result is printed as `difference_root((FormalY, FormalN) => [...])`: the body is built as text and parsed
+  (`to_expression`), because the body of a pure function is held and a body made by substitution keeps the
+  evaluator's order of terms; the text has the constant first, then the shifts in increasing order, polynomial
+  coefficients in parentheses.
+- Identities `lhs == rhs`: `true` only with a proof (the difference simplifies to 0, or is C-finite of order d with
+  a nonzero constant term in its characteristic polynomial and vanishes at n = 0, ..., d - 1; a symbolic index in
+  Fibonacci and Lucas numbers through Binet's form with phi^s and cos(pi s) phi^-s as independent symbols);
+  `false` at a numeric counterexample among n = 0, ..., 40; otherwise unevaluated. Before, agreement at n = 0..40
+  gave `true` without a proof (`mod(n, 41) == n` said `true`).
+- Left: initial values at negative n for terms whose leading coefficient vanishes at a negative integer (the
+  form with y(-2), y(-1) for binomial(2 n, n) is not produced; ours starts at y(0), which is enough); terms whose
+  leading coefficient vanishes at some n >= 0 ((n + 1)/(n - 1), the list element n); products of a hypergeometric
+  term with a C-finite one (a general closure over Q(n) would do it); sums with a binomial summand
+  (`sum(binomial(2 m + 1, 2 k) 3^k, [k, 0, m])`, needs creative telescoping).
+- Checked in `mc-engine/tests/round47_difference_roots.rs`: the values of every new `difference_root` against the
+  expression at n = 0..30.

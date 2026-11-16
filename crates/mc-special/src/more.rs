@@ -1142,21 +1142,34 @@ fn fib_poly(n: u64, lucas: bool) -> Vec<Rat> {
     cur
 }
 
+/// The Fibonacci or Lucas function of any order `n` at `x` by Binet's formulas continued in the order (Koshy,
+/// *Fibonacci and Lucas Numbers with Applications*, 2001, ch. 37; the factor `cos(pi n)` in place of `(-1)^n` as for
+/// the numbers): with `a = (x + sqrt(x^2 + 4))/2`, `F_n(x) = (a^n - cos(pi n) a^-n)/sqrt(x^2 + 4)` and
+/// `L_n(x) = a^n + cos(pi n) a^-n`. `None` unless the arguments are numbers, one of them inexact, or `x = 0` with an
+/// exact order (there `a = 1`: `F_n(0) = (1 - cos(pi n))/2`, `L_n(0) = 1 + cos(pi n)`, the values the Taylor
+/// coefficients of a series at 0 need).
+fn binet_xy<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], lucas: bool) -> Option<T<'h>> {
+    let (n, x) = (a[0], a[1]);
+    if a.iter().any(|&t| fx.num(t).is_none()) {
+        return None;
+    }
+    let c = fx.call("cos", &[fx.mul(&[fx.sym("pi"), n])]);
+    if !any_inexact(fx, a) {
+        if x != fx.int(0) {
+            return None;
+        }
+        return Some(if lucas { fx.add(&[fx.int(1), c]) } else { fx.mul(&[fx.rat(1, 2), fx.sub(fx.int(1), c)]) });
+    }
+    let r = fx.sqrt(fx.add(&[fx.pow(x, fx.int(2)), fx.int(4)]));
+    let phi = fx.mul(&[fx.rat(1, 2), fx.add(&[x, r])]);
+    let (p, q) = (fx.pow(phi, n), fx.mul(&[c, fx.pow(phi, fx.neg(n))]));
+    Some(if lucas { fx.add(&[p, q]) } else { fx.div(fx.sub(p, q), r) })
+}
+
 fn fibonacci<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let n = a[0];
     if a.len() == 2 {
-        let Some(k) = small_nat(fx, n) else {
-            if !any_inexact(fx, a) || a.iter().any(|&t| fx.num(t).is_none()) {
-                return Ok(None);
-            }
-            // any order: (phi^n - cos(pi n) phi^-n)/sqrt(x^2 + 4), phi = (x + sqrt(x^2 + 4))/2
-            let x = a[1];
-            let r = fx.sqrt(fx.add(&[fx.pow(x, fx.int(2)), fx.int(4)]));
-            let phi = fx.mul(&[fx.rat(1, 2), fx.add(&[x, r])]);
-            let c = fx.call("cos", &[fx.mul(&[fx.sym("pi"), n])]);
-            let v = fx.sub(fx.pow(phi, n), fx.mul(&[c, fx.pow(phi, fx.neg(n))]));
-            return Ok(Some(fx.div(v, r)));
-        };
+        let Some(k) = small_nat(fx, n) else { return Ok(binet_xy(fx, a, false)) };
         return Ok(Some(poly_at(fx, &fib_poly(k, false), a[1])));
     }
     if let Some(k) = fx.int_of(n).filter(|k| k.unsigned_abs() <= 10_000_000) {
@@ -1175,7 +1188,7 @@ fn fibonacci<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 fn lucas_l<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let n = a[0];
     if a.len() == 2 {
-        let Some(k) = small_nat(fx, n) else { return Ok(None) };
+        let Some(k) = small_nat(fx, n) else { return Ok(binet_xy(fx, a, true)) };
         return Ok(Some(poly_at(fx, &fib_poly(k, true), a[1])));
     }
     if let Some(k) = fx.int_of(n).filter(|k| k.unsigned_abs() <= 10_000_000) {

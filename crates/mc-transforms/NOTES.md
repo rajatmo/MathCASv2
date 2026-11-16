@@ -45,3 +45,17 @@
   `M[exp(-r) - 1] = gamma(s)` on `-1 < re(s) < 0`, `M[(1 - exp(-m r))/r^2] = -gamma(s - 2) m^(2 - s)` on
   `1 < re(s) < 2`. The value is checked numerically as other table results are. Tried before the term-by-term rule,
   which gave a constant the distributional transform.
+
+## Round 47: Hankel transforms by Meijer G
+
+- Mellin table: `sin_integral(t)` (`-gamma(s) sin(pi s/2)/s` on `-1 < re(s) < 0`, Oberhettinger 1974, 8.1) and
+  `airy_ai(t)` (`3^(-(s + 2)/3) gamma(s)/gamma((s + 2)/3)` on `re(s) > 0`, DLMF 9.10(vi)).
+- `continued_at_infinity`: the mirror of `continued` for `c + g` with `g -> -c` at infinity and `c + g` finite at 0:
+  `M[c + g]` is `G` continued to `0 < re(s) < q`, q the largest of 1/2, ..., 4 with `x^q (c + g)` tending to a finite
+  limit (Titchmarsh 1948, 1.5): `M[erf(x) - 1] = -gamma(1/2 + s/2)/(pi^(1/2) s)` on `0 < re(s) < 4` (the true strip
+  is `re(s) > 0`; a sub-strip is still correct). Checked numerically as other table results. `limit` does not know
+  the oscillating decay of `sin_integral(x^2) - pi/2`, so that one still declines.
+- Known defect, not mine to fix (crates/mc-integrals/src/definite/check.rs): the numeric check's `n_integrate`
+  warns ("the goals were not met"), and the warning is an effect, so a Mellin transform checked inside a `when`
+  condition (every `hankel_transform` call) gives `failure(effect_in_condition)`, as for
+  `hankel_transform((1 - bessel_j(0, a r))/r^2, r, s, 1)`.

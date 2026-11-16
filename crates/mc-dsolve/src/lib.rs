@@ -52,6 +52,7 @@ mod kovacic;
 mod linear;
 mod pde;
 mod recur;
+mod rsystem;
 mod series;
 mod special;
 mod system;
@@ -454,8 +455,14 @@ impl Native for DSolveNative {
         match self.kind {
             Kind::RSolve | Kind::RSolveValue => {
                 let [eqs, yspec, x] = plain.as_slice() else { return Ok(Reply::Decline) };
+                if let Some(vars) = c.items(*x) {
+                    return r_solve_partial(&mut c, *eqs, *yspec, &vars, self.kind == Kind::RSolveValue);
+                }
                 if !matches!(h.view(*x), View::Sym(_)) {
                     return Ok(Reply::Decline);
+                }
+                if let Some(specs) = c.items(*yspec) {
+                    return r_solve_system(&mut c, *eqs, &specs, *x, self.kind == Kind::RSolveValue);
                 }
                 let (y, applied) = match h.view(*yspec) {
                     View::Sym(_) => (*yspec, false),
@@ -489,6 +496,71 @@ impl Native for DSolveNative {
             }
         }
     }
+}
+
+/// `r_solve(eqs, [a, b(n), ...], n)` (`r_solve_value` with `value`): a system of recurrences ([`rsystem`]). The
+/// answer is `[[a -> fn([n], ...), b(n) -> ...]]`, or the list of the values (pure functions for bare heads).
+fn r_solve_system<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, eqs: T<'h>, specs: &[T<'h>], x: T<'h>, value: bool) -> Res<Reply<'h>> {
+    let b = c.b;
+    let h = b.heap();
+    let mut funs = vec![];
+    for &s in specs {
+        let f = match h.view(s) {
+            View::Sym(_) => s,
+            View::App { head, args: &[a] } if a == x && matches!(h.view(head), View::Sym(_)) => head,
+            _ => return Ok(Reply::Decline),
+        };
+        if f == x || funs.contains(&f) {
+            return Ok(Reply::Decline);
+        }
+        funs.push(f);
+    }
+    let Some(sols) = rsystem::r_solve_system(c, eqs, &funs, x)? else { return Ok(Reply::Decline) };
+    let mut out = vec![];
+    for ((&s, &f), &v) in specs.iter().zip(&funs).zip(&sols) {
+        let pure = b.call("fn", &[c.list(&[x]), v]);
+        out.push(match (value, s == f) {
+            (true, true) => pure,
+            (true, false) => v,
+            (false, true) => c.rule(f, pure),
+            (false, false) => c.rule(s, v),
+        });
+    }
+    let out = c.list(&out);
+    Ok(Reply::Done(if value { out } else { c.list(&[out]) }))
+}
+
+/// `r_solve(eq, a(m, n), [m, n])` (`r_solve_value` with `value`): a partial recurrence ([`rsystem::r_solve_partial`]).
+/// The answer is `[[a(m, n) -> ...]]` (`[[a -> fn([m, n], ...)]]` for a bare head), or the value.
+fn r_solve_partial<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, eqs: T<'h>, spec: T<'h>, vars: &[T<'h>], value: bool) -> Res<Reply<'h>> {
+    let b = c.b;
+    let h = b.heap();
+    let &[m, n] = vars else { return Ok(Reply::Decline) };
+    if !matches!(h.view(m), View::Sym(_)) || !matches!(h.view(n), View::Sym(_)) || m == n {
+        return Ok(Reply::Decline);
+    }
+    let f = match h.view(spec) {
+        View::Sym(_) => spec,
+        View::App { head, args: &[u, w] } if u == m && w == n && matches!(h.view(head), View::Sym(_)) => head,
+        _ => return Ok(Reply::Decline),
+    };
+    if f == m || f == n {
+        return Ok(Reply::Decline);
+    }
+    let Some(sol) = rsystem::r_solve_partial(c, eqs, f, m, n)? else { return Ok(Reply::Decline) };
+    let pure = b.call("fn", &[c.list(&[m, n]), sol]);
+    Ok(Reply::Done(match (value, spec == f) {
+        (true, true) => pure,
+        (true, false) => sol,
+        (false, true) => {
+            let r = c.rule(f, pure);
+            c.list(&[c.list(&[r])])
+        }
+        (false, false) => {
+            let r = c.rule(spec, sol);
+            c.list(&[c.list(&[r])])
+        }
+    }))
 }
 
 /// The trailing `options(...)` (or rules) of `args`, split off.

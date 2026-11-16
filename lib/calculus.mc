@@ -356,11 +356,166 @@ fn calc_order_curves(kind, f, g, spec, assm) = {
 }
 
 # calc_relation(name, kind, f, g, spec, dir, assm): calc_order under the assumptions (whose context also simplifies the
-# ratio), a failure when undecided
+# ratio); when that is undecided and f, g have parameters, the relation on a region of the parameters (calc_param); a
+# failure when undecided
 fn calc_relation(name, kind, f, g, spec, dir, assm) = {
   let v0 = calc_relation1(kind, f, g, spec, dir, assm)
   let v = if v0 === true or v0 === false then v0 else calc_relation_split(kind, f, g, spec, dir, assm)
-  if v === true or v === false then v else failure(undecided, name, "the limits of the ratio are not decided")
+  let w = if v === true or v === false then v else calc_param(name, kind, f, g, spec, dir, assm)
+  if w === null then failure(undecided, name, "the limits of the ratio are not decided") else w
+}
+
+# --- the relations with parameters: conditional_expression(value, region) ---
+# The leading terms of f and g are found with the exponents as expressions in the parameters: c t^e at a finite point
+# (t = |x - a| on each side, cb_lead), c x^k exp(b x) at inf (the terms of f and g written with exp, the dominant one
+# under the condition that its b, then its k, exceeds the others'). With the sizes s = -e (at a point), b or k (at inf)
+# of f and g, q = f/g -> 0 where s_f < s_g and |q| -> inf where s_f > s_g (de Bruijn, Asymptotic Methods in Analysis,
+# 1.2-1.4; the comparison of exp-power terms as in Hardy fields, Rosenlicht, Hardy fields, J. Math. Anal. Appl. 93
+# (1983)). The answer is the value of the relation on one such region (reduced in the parameters, intersected with the
+# assumptions), a sufficient condition: nothing is claimed outside it. The region taken: q -> 0 when q is a single
+# power c t^e; otherwise first the one where f lies between g and 1 (both vanish and f more slowly, or both grow and f
+# more slowly), then q -> 0, then |q| -> inf. A leading coefficient that can vanish adds c > 0. When the sizes agree,
+# asymptotic_equivalent is the equation c_f/c_g == 1 (on the region of the dominant terms). Products over [x, y] -> [a,
+# b] whose factors are in one variable each reduce to the one variable whose part of q has no finite nonzero limit.
+
+# calc_pm_lead(h, x, a, s): [e, c] with h ~ c t^e, x = a + s t, t -> 0+; null when not found
+fn calc_pm_lead(h, x, a, s) = {
+  let t = calc_order_t
+  let l0 = assuming(t > 0, cb_lead(calc_branch(rewrite(h, x -> a + s*t), t), t, 0))
+  let l = if not is_failure(l0) and not free_of(l0, O) then normal(l0) else l0
+  if is_failure(l) or l === 0 or head(l) === add or not free_of(l, series) then null else {
+    let e = simplify(t*d(l, t)/l)
+    let c = simplify(l/t^e)
+    if free_of(e, t) and free_of(e, im) then [e, c] else null
+  }
+}
+# calc_pm_terms(h, x): the terms c x^k exp(b x) of h (trig_to_exp, expanded) as [b, k, c]; null when one is not of
+# that form with real b and k
+fn calc_pm_term(u, x) = {
+  let w = simplify(x*d(u, x)/u)
+  let b = simplify(d(w, x))
+  let k = simplify(w - b*x)
+  let c = simplify(u/(x^k*exp(b*x)))
+  if free_of([b, k, c], x) and free_of([b, k], im) then [b, k, c] else null
+}
+fn calc_pm_terms(h, x) = {
+  let s = expand(trig_to_exp(h))
+  let ts = map(u => calc_pm_term(u, x), if head(s) === add then apply(list, s) else [s])
+  if some(ts, v => v === null) then null else ts
+}
+# calc_pm_dominant(ts, ps): [term, condition that it outgrows every other term]; first those whose condition holds
+# with every parameter 1
+fn calc_pm_gt(u, v) = if simplify(u[1] - v[1]) === 0 then simplify(u[2] - v[2]) > 0 else simplify(u[1] - v[1]) > 0
+fn calc_pm_at1(c, ps) = rewrite(c, map(p => p -> 1, ps)) === true
+fn calc_pm_dominant(ts, ps) = {
+  let nt = length(ts)
+  let cs = map(i => [ts[i], fold((a, b) => a and b, true, map(j => calc_pm_gt(ts[i], ts[j]), select(range(nt), j => j != i)))], range(nt))
+  let oks = select(cs, c => not (c[2] === false))
+  join(select(oks, c => calc_pm_at1(c[2], ps)), select(oks, c => not calc_pm_at1(c[2], ps)))
+}
+# calc_pm_nonzero(c, ps): the condition on the parameters for a leading coefficient c to be nonzero
+fn calc_pm_nonzero(c, ps) = if is_numeric(c) then c != 0 else if reduce(c == 0, ps, reals) === false then true else c > 0
+fn calc_pm_ok(r) = not is_failure(r) and not (r === false) and (is_atom(r) or not (head(r) === reduce))
+# calc_pm_first(cands, ps, assm): the first [region, sense] whose region (with the assumptions) is not empty
+fn calc_pm_first(cands, ps, assm) = if length(cands) == 0 then null else {
+  let c = if assm === automatic then cands[1][1] else cands[1][1] and assm
+  let r = reduce(c, ps, reals)
+  if calc_pm_ok(r) then [r, cands[1][2]] else calc_pm_first(rest(cands), ps, assm)
+}
+# calc_pm_decide(sf, sg, mono, cs, rats, cond0, ps, assm): [region, sense, ratio]: sense 0 (q -> 0), inf (|q| -> inf)
+# or 1 (q -> ratio, the sizes equal)
+fn calc_pm_decide(sf, sg, mono, cs, rats, cond0, ps, assm) = {
+  let extra = fold((u, c) => u and calc_pm_nonzero(c, ps), cond0, cs)
+  let dd = simplify(sf - sg)
+  if dd === 0 then (if every(rats, r => simplify(r - rats[1]) === 0) then calc_pm_equal(extra, rats[1], ps, assm) else null)
+  else {
+    let cands = if mono then [[extra and dd < 0, 0], [extra and dd > 0, inf]] else [[extra and sf < 0 and sg < 0 and dd > 0, inf], [extra and sf > 0 and sg > 0 and dd < 0, 0], [extra and dd < 0, 0], [extra and dd > 0, inf]]
+    let r = calc_pm_first(cands, ps, assm)
+    if r === null then null else [r[1], r[2], 0]
+  }
+}
+fn calc_pm_equal(extra, rat, ps, assm) = {
+  let r = calc_pm_first([[extra, 1]], ps, assm)
+  if r === null then null else [r[1], 1, rat]
+}
+# calc_pm_point(f, g, x, a, dir, ps, assm): at a finite real point, from the sides of dir (the exponents must agree)
+fn calc_pm_point(f, g, x, a, dir, ps, assm) = {
+  let sds = if dir === from_above then [1] else if dir === from_below then [-1] else [1, -1]
+  let lf = map(s => calc_pm_lead(f, x, a, s), sds)
+  let lg = map(s => calc_pm_lead(g, x, a, s), sds)
+  if some(join(lf, lg), v => v === null) then null
+  else if not every(range(length(sds)), i => simplify(lf[i][1] - lf[1][1]) === 0 and simplify(lg[i][1] - lg[1][1]) === 0) then null
+  else {
+    let t = calc_order_t
+    let e = simplify(lf[1][1] - lg[1][1])
+    let mono = free_of(simplify(calc_branch(rewrite(f/g, x -> a + sds[1]*t), t)/t^e), t)
+    let rats = map(i => simplify(lf[i][2]/lg[i][2]), range(length(sds)))
+    calc_pm_decide(-lf[1][1], -lg[1][1], mono, [lf[1][2], lg[1][2]], rats, true, ps, assm)
+  }
+}
+# calc_pm_infinity(f, g, x, ps, assm): at inf, over the pairs of dominant terms of f and g
+fn calc_pm_pairs(us, vs, ps, assm) = if length(us) == 0 then null else {
+  let r = calc_pm_pairs1(us[1], vs, ps, assm)
+  if r === null then calc_pm_pairs(rest(us), vs, ps, assm) else r
+}
+fn calc_pm_pairs1(u, vs, ps, assm) = if length(vs) == 0 then null else {
+  let v = vs[1]
+  let eqb = simplify(u[1][1] - v[1][1]) === 0
+  let r = calc_pm_decide(if eqb then u[1][2] else u[1][1], if eqb then v[1][2] else v[1][1], false, [u[1][3], v[1][3]], [simplify(u[1][3]/v[1][3])], u[2] and v[2], ps, assm)
+  if r === null then calc_pm_pairs1(u, rest(vs), ps, assm) else r
+}
+fn calc_pm_infinity(f, g, x, ps, assm) = {
+  let tf = calc_pm_terms(f, x)
+  let tg = calc_pm_terms(g, x)
+  if tf === null or tg === null then null else calc_pm_pairs(calc_pm_dominant(tf, ps), calc_pm_dominant(tg, ps), ps, assm)
+}
+fn calc_pm_one(f, g, x, a, dir, ps, assm) =
+  if a === inf then (if dir === automatic or dir === from_below then calc_pm_infinity(f, g, x, ps, assm) else null)
+  else if calc_real(a) then calc_pm_point(f, g, x, a, dir, ps, assm) else null
+# calc_pm_multi(f, g, spec, ps, assm): products of factors in one variable each; every variable but one has a finite
+# nonzero limit of its part of f/g
+fn calc_pm_multi(f, g, spec, ps, assm) = {
+  let vs = spec[1]
+  let nv = length(vs)
+  let pts = if is_list(spec[2]) then spec[2] else map(v => spec[2], vs)
+  let ff = calc_factors(f)
+  let fg = calc_factors(g)
+  let pmpart = (fs, v) => product(select(fs, u => not free_of(u, v)))
+  let pmconst = fs => product(select(fs, u => every(vs, v => free_of(u, v))))
+  if length(pts) != nv or some(join(ff, fg), u => length(select(vs, v => not free_of(u, v))) > 1) then null else {
+    let lims = map(i => calc_lim(none, pmpart(ff, vs[i])/pmpart(fg, vs[i]), vs[i] -> pts[i], automatic, assm), range(nv))
+    let fin = map(l => is_numeric(l) and calc_real(abs(l)) and not (abs(l) == 0), lims)
+    let act = select(range(nv), i => not fin[i])
+    if length(act) != 1 then null else {
+      let i = act[1]
+      let r = calc_pm_one(pmconst(ff)*pmpart(ff, vs[i]), pmconst(fg)*pmpart(fg, vs[i]), vs[i], pts[i], automatic, ps, assm)
+      if r === null or not (r[2] === 1) then r else [r[1], 1, r[3]*product(map(j => lims[j], select(range(nv), j => j != i)))]
+    }
+  }
+}
+# calc_pm_value(kind, swap, sense): the relation where q = f/g -> 0 or |q| -> inf (swap: g o(f) or O(f) is asked)
+fn calc_pm_value(kind, swap, sense) = if swap then sense === inf else if sense === 0 then (kind === o_big or kind === o_small) else false
+# calc_pm_cond(r): a single comparison written with the parameter first (1 < a as a > 1; q < p as p > q)
+fn calc_pm_cond(r) =
+  if not is_atom(r) and length(r) == 2 and (head(r) === less or head(r) === greater) and not is_numeric(r[2]) and (is_numeric(r[1]) or (is_symbol(r[1]) and is_symbol(r[2]) and sort([r[1], r[2]])[1] === r[2]))
+  then (if head(r) === less then r[2] > r[1] else r[2] < r[1])
+  else r
+# calc_param(name, kind, f, g, spec, dir, assm): conditional_expression(value, region), a decided value when the
+# region is all of the assumptions, an equation for asymptotic_equivalent, or null. f, g are as calc_relation has them
+# (swapped for asymptotic_greater and asymptotic_greater_equal); the region is that of the user's f/g
+fn calc_param(name, kind, f0, g0, spec, dir, assm) = {
+  let swap = name === asymptotic_greater or name === asymptotic_greater_equal
+  let f = if swap then g0 else f0
+  let g = if swap then f0 else g0
+  let vars = if is_list(spec[1]) then spec[1] else [spec[1]]
+  let ps = select(calc_syms([f, g]), s => every(vars, v => not (s === v)))
+  if length(ps) == 0 or not (dir === automatic or dir === two_sided or dir === reals or dir === from_above or dir === from_below) then null else {
+    let r = if is_list(spec[1]) then calc_pm_multi(f, g, spec, ps, assm) else calc_pm_one(f, g, spec[1], spec[2], dir, ps, assm)
+    if r === null then null else {
+      let v = if r[2] === 1 then (if kind === equivalent and not swap then simplify(r[3]) == 1 else null) else calc_pm_value(kind, swap, r[2])
+      if v === null then null else if r[1] === true then v else conditional_expression(v, calc_pm_cond(r[1]))
+    }
+  }
 }
 fn calc_relation1(kind, f, g, spec, dir, assm) = if assm === automatic then calc_order(kind, f, g, spec, dir, assm) else assuming(assm, calc_order(kind, f, g, spec, dir, assm))
 # an assumption p >= c (or p <= c) on a parameter p, c a number: the relation decided at p = c and under p > c (p < c)
@@ -1671,23 +1826,29 @@ fn calc_at(g, s) = if is_symbol(s) and not is_numeric(s) then g(s) else rewrite(
 # c g(r) dirac_delta(r - b) (DLMF 10.22.43, 10.22.49, 10.22.51; Erdelyi et al., Tables of Integral Transforms II,
 # ch. 8); a summand of another form leaves the transform unevaluated. inverse_hankel_transform(g, s, r, nu) is the
 # same integral (the transform is its own inverse).
+# u is a pole of gamma: the summand's formula fails there (its own integral diverges), and the summand declines so
+# that the whole f goes to the Mellin product instead of a failure
+fn calc_hk_pole(u) = is_number(u) and is_integer(u) and u <= 0
+# the decay rate a of exp(-a r) or exp(-a r^2) is a real number <= 0: the integral diverges
+fn calc_hk_grows(a) = is_number(a) and is_real(a) and a <= 0
 fn calc_hankel_term(f, r, s, nu) = {
   let lg = simplify(r*d(f, r)/f)
   let lg1 = simplify(d(lg, r))
   if free_of(lg, r) then {
     let mu = lg
     let c = simplify(f/r^mu)
-    c*2^(mu + 1)*gamma((nu + mu + 2)/2)/gamma((nu - mu)/2)*s^(-mu - 2)
+    # c r^mu only (r d(f)/f may lose r for a step or a delta, as for unit_step(a - r))
+    if free_of(c, r) and not calc_hk_pole((nu + mu + 2)/2) and not calc_hk_pole((nu - mu)/2) then c*2^(mu + 1)*gamma((nu + mu + 2)/2)/gamma((nu - mu)/2)*s^(-mu - 2) else null
   } else if free_of(lg1, r) then {
     let a = -lg1
     let mu = simplify(lg + a*r)
     let c = simplify(f/(r^mu*exp(-a*r)))
-    if free_of(mu, r) and free_of(c, r) then simplify(c*gamma(mu + nu + 2)*(s/2)^nu/(gamma(nu + 1)*a^(mu + nu + 2))*hypergeometric_2f1((mu + nu + 2)/2, (mu + nu + 3)/2, nu + 1, -s^2/a^2)) else null
+    if free_of(mu, r) and free_of(c, r) and not calc_hk_pole(mu + nu + 2) and not calc_hk_grows(a) then simplify(c*gamma(mu + nu + 2)*(s/2)^nu/(gamma(nu + 1)*a^(mu + nu + 2))*hypergeometric_2f1((mu + nu + 2)/2, (mu + nu + 3)/2, nu + 1, -s^2/a^2)) else null
   } else if free_of(simplify(lg1/r), r) then {
     let a = -simplify(lg1/r)/4
     let mu = simplify(lg + 2*a*r^2)
     let c = simplify(f/(r^mu*exp(-a*r^2)))
-    if free_of(mu, r) and free_of(c, r) then simplify(c*gamma((mu + nu + 2)/2)*(s/2)^nu/(2*gamma(nu + 1)*a^((mu + nu + 2)/2))*hypergeometric_1f1((mu + nu + 2)/2, nu + 1, -s^2/(4*a))) else null
+    if free_of(mu, r) and free_of(c, r) and not calc_hk_pole((mu + nu + 2)/2) and not calc_hk_grows(a) then simplify(c*gamma((mu + nu + 2)/2)*(s/2)^nu/(2*gamma(nu + 1)*a^((mu + nu + 2)/2))*hypergeometric_1f1((mu + nu + 2)/2, nu + 1, -s^2/(4*a))) else null
   } else {
     let fs = calc_factors(f)
     let dep = select(fs, g => not free_of(g, r))
@@ -1707,7 +1868,9 @@ fn calc_hankel_term(f, r, s, nu) = {
 }
 fn calc_hankel(f, r, s, nu) = {
   let ts = map(t => calc_hankel_term(t, r, s, nu), calc_terms(expand(f)))
-  if some(ts, t => t === null) then calc_hankel_mb(f, r, s, nu) else simplify(calc_total(ts))
+  # a summand without a closed form, or whose own integral diverges (a pole of gamma, as for the summands 1/r^2
+  # and exp(-m r)/r^2 of a convergent (1 - exp(-m r))/r^2): the whole f by the Mellin product
+  if is_failure(ts) or some(ts, t => is_failure(t) or t === null) then calc_hankel_mb(f, r, s, nu) else simplify(calc_total(ts))
 }
 
 # --- transforms as inverse Mellin transforms of products (Mellin-Parseval) ---
@@ -1855,14 +2018,61 @@ fn calc_mb_invert(g, w, x, lo, hi) = {
   }
 }
 
-# the Hankel transform of order nu by the Mellin product, or null
+# the Hankel transform of order nu by the Mellin product, or null. f is the Meijer G-function its Mellin transform
+# defines, and the Hankel transform of a G-function is again one (Luke 1969, 5.6; Prudnikov, Brychkov and Marichev,
+# Integrals and Series 3, 1990, 2.24.1; Adamchik and Marichev, ISSAC 1990), which inverse_mellin_transform reduces
+# to named functions where a reduction exists. In detail:
+# - the strips are checked as above; outside them the transform stays unevaluated;
+# - a Mellin transform that needs the scale of a symbolic parameter (f(a r), a^2/r^2) is taken for positive
+#   parameters, the generic answer as for exp(-a r) (no condition is attached without generate_conditions);
+# - f with a limit L != 0 at infinity (erf(r), sin_integral(r^2)) has no classical transform; its generalized (Abel)
+#   transform lim integrate(exp(-e r) f bessel_j(nu, s r) r) as e -> 0+ is that of f - L plus L times the one of 1,
+#   which is 0 for nu = 0 and s > 0 (the term L dirac_delta(s)/s at s = 0 is left out, as in fourier_transform's
+#   value of 1 away from 0) and L 2 gamma(1 + nu/2)/(gamma(nu/2) s^2) otherwise (DLMF 10.22.43 continued);
+# - a G-function with p = q left by the inversion is also tried as G^{n,m}_{q,p}(1/x | 1 - b; 1 - a) (DLMF 16.19.1),
+#   whose Slater sum may have simple poles where the original's has coincident ones.
 fn calc_hankel_mb(f, r, s, nu) = {
+  let v = calc_hankel_mb1(f, r, s, nu)
+  let lim = if v === null then limit(f, r -> inf) else null
+  if not (v === null) then calc_hk_gflip(v)
+  else if lim === 0 or not calc_hk_finite(lim, r) then null else {
+    let v2 = calc_hankel_mb1(f - lim, r, s, nu)
+    if v2 === null then null else calc_hk_gflip(v2 + (if nu === 0 then 0 else lim*2*gamma(1 + nu/2)/(gamma(nu/2)*s^2)))
+  }
+}
+fn calc_hk_finite(l, r) = free_of(l, r) and free_of(l, limit) and free_of(l, interval) and free_of(l, inf) and free_of(l, complex_infinity) and free_of(l, indeterminate) and not is_failure(l)
+fn calc_hk_mellin(f, r, z) = {
+  let mf = mellin_transform(f, r, z, generate_conditions: true)
+  let ps = select(calc_syms(f), p => not (p === r))
+  if head(mf) === conditional_expression or length(ps) == 0 then mf
+  else mellin_transform(f, r, z, assumptions: apply(`and`, map(p => p > 0, ps)), generate_conditions: true)
+}
+fn calc_hankel_mb1(f, r, s, nu) = {
   let z = calc_mb_z
   let w = calc_mb_w
-  let mf = mellin_transform(f, r, z, generate_conditions: true)
+  let mf = calc_hk_mellin(f, r, z)
   let st = if head(mf) === conditional_expression then calc_mstrip(mf[2], z) else null
   if st === null then null else
     calc_mb_invert(2^(w - 1)*gamma((nu + w)/2)/gamma(1 + (nu - w)/2)*rewrite(mf[1], z -> 2 - w), w, s, max(-re(nu), 2 - st[2]), min(3/2, 2 - st[1]))
+}
+fn calc_hk_gflip1(ab, bb, x) = {
+  let p = length(ab[1]) + length(ab[2])
+  let q = length(bb[1]) + length(bb[2])
+  let g = if p == q then meijer_g([1 - bb[1], 1 - bb[2]], [1 - ab[1], 1 - ab[2]], 1/x) else null
+  if g === null or not free_of(g, meijer_g) then meijer_g(ab, bb, x) else g
+}
+fn calc_hk_gflip(v) = if free_of(v, meijer_g) then v else calc_hk_asinh(simplify(rewrite(v, meijer_g(ab_, bb_, x_) :> calc_hk_gflip1(ab, bb, x))))
+# v = R asin(u)/u with R free of u: asin(u)/u is an even function of u, equal to asinh(t)/t with t^2 = -u^2 (the
+# same power series), so v = R asinh(t)/t with t = (-u^2)^(1/2) (the Slater sum of a G-function at a negative
+# argument, as for (1 - exp(-m r))/r^2)
+fn calc_hk_asinh(v) = {
+  let us = unique(cases([v], asin(u_) :> u, inf))
+  let u = if length(us) == 1 then us[1] else null
+  let rest = if u === null then null else simplify(v*u/asin(u))
+  if u === null or not free_of(rest, u) then v else {
+    let t = simplify((-u^2)^(1/2))
+    simplify(rest*asinh(t)/t)
+  }
 }
 
 # the Mellin convolution integrate(f(x) g(y/x)/x, [x, 0, inf]) by the Mellin product, or null; with gc, the
@@ -3858,10 +4068,223 @@ fn cb_subst_free(e, k, v) =
   else if is_atom(e) then e
   else if head(e) === `fn` then e
   else apply(cb_subst_free(head(e), k, v), map(u => cb_subst_free(u, k, v), apply(list, e)))
-rule difference_root_reduce(eq_, k_, opts___) := {
-  let vals = map(j => simplify(cb_subst_free(eq[1] - eq[2], k, j)), range(0, 40))
-  if every(vals, v => v === 0) then true else if some(vals, v => is_numeric(v) and not (v === 0)) then false else difference_root_reduce(eq, k)
-} when head(eq) === equal and is_symbol(k) and every(map(j => cb_subst_free(eq[1] - eq[2], k, j), range(0, 3)), is_numeric)
+# An identity is true only with a proof: lhs - rhs is a sum of C-finite sequences (cb_drr_cpoly below) whose
+# characteristic polynomial has degree d and a nonzero constant term, and it vanishes at n = 0, ..., d - 1 (a
+# sequence satisfying a recurrence with constant coefficients and nonzero ends is determined by d consecutive
+# values: Kauers and Paule, The Concrete Tetrahedron, 2011, ch. 4); or lhs - rhs simplifies to 0. It is false at
+# the first integer where the two sides differ. Otherwise the call stays unevaluated (agreement on finitely many
+# integers is not a proof: mod(n, 41) == n holds for n = 0, ..., 40).
+fn cb_drr_identity(e, k) = {
+  if simplify(e) === 0 then true else {
+    let p = cb_drr_cpoly(e, k)
+    let d = if p === null then null else exponent(p, cb_x)
+    let ok = not (p === null) and d <= 60 and not (simplify(rewrite(p, cb_x -> 0)) === 0)
+    let vals = map(j => simplify(cb_subst_free(e, k, j)), range(0, if ok then max(d - 1, 0) else 40))
+    if some(vals, v => is_numeric(v) and not (v === 0)) then false
+    else if ok and every(vals, v => cb_drr_zero(v)) then true
+    else null
+  }
+}
+rule difference_root_reduce(eq_, k_, opts___) := cb_drr_identity(eq[1] - eq[2], k) when head(eq) === equal and is_symbol(k) and not (cb_drr_identity(eq[1] - eq[2], k) === null)
+
+# --- reduction of a sequence to one difference_root: difference_root_reduce(expr, n) ---
+# Three classes, each with a proof that the recurrence and the initial values define the sequence:
+# - periodic sequences: every occurrence of n inside mod(a n + b, m) (integer a, b, m > 0) or kronecker_symbol(n, m)
+#   (odd m > 0: a Jacobi symbol, periodic in its upper argument with period m by multiplicativity over the primes
+#   of m); then y(n + p) = y(n) with p the lcm of the periods; quotient(n, m): y(n + m) = y(n) + 1;
+# - hypergeometric terms (polynomials, rational functions, c^n, exp, factorials, gamma, binomials, Catalan numbers
+#   with arguments linear in n): t(n + 1)/t(n) = A(n)/B(n) rational, so B(n) y(n + 1) - A(n) y(n) = 0, with y(0)
+#   when B has no root among n = 0, 1, 2, ... (Petkovsek, Wilf and Zeilberger, A = B, 1996, ch. 5);
+# - C-finite sequences (sums and products of c^n, exp, fibonacci, lucas_l, difference_root with constant
+#   coefficients, sums over [k, a, n] of these, with arguments a n + b, a a positive integer): the
+#   characteristic polynomial of a sum is the lcm, of a product the polynomial of the products of the roots
+#   (a resultant), of an argument a n + b the polynomial of the a-th powers of the roots (a resultant), of a
+#   partial sum the polynomial times (x - 1) (Kauers and Paule, ch. 4; Stanley, Enumerative Combinatorics 1, 4.2).
+#   A constant c added to such a sequence gives the inhomogeneous P(S) y = P(1) c, or the homogeneous P(S)(S - 1)
+#   with method: homogeneous.
+# The result is written as the difference_root of FormalY, FormalN with the terms in increasing shift.
+
+# [a, b] when u = a k + b with a, b free of k
+fn cb_drr_lin(u, k) = {
+  let a = simplify(d(u, k))
+  if free_of(a, k) then [a, expand(u - a*k)] else null
+}
+fn cb_drr_monic(p) = {
+  let q = expand(p)
+  let lc = coefficient(q, cb_x, exponent(q, cb_x))
+  expand(q/lc)
+}
+# the polynomial whose roots are the a-th powers of the roots of p
+fn cb_drr_cpow(p, a) =
+  if a === 1 then p
+  else if a < 0 then (if simplify(rewrite(p, cb_x -> 0)) === 0 then null else cb_drr_cpow(cb_drr_monic(cb_x^exponent(p, cb_x)*rewrite(p, cb_x -> 1/cb_x)), -a))
+  else cb_drr_monic(resultant(rewrite(p, cb_x -> cb_y), cb_x - cb_y^a, cb_y))
+# the polynomial whose roots are the products of the roots of p and of q
+fn cb_drr_cmul(p, q) = {
+  let dq = exponent(q, cb_x)
+  cb_drr_monic(resultant(rewrite(p, cb_x -> cb_y), expand(cb_y^dq*rewrite(q, cb_x -> cb_x/cb_y)), cb_y))
+}
+# the characteristic polynomial (in cb_x) of the constant-coefficient recurrence of the difference_root f, or null
+fn cb_drr_dr_poly(f) = {
+  let eqs = f(cb_dy, cb_dn)
+  let r = if is_list(eqs) and length(eqs) >= 1 and head(eqs[1]) === equal then expand(eqs[1][1] - eqs[1][2]) else null
+  if r === null then null else {
+    let offs = select(range(-12, 12), j => not (coefficient(r, cb_dy(cb_dn + j)) === 0))
+    let rest = if length(offs) == 0 then null else expand(r - cb_drr_sum(map(j => coefficient(r, cb_dy(cb_dn + j))*cb_dy(cb_dn + j), offs)))
+    if length(offs) < 2 or not (rest === 0) or not every(map(j => coefficient(r, cb_dy(cb_dn + j)), offs), c => free_of(c, cb_dn) and free_of(c, cb_dy)) then null
+    else cb_drr_monic(cb_drr_sum(map(j => coefficient(r, cb_dy(cb_dn + j))*cb_x^(j - min(offs)), offs)))
+  }
+}
+fn cb_drr_sum(l) = calc_total(l)
+# the characteristic polynomial of the C-finite sequence t(k), or null
+fn cb_drr_cpoly(t, k) =
+  if free_of(t, k) then cb_x - 1
+  else if is_polynomial(t, k) then (cb_x - 1)^(exponent(t, k) + 1)
+  else if head(t) === add then {
+    let ps = map(u => cb_drr_cpoly(u, k), apply(list, t))
+    if some(ps, p => p === null) then null else cb_drr_monic(apply(polynomial_lcm, ps))
+  }
+  else if head(t) === mul then {
+    let ps = map(u => cb_drr_cpoly(u, k), select(apply(list, t), u => not free_of(u, k)))
+    if some(ps, p => p === null) then null else fold(cb_drr_cmul, ps[1], rest(ps))
+  }
+  else if head(t) === pow and free_of(t[1], k) and not (cb_drr_lin(t[2], k) === null) then cb_x - t[1]^cb_drr_lin(t[2], k)[1]
+  else if head(t) === pow and is_integer(t[2]) and t[2] > 0 and t[2] <= 6 then {
+    let p = cb_drr_cpoly(t[1], k)
+    if p === null then null else fold(cb_drr_cmul, p, table(p, t[2] - 1))
+  }
+  else if head(t) === exp and not (cb_drr_lin(t[1], k) === null) then cb_x - exp(cb_drr_lin(t[1], k)[1])
+  else if (head(t) === fibonacci or head(t) === lucas_l) and length(t) == 1 and not (cb_drr_lin(t[1], k) === null) and is_integer(cb_drr_lin(t[1], k)[1]) and not (cb_drr_lin(t[1], k)[1] === 0) then
+    cb_drr_cpow(cb_x^2 - cb_x - 1, cb_drr_lin(t[1], k)[1])
+  else if head(t) === sum and length(t) == 2 and is_list(t[2]) and length(t[2]) == 3 and is_symbol(t[2][1]) and free_of(t[2][2], k) and not (cb_drr_lin(t[2][3], k) === null) and cb_drr_lin(t[2][3], k)[1] === 1 then {
+    let p = cb_drr_cpoly(t[1], t[2][1])
+    if p === null or not (cb_subst_free(t[1], k, cb_drr_z) === t[1]) then null else cb_drr_monic((cb_x - 1)*p)
+  }
+  else if not is_atom(head(t)) and head(head(t)) === difference_root and length(t) == 1 and not (cb_drr_lin(t[1], k) === null) and is_integer(cb_drr_lin(t[1], k)[1]) and not (cb_drr_lin(t[1], k)[1] === 0) then {
+    let p = cb_drr_dr_poly(head(t)[1])
+    if p === null then null else cb_drr_cpow(p, cb_drr_lin(t[1], k)[1])
+  }
+  else null
+# a value proved 0: by simplify, or with fibonacci and lucas_l of a symbolic index written in Binet's form
+# (F(s + j) = (A phi^j - B psi^j)/sqrt(5), L(s + j) = A phi^j + B psi^j with A = phi^s, B = cos(pi s) phi^-s
+# independent of the integer j; 0 as a polynomial in the A, B is 0 for every s)
+fn cb_drr_zero(v) = simplify(v) === 0 or simplify(expand(cb_drr_binet(v))) === 0
+fn cb_drr_split(u) = {
+  let j = if head(u) === add then cb_drr_sum(select(apply(list, u), t => is_integer(t))) else if is_integer(u) then u else 0
+  [expand(u - j), j]
+}
+fn cb_drr_binet(v) = rewrite(v, [
+  fibonacci(u_) :> (cb_ba(cb_drr_split(u)[1])*((1 + sqrt(5))/2)^cb_drr_split(u)[2] - cb_bb(cb_drr_split(u)[1])*((1 - sqrt(5))/2)^cb_drr_split(u)[2])/sqrt(5),
+  lucas_l(u_) :> cb_ba(cb_drr_split(u)[1])*((1 + sqrt(5))/2)^cb_drr_split(u)[2] + cb_bb(cb_drr_split(u)[1])*((1 - sqrt(5))/2)^cb_drr_split(u)[2]
+])
+
+# the period of t in k (all occurrences of k inside periodic atoms), 1 for a constant, null otherwise
+fn cb_drr_period(t, k) =
+  if free_of(t, k) then 1
+  else if is_atom(t) then null
+  else if head(t) === mod and length(t) == 2 and is_integer(t[2]) and t[2] > 0 and not (cb_drr_lin(t[1], k) === null) and is_integer(cb_drr_lin(t[1], k)[1]) and is_integer(cb_drr_lin(t[1], k)[2]) then t[2]
+  else if head(t) === kronecker_symbol and length(t) == 2 and is_integer(t[2]) and t[2] > 0 and mod(t[2], 2) == 1 and t[1] === k then t[2]
+  else if is_atom(head(t)) then {
+    let ps = map(u => cb_drr_period(u, k), apply(list, t))
+    if some(ps, p => p === null) then null else apply(lcm, ps)
+  }
+  else null
+
+# the text of the coefficient c times FormalY(j + FormalN), and whether it is written with a leading minus
+fn cb_drr_arg(j) = if j === 0 then "FormalN" else string_join([to_string(j), " + FormalN"])
+fn cb_drr_piece(c, j) = {
+  let y = string_join(["FormalY(", cb_drr_arg(j), ")"])
+  if c === 1 then y
+  else if c === -1 then string_join(["-", y])
+  else if head(c) === add then string_join(["(", to_string(c), ")*", y])
+  else string_join([to_string(c), "*", y])
+}
+fn cb_drr_neg(c) = not (head(c) === add) and (is_numeric(c) and is_real(c) and c < 0 or head(c) === mul and is_numeric(c[1]) and is_real(c[1]) and c[1] < 0)
+# the difference_root of the recurrence c0 + sum cs[j] y(n + j - 1) == 0 (coefficients in k) and the values y(j), j in js
+fn cb_drr_make(c0, cs, k, vals) = {
+  let cf = map(c => expand(rewrite(c, k -> FormalN)), cs)
+  let idx = select(range(1, length(cf)), i => not (cf[i] === 0))
+  let first = if c0 === 0 then string_join([cb_drr_piece(cf[idx[1]], idx[1] - 1)]) else to_string(c0)
+  let more = map(i => if cb_drr_neg(cf[i]) then string_join([" - ", cb_drr_piece(expand(-cf[i]), i - 1)]) else string_join([" + ", cb_drr_piece(cf[i], i - 1)]),
+    if c0 === 0 then rest(idx) else idx)
+  let ivs = map(v => string_join([", FormalY(", to_string(v[1]), ") == ", to_string(v[2])]), vals)
+  to_expression(string_join(flatten(["difference_root((FormalY, FormalN) => [", first, more, " == 0", ivs, "])"])))
+}
+
+# the ratio t(k + 1)/t(k) of a hypergeometric term as a rational function of k, or null
+fn cb_drr_gratio(u, k) = {
+  # gamma(u(k + 1))/gamma(u(k)) for u = a k + b with an integer a
+  let l = cb_drr_lin(u, k)
+  if l === null or not is_integer(l[1]) then null
+  else if l[1] >= 0 then expand(function_expand(pochhammer(u, l[1])))
+  else 1/expand(function_expand(pochhammer(u + l[1], -l[1])))
+}
+fn cb_drr_hratio(t, k) =
+  if free_of(t, k) then 1
+  else if is_polynomial(numerator(together(t)), k) and is_polynomial(denominator(together(t)), k) then rewrite(t, k -> k + 1)/t
+  else if head(t) === mul then {
+    let rs = map(u => cb_drr_hratio(u, k), apply(list, t))
+    if some(rs, r => r === null) then null else fold((a, b) => a*b, 1, rs)
+  }
+  else if head(t) === pow and free_of(t[1], k) and not (cb_drr_lin(t[2], k) === null) then t[1]^cb_drr_lin(t[2], k)[1]
+  else if head(t) === pow and free_of(t[2], k) and is_integer(t[2]) then {
+    let r = cb_drr_hratio(t[1], k)
+    if r === null then null else r^t[2]
+  }
+  else if head(t) === exp and not (cb_drr_lin(t[1], k) === null) then exp(cb_drr_lin(t[1], k)[1])
+  else if head(t) === gamma and length(t) == 1 then cb_drr_gratio(t[1], k)
+  else if head(t) === factorial and length(t) == 1 then cb_drr_gratio(t[1] + 1, k)
+  else if head(t) === pochhammer and length(t) == 2 and free_of(t[1], k) then {
+    let r1 = cb_drr_gratio(t[1] + t[2], k)
+    if r1 === null then null else r1
+  }
+  else if head(t) === binomial and length(t) == 2 then {
+    let rs = [cb_drr_gratio(t[1] + 1, k), cb_drr_gratio(t[2] + 1, k), cb_drr_gratio(t[1] - t[2] + 1, k)]
+    if some(rs, r => r === null) then null else rs[1]/(rs[2]*rs[3])
+  }
+  else if head(t) === catalan_number and length(t) == 1 then {
+    let r = cb_drr_hratio(binomial(2*t[1], t[1])/(t[1] + 1), k)
+    r
+  }
+  else null
+
+# the difference_root of t as a sequence in k, or null
+fn cb_drr(t, k, homog) = {
+  let p = cb_drr_period(t, k)
+  if not (p === null) and p > 1 and p <= 200 then
+    cb_drr_make(0, flatten([-1, table(0, p - 1), 1]), k, map(j => [j, cb_subst_free(t, k, j)], range(0, p - 1)))
+  else if head(t) === quotient and length(t) == 2 and t[1] === k and is_integer(t[2]) and t[2] > 0 and t[2] <= 200 then
+    cb_drr_make(-1, flatten([-1, table(0, t[2] - 1), 1]), k, map(j => [j, quotient(j, t[2])], range(0, t[2] - 1)))
+  else {
+    let r = cb_drr_hratio(t, k)
+    let rr = if r === null then null else together(simplify(r))
+    let num = if rr === null then null else expand(numerator(rr))
+    let den = if rr === null then null else expand(denominator(rr))
+    let hyp = not (rr === null) and is_polynomial(num, k) and is_polynomial(den, k) and not (num === 0)
+    if hyp then {
+      let sg = if is_real(coefficient(den, k, exponent(den, k))) and coefficient(den, k, exponent(den, k)) < 0 then -1 else 1
+      let t0 = cb_subst_free(t, k, 0)
+      let bad = is_polynomial(den, k) and exponent(den, k) > 0 and not (reduce(den == 0 and k >= 0, k, integers) === false)
+      if bad or not is_numeric(t0) and not free_of(t0, k) or t0 === complex_infinity or t0 === indeterminate then null
+      else cb_drr_make(0, [expand(-sg*num), expand(sg*den)], k, [[0, t0]])
+    } else {
+      let c0 = if head(t) === add then cb_drr_sum(select(apply(list, t), u => free_of(u, k))) else 0
+      let h = expand(t - c0)
+      let ph = cb_drr_cpoly(h, k)
+      let pp = if ph === null then null else if homog and not (c0 === 0) then cb_drr_monic(polynomial_lcm(ph, cb_x - 1)) else ph
+      let dd = if pp === null then 0 else exponent(pp, cb_x)
+      if pp === null or dd < 1 or dd > 40 or simplify(rewrite(pp, cb_x -> 0)) === 0 then null
+      else {
+        let inh = if homog or c0 === 0 then 0 else simplify(-rewrite(pp, cb_x -> 1)*c0)
+        cb_drr_make(inh, coefficient_list(pp, cb_x), k, map(j => [j, expand(cb_subst_free(t, k, j))], range(0, dd - 1)))
+      }
+    }
+  }
+}
+fn cb_drr_homog(opts) = not free_of(opts, method -> homogeneous)
+rule difference_root_reduce(t_, k_, opts___) := cb_drr(t, k, cb_drr_homog([opts]))(k) when is_symbol(k) and not is_list(t) and not (head(t) === equal) and not (cb_drr(t, k, cb_drr_homog([opts])) === null)
+rule difference_root_reduce(t_, k_, opts___) := map(u => cb_drr(u, k, cb_drr_homog([opts]))(k), t) when is_symbol(k) and is_list(t) and every(t, u => not (cb_drr(u, k, cb_drr_homog([opts])) === null))
+rule difference_root_reduce(f_) := cb_drr(f(cb_drk), cb_drk, false) when head(f) === `fn` and not (cb_drr(f(cb_drk), cb_drk, false) === null)
 
 # --- Green's functions of second-order linear boundary and initial value problems: green_function ---
 
