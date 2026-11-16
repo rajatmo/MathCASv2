@@ -225,7 +225,7 @@ d_solve(y''(x) + y(x) == tan(x), y(x), x)
 #% cell
 d_solve(y'(x) == sqrt(y(x)), y(x), x)
 #% output
-#= [[y(x) -> (c(1) + (1/2)*x)^2]]
+#= [[y(x) -> (1/4)*(x + c(1))^2]]
 
 #% text
 # The logistic equation, and a Riccati equation that needs Airy functions:

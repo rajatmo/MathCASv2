@@ -85,7 +85,7 @@ d_solve_value([y'(x) == y(x), y(0) == 1], y(0.5), x)
 #% cell
 d_solve_value(y'(x)^2 == y(x), y(x), x)
 #% output
-#= [(c(1) - (1/2)*x)^2, (c(1) + (1/2)*x)^2]
+#= [(c(1) - (1/2)*x)^2, (1/4)*(x + c(1))^2]
 
 #% subsection
 # Properties and relations

@@ -121,7 +121,7 @@ sum(1/(i + j)^2, [i, 1, n], [j, 1, 2])
 #% cell
 sum(x^k/k, [k, 1, inf])
 #% output
-#= conditional_expression(-log(1 - x), abs(x) < 1)
+#= conditional_expression(-log(1 - x), abs(x) <= 1 and x != 1)
 
 #% cell
 sum(1/(k^2 + 1), [k, 1, inf])

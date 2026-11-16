@@ -1150,7 +1150,7 @@ asymptotic_greater	symbolic	Calculus	asymptotic_greater(f, g, x -> a): whether g
 asymptotic_less	symbolic	Calculus	asymptotic_less(f, g, x -> a): whether f = o(g) as x approaches a (f/g tends to 0)
 difference_quotient	symbolic	Calculus	difference_quotient(f, [x, h]), (f, [x, k, h]), (f, spec1, spec2, ...): the (k-th) forward difference quotient of f in x with step h
 wronskian	symbolic	Calculus	wronskian([f1, ..., fk], x): the Wronskian determinant; wronskian(eq, y, x): Abel's form for a linear differential equation
-casoratian	symbolic	Calculus	casoratian([f1, ..., fk], m): the Casoratian determinant of the shifted values fi(m + j)
+casoratian	symbolic	Calculus	casoratian([f1, ..., fk], m): the Casoratian determinant of the shifted values fi(m + j); casoratian(eq, y, m): that of the fundamental set of a linear difference equation with C(0) = 1
 hankel_transform	symbolic	Calculus	hankel_transform(f, r, s), (f, r, s, nu): integrate(f bessel_j(nu, s r) r, [r, 0, inf]) for powers, exponentials, Gaussians, (r^2 + a^2)^-p and deltas
 inverse_hankel_transform	symbolic	Calculus	inverse_hankel_transform(g, s, r), (g, s, r, nu): the inverse Hankel transform (the same integral in s)
 hilbert_transform	symbolic	Calculus	hilbert_transform(f, t, s): (1/pi) PV integrate(f(t)/(s - t), [t, -inf, inf]) for sinusoids times rational functions, rational functions (real poles give deltas), deltas and piecewise polynomials of compact support; option assumptions:
@@ -1173,7 +1173,7 @@ n_roots	symbolic	Calculus	n_roots(p == q, x): the numerical roots of a polynomia
 lyapunov_solve	symbolic	Calculus	lyapunov_solve(a, c): x with a.x + x.a^H == c; lyapunov_solve(a, b, c): x with a.x + x.b == c
 discrete_lyapunov_solve	symbolic	Calculus	discrete_lyapunov_solve(a, c): x with a.x.a^H - x == c; (a, b, c): a.x.b - x == c; ([a, d], [b, e], c): a.x.b - d.x.e == c
 riccati_solve	symbolic	Calculus	riccati_solve([a, b], [q, r]): the stabilizing x of a^H.x + x.a - x.b.r^-1.b^H.x + q == 0 (numerically)
-discrete_riccati_solve	symbolic	Calculus	discrete_riccati_solve([a, b], [q, r]): the stabilizing x of a^H.x.a - x - a^H.x.b.(r + b^H.x.b)^-1.b^H.x.a + q == 0 (numerically)
+discrete_riccati_solve	symbolic	Calculus	discrete_riccati_solve([a, b], [q, r]), ([a, b], [q, r, p]) with a cross weight: the stabilizing x of a^H.x.a - x - a^H.x.b.(r + b^H.x.b)^-1.b^H.x.a + q == 0 (numerically)
 pade_approximant	symbolic	Calculus	pade_approximant(f, [x, x0, [m, k]]): the Pade approximant with numerator degree m and denominator degree k at x0; [x, x0, n] the [n/n] one
 apart_square_free	symbolic	Calculus	apart_square_free(e), (e, x): partial fractions over the square-free factors of the denominator
 partial_fraction_elements	symbolic	Calculus	partial_fraction_elements(r, x), (r, x, key): the parts of the partial fraction decomposition (poles, multiplicities, coefficients, ...) as an association
