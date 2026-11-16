@@ -15,6 +15,10 @@
 #% item
 # Coordinates are computed with machine numbers; exact input gives exact rationals back where they are small.
 
+#% item
+# Mesh regions give a mesh of the kind of the first: meshes of segments and boundary meshes of points on the line,
+# boundary meshes of segments in the plane, boundary meshes of polygons in space (by binary space partitioning).
+
 #% section
 # Examples
 
@@ -36,6 +40,27 @@ region_union(rectangle([0, 0], [2, 2]), rectangle([1, 1], [3, 3]))
 area(region_union(rectangle([0, 0], [2, 2]), rectangle([1, 1], [3, 3])))
 #% output
 #= 7
+
+#% subsection
+# Scope
+
+#% text
+# Meshes of the line give a mesh of the same kind:
+
+#% cell
+region_union(mesh_region([[0.], [2.]], [line([[1, 2]])]), mesh_region([[1.], [3.]], [line([[1, 2]])]))
+#% output
+#= mesh_region([[0.0], [3.0]], [line([[1, 2]])])
+
+#% text
+# Two tetrahedra given by their boundary faces: the boundary of the solid they fill together.
+
+#% cell
+t1 = boundary_mesh_region([[0., 0., 0.], [1., 0., 0.], [0., 1., 0.], [0., 0., 1.]], [polygon([[3, 2, 1], [1, 2, 4], [2, 3, 4], [4, 3, 1]])]);
+t2 = boundary_mesh_region([[0., 0., 0.], [1., 0., 0.], [0., 1., 0.], [1., 1., 2.]], [polygon([[3, 2, 1], [1, 2, 4], [2, 3, 4], [4, 3, 1]])]);
+volume(region_union(t1, t2))
+#% output
+#= 0.41666666666666663
 
 #% section
 # See also

@@ -95,7 +95,18 @@ impl<'h> C<'_, '_, '_, '_, 'h> {
 impl Native for OptNative {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
-        let [fc, xs] = args else { return Ok(Reply::Decline) };
+        // `find_instance(cond, vars, n)`: up to n points
+        let (args, count) = match args {
+            [fc, xs, k] if self.kind == Kind::FindInstance => match h.view(*k) {
+                View::Int(k) if (1..=1000).contains(&k) => ([*fc, *xs], k as usize),
+                _ => return Ok(Reply::Decline),
+            },
+            _ => (match args {
+                [fc, xs] => [*fc, *xs],
+                _ => return Ok(Reply::Decline),
+            }, 1),
+        };
+        let [fc, xs] = &args;
         let _scope = StopScope::enter(Some(&self.stop));
         let b = Build::new(h, &self.stop);
         let mut c = C { cx, b: &b };
@@ -116,7 +127,7 @@ impl Native for OptNative {
             return Ok(Reply::Decline);
         }
         if self.kind == Kind::FindInstance {
-            return Ok(find_instance(&mut c, *fc, &vars)?.map_or(Reply::Decline, Reply::Done));
+            return Ok(find_instance(&mut c, *fc, &vars, count)?.map_or(Reply::Decline, Reply::Done));
         }
         let (f, cond) = match c.cx.as_list(*fc) {
             Some([f, k]) => (*f, Some(*k)),
@@ -951,16 +962,76 @@ fn boolean_declared<'h>(h: &'h impl Store, cond: T<'h>, v: T<'h>) -> bool {
     false
 }
 
-fn find_instance<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, vars: &[T<'h>]) -> Res<Option<T<'h>>> {
+/// Points of the families of `solve(cond, x)` in one variable: each solution with its integer parameters `c(k)` set
+/// to 0, 1, -1, 2, -2 in turn, kept when the condition evaluates to `true` there (exact substitution); up to `n` of
+/// them. `[]` when `solve` finds no solution of an equation; `None` when fewer than `n` points are found.
+fn family_points<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, x: T<'h>, n: usize) -> Res<Option<T<'h>>> {
+    let b = c.b;
+    let h = b.heap();
+    let eq_head = h.sym_term(h.sym("equal"));
+    if !matches!(h.view(cond), View::App { head, .. } if head == eq_head) {
+        return Ok(None);
+    }
+    let s = c.ev("solve", &[cond, x])?;
+    let Some(items) = c.cx.as_list(s).map(|v| v.to_vec()) else { return Ok(None) };
+    if items.is_empty() {
+        return Ok(Some(c.list(&[])));
+    }
+    let ce = h.sym_term(h.sym("conditional_expression"));
+    let mut vals = vec![];
+    for &sol in &items {
+        let Some(&[r]) = c.cx.as_list(sol) else { return Ok(None) };
+        let View::App { args: &[a, v], .. } = h.view(r) else { return Ok(None) };
+        if a != x {
+            return Ok(None);
+        }
+        let v = match h.view(v) {
+            View::App { head, args: &[e, _] } if head == ce => e,
+            _ => v,
+        };
+        vals.push(v);
+    }
+    let cs: Vec<T<'h>> = (1..=3).map(|k| b.call("c", &[b.int(k)])).collect();
+    let mut out: Vec<T<'h>> = vec![];
+    for k in [0i64, 1, -1, 2, -2, 3, -3] {
+        for &v in &vals {
+            c.cx.tick(1)?;
+            let fixed: Vec<T<'h>> = cs.iter().map(|&ck| c.rule(ck, b.int(k))).collect();
+            let p = c.ev("rewrite", &[v, c.list(&fixed)])?;
+            if !is_free(b, p, cs[0]) || !is_free(b, p, cs[1]) || !is_free(b, p, cs[2]) {
+                return Ok(None);
+            }
+            let pt = c.list(&[c.rule(x, p)]);
+            if out.contains(&pt) {
+                continue;
+            }
+            let t = c.ev("rewrite", &[cond, pt])?;
+            // a shift by whole periods is removed by `simplify` (cos(acos(1/5) + 2 pi) == 1/5)
+            let t = if c.cx.is_true(t) || c.cx.is_false(t) { t } else { c.ev("simplify", &[t])? };
+            if c.cx.is_true(t) {
+                out.push(pt);
+                if out.len() == n {
+                    return Ok(Some(c.list(&out)));
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn find_instance<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, vars: &[T<'h>], n: usize) -> Res<Option<T<'h>>> {
     let b = c.b;
     let h = b.heap();
     if let [x] = vars {
+        if n > 1 {
+            return family_points(c, cond, *x, n);
+        }
         let Some((ends, points)) = pieces(c, cond, *x)? else {
             let r = c.ev("reduce", &[cond, *x, h.sym_term(h.sym("reals"))])?;
             if c.cx.is_false(r) {
                 return Ok(Some(c.list(&[])));
             }
-            return Ok(None);
+            return family_points(c, cond, *x, 1);
         };
         let check = |c: &mut C<'_, '_, '_, '_, 'h>, v: T<'h>| -> Res<bool> {
             let r = c.at(cond, *x, v)?;
@@ -989,6 +1060,9 @@ fn find_instance<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, vars: &[T<'h>])
     }
     // a variable declared Boolean (element(a, booleans)): each truth value in turn, the rest searched with it
     if let Some(i) = vars.iter().position(|&v| boolean_declared(h, cond, v)) {
+        if n > 1 {
+            return Ok(None);
+        }
         let a = vars[i];
         let rest: Vec<T<'h>> = vars.iter().copied().filter(|&v| v != a).collect();
         for val in [names::TRUE, names::FALSE] {
@@ -1043,6 +1117,8 @@ fn find_instance<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, vars: &[T<'h>])
         _ => h.call(h.sym("and"), &others),
     };
     let mut fallback = None;
+    let mut found: Vec<T<'h>> = vec![];
+    let mut complete = items.len() <= 8;
     for &sol in items.iter().take(8) {
         let Some(rules) = c.cx.as_list(sol).map(|v| v.to_vec()) else { return Ok(None) };
         let free: Vec<T<'h>> = vars
@@ -1050,6 +1126,9 @@ fn find_instance<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, vars: &[T<'h>])
             .copied()
             .filter(|&x| !rules.iter().any(|&r| matches!(h.view(r), View::App { args: &[a, _], .. } if a == x)))
             .collect();
+        if !free.is_empty() {
+            complete = false;
+        }
         let tries: Vec<T<'h>> = if free.is_empty() {
             vec![b.zero()]
         } else {
@@ -1081,17 +1160,31 @@ fn find_instance<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, vars: &[T<'h>])
                 }
             }
             if !eqs_hold {
+                complete = false;
                 continue;
             }
             if c.cx.is_true(r) {
-                return Ok(Some(c.list(&[point])));
+                if !found.contains(&point) {
+                    found.push(point);
+                }
+                if found.len() == n {
+                    return Ok(Some(c.list(&found)));
+                }
+                continue;
             }
-            if !c.cx.is_false(r) && fallback.is_none() {
-                fallback = Some(point);
+            if !c.cx.is_false(r) {
+                complete = false;
+                if fallback.is_none() {
+                    fallback = Some(point);
+                }
             }
         }
     }
-    Ok(fallback.map(|p| c.list(&[p])))
+    if n == 1 {
+        return Ok(fallback.map(|p| c.list(&[p])));
+    }
+    // fewer than n: all of them when the solution set is finite and every solution was examined
+    Ok(complete.then(|| c.list(&found)))
 }
 
 /// Optimization of step functions of one variable on a bounded domain.

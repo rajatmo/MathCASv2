@@ -495,6 +495,136 @@ fn special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
             b.div(b.mul(&[b.pow(b.int(2), half), b.powi(g(b.rat(1, 4)), 2)]), b.mul(&[b.int(8), b.pow(pi, half)]))
         }
         ("elliptic_k", [m]) if *m == half => b.div(b.mul(&[b.int(8), b.pow(pi, b.rat(3, 2))]), b.powi(g(b.rat(-1, 4)), 2)),
+        _ => return more_special_rule(b, name, args),
+    })
+}
+
+/// Further definitions in other functions:
+/// - the Weber function of an order that is not an integer by its two power series (DLMF 11.10.2 with 11.10.1's
+///   S1, S2 as 1F2 and Gamma(1 + nu/2) Gamma(1 - nu/2) = (pi nu/2)/sin(pi nu/2),
+///   Gamma(3/2 + nu/2) Gamma(3/2 - nu/2) = pi (1 - nu^2)/(4 cos(pi nu/2)), DLMF 5.5.3):
+///   E_nu(z) = 2 sin^2(pi nu/2)/(pi nu) 1F2(1; 1 - nu/2, 1 + nu/2; -z^2/4)
+///   - 2 z cos^2(pi nu/2)/(pi (1 - nu^2)) 1F2(1; 3/2 - nu/2, 3/2 + nu/2; -z^2/4);
+/// - the parabolic cylinder function of a negative integer order -n, 1 <= n <= 20, from
+///   D_(-1)(z) = sqrt(pi/2) e^(z^2/4) erfc(z/sqrt(2)) (DLMF 12.7.5) and D_0 = e^(-z^2/4) by the recurrence
+///   D_(nu-1) = (z D_nu - D_(nu+1))/nu (DLMF 12.8.1); of a rational order that is not an integer by the Hermite
+///   function, 2^(-nu/2) e^(-z^2/4) H_nu(z/sqrt(2)) (DLMF 12.7.2 continued in nu);
+/// - the q-factorial of an order that is not an integer by q-Pochhammer symbols, (q; q)_inf/(q^(z+1); q)_inf
+///   (1 - q)^-z (Gasper and Rahman, Basic Hypergeometric Series, 1.10.1-1.10.3) for an exact 0 < q < 1 or a
+///   symbolic q; for an exact q > 1 through p = 1/q, [z]_q! = q^(z (z - 1)/2) [z]_p!; for q = +-1 the q-gamma
+///   function at z + 1;
+/// - the incomplete beta function B_z(a, n) and B_z(n, b) with a positive integer n <= 30 by the binomial expansion
+///   of (1 - t)^(n-1) (resp. t^(n-1) about t = 1): sum_j C(n-1, j) (-1)^j z^(a+j)/(a+j), and
+///   B(n, b) - sum_j C(n-1, j) (-1)^j (1 - z)^(b+j)/(b+j) (DLMF 8.17.1, 8.17.4);
+/// - Appell's F1 with c = b1 + b2 by Gauss's function, (1 - y)^-a 2F1(a, b1; c; (x - y)/(1 - y)) (DLMF 16.16.2).
+fn more_special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
+    let h = b.heap();
+    let one = b.int(1);
+    let half = b.rat(1, 2);
+    let pi = h.sym_term(h.sym("pi"));
+    let rat = |t: T<'h>| b.ar.num(t).and_then(|n| n.as_rat().cloned());
+    let small_int = |t: T<'h>| match h.view(t) {
+        mc_api::View::Int(n) => Some(n),
+        _ => None,
+    };
+    // a number known not to be an integer, or a symbolic term
+    let non_integer = |t: T<'h>| match b.ar.num(t) {
+        Some(n) => n.as_rat().is_some_and(|q| !q.is_int()),
+        None => !is_integer(b, t),
+    };
+    Some(match (name, args) {
+        ("weber_e", [nu, z]) if non_integer(*nu) => {
+            let hn = b.mul(&[half, *nu]);
+            let w = b.mul(&[b.rat(-1, 4), b.powi(*z, 2)]);
+            let pfq = |lo: Vec<T<'h>>| b.call_named("hypergeometric_pfq", &[b.call(b.hd.list, &[one]), b.call(b.hd.list, &lo), w]);
+            let s = b.call_named("sin", &[b.mul(&[pi, hn])]);
+            let c = b.call_named("cos", &[b.mul(&[pi, hn])]);
+            let first = b.div(b.mul(&[b.int(2), b.powi(s, 2), pfq(vec![b.sub(one, hn), b.add(&[one, hn])])]), b.mul(&[pi, *nu]));
+            let second = b.div(
+                b.mul(&[b.int(2), *z, b.powi(c, 2), pfq(vec![b.sub(b.rat(3, 2), hn), b.add(&[b.rat(3, 2), hn])])]),
+                b.mul(&[pi, b.sub(one, b.powi(*nu, 2))]),
+            );
+            b.sub(first, second)
+        }
+        ("parabolic_cylinder_d", [nu, z]) => {
+            if let Some(n) = small_int(*nu).filter(|n| (-20..=-1).contains(n)) {
+                let e = |s: i64| b.call_named("exp", &[b.mul(&[b.rat(s, 4), b.powi(*z, 2)])]);
+                let erfc = b.call_named("erfc", &[b.mul(&[*z, b.pow(b.int(2), b.rat(-1, 2))])]);
+                // (D_v, D_(v+1)) from v = -1 down
+                let (mut cur, mut up) = (b.mul(&[b.pow(b.div(pi, b.int(2)), half), e(1), erfc]), e(-1));
+                for v in (n + 1..=-1).rev() {
+                    let next = b.div(b.sub(b.mul(&[*z, cur]), up), b.int(v));
+                    (cur, up) = (next, cur);
+                }
+                cur
+            } else {
+                rat(*nu).filter(|q| !q.is_int())?;
+                let hn = b.call_named("hermite_h", &[*nu, b.mul(&[*z, b.pow(b.int(2), b.rat(-1, 2))])]);
+                b.mul(&[b.pow(b.int(2), b.mul(&[b.rat(-1, 2), *nu])), b.call_named("exp", &[b.mul(&[b.rat(-1, 4), b.powi(*z, 2)])]), hn])
+            }
+        }
+        ("q_factorial", [x, q]) if non_integer(*x) => {
+            let qp = |a: T<'h>, base: T<'h>| b.call_named("q_pochhammer", &[a, base]);
+            let form = |p: T<'h>| {
+                let num = qp(p, p);
+                let den = qp(b.pow(p, b.add(&[*x, one])), p);
+                b.mul(&[b.div(num, den), b.pow(b.sub(one, p), b.neg(*x))])
+            };
+            match b.ar.num(*q) {
+                None => form(*q),
+                // a real exact base: positive (a negative one makes q^(z + 1) need a branch), or +-1
+                Some(mc_arith::Num::Real(r)) if matches!(r, mc_arith::Real::Exact(_)) => {
+                    let v = r.to_f64();
+                    if v.abs() == 1.0 {
+                        b.call_named("q_gamma", &[b.add(&[*x, one]), *q])
+                    } else if v > 0.0 && v < 1.0 {
+                        form(*q)
+                    } else if v > 1.0 {
+                        let p = b.powi(*q, -1);
+                        b.mul(&[b.pow(*q, b.mul(&[half, *x, b.sub(*x, one)])), form(p)])
+                    } else {
+                        return None;
+                    }
+                }
+                _ => return None,
+            }
+        }
+        ("beta", [z, a, c]) => {
+            let ok = |t: T<'h>| small_int(t).filter(|n| (1..=30).contains(n));
+            // the other parameter must not make a + j vanish
+            let not_pole = |t: T<'h>| !(is_integer(b, t) && small_int(t).is_none_or(|v| v <= 0));
+            let sum = |n: i64, s: T<'h>, base: T<'h>| -> Vec<T<'h>> {
+                let mut c = 1i64;
+                let mut out = vec![];
+                for j in 0..n {
+                    let sign = if j % 2 == 0 { c } else { -c };
+                    let p = b.add(&[s, b.int(j)]);
+                    out.push(b.div(b.mul(&[b.int(sign), b.pow(base, p)]), p));
+                    c = c * (n - 1 - j) / (j + 1);
+                }
+                out
+            };
+            if let Some(n) = ok(*c).filter(|_| not_pole(*a)) {
+                b.add(&sum(n, *a, *z))
+            } else {
+                let n = ok(*a).filter(|_| not_pole(*c))?;
+                // B(n, b) = (n - 1)!/(b (b + 1) ... (b + n - 1))
+                let fact: i64 = (1..n).product();
+                let den = b.mul(&(0..n).map(|j| b.add(&[*c, b.int(j)])).collect::<Vec<_>>());
+                let whole = b.div(b.int(fact), den);
+                let tail = sum(n, *c, b.sub(one, *z));
+                b.sub(whole, b.add(&tail))
+            }
+        }
+        ("appell_f1", [a, b1, b2, c, x, y]) => {
+            let sum = b.add(&[*b1, *b2]);
+            let same = sum == *c || matches!((rat(*b1), rat(*b2), rat(*c)), (Some(p), Some(q), Some(r)) if p.add(&q) == r);
+            if !same {
+                return None;
+            }
+            let w = b.div(b.sub(*x, *y), b.sub(one, *y));
+            b.mul(&[b.pow(b.sub(one, *y), b.neg(*a)), b.call_named("hypergeometric_2f1", &[*a, *b1, *c, w])])
+        }
         _ => return None,
     })
 }

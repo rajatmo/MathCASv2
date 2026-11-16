@@ -141,6 +141,13 @@ fn real_box<'h>(fr: &Front<'h>, cond: T<'h>, vars: &[T<'h>], m: &mut Meter) -> W
     Ok(Some(Some(out)))
 }
 
+/// The integer box of the real solution set of a polynomial condition in `vars`: `None` when unbounded or
+/// undecided, `Some(None)` when the condition has no real solution.
+#[allow(clippy::type_complexity)]
+pub(crate) fn box_of<'h>(fr: &Front<'h>, cond: T<'h>, vars: &[T<'h>], m: &mut Meter) -> WorkResult<Option<Option<Vec<(i64, i64)>>>> {
+    real_box(fr, cond, vars, m)
+}
+
 /// The integer roots of a polynomial in one variable (dense, integer coefficients) in `[lo, hi]`.
 fn integer_roots(c: &[Z], lo: i64, hi: i64, m: &mut Meter) -> WorkResult<Vec<i64>> {
     let q: Vec<Rat> = c.iter().map(|z| Rat::from_int(z.to_int())).collect();

@@ -570,10 +570,27 @@ fn legendre_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     // the associated function P_l^m(x) = (-1)^m (1 - x^2)^(m/2) d^m/dx^m P_l(x) (type 2, |x| < 1)
     if a.len() == 4 {
         // legendre_p(n, m, type, z): type 2 is the three-argument function, type 3 the function on the cut plane
-        if fx.is_int(a[2], 2) {
+        if kind_is(fx, a[2], 2) {
             return Ok(Some(fx.call("legendre_p", &[a[0], a[1], a[3]])));
         }
-        if !fx.is_int(a[2], 3) || !any_inexact(fx, a) || a.iter().any(|&t| fx.num(t).is_none()) {
+        let nat_nm = small_nat(fx, a[0]).zip(small_nat(fx, a[1])).filter(|&(n, m)| m <= n && n <= 1000);
+        // type 1 at integers 0 <= m <= n: (-1)^m (1 - z^2)^(m/2) d^m P_n/dz^m, the three-argument form
+        if kind_is(fx, a[2], 1) {
+            return Ok(nat_nm.map(|_| fx.call("legendre_p", &[a[0], a[1], a[3]])));
+        }
+        // type 3 at integers 0 <= m <= n and an exact or symbolic z: (z - 1)^(m/2) (z + 1)^(m/2) d^m P_n/dz^m
+        // (DLMF 14.6.5 with 14.7.1), the factors written apart so that the value is analytic off (-inf, 1]
+        if let Some((n, m)) = nat_nm.filter(|_| kind_is(fx, a[2], 3) && !any_inexact(fx, a)) {
+            let z = a[3];
+            let dp = poly_at(fx, &derivative(&coefficients(Family::Legendre, n), m), z);
+            if m == 0 {
+                return Ok(Some(dp));
+            }
+            let hm = fx.rat(m as i64, 2);
+            let w = fx.mul(&[fx.pow(fx.sub(z, fx.int(1)), hm), fx.pow(fx.add(&[z, fx.int(1)]), hm)]);
+            return Ok(Some(fx.mul(&[w, dp])));
+        }
+        if !kind_is(fx, a[2], 3) || !any_inexact(fx, a) || a.iter().any(|&t| fx.num(t).is_none()) {
             return Ok(None);
         }
         // ((z + 1)/(z - 1))^(m/2) 2F1~(-n, n + 1; 1 - m; (1 - z)/2)
@@ -590,17 +607,12 @@ fn legendre_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         if !any_inexact(fx, a) || a.iter().any(|&t| fx.num(t).is_none()) || absurd(fx, a) {
             return Ok(None);
         }
-        // any degree and order:((1 + x)/(1 - x))^(m/2) 2F1~(-l, l + 1; 1 - m; (1 - x)/2) (type 2); for an integer
-        // order the factor is taken as (1 + x)^(m/2) (1 - x)^(-m/2), so that with the (1 - x)^m inside 2F1~ it is
-        // the (1 - x^2)^(m/2) of the definition by derivatives used for integer degrees (at x = 3,
-        // legendre_p(2, 1, x) was -18 sqrt(2) i exactly and at machine precision, +18 sqrt(2) i at 30 digits)
+        // any degree and order: (1 + x)^(m/2) (1 - x)^(-m/2) 2F1~(-l, l + 1; 1 - m; (1 - x)/2) (type 2). Off the
+        // real axis the factor equals ((1 + x)/(1 - x))^(m/2); written apart it is also, for an integer order with
+        // the (1 - x)^m inside 2F1~, the (1 - x^2)^(m/2) of the definition by derivatives, and on the cut x > 1 the
+        // value is the limit from below, the side of (1 - x)^(-m/2) on the principal branch.
         let half_m = fx.mul(&[m, fx.rat(1, 2)]);
-        let integral = fx.f64_of(m).is_some_and(|v| v.fract() == 0.0 && v.abs() < 1e6);
-        let w = if integral {
-            fx.mul(&[fx.pow(fx.add(&[fx.int(1), x]), half_m), fx.pow(fx.sub(fx.int(1), x), fx.neg(half_m))])
-        } else {
-            fx.pow(fx.div(fx.add(&[fx.int(1), x]), fx.sub(fx.int(1), x)), half_m)
-        };
+        let w = fx.mul(&[fx.pow(fx.add(&[fx.int(1), x]), half_m), fx.pow(fx.sub(fx.int(1), x), fx.neg(half_m))]);
         let f = fx.call(
             "hypergeometric_2f1_regularized",
             &[fx.neg(l), fx.add(&[l, fx.int(1)]), fx.sub(fx.int(1), m), fx.mul(&[fx.rat(1, 2), fx.sub(fx.int(1), x)])],
@@ -647,6 +659,11 @@ fn falling_ratio(l: u64, m: u64) -> Rat {
     Rat::new(Int::from_i64(1), Int::from_nat(den))
 }
 
+/// The type argument of the Legendre functions: k exactly, or a number equal to k (`n(...)` makes it a ball).
+fn kind_is<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>, k: i64) -> bool {
+    fx.is_int(t, k) || (fx.num(t).is_some() && fx.f64_of(t) == Some(k as f64))
+}
+
 /// An exact rational that is not an integer.
 fn non_integer_rat<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> bool {
     fx.rat_of(t).is_some_and(|r| !r.is_int())
@@ -669,8 +686,127 @@ fn ferrers_at_zero<'h>(fx: &Fx<'_, '_, '_, 'h>, nu: T<'h>, second: bool) -> T<'h
     }
 }
 
+/// The polynomial W_(n-1) of Q_n = P_n (log(1 + x) - log(1 - x))/2 - W_(n-1): sum_(k=1)^n P_(k-1) P_(n-k)/k
+/// (DLMF 14.7.2 written by Christoffel's formula), lowest coefficient first.
+fn legendre_q_w(n: u64) -> Vec<Rat> {
+    let p = |k: u64| coefficients(Family::Legendre, k);
+    let mut w = vec![Rat::from_i64(0); n.max(1) as usize];
+    for k in 1..=n {
+        let (a1, b1) = (p(k - 1), p(n - k));
+        for (i, ca) in a1.iter().enumerate() {
+            for (j, cb) in b1.iter().enumerate() {
+                w[i + j] = w[i + j].add(&ca.mul(cb).mul(&qi(1, k as i64)));
+            }
+        }
+    }
+    w
+}
+
+/// legendre_q(n, m, type, z). Type 2 is the three-argument function; type 1 agrees with it at integer degree and
+/// order. Type 3 is Q^mu_nu(z) of DLMF 14.3.7, analytic on the plane cut along (-inf, 1]:
+/// - integers n, m >= 0 and an exact or symbolic z: (z - 1)^(m/2) (z + 1)^(m/2) d^m/dz^m (P_n L/2 - W_(n-1)) with
+///   L = log(z + 1) - log(z - 1) (DLMF 14.6.5, 14.7.2), the m-th derivative by Leibniz's rule with
+///   L^(j) = (-1)^(j-1) (j-1)! ((z + 1)^-j - (z - 1)^-j);
+/// - numbers with an inexact one, z off (-inf, 1]: e^(mu pi i) sqrt(pi) Gamma(nu + mu + 1) (z - 1)^(mu/2)
+///   (z + 1)^(mu/2) z^(-nu-mu-1) 2^(-nu-1) 2F1~(nu/2 + mu/2 + 1, nu/2 + mu/2 + 1/2; nu + 3/2; 1/z^2) (DLMF 14.3.7;
+///   the factors apart and z^(-nu-mu-1) are analytic in each half plane, and 1/z^2 avoids [1, inf) there).
+fn legendre_q_typed<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    let (nu, mu, z) = (a[0], a[1], a[3]);
+    if kind_is(fx, a[2], 2) {
+        return Ok(Some(fx.call("legendre_q", &[nu, mu, z])));
+    }
+    let nat_nm = small_nat(fx, nu).zip(small_nat(fx, mu)).filter(|&(n, m)| n <= 200 && m <= 20);
+    if kind_is(fx, a[2], 1) {
+        return Ok(nat_nm.map(|_| fx.call("legendre_q", &[nu, mu, z])));
+    }
+    if !kind_is(fx, a[2], 3) {
+        return Ok(None);
+    }
+    // a real z <= 1 lies on the cut
+    let on_cut = |fx: &Fx<'_, '_, '_, 'h>| match fx.num(z) {
+        Some(Num::Real(x)) => x.to_f64() <= 1.0,
+        Some(Num::Complex(x, y)) => y.to_f64() == 0.0 && x.to_f64() <= 1.0,
+        _ => false,
+    };
+    if any_inexact(fx, a) {
+        if a.iter().any(|&t| fx.num(t).is_none()) || on_cut(fx) {
+            return Ok(None);
+        }
+        // every parameter as a ball at the working precision (exact parameters would leave algebraic factors such
+        // as exp(2 pi i/3) beside the balls)
+        let Some((wk, xs)) = crate::cover::work(fx, &[nu, mu, z], 16) else { return Ok(None) };
+        let (nu, mu, z) = (xs[0], xs[1], xs[2]);
+        let pi = crate::cover::pi_at(fx, wk.w)?;
+        let half = fx.rat(1, 2);
+        let s = fx.add(&[nu, mu]);
+        let i = fx.ar.complex(fx.int(0), fx.int(1));
+        let phase = fx.call("exp", &[fx.mul(&[mu, pi, i])]);
+        let hm = fx.mul(&[half, mu]);
+        let w = fx.mul(&[fx.pow(fx.sub(z, fx.int(1)), hm), fx.pow(fx.add(&[z, fx.int(1)]), hm)]);
+        let g = fx.call("gamma", &[fx.add(&[s, fx.int(1)])]);
+        let pre = fx.mul(&[
+            phase,
+            fx.pow(pi, half),
+            g,
+            w,
+            fx.pow(z, fx.neg(fx.add(&[s, fx.int(1)]))),
+            fx.pow(fx.int(2), fx.neg(fx.add(&[nu, fx.int(1)]))),
+        ]);
+        let hs = fx.mul(&[half, s]);
+        let f = fx.call(
+            "hypergeometric_2f1_regularized",
+            &[fx.add(&[hs, fx.int(1)]), fx.add(&[hs, half]), fx.add(&[nu, fx.rat(3, 2)]), fx.pow(z, fx.int(-2))],
+        );
+        let v = fx.eval(fx.mul(&[pre, f]))?;
+        return Ok(wk.out(fx, v, false));
+    }
+    let Some((n, m)) = nat_nm else { return Ok(None) };
+    if fx.num(z).is_some() && on_cut(fx) {
+        return Ok(None);
+    }
+    let one = fx.int(1);
+    let (zp, zm) = (fx.add(&[z, one]), fx.sub(z, one));
+    let pn = coefficients(Family::Legendre, n);
+    // d^m (P_n L)/2 = (1/2) sum_j C(m, j) P_n^(m-j) L^(j)
+    let mut terms = vec![];
+    let mut binom = Rat::from_i64(1);
+    let mut fact = Rat::from_i64(1);
+    for j in 0..=m {
+        if j > 0 {
+            binom = binom.mul(&qi((m - j + 1) as i64, j as i64));
+            if j > 1 {
+                fact = fact.mul(&Rat::from_i64(j as i64 - 1));
+            }
+        }
+        let dp = derivative(&pn, m - j);
+        if dp.iter().all(|c| c.is_zero()) {
+            continue;
+        }
+        let lj = if j == 0 {
+            fx.sub(fx.call("log", &[zp]), fx.call("log", &[zm]))
+        } else {
+            let sign = if j % 2 == 1 { 1 } else { -1 };
+            let c = fact.mul(&Rat::from_i64(sign));
+            let jj = fx.int(-(j as i64));
+            fx.mul(&[fx.q(&c), fx.sub(fx.pow(zp, jj), fx.pow(zm, jj))])
+        };
+        terms.push(fx.mul(&[fx.q(&binom.mul(&qi(1, 2))), poly_at(fx, &dp, z), lj]));
+    }
+    let wm = derivative(&legendre_q_w(n), m);
+    terms.push(fx.neg(poly_at(fx, &wm, z)));
+    let body = fx.add(&terms);
+    if m == 0 {
+        return Ok(Some(body));
+    }
+    let hm = fx.rat(m as i64, 2);
+    Ok(Some(fx.mul(&[fx.pow(zm, hm), fx.pow(zp, hm), body])))
+}
+
 fn legendre_q<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     // legendre_q(nu, mu, x) is a library rule (lib/special.mc); the native only takes its uncertain arguments
+    if a.len() == 4 {
+        return legendre_q_typed(fx, a);
+    }
     if a.len() != 2 {
         return Ok(None);
     }
@@ -685,21 +821,12 @@ fn legendre_q<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     }
     let Some(n) = small_nat(fx, n).filter(|n| *n <= 200) else { return Ok(None) };
     // Q_n = P_n (log(1 + x) - log(1 - x))/2 - sum_{k=1}^n P_{k-1} P_{n-k} / k
-    let p = |k: u64| coefficients(Family::Legendre, k);
-    let pn = poly_at(fx, &p(n), x);
+    let pn = poly_at(fx, &coefficients(Family::Legendre, n), x);
     let l = fx.mul(&[
         fx.rat(1, 2),
         fx.sub(fx.call("log", &[fx.add(&[fx.int(1), x])]), fx.call("log", &[fx.sub(fx.int(1), x)])),
     ]);
-    let mut w = vec![Rat::from_i64(0); n as usize];
-    for k in 1..=n {
-        let (a1, b1) = (p(k - 1), p(n - k));
-        for (i, ca) in a1.iter().enumerate() {
-            for (j, cb) in b1.iter().enumerate() {
-                w[i + j] = w[i + j].add(&ca.mul(cb).mul(&qi(1, k as i64)));
-            }
-        }
-    }
+    let w = if n == 0 { vec![] } else { legendre_q_w(n) };
     Ok(Some(fx.sub(fx.mul(&[pn, l]), poly_at(fx, &w, x))))
 }
 
@@ -2118,7 +2245,7 @@ pub static DEFS: &[Def] = &[
     def!("chebyshev_t", &[2], Some(chebyshev_t), None, "chebyshev_t(n, x): the Chebyshev polynomial of the first kind T_n(x) = cos(n acos(x))"),
     def!("chebyshev_u", &[2], Some(chebyshev_u), None, "chebyshev_u(n, x): the Chebyshev polynomial of the second kind U_n(x)"),
     def!("legendre_p", &[2, 3, 4], Some(legendre_p), None, "legendre_p(n, x): the Legendre polynomial P_n(x); legendre_p(n, m, x): the associated Legendre function P_n^m(x) (any degree and order for numbers); legendre_p(n, m, a, z): of type a (2 as legendre_p(n, m, z), 3 on the plane cut along (-inf, 1])"),
-    def!("legendre_q", &[2, 3], Some(legendre_q), None, "legendre_q(n, x): the Legendre function of the second kind Q_n(x) at integer n"),
+    def!("legendre_q", &[2, 3, 4], Some(legendre_q), None, "legendre_q(n, x): the Legendre function of the second kind Q_n(x); legendre_q(n, m, x): the associated function Q_n^m(x); legendre_q(n, m, a, z): of type a (2 as legendre_q(n, m, z), 3 on the plane cut along (-inf, 1])"),
     def!("hermite_h", &[2], Some(hermite_h), None, "hermite_h(n, x): the Hermite polynomial H_n(x) (physicists' normalization)"),
     def!("laguerre_l", &[2, 3], Some(laguerre_l), None, "laguerre_l(n, x): the Laguerre polynomial L_n(x); laguerre_l(n, a, x): the generalized Laguerre polynomial"),
     def!("gegenbauer_c", &[2, 3], Some(gegenbauer_c), None, "gegenbauer_c(n, a, x): the Gegenbauer polynomial C_n^(a)(x); gegenbauer_c(n, x) = (2/n) T_n(x)"),

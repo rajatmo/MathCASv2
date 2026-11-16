@@ -14,6 +14,9 @@ numbers, `reduce` in several real variables, exact optimisation and integer prob
 - `complex`: quantifier elimination over the complex numbers by Groebner bases.
 - `optimize`, `integers`, `witness`: `minimize` and `maximize`, problems over the integers, existential sentences that
   are not polynomial.
+- `instances`: `find_instance` over subsets of the integers (sums of squares decomposed directly), bounded integer
+  problems with other functions, the primes; `minimize` and the other goals over the integers (the real relaxation,
+  else the integer points of a bounded feasible set).
 - `front`, `formula`, `poly`: terms to problems, formulas over polynomial atoms, polynomial helpers.
 - `reals`: `CadReals`, the last tier of the decision service of `mc-decide`; `natives`: the registered functions.
 

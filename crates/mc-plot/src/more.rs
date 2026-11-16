@@ -122,7 +122,19 @@ impl Native for DiscretePlot {
             None => base,
         };
         let Some((n, vals)) = discrete_values(cx, *spec)? else { return Ok(bad(h, name, 2)) };
-        let fs: Vec<T<'h>> = cx.as_list(*f).map(|l| l.to_vec()).unwrap_or_else(|| vec![*f]);
+        // `style([f1, f2, ...], d)`: the style given to each function (inside its own wrappers)
+        let f = match crate::values::call_of(h, *f) {
+            Some((n, &[inner, ref dirs @ ..])) if n == "style" && !dirs.is_empty() && cx.as_list(inner).is_some() => {
+                let items: Vec<T<'h>> = cx.as_list(inner).unwrap_or(&[]).iter().map(|&e| {
+                    let mut a = vec![e];
+                    a.extend_from_slice(dirs);
+                    h.call(h.sym("style"), &a)
+                }).collect();
+                cx.list(&items)
+            }
+            _ => *f,
+        };
+        let fs: Vec<T<'h>> = cx.as_list(f).map(|l| l.to_vec()).unwrap_or_else(|| vec![f]);
         let (fs, wraps) = crate::unwrap_all(h, &fs);
         let mut look = look;
         wraps.apply(cx, &mut look);
@@ -137,11 +149,20 @@ impl Native for DiscretePlot {
                 }
                 let ok = fun.eval(cx, &[x], &mut out)?;
                 let mut y = (ok && out[0].is_finite()).then_some(out[0]);
-                // functions of integers (prime(n), moebius_mu(n), sums to n): the exact integer substituted
+                // functions of integers (prime(n), moebius_mu(n), sums to n): the exact integer substituted into the
+                // function as written (a definition for integers only fails on the symbol), then evaluated
                 if y.is_none() && x.fract() == 0.0 && x.abs() < 1e15 {
-                    let r = h.call(h.sym(mc_api::names::RULE), &[h.sym_term(n), h.int(x as i64)]);
-                    let v = cx.eval(h.call(h.sym("n"), &[h.call(h.sym("rewrite"), &[f, r])]))?;
+                    // first the integer as a 30-digit number: a closed form with powers of powers (2^2^n) overflows
+                    // machine numbers and is huge as an exact number, but is quick in arbitrary precision
+                    let k30 = cx.eval(h.call(h.sym("n"), &[h.int(x as i64), h.int(30)]))?;
+                    let at = crate::held::replace_sym(h, f, h.sym_term(n), k30, 0);
+                    let v = cx.eval(h.call(h.sym("n"), &[at]))?;
                     y = crate::real(cx, v)?;
+                    if y.is_none() {
+                        let at = crate::held::replace_sym(h, f, h.sym_term(n), h.int(x as i64), 0);
+                        let v = cx.eval(h.call(h.sym("n"), &[at]))?;
+                        y = crate::real(cx, v)?;
+                    }
                 }
                 pts.push((x, y));
             }

@@ -1776,7 +1776,8 @@ fn has_radical<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
 const SAMPLES: [[f64; 6]; 2] = [[0.7, 1.3, 2.1, 0.37, 3.3, 1.9], [1.7, 0.45, 2.9, 1.15, 0.8, 2.6]];
 
 /// Is the solution `s` (rules) spurious: an equation's residual clearly nonzero, numerically, at every sample of
-/// the other symbols? (A solution that is right at one sample is kept.)
+/// the other symbols and generated constants `c(k)`? (A solution that is right at one sample, or whose residual has
+/// no numeric value at a sample, is kept.)
 fn spurious<'h>(cx: &mut NativeCx<'_, '_, 'h>, equations: &[T<'h>], vars: &[T<'h>], s: T<'h>) -> Res<bool> {
     let h = cx.heap();
     let mut params = vec![];
@@ -1790,11 +1791,18 @@ fn spurious<'h>(cx: &mut NativeCx<'_, '_, 'h>, equations: &[T<'h>], vars: &[T<'h
                     params.push(u);
                 }
             }
+            // a generated constant c(k) (a head applied to integers only) is a parameter
+            View::App { args, .. } if !args.is_empty() && args.iter().all(|&a| matches!(h.view(a), View::Int(_))) && matches!(head_name(h, u).as_deref(), Some("c")) => {
+                if !params.contains(&u) {
+                    params.push(u);
+                }
+            }
             // the bound variable of a root object's function is not a parameter
             View::App { args, .. } if !is_root_object(h, u) && head_name(h, u).as_deref() != Some("fn") => stack.extend(args.iter().copied()),
             _ => {}
         }
     }
+    let mut decided = 0;
     'sample: for sample in SAMPLES {
         let mut rules: Vec<T<'h>> = params.iter().enumerate().map(|(i, &p)| h.call(h.sym(names::RULE), &[p, h.real(sample[i % 6] * (1.0 + (i / 6) as f64))])).collect();
         let at = cx.eval(h.call(h.sym("rewrite"), &[s, cx.list(&rules)]))?;
@@ -1813,13 +1821,16 @@ fn spurious<'h>(cx: &mut NativeCx<'_, '_, 'h>, equations: &[T<'h>], vars: &[T<'h
                 })
             };
             let d = cx.eval(h.call(h.sym(names::ADD), &[lv, h.call(h.sym(names::MUL), &[h.int(-1), rv])]))?;
+            // a residual without a numeric value decides nothing at this sample
             let (Some(dm), Some(lm), Some(rm)) = (mag(d, cx)?, mag(lv, cx)?, mag(rv, cx)?) else { continue 'sample };
             if dm > 1e-6 * (1.0 + lm + rm) {
+                decided += 1;
                 continue 'sample;
             }
         }
         // every equation holds at this sample
         return Ok(false);
     }
-    Ok(true)
+    // spurious only when some sample showed a clearly nonzero residual
+    Ok(decided > 0)
 }

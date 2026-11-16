@@ -251,7 +251,16 @@ impl Planar {
 fn region<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, s1: T<'h>, s2: T<'h>, o: Option<T<'h>>) -> Res<Reply<'h>> {
     let h = cx.heap();
     let name = "parametric_plot";
-    let (Some((u, a, b)), Some((v, c, d))) = (crate::fields::spec(cx, s1)?, crate::fields::spec(cx, s2)?) else { return Ok(bad(h, name, 2)) };
+    let n = 36;
+    let Some((u, a, b)) = crate::fields::spec(cx, s1)? else { return Ok(bad(h, name, 2)) };
+    // the second range: numbers, or ends that are functions of the first parameter
+    let (v, ends) = match crate::fields::spec(cx, s2)? {
+        Some((v, c, d)) => (v, vec![(c, d); n + 1]),
+        None => match crate::plots3d::dependent_ends(cx, s2, u, a, b, n + 1)? {
+            Some(r) => r,
+            None => return Ok(bad(h, name, 3)),
+        },
+    };
     let base = Look { equal: true, ..Look::default() };
     let mut look = match o {
         Some(o) => plot_options(cx, o, base, &["mesh", "exclusions", "mesh_style", "boundary_style", "mesh_functions", "plot_points", "color_function", "region_function"], name).unwrap_or_default(),
@@ -271,7 +280,6 @@ fn region<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, s1: T<'h>, s2: T<'h>, o: 
     if maps.is_empty() {
         return Ok(bad(h, name, 1));
     }
-    let n = 36;
     let vars = [mc_numfn::Var::scalar(u), mc_numfn::Var::scalar(v)];
     let mut under = vec![];
     let (mut x0, mut x1, mut y0, mut y1) = (f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY);
@@ -283,6 +291,7 @@ fn region<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, s1: T<'h>, s2: T<'h>, o: 
         for j in 0..=n {
             cx.tick(1)?;
             for i in 0..=n {
+                let (c, d) = ends[i];
                 let p = [a + (b - a) * i as f64 / n as f64, c + (d - c) * j as f64 / n as f64];
                 let x = if gx.eval(cx, &p, &mut out)? { out[0] } else { f64::NAN };
                 let y = if gy.eval(cx, &p, &mut out)? { out[0] } else { f64::NAN };

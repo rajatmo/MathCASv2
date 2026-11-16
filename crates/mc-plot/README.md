@@ -25,6 +25,10 @@ curves, density and contour plots, 3D plots, charts, vector fields, graphs and a
 - Functions are sampled adaptively (64 even points, refined where the curve bends) through `mc-numfn`; a non-finite
   value breaks the curve, and so does a jump larger than the visible range.
 - The y range uses the 1% and 99% quantiles of the samples, widened when no value lies far outside them.
+- Function plots hold their arguments: the variables of the ranges are the plot's own (an outside value of the
+  variable does not enter), and a domain `element([x, y, ...], region)` gives the region's box with the function
+  taken only in the region (also in `contour_plot3d`, `density_plot3d` and `region_plot3d`).
+- A second range may have ends that depend on the first variable (`plot3d`, the region form of `parametric_plot`).
 - Depends on `mc-graphics`, `mc-graphics-kernel`, `mc-geom`, `mc-io`, `mc-numfn` and `mc-syntax`.
 
 ## Tests

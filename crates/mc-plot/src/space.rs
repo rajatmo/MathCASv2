@@ -227,11 +227,109 @@ pub(crate) fn finish3<'h>(cx: &mut NativeCx<'_, '_, 'h>, prims: Vec<T<'h>>, lo: 
     finish_graphic(cx, g, name, &ignored)
 }
 
+impl Space {
+    /// Plots over regions: `contour_plot3d(f, element([x, y, z], reg))`, `density_plot3d` and `region_plot3d` alike
+    /// (the region's bounding box as the ranges, the function taken only where the region holds), and
+    /// `region_plot3d(reg)` of a region alone (an implicit region over its bounds, any other region drawn as the
+    /// primitive it is).
+    fn on_region<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], o: Option<T<'h>>) -> Res<Option<Reply<'h>>> {
+        let h = cx.heap();
+        if !matches!(self.kind, Kind::Contour | Kind::Region | Kind::Density) {
+            return Ok(None);
+        }
+        let with_options = |mut v: Vec<T<'h>>| {
+            if let Some(o) = o {
+                v.push(o);
+            }
+            v
+        };
+        match a {
+            [f, dom] if crate::values::call_of(h, *dom).is_some_and(|(n, _)| n == "element") => {
+                let Some((specs, cond)) = crate::held::region_domain(cx, *dom)? else { return Ok(None) };
+                if specs.len() != 3 {
+                    return Ok(None);
+                }
+                let f = match (self.kind, cond) {
+                    (_, None) => *f,
+                    (Kind::Region, Some(c)) => h.call(h.sym("and"), &[*f, c]),
+                    (_, Some(c)) => {
+                        let mask = |g: T<'h>| h.call(h.sym("piecewise"), &[list(h, &[list(h, &[g, c])]), h.sym_term(h.sym("indeterminate"))]);
+                        // an equation keeps its two sides, each taken only in the region
+                        match mc_geom::region::call_parts(h, *f) {
+                            Some((n, &[l, r])) if n == "equal" => h.call(h.sym("equal"), &[mask(l), mask(r)]),
+                            _ => mask(*f),
+                        }
+                    }
+                };
+                let mut args = vec![f];
+                args.extend(specs);
+                let args = with_options(args);
+                Ok(Some(self.call(cx, h.call(h.sym(self.name), &args), &args)?))
+            }
+            [reg] if self.kind == Kind::Region => {
+                let Some(region) = mc_geom::read(cx, *reg) else { return Ok(None) };
+                if region.embedding() != 3 {
+                    return Ok(None);
+                }
+                if let mc_geom::Region::Implicit { cond, vars } = &region {
+                    let b = cx.eval(h.call(h.sym("region_bounds"), &[*reg]))?;
+                    let Some(rows) = cx.as_list(b).map(|l| l.to_vec()) else { return Ok(None) };
+                    if rows.len() != 3 {
+                        return Ok(None);
+                    }
+                    let mut args = vec![*cond];
+                    for (&v, &row) in vars.iter().zip(&rows) {
+                        let Some(&[lo, hi]) = cx.as_list(row) else { return Ok(None) };
+                        if real(cx, lo)?.is_none() || real(cx, hi)?.is_none() {
+                            return Ok(None);
+                        }
+                        args.push(list(h, &[v, lo, hi]));
+                    }
+                    let args = with_options(args);
+                    return Ok(Some(self.call(cx, h.call(h.sym(self.name), &args), &args)?));
+                }
+                // a primitive of space: drawn as it is, with the plot's options
+                let opts: Vec<T<'h>> = match o.map(|o| h.view(o)) {
+                    Some(View::App { args, .. }) => args.to_vec(),
+                    _ => vec![],
+                };
+                let style: Vec<T<'h>> = opts
+                    .iter()
+                    .filter_map(|&r| match h.view(r) {
+                        View::App { args: &[k, v], .. } if matches!(h.view(k), View::Sym(s) if h.sym_name(s) == "plot_style") => Some(v),
+                        _ => None,
+                    })
+                    .collect();
+                let rest: Vec<T<'h>> = opts
+                    .iter()
+                    .copied()
+                    .filter(|&r| !matches!(h.view(r), View::App { args: &[k, _], .. } if matches!(h.view(k), View::Sym(s) if matches!(h.sym_name(s).as_str(), "plot_style" | "plot_points" | "mesh" | "max_recursion"))))
+                    .collect();
+                let mut content = style;
+                content.push(*reg);
+                let mut gargs = vec![list(h, &content)];
+                if !rest.is_empty() {
+                    gargs.push(h.call(h.sym("options"), &rest));
+                }
+                let g = h.call(h.sym("graphics3d"), &gargs);
+                match finish_graphic(cx, g, self.name, &[])? {
+                    Reply::Done(v) if crate::values::call_of(h, v).is_some_and(|(n, _)| n == "failure") => Ok(None),
+                    r => Ok(Some(r)),
+                }
+            }
+            _ => Ok(None),
+        }
+    }
+}
+
 impl Native for Space {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let name = self.name;
         let (a, o) = split(h, args);
+        if let Some(r) = self.on_region(cx, &a, o)? {
+            return Ok(r);
+        }
         match (self.kind, a.as_slice()) {
             (Kind::Contour | Kind::Region | Kind::Density, [f, sx, sy, sz]) => {
                 let (vars, lo, hi) = match ranges(cx, &[*sx, *sy, *sz], name)? {

@@ -4,7 +4,7 @@
 # discretize_region
 
 #% text
-# `discretize_region(reg)`: a triangle mesh_region of a plane region (disks as fine polygons), a line mesh of lines
+# `discretize_region(reg)`: a triangle mesh_region of a plane region (disks as fine polygons), a line mesh of lines; `discretize_region(implicit_region(...), ranges)`: a mesh of the implicit region (triangles of a plane region or a surface, segments of a curve)
 
 #% section
 # Examples
@@ -24,6 +24,31 @@ mesh_cell_count(m)
 area(m)
 #% output
 #= 4.0
+
+#% subsection
+# Scope
+
+#% text
+# An implicit region is meshed on a grid over its bounds (or over given ranges): a disk as triangles, whose area is
+# near pi.
+
+#% cell
+area(discretize_region(implicit_region(x^2 + y^2 <= 1, [x, y])))
+#% output
+#= 3.1414709628798403
+
+#% text
+# A surface of space, and a curve of space given by two equations, in a box:
+
+#% cell
+area(discretize_region(implicit_region(x^2 + y^2 + z^2 == 1, [x, y, z]), [[-1.1, 1.1], [-1.1, 1.1], [-1.1, 1.1]]))
+#% output
+#= 12.56228255434841
+
+#% cell
+mesh_cell_count(discretize_region(implicit_region(x^2 + y^2 == z^2 and x + y == 2*z - 1, [x, y, z]), [[-3, 3], [-3, 3], [-3, 3]]))
+#% output
+#= [132, 132]
 
 #% section
 # See also

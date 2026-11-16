@@ -28,7 +28,7 @@ fn ds_heads() = [sin_integral, sinh_integral, cos_integral, cosh_integral, exp_i
   hypergeometric_pfq_regularized, anger_j, weber_e, zeta, factorial2, barnes_g, hyperfactorial, elliptic_theta_prime,
   hypergeometric_u, airy_ai, airy_bi, airy_ai_prime, airy_bi_prime, airy_ai_zero, airy_bi_zero, riemann_siegel_z,
   bessel_j_zero, bessel_y_zero, erf, erfc, fresnel_c, fresnel_s, gamma_regularized, hankel_h1, hankel_h2,
-  spherical_hankel_h1, spherical_hankel_h2, lerch_phi, fibonacci, lucas_l]
+  spherical_hankel_h1, spherical_hankel_h2, lerch_phi, fibonacci, lucas_l, lommel_s1, lommel_s2, lommel_t1, lommel_t2]
 fn ds_known(t) = not is_atom(t) and some(ds_heads(), f => f === head(t))
 
 rule ds_series(e_, x_, x0_, k_, opts___) := ds_series_at(e, x, x0, k)
@@ -132,6 +132,43 @@ rule ds_at(struve_h(nu_, u_), 2, 0, k_) := {
 rule ds_at(struve_l(nu_, u_), 2, 0, k_) := {
   ds_sum(j => (u/2)^(2*j + nu + 1)/(gamma(j + 3/2)*gamma(j + nu + 3/2)), 0, k)
 } when is_integer(nu) and nu >= 0
+
+# 1/Gamma(a), 0 at the poles of Gamma (1/Gamma is entire)
+fn ds_rgamma(a) = if is_integer(a) and a <= 0 then 0 else 1/gamma(a)
+# Bessel functions of an order that is not an integer near 0: J_nu = sum (-1)^j (u/2)^(nu + 2j)/(j! Gamma(nu + j + 1)),
+# I_nu the same without (-1)^j (DLMF 10.2.2, 10.25.2), Y_nu = (cos(nu pi) J_nu - J_-nu)/sin(nu pi),
+# K_nu = pi/2 (I_-nu - I_nu)/sin(nu pi) (DLMF 10.2.3, 10.27.4); Y and K at a numeric order only (at a symbolic order the
+# quotient is not defined at the integers)
+fn ds_bjnu(nu, u, k, s) = ds_sum(j => s^j*(u/2)^(nu + 2*j)*ds_rgamma(nu + j + 1)/factorial(j), 0, k)
+rule ds_at(bessel_j(nu_, u_), 2, 0, k_) := ds_bjnu(nu, u, k, -1) when not is_integer(nu)
+rule ds_at(bessel_i(nu_, u_), 2, 0, k_) := ds_bjnu(nu, u, k, 1) when not is_integer(nu)
+rule ds_at(bessel_y(nu_, u_), 2, 0, k_) := {
+  (cos(nu*pi)*ds_bjnu(nu, u, k, -1) - ds_bjnu(-nu, u, k, -1))/sin(nu*pi)
+} when is_numeric(nu) and not is_integer(nu)
+rule ds_at(bessel_k(nu_, u_), 2, 0, k_) := pi/2*(ds_bjnu(-nu, u, k, 1) - ds_bjnu(nu, u, k, 1))/sin(nu*pi) when is_numeric(nu) and not is_integer(nu)
+
+# Lommel functions near 0: s_(mu, nu)(u) = sum_j (-1)^j u^(mu + 1 + 2j)/prod_(i=0..j) ((mu + 2i + 1)^2 - nu^2) (DLMF
+# 11.9.3), t_(mu, nu) the same without (-1)^j; S = s + c (sin((mu - nu) pi/2) J_nu - cos((mu - nu) pi/2) Y_nu) (DLMF
+# 11.9.5) and T = -t + c (I_nu + (sin(mu pi) + sin(nu pi))/pi K_nu), c = 2^(mu - 1) Gamma((mu - nu + 1)/2)
+# Gamma((mu + nu + 1)/2); the series of s and t only where no denominator vanishes (mu +- nu not a negative odd integer)
+fn ds_lommel_ok(mu, nu) = not (is_numeric(mu) and is_numeric(nu) and some([mu + nu, mu - nu], d => is_integer(d) and d < 0 and is_integer((d + 1)/2)))
+fn ds_lommel_c(mu, nu) = 2^(mu - 1)*gamma((mu - nu + 1)/2)*gamma((mu + nu + 1)/2)
+fn ds_lommel_sum(mu, nu, u, k, s) = {
+  let n = k + 1 + (if is_numeric(mu) and is_real(mu) and mu < 0 then ceiling(-mu) else 0)
+  ds_sum(j => s^j*u^(mu + 1 + 2*j)/ds_product(i => (mu + 2*i + 1)^2 - nu^2, 0, j), 0, n)
+}
+rule ds_at(lommel_s1(mu_, nu_, u_), 3, 0, k_) := ds_lommel_sum(mu, nu, u, k, -1) when is_numeric(mu) and ds_lommel_ok(mu, nu)
+rule ds_at(lommel_t1(mu_, nu_, u_), 3, 0, k_) := ds_lommel_sum(mu, nu, u, k, 1) when is_numeric(mu) and ds_lommel_ok(mu, nu)
+# a symbolic mu: u^(mu + 1) times a power series in u (the order counts the powers of that series)
+fn ds_lommel_rel(mu, nu, u, n, s) = ds_sum(j => s^j*u^(2*j)/ds_product(i => (mu + 2*i + 1)^2 - nu^2, 0, j), 0, n)
+rule ds_at(lommel_s1(mu_, nu_, u_), 3, 0, k_) := ds_pieces([[u^(mu + 1), ds_lommel_rel(mu, nu, u, max(0, floor((k - 3)/2)), -1)]]) when not is_numeric(mu)
+rule ds_at(lommel_t1(mu_, nu_, u_), 3, 0, k_) := ds_pieces([[u^(mu + 1), ds_lommel_rel(mu, nu, u, max(0, floor((k - 3)/2)), 1)]]) when not is_numeric(mu)
+rule ds_at(lommel_s2(mu_, nu_, u_), 3, 0, k_) := {
+  lommel_s1(mu, nu, u) + ds_lommel_c(mu, nu)*(sin((mu - nu)*pi/2)*bessel_j(nu, u) - cos((mu - nu)*pi/2)*bessel_y(nu, u))
+} when is_numeric(mu) and is_numeric(nu) and ds_lommel_ok(mu, nu) and not is_integer((mu - nu + 1)/2) and not is_integer((mu + nu + 1)/2)
+rule ds_at(lommel_t2(mu_, nu_, u_), 3, 0, k_) := {
+  -lommel_t1(mu, nu, u) + ds_lommel_c(mu, nu)*(bessel_i(nu, u) + (sin(mu*pi) + sin(nu*pi))/pi*bessel_k(nu, u))
+} when is_numeric(mu) and is_numeric(nu) and ds_lommel_ok(mu, nu) and not is_integer((mu - nu + 1)/2) and not is_integer((mu + nu + 1)/2)
 
 # near 0: complete elliptic integrals (DLMF 19.5.1, 19.5.2), the nome (the series of q in
 # e = (1 - (1 - m)^(1/4))/(2 (1 + (1 - m)^(1/4))), DLMF 19.5.5 with OEIS A002103), theta functions in the nome
@@ -354,6 +391,12 @@ rule ds_at(whittaker_w(kk_, mu_, z_), 3, 0, k_) := {
 rule ds_at(q_hypergeometric_pfq(as_, bs_, q_, z_), 4, 0, k_) := {
   ds_sum(n => z^n*fold((p, a) => p*q_pochhammer(a, q, n), 1, as)/(fold((p, b) => p*q_pochhammer(b, q, n), 1, bs)*q_pochhammer(q, q, n))*((-1)^n*q^(n*(n - 1)/2))^(1 + length(bs) - length(as)), 0, k)
 } when is_list(as) and is_list(bs) and k <= 12
+# in the base q near 0, with r <= s (r, s the lengths of the lists): the n-th term has the factor
+# q^(n (n - 1)(1 + s - r)/2) and the q-shifted factorials of parameters free of q tend to (1 - a) (n >= 1), so the terms
+# with n (n - 1)/2 > k lie beyond the order; not where a lower parameter is 1 (the term is infinite at q = 0)
+rule ds_at(q_hypergeometric_pfq(as_, bs_, q_, z_), 3, 0, k_) := {
+  ds_sum(n => z^n*fold((p, a) => p*q_pochhammer(a, q, n), 1, as)/(fold((p, b) => p*q_pochhammer(b, q, n), 1, bs)*q_pochhammer(q, q, n))*((-1)^n*q^(n*(n - 1)/2))^(1 + length(bs) - length(as)), 0, ceiling(sqrt(2*k)) + 2)
+} when is_list(as) and is_list(bs) and length(as) <= length(bs) and not some(bs, b => b === 1) and k <= 40
 
 # the theta constants: elliptic_theta(a, q) is elliptic_theta(a, 0, q)
 rule elliptic_theta(a_, q_) := elliptic_theta(a, 0, q) when is_integer(a) and a >= 1 and a <= 4
@@ -554,6 +597,90 @@ fn ds_airy_t(t) = t^(2/3)*(1 + 5/48*t^-2 - 5/36*t^-4 + 77125/82944*t^-6 - 108056
   + 162375596875/334430208*t^-10)
 rule ds_at(airy_ai_zero(u_), 1, inf, k_) := -ds_airy_t(3*pi*(4*u - 1)/8) when k <= 15
 rule ds_at(airy_bi_zero(u_), 1, inf, k_) := -ds_airy_t(3*pi*(4*u - 3)/8) when k <= 15
+
+# the pieces ps of an expansion at infinity times c
+fn ds_pscale(c, ps) = if c === 0 then [] else map(p => [p[1], c*p[2]], ps)
+
+# at infinity: Struve functions, H_nu = Y_nu + (1/pi) sum_j Gamma(j + 1/2) (u/2)^(nu - 2j - 1)/Gamma(nu + 1/2 - j)
+# (DLMF 11.6.1, |ph u| < pi) and L_nu = I_-nu - (1/pi) sum_j (-1)^j Gamma(j + 1/2) (u/2)^(nu - 2j - 1)/Gamma(nu + 1/2 - j)
+# (DLMF 11.6.2, |ph u| < pi/2), with the expansions of Y and I above
+fn ds_struve_alg(nu, u, k, s) = ds_sum(j => s^j*gamma(j + 1/2)*(u/2)^(nu - 2*j - 1)*ds_rgamma(nu + 1/2 - j), 0, floor(k/2) + 2)/pi
+rule ds_at(struve_h(nu_, u_), 2, inf, k_) := ds_pieces(append(ds_at(bessel_y(nu, u), 2, inf, k)[1], [1, ds_struve_alg(nu, u, k, 1)]))
+rule ds_at(struve_l(nu_, u_), 2, inf, k_) := ds_pieces(append(ds_at(bessel_i(-nu, u), 2, inf, k)[1], [1, -ds_struve_alg(nu, u, k, -1)]))
+
+# at infinity: Kelvin functions of order nu. ker_nu + i kei_nu = e^(-nu pi i/2) K_nu(u e^(pi i/4)) (DLMF 10.61.2) with
+# Hankel's expansion of K (DLMF 10.40.2) gives ker_nu ~ (pi/(2u))^(1/2) e^(-u/sqrt 2) sum_j a_j(nu) u^-j cos(b + j pi/4)
+# and kei_nu ~ -(pi/(2u))^(1/2) e^(-u/sqrt 2) sum_j a_j(nu) u^-j sin(b + j pi/4), b = u/sqrt 2 + (nu/2 + 1/8) pi;
+# ber_nu + i bei_nu = e^(nu pi i/2) I_nu(u e^(pi i/4)) (DLMF 10.61.1) with DLMF 10.40.5 (ph = pi/4 lies past the
+# Stokes line ph = 0, so the recessive part has the multiplier i e^(nu pi i)) gives
+# ber_nu ~ e^(u/sqrt 2)/(2 pi u)^(1/2) sum_j (-1)^j a_j(nu) u^-j cos(a - j pi/4) - (sin(2 nu pi) ker_nu + cos(2 nu pi) kei_nu)/pi
+# bei_nu ~ e^(u/sqrt 2)/(2 pi u)^(1/2) sum_j (-1)^j a_j(nu) u^-j sin(a - j pi/4) + (cos(2 nu pi) ker_nu - sin(2 nu pi) kei_nu)/pi
+# with a = u/sqrt 2 + (nu/2 - 1/8) pi (DLMF 10.67.1-4); the angles split by cos(a - j pi/4) = cos a cos(j pi/4) + ...
+fn ds_kel_c(nu, u, k, s) = ds_sum(j => s^j*ds_hankel_a(nu, j)*cos(j*pi/4)*u^(-j), 0, k)
+fn ds_kel_s(nu, u, k, s) = ds_sum(j => s^j*ds_hankel_a(nu, j)*sin(j*pi/4)*u^(-j), 0, k)
+fn ds_ker_p(nu, u, k) = {
+  let b = u/sqrt(2) + nu*pi/2 + pi/8
+  let f = sqrt(pi/2)*u^(-1/2)
+  [[exp(-u/sqrt(2))*cos(b), f*ds_kel_c(nu, u, k, 1)], [exp(-u/sqrt(2))*sin(b), -f*ds_kel_s(nu, u, k, 1)]]
+}
+fn ds_kei_p(nu, u, k) = {
+  let b = u/sqrt(2) + nu*pi/2 + pi/8
+  let f = sqrt(pi/2)*u^(-1/2)
+  [[exp(-u/sqrt(2))*sin(b), -f*ds_kel_c(nu, u, k, 1)], [exp(-u/sqrt(2))*cos(b), -f*ds_kel_s(nu, u, k, 1)]]
+}
+fn ds_ber_p(nu, u, k) = {
+  let a = u/sqrt(2) + nu*pi/2 - pi/8
+  let f = u^(-1/2)/sqrt(2*pi)
+  join([[exp(u/sqrt(2))*cos(a), f*ds_kel_c(nu, u, k, -1)], [exp(u/sqrt(2))*sin(a), f*ds_kel_s(nu, u, k, -1)]],
+    join(ds_pscale(-sin(2*nu*pi)/pi, ds_ker_p(nu, u, k)), ds_pscale(-cos(2*nu*pi)/pi, ds_kei_p(nu, u, k))))
+}
+fn ds_bei_p(nu, u, k) = {
+  let a = u/sqrt(2) + nu*pi/2 - pi/8
+  let f = u^(-1/2)/sqrt(2*pi)
+  join([[exp(u/sqrt(2))*sin(a), f*ds_kel_c(nu, u, k, -1)], [exp(u/sqrt(2))*cos(a), -f*ds_kel_s(nu, u, k, -1)]],
+    join(ds_pscale(cos(2*nu*pi)/pi, ds_ker_p(nu, u, k)), ds_pscale(-sin(2*nu*pi)/pi, ds_kei_p(nu, u, k))))
+}
+rule ds_at(kelvin_ber(nu_, u_), 2, inf, k_) := ds_pieces(ds_ber_p(nu, u, k)) when is_numeric(nu) and is_real(nu)
+rule ds_at(kelvin_bei(nu_, u_), 2, inf, k_) := ds_pieces(ds_bei_p(nu, u, k)) when is_numeric(nu) and is_real(nu)
+rule ds_at(kelvin_ker(nu_, u_), 2, inf, k_) := ds_pieces(ds_ker_p(nu, u, k)) when is_numeric(nu) and is_real(nu)
+rule ds_at(kelvin_kei(nu_, u_), 2, inf, k_) := ds_pieces(ds_kei_p(nu, u, k)) when is_numeric(nu) and is_real(nu)
+rule ds_at(kelvin_ber(u_), 1, inf, k_) := ds_pieces(ds_ber_p(0, u, k))
+rule ds_at(kelvin_bei(u_), 1, inf, k_) := ds_pieces(ds_bei_p(0, u, k))
+rule ds_at(kelvin_ker(u_), 1, inf, k_) := ds_pieces(ds_ker_p(0, u, k))
+rule ds_at(kelvin_kei(u_), 1, inf, k_) := ds_pieces(ds_kei_p(0, u, k))
+
+# at infinity: the Mittag-Leffler function with 0 < a < 2, E_(a,b)(u) ~ u^((1 - b)/a) exp(u^(1/a))/a -
+# sum_(j>=1) u^-j/Gamma(b - a j) for |ph u| <= m, a pi/2 < m < min(pi, a pi) (Gorenflo, Kilbas, Mainardi, Rogosin,
+# Mittag-Leffler Functions, 2014, Theorem 4.3), so on the positive axis
+rule ds_at(mittag_leffler_e(a_, b_, u_), 3, inf, k_) := {
+  ds_pieces([[exp(u^(1/a)), u^((1 - b)/a)/a], [1, -ds_sum(j => u^(-j)*ds_rgamma(b - a*j), 1, k + 1)]])
+} when is_numeric(a) and is_real(a) and a > 0 and a < 2
+rule ds_at(mittag_leffler_e(a_, u_), 2, inf, k_) := ds_at(mittag_leffler_e(a, 1, u), 3, inf, k) when is_numeric(a) and is_real(a) and a > 0 and a < 2
+
+# at infinity: Lommel functions. S_(mu, nu)(u) ~ u^(mu - 1) sum_j (-1)^j prod_(i=1..j) ((mu - 2i + 1)^2 - nu^2) u^(-2j)
+# (DLMF 11.9.9, |ph u| < pi), T_(mu, nu) the same without (-1)^j (the formal solution of u^2 w'' + u w' - (u^2 + nu^2) w
+# = -u^(mu + 1) in powers u^(mu - 1 - 2j)); s = S - c (sin((mu - nu) pi/2) J_nu - cos((mu - nu) pi/2) Y_nu) (DLMF 11.9.5)
+# and t = -T + c I_nu + (a multiple of K_nu, recessive)
+fn ds_lommel_alg(mu, nu, u, k, s) = {
+  let n = floor(k/2) + 2 + (if is_numeric(mu) and is_real(mu) and mu > 0 then ceiling(mu/2) else 0)
+  ds_sum(j => s^j*ds_product(i => (mu - 2*i + 1)^2 - nu^2, 1, j)*u^(-2*j), 0, n)
+}
+# the algebraic part as pieces: at a symbolic mu the power u^(mu - 1) stays outside the power series
+fn ds_lommel_inf(mu, nu, u, k, s, c) = {
+  if is_numeric(mu) then [[1, c*u^(mu - 1)*ds_lommel_alg(mu, nu, u, k, s)]] else [[u^(mu - 1), c*ds_lommel_alg(mu, nu, u, k, s)]]
+}
+fn ds_lommel_cok(mu, nu) = not some([(mu - nu + 1)/2, (mu + nu + 1)/2], g => is_integer(g) and g <= 0)
+rule ds_at(lommel_s2(mu_, nu_, u_), 3, inf, k_) := ds_pieces(ds_lommel_inf(mu, nu, u, k, -1, 1)) when ds_lommel_ok(mu, nu)
+rule ds_at(lommel_t2(mu_, nu_, u_), 3, inf, k_) := ds_pieces(ds_lommel_inf(mu, nu, u, k, 1, 1)) when ds_lommel_ok(mu, nu)
+rule ds_at(lommel_s1(mu_, nu_, u_), 3, inf, k_) := {
+  let c = ds_lommel_c(mu, nu)
+  let a = (mu - nu)*pi/2
+  ds_pieces(join(ds_lommel_inf(mu, nu, u, k, -1, 1), join(ds_pscale(-c*sin(a), ds_at(bessel_j(nu, u), 2, inf, k)[1]),
+    ds_pscale(c*cos(a), ds_at(bessel_y(nu, u), 2, inf, k)[1]))))
+} when ds_lommel_ok(mu, nu) and ds_lommel_cok(mu, nu)
+rule ds_at(lommel_t1(mu_, nu_, u_), 3, inf, k_) := {
+  ds_pieces(join(ds_lommel_inf(mu, nu, u, k, 1, -1), ds_pscale(ds_lommel_c(mu, nu), ds_at(bessel_i(nu, u), 2, inf, k)[1])))
+} when ds_lommel_ok(mu, nu) and ds_lommel_cok(mu, nu)
 
 # --- symbolic identities and special values ---
 #
@@ -876,6 +1003,16 @@ rule legendre_q(nu_, x_) := {
 rule legendre_q(nu_, mu_, x_) := {
   pi/(2*sin((nu + mu)*pi))*(cos((nu + mu)*pi)*legendre_p(nu, mu, x) - legendre_p(nu, mu, -x))
 } when ds_ferrers_q_ok(nu, mu, x)
+# the same combination off [-1, 1]: it is an identity of the functions analytic on the plane cut along (-inf, -1] and
+# [1, inf), so it holds at every non-real x, and for order 0 on the cuts too, where P_nu(x) is real for x > 1 and
+# P_nu(-x) is the 2F1 on its own cut
+fn ds_q_off_ok(nu, mu, x) = (ds_inexact([nu, mu, x]) or ds_approx([nu, mu, x])) and ds_sin_pi_nonzero(nu + mu) and (im_part(x) != 0 or (mu == 0 and abs(x) > 1))
+rule legendre_q(nu_, x_) := {
+  pi/(2*sin(nu*pi))*(cos(nu*pi)*legendre_p(nu, x) - legendre_p(nu, -x))
+} when ds_q_off_ok(nu, 0, x)
+rule legendre_q(nu_, mu_, x_) := {
+  pi/(2*sin((nu + mu)*pi))*(cos((nu + mu)*pi)*legendre_p(nu, mu, x) - legendre_p(nu, mu, -x))
+} when ds_q_off_ok(nu, mu, x)
 # where nu + mu is an integer and mu is not, by P of orders +-mu (DLMF 14.9.2):
 # Q = pi/(2 sin(mu pi)) (cos(mu pi) P^mu(x) - Gamma(nu + mu + 1)/Gamma(nu - mu + 1) P^-mu(x))
 # (also for balls nu + mu that hold an integer, where sin((nu + mu) pi) has no sign)
@@ -891,12 +1028,14 @@ fn ds_ferrers_qm(n, m, x) = (-1)^m*(1 - x^2)^(m/2)*rewrite(d(legendre_q(n, ds_qm
 rule legendre_q(nu_, mu_, x_) := ds_ferrers_qm(nu, mu, x) when is_integer(nu) and nu >= 0 and is_integer(mu) and mu >= 1 and mu <= 20 and (not is_numeric(x) or (im_part(x) == 0 and -1 < x and x < 1))
 
 # Ferrers functions of order 1/2 and -1/2 at a degree nu with nu + 1/2 = +-n an integer (DLMF 14.5.11, 14.5.12 at
-# x = cos t, with cos(n t) = T_n(x) and sin(n t) = sin(t) U_(n-1)(x); both even in nu + 1/2)
-rule legendre_p(nu_, 1/2, x_) := sqrt(2/pi)*(1 - x^2)^(-1/4)*chebyshev_t(abs(nu + 1/2), x) when is_rational(nu) and is_integer(nu + 1/2) and not is_numeric(x)
+# x = cos t, with cos(n t) = T_n(x) and sin(n t) = sin(t) U_(n-1)(x); both even in nu + 1/2); symbolic x, or an exact
+# real x in (-1, 1), where these are the Ferrers functions themselves
+fn ds_half_order_x(x) = not is_numeric(x) or (is_exact(x) and im_part(x) == 0 and -1 < x and x < 1)
+rule legendre_p(nu_, 1/2, x_) := sqrt(2/pi)*(1 - x^2)^(-1/4)*chebyshev_t(abs(nu + 1/2), x) when is_rational(nu) and is_integer(nu + 1/2) and ds_half_order_x(x)
 rule legendre_p(nu_, -1/2, x_) := {
   let n = abs(nu + 1/2)
   if n == 0 then sqrt(2/pi)*(1 - x^2)^(-1/4)*acos(x) else sqrt(2/pi)*(1 - x^2)^(1/4)*chebyshev_u(n - 1, x)/n
-} when is_rational(nu) and is_integer(nu + 1/2) and not is_numeric(x)
+} when is_rational(nu) and is_integer(nu + 1/2) and ds_half_order_x(x)
 
 # Jacobi functions of a degree that is not an integer (DLMF 15.9.1 read as the definition off the integers):
 # Gamma(nu + a + 1)/(Gamma(nu + 1) Gamma(a + 1)) 2F1(-nu, nu + a + b + 1; a + 1; (1 - x)/2), used when that 2F1 has a

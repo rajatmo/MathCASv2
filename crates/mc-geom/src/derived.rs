@@ -158,6 +158,10 @@ pub fn boolean_region<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Rep
     if k == 0 || k > 5 {
         return Ok(Reply::Decline);
     }
+    // mesh regions: a mesh of the kind of the first
+    if let Some(t) = crate::csg::combine(cx, &items, |cx, bits| truth(cx, *f, bits))? {
+        return Ok(Reply::Done(t));
+    }
     let mut regions = vec![];
     let mut exact = true;
     for &t in &items {
@@ -221,7 +225,29 @@ pub fn transformed<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<
     let h = cx.heap();
     let e = E { h };
     let [r, tf] = a else { return Ok(Reply::Decline) };
-    let Some(m) = affine(cx, *tf)? else { return Ok(Reply::Decline) };
+    let m = match affine(cx, *tf)? {
+        Some(m) => m,
+        None => {
+            // a function that is affine: as a transformation function when it keeps the dimension, else the
+            // convex hull of the images of a convex polytope's corners
+            let Some(reg) = read(cx, *r) else { return Ok(Reply::Decline) };
+            let n = reg.embedding();
+            let Some((lin, off)) = affine_function(cx, *tf, n)? else { return Ok(Reply::Decline) };
+            if lin.len() == n {
+                let mut rows: Vec<T<'h>> = (0..n).map(|i| {
+                    let mut row = lin[i].clone();
+                    row.push(off[i]);
+                    e.list(&row)
+                }).collect();
+                let mut last = vec![e.int(0); n];
+                last.push(e.int(1));
+                rows.push(e.list(&last));
+                let tf2 = e.f("transformation_function", &[e.list(&rows)]);
+                return transformed(cx, &[*r, tf2]);
+            }
+            return projected(cx, &reg, &lin, &off);
+        }
+    };
     let Some(reg) = read(cx, *r) else { return Ok(Reply::Decline) };
     let n = m.len() - 1;
     if reg.embedding() != n {
@@ -309,6 +335,103 @@ pub fn transformed<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<
     }
 }
 
+/// A function of n coordinates that is affine: its linear part (m rows of n exact numbers) and its offset, read off
+/// its value at a point of fresh symbols and checked by expanding the difference.
+#[allow(clippy::type_complexity)]
+fn affine_function<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, n: usize) -> Res<Option<(Vec<Vec<T<'h>>>, Vec<T<'h>>)>> {
+    let h = cx.heap();
+    let e = E { h };
+    if n == 0 || call_parts(h, f).is_some_and(|(n, _)| n == "transformation_function") {
+        return Ok(None);
+    }
+    let xs: Vec<T<'h>> = (0..n).map(|i| e.sym(&format!("region$x{i}"))).collect();
+    let v = cx.eval(h.app(f, &[e.list(&xs)]))?;
+    let Some(comps) = cx.as_list(v).map(|l| l.to_vec()) else { return Ok(None) };
+    if comps.is_empty() || comps.len() > 3 {
+        return Ok(None);
+    }
+    let zero: Vec<T<'h>> = xs.iter().map(|&x| e.f("rule", &[x, e.int(0)])).collect();
+    let mut lin = vec![];
+    let mut off = vec![];
+    for c in comps {
+        let c = cx.eval(e.f("expand", &[c]))?;
+        let mut row = vec![];
+        for &x in &xs {
+            let k = cx.eval(e.f("coefficient", &[c, x, e.int(1)]))?;
+            if crate::ex::num(cx, k)?.is_none() {
+                return Ok(None);
+            }
+            row.push(k);
+        }
+        let k0 = cx.eval(e.f("rewrite", &[c, e.list(&zero)]))?;
+        if crate::ex::num(cx, k0)?.is_none() {
+            return Ok(None);
+        }
+        let rebuilt = e.add(&xs.iter().zip(&row).map(|(&x, &k)| e.mul(&[k, x])).chain(std::iter::once(k0)).collect::<Vec<_>>());
+        let diff = cx.eval(e.f("expand", &[e.sub(c, rebuilt)]))?;
+        if !matches!(h.view(diff), mc_core::View::Int(0)) {
+            return Ok(None);
+        }
+        lin.push(row);
+        off.push(k0);
+    }
+    Ok(Some((lin, off)))
+}
+
+/// The image of a box or simplex under an affine map into the plane: the convex hull of the images of its corners
+/// (the image of a convex set under a linear map is the hull of the images of its extreme points), as a polygon,
+/// segment or point.
+fn projected<'h>(cx: &mut NativeCx<'_, '_, 'h>, reg: &Region<'h>, lin: &[Vec<T<'h>>], off: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let e = E { h };
+    if lin.len() != 2 {
+        return Ok(Reply::Decline);
+    }
+    let corners: Vec<Vec<T<'h>>> = match reg {
+        Region::Boxed { lo, hi } if lo.len() <= 4 => (0..1usize << lo.len()).map(|mask| (0..lo.len()).map(|k| if mask >> k & 1 == 1 { hi[k] } else { lo[k] }).collect()).collect(),
+        Region::Simplex(v) => v.clone(),
+        _ => return Ok(Reply::Decline),
+    };
+    let mut imgs: Vec<(Vec<T<'h>>, P)> = vec![];
+    for c in &corners {
+        let mut q = vec![];
+        for i in 0..2 {
+            let t = e.add(&lin[i].iter().zip(c).map(|(&k, &x)| e.mul(&[k, x])).chain(std::iter::once(off[i])).collect::<Vec<_>>());
+            q.push(cx.eval(t)?);
+        }
+        let Some(v) = nums(cx, &q)? else { return Ok(Reply::Decline) };
+        imgs.push((q, [v[0], v[1]]));
+    }
+    // Andrew's monotone chain, anticlockwise, collinear points dropped
+    imgs.sort_by(|a, b| a.1[0].total_cmp(&b.1[0]).then(a.1[1].total_cmp(&b.1[1])));
+    imgs.dedup_by(|a, b| a.1 == b.1);
+    let cross = |o: P, a: P, b: P| (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    let scale = imgs.iter().fold(1.0f64, |m, p| m.max(p.1[0].abs()).max(p.1[1].abs()));
+    let tol = 1e-12 * scale * scale;
+    let mut hull: Vec<usize> = vec![];
+    for pass in 0..2 {
+        let start = hull.len();
+        let order: Vec<usize> = if pass == 0 { (0..imgs.len()).collect() } else { (0..imgs.len()).rev().collect() };
+        for i in order {
+            while hull.len() >= start + 2 && cross(imgs[hull[hull.len() - 2]].1, imgs[hull[hull.len() - 1]].1, imgs[i].1) <= tol {
+                hull.pop();
+            }
+            hull.push(i);
+        }
+        hull.pop();
+    }
+    let pts: Vec<T<'h>> = hull.iter().map(|&i| e.list(&imgs[i].0)).collect();
+    let t = match pts.len() {
+        0 => match imgs.first() {
+            Some(p) => e.f("point", &[e.list(&p.0)]),
+            None => return Ok(Reply::Decline),
+        },
+        1 | 2 => e.f("line", &[e.list(&[e.list(&imgs[0].0), e.list(&imgs[imgs.len() - 1].0)])]),
+        _ => e.f("polygon", &[e.list(&pts)]),
+    };
+    Ok(Reply::Done(cx.eval(t)?))
+}
+
 /// Does `t` contain the symbol `name` (a small explicit walk)?
 fn mentions(h: &mc_core::Heap, t: T<'_>, name: &str) -> bool {
     let s = h.sym_term(h.sym(name));
@@ -356,6 +479,28 @@ pub fn discretize<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'
                 return discretize(cx, &b);
             }
         }
+    }
+    // an implicit region: a mesh of the grid's cells (in the given box, else in its bounds)
+    if let Some(reg @ Region::Implicit { .. }) = read(cx, r) {
+        let ranges = match a.get(1) {
+            Some(&b) => {
+                let Some(rows) = cx.as_list(b).map(|l| l.to_vec()) else { return Ok(Reply::Decline) };
+                let mut out = vec![];
+                for row in rows {
+                    let Some(&[lo, hi]) = cx.as_list(row) else { return Ok(Reply::Decline) };
+                    match nums(cx, &[lo, hi])? {
+                        Some(v) => out.push((v[0], v[1])),
+                        None => return Ok(Reply::Decline),
+                    }
+                }
+                Some(out)
+            }
+            None => None,
+        };
+        return Ok(match crate::contour::mesh(cx, &reg, ranges)? {
+            Some(t) => Reply::Done(t),
+            None => Reply::Decline,
+        });
     }
     if let Some(Region::Lines(ls)) = read(cx, r) {
         let mut pts = vec![];

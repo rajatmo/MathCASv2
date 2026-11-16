@@ -33,6 +33,7 @@ pub mod cad;
 pub mod complex;
 pub mod formula;
 pub mod front;
+pub mod instances;
 pub mod integers;
 pub mod natives;
 pub mod optimize;

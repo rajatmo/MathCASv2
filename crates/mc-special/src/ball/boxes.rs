@@ -7,6 +7,7 @@
 //!   g = (1/2 - C) cos(pi z^2/2) + (1/2 - S) sin(pi z^2/2);
 //! - Hankel functions H_nu = J_nu +- i Y_nu (DLMF 10.4.3) and the spherical ones sqrt(pi/(2z)) H_(n+1/2)(z) (10.47.5-6);
 //! - the Pochhammer symbol Gamma(a + n)/Gamma(a) and the subfactorial Gamma(x + 1, -1)/e (the principal value);
+//! - the Coulomb functions F, G, H+, H- by Kummer's functions (the formulas of the point evaluation);
 //! - the modular functions eta, lambda, J and the Weierstrass functions, half-periods and invariants (their own
 //!   module, [`super::lattice`], with the mean value form in every argument).
 use super::cseries::{bessel_j, bessel_y, int_of};
@@ -150,10 +151,62 @@ pub fn complex_box(name: &str, a: &[CBall], p: u64) -> Option<CBall> {
             let e = cball::exp(&CBall::from_i64(-1), w)?;
             g.mul(&e, w)
         }
+        ("coulomb_f" | "coulomb_g" | "coulomb_h1" | "coulomb_h2", [l, eta, rho]) => coulomb(name, l, eta, rho, w)?,
         _ if super::lattice::has(name) => super::lattice::enclose(name, a, w)?,
         _ => Special::find(name, a.len())?.ball_complex(a, w)?,
     };
     Some(v.round(p))
+}
+
+/// The Coulomb functions on boxes, by the formulas of the point evaluation (DLMF 33.2.4-5, 33.2.7, 33.2.10):
+/// F = C_l rho^(l+1) e^(-i rho) M(l + 1 - i eta, 2l + 2, 2 i rho) with C_l = 2^l e^(-pi eta/2)
+/// exp((lnGamma(l + 1 + i eta) + lnGamma(l + 1 - i eta))/2)/Gamma(2l + 2); H+ = e^(i theta) z^a U(a, b, z) with
+/// a = l + 1 + i eta, b = 2l + 2, z = -2 i rho, theta = rho - eta log(2 rho) - l pi/2 + sigma_l,
+/// sigma_l = (lnGamma(l + 1 + i eta) - lnGamma(l + 1 - i eta))/(2i); G = H+ - i F, H- = H+ - 2i F. U by Kummer's
+/// functions, U = Gamma(1 - b)/Gamma(a - b + 1) M(a, b, z) + Gamma(b - 1)/Gamma(a) z^(1 - b) M(a - b + 1, 2 - b, z)
+/// (DLMF 13.2.42), so a box whose b reaches an integer (where Gamma(1 - b) has a pole) has no enclosure here. Every
+/// power and logarithm is the principal one, as at a point; a box across a cut gets none (the complex logarithm of a
+/// ball across the negative axis is not enclosed).
+fn coulomb(name: &str, l: &CBall, eta: &CBall, rho: &CBall, w: u64) -> Option<CBall> {
+    let one = CBall::from_i64(1);
+    let two = CBall::from_i64(2);
+    let pi = Const::Pi.ball(w)?;
+    let ie = eta.mul_i();
+    let l1 = l.add(&one, w);
+    let lgp = Special::LogGamma.ball_complex(&[l1.add(&ie, w)], w)?;
+    let lgm = Special::LogGamma.ball_complex(&[l1.sub(&ie, w)], w)?;
+    let b = l.mul(&two, w).add(&two, w);
+    let half = CBall::real(Ball::from_ratio(1, 2, w));
+    let c_exp = cball::exp(&lgp.add(&lgm, w).mul(&half, w).sub(&eta.mul_real(&pi, w).mul(&half, w), w), w)?;
+    let c = cball::pow(&two, l, w)?.mul(&c_exp, w).div(&Special::Gamma.ball_complex(std::slice::from_ref(&b), w)?, w)?;
+    let f = c
+        .mul(&cball::pow(rho, &l1, w)?, w)
+        .mul(&cball::exp(&rho.mul_i().neg(), w)?, w)
+        .mul(&super::cspecial::hyp1f1(&l1.sub(&ie, w), &b, &rho.mul(&two, w).mul_i(), w)?, w);
+    if name == "coulomb_f" {
+        return Some(f);
+    }
+    let a = l1.add(&ie, w);
+    let z = rho.mul(&two, w).mul_i().neg();
+    let gamma = |x: CBall| Special::Gamma.ball_complex(&[x], w);
+    let amb1 = a.sub(&b, w).add(&one, w);
+    let m1 = super::cspecial::hyp1f1(&a, &b, &z, w)?;
+    let m2 = super::cspecial::hyp1f1(&amb1, &two.sub(&b, w), &z, w)?;
+    let t1 = gamma(one.sub(&b, w))?.div(&gamma(amb1.clone())?, w)?.mul(&m1, w);
+    let t2 = gamma(b.sub(&one, w))?.div(&gamma(a.clone())?, w)?.mul(&cball::pow(&z, &one.sub(&b, w), w)?, w).mul(&m2, w);
+    let u = t1.add(&t2, w);
+    let sigma = lgp.sub(&lgm, w).mul(&half, w).div_i();
+    let theta = rho
+        .sub(&eta.mul(&cball::log(&rho.mul(&two, w), w)?, w), w)
+        .sub(&l.mul_real(&pi, w).mul(&half, w), w)
+        .add(&sigma, w);
+    let hp = cball::exp(&theta.mul_i(), w)?.mul(&cball::pow(&z, &a, w)?, w).mul(&u, w);
+    let i_f = f.mul_i();
+    Some(match name {
+        "coulomb_h1" => hp,
+        "coulomb_g" => hp.sub(&i_f, w),
+        _ => hp.sub(&i_f.mul(&two, w), w),
+    })
 }
 
 /// S(z) (`sine`) or C(z) by the error function.

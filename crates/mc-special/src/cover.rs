@@ -119,6 +119,22 @@ pub(crate) fn mag<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> f64 {
     }
 }
 
+/// log2 |t| of a ball or machine number (the larger part of a complex one), to about one unit; `None` for exact
+/// numbers and non-numbers. Defined beyond the range of `f64`, where [`mag`] is infinite.
+fn log2_mag<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<f64> {
+    let real = |r: &Real| -> Option<f64> {
+        match r {
+            Real::Ball(b, _) => Some(if b.mid.man.is_zero() { f64::NEG_INFINITY } else { b.mid.man.bits() as f64 + b.mid.exp as f64 }),
+            Real::Machine(v) => Some(v.abs().log2()),
+            _ => None,
+        }
+    };
+    match fx.num(t)? {
+        Num::Real(r) => real(&r),
+        Num::Complex(x, y) => Some(real(&x)?.max(real(&y)?)),
+    }
+}
+
 /// The parts of a number as `f64`s.
 pub(crate) fn parts<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<(f64, f64)> {
     match fx.num(t)? {
@@ -308,7 +324,16 @@ pub(crate) fn sum_series<'h>(
         let Some(t) = term(fx, k)? else { return Ok(None) };
         s = fx.add(&[s, t]);
         let (mt, ms) = (mag(fx, t), mag(fx, s));
-        if k >= min && mt <= eps * ms.max(1e-300) {
+        // beyond the range of f64 the magnitudes are infinite and compare as equal: the ratio decides there
+        let below = if mt.is_finite() && ms.is_finite() {
+            mt <= eps * ms.max(1e-300)
+        } else {
+            match (log2_mag(fx, t), log2_mag(fx, s)) {
+                (Some(lt), Some(ls)) => lt <= ls - w.min(1000) as f64,
+                _ => false,
+            }
+        };
+        if k >= min && below {
             small += 1;
             if small >= 2 {
                 return Ok(Some(s));
@@ -2281,9 +2306,33 @@ fn parabolic_d<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 }
 
 fn pfq_regularized<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
-    let (Some(_), Some(bs)) = (fx.as_list(a[0]), fx.as_list(a[1])) else { return Ok(None) };
+    let (Some(as_), Some(bs)) = (fx.as_list(a[0]), fx.as_list(a[1])) else { return Ok(None) };
     if bs.iter().any(|&b| gamma_pole(fx, b)) {
-        return Ok(None);
+        // exact lower parameters at poles -m: 1/Gamma(b + k) = 0 for k <= m, so the series starts at k0 = max m + 1
+        // (DLMF 16.2.5 for several such parameters): pFq~ = z^k0 prod (a)_k0/(k0! prod Gamma(b + k0))
+        // p+1Fq+1(a + k0, 1; b + k0, k0 + 1; z)
+        let poles: Option<Vec<i64>> = bs.iter().filter(|&&b| gamma_pole(fx, b)).map(|&b| fx.int_of(b).filter(|v| *v > -10_000)).collect();
+        let Some(k0) = poles.and_then(|p| p.into_iter().min()).map(|m| 1 - m) else { return Ok(None) };
+        let z = a[2];
+        let k = fx.int(k0);
+        let mut coef = vec![fx.pow(z, k), fx.pow(fx.call("factorial", &[k]), fx.int(-1))];
+        for &x in as_ {
+            coef.push(fx.call("pochhammer", &[x, k]));
+        }
+        for &b in bs {
+            coef.push(fx.pow(fx.call("gamma", &[fx.add(&[b, k])]), fx.int(-1)));
+        }
+        let mut up: Vec<T<'h>> = as_.iter().map(|&x| fx.add(&[x, k])).collect();
+        up.push(fx.int(1));
+        let mut lo: Vec<T<'h>> = bs.iter().map(|&b| fx.add(&[b, k])).collect();
+        lo.push(fx.int(k0 + 1));
+        let f = fx.eval(fx.call("hypergeometric_pfq", &[fx.list(&up), fx.list(&lo), z]))?;
+        // an unevaluated series stays only for a numeric z, where n(...) then evaluates it
+        if fx.contains(f, "hypergeometric_pfq") && fx.num(z).is_none() {
+            return Ok(None);
+        }
+        coef.push(f);
+        return Ok(Some(fx.mul(&coef)));
     }
     let f = fx.eval(fx.call("hypergeometric_pfq", a))?;
     if fx.contains(f, "hypergeometric_pfq") && !numeric(fx, &[a[2]]) {

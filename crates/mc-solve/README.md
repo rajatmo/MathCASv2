@@ -14,6 +14,8 @@ Equation solving: `solve`, `roots`, `n_solve`, `eliminate`, `groebner_basis`, `r
 - `plog`: equations with the unknown inside and outside an exponential, through the product-log form.
 - `rootobj`, `realroots`, `numroots`, `interval`, `nsolve`, `transwrap`: root objects, real root isolation, numeric
   roots at machine precision or as balls, roots on an interval, numeric answers and root objects of analytic functions.
+- `tails`: global extrema of one-variable functions on the real line and on closed half-lines, reduced with proof to a
+  bounded interval (enclosures over half-lines, monotone tails, reflection symmetry, monotone outer functions).
 
 ## Design
 - Polynomial equations are solved by radicals up to degree four and by root objects beyond; solutions may carry

@@ -489,7 +489,20 @@ fn sph_solve<'h>(fx: &mut Fx<'_, '_, '_, 'h>, n: i64, m: i64, g2: T<'h>, w: u64)
     if gm.is_nan() || gm > 1.5e4 {
         return Ok(None);
     }
-    let (s0, s1) = sph_start(n, m, g2f);
+    let start = sph_start(n, m, g2f);
+    sph_secant(fx, g2, start, w, |fx, g2w, x, ww| Ok(sph_cf(fx, n, m, g2w, x, sph_terms(n, gm, ww))?.map(|r| r.0)))
+}
+
+/// The root of the characteristic function `cf(gamma^2, lambda, bits)` near `start` by the secant method at 64, 128,
+/// ..., w bits, gamma^2 taken at its midpoint.
+fn sph_secant<'h>(
+    fx: &mut Fx<'_, '_, '_, 'h>,
+    g2: T<'h>,
+    start: (f64, f64),
+    w: u64,
+    mut cf: impl FnMut(&mut Fx<'_, '_, '_, 'h>, T<'h>, T<'h>, u64) -> Res<Option<T<'h>>>,
+) -> R<'h> {
+    let (s0, s1) = start;
     let num_c = |fx: &Fx<'_, '_, '_, 'h>, re: f64, im: f64, ww: u64| {
         let b = |v: f64| Real::Ball(Ball::exact(crate::ball::float_of(v)), ww);
         if im == 0.0 {
@@ -504,12 +517,11 @@ fn sph_solve<'h>(fx: &mut Fx<'_, '_, '_, 'h>, n: i64, m: i64, g2: T<'h>, w: u64)
         // the midpoint of gamma^2: its radius would make the differences of F contain zero
         let g2w = retag(fx, crate::cover::mid_term(fx, g2), ww);
         x1 = retag(fx, crate::cover::mid_term(fx, x1), ww);
-        let kk = sph_terms(n, gm, ww);
         let d = fx.pow(fx.int(2), fx.int(-((ww / 2) as i64)));
         let mut x0 = fx.eval(fx.add(&[x1, fx.mul(&[d, fx.add(&[fx.int(1), fx.call("abs", &[x1])])])]))?;
-        let Some((mut f0, _)) = sph_cf(fx, n, m, g2w, x0, kk)? else { return Ok(None) };
+        let Some(mut f0) = cf(fx, g2w, x0, ww)? else { return Ok(None) };
         for _ in 0..60 {
-            let Some((f1, _)) = sph_cf(fx, n, m, g2w, x1, kk)? else { return Ok(None) };
+            let Some(f1) = cf(fx, g2w, x1, ww)? else { return Ok(None) };
             let df = fx.eval(fx.sub(f1, f0))?;
             if fx.num(df).is_none_or(|v| v.is_zero()) {
                 break;
@@ -549,6 +561,327 @@ fn retag<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>, w: u64) -> T<'h> {
     }
 }
 
+// ---------------------------------------------------------------- spheroidal eigenvalues of any degree and order
+
+use mc_numeric::machine::C64;
+
+/// A_k, B_k, C_k of [`sph_abc`] for a degree nu and an order mu that are not integers, in machine numbers.
+fn sph_abc_c(nu: C64, mu: C64, g2: C64, k: i64) -> (C64, C64, C64) {
+    let r = C64::real;
+    let kf = r(2.0 * k as f64);
+    let l = nu + kf;
+    let (nm, np) = (nu - mu + kf, nu + mu + kf);
+    let t = r(2.0) * nu + r(4.0 * k as f64);
+    let ll = l * (l + r(1.0));
+    let a = r(0.0) - g2 * (nm - r(1.0)) * nm / ((t - r(3.0)) * (t - r(1.0)));
+    let b = ll - g2 * r(2.0) * (ll + mu * mu - r(1.0)) / ((t - r(1.0)) * (t + r(3.0)));
+    let c = r(0.0) - g2 * (np + r(1.0)) * (np + r(2.0)) / ((t + r(3.0)) * (t + r(5.0)));
+    (a, b, c)
+}
+
+/// The characteristic function B_0 - lambda + A_0 L_(-1) + C_0 R_1 of the two-sided recurrence (k from -kd to ku)
+/// in machine numbers.
+fn sph_f_c(nu: C64, mu: C64, g2: C64, lam: C64, kd: i64, ku: i64) -> C64 {
+    let z = C64::real(0.0);
+    let mut r = z;
+    for k in (1..=ku).rev() {
+        let (a, b, c) = sph_abc_c(nu, mu, g2, k);
+        r = z - a / (b - lam + c * r);
+    }
+    let mut l = z;
+    for k in -kd..0 {
+        let (a, b, c) = sph_abc_c(nu, mu, g2, k);
+        l = z - c / (b - lam + a * l);
+    }
+    let (a, b, c) = sph_abc_c(nu, mu, g2, 0);
+    b - lam + a * l + c * r
+}
+
+fn c_abs(z: C64) -> f64 {
+    z.re.hypot(z.im)
+}
+
+/// A root of `f` near `x0` by the secant method in machine numbers.
+fn secant_c(f: impl Fn(C64) -> C64, x0: C64) -> Option<C64> {
+    let mut a = x0;
+    let mut b = x0 + C64::real(1e-7 * (1.0 + c_abs(x0)));
+    let (mut fa, mut fb) = (f(a), f(b));
+    for _ in 0..80 {
+        let d = fb - fa;
+        if c_abs(d) == 0.0 || !d.re.is_finite() || !d.im.is_finite() {
+            return (c_abs(fb) == 0.0).then_some(b);
+        }
+        let x = b - fb * (b - a) / d;
+        if !x.re.is_finite() || !x.im.is_finite() {
+            return None;
+        }
+        let step = c_abs(x - b);
+        a = b;
+        fa = fb;
+        b = x;
+        fb = f(b);
+        if step <= 1e-13 * c_abs(b).max(1.0) {
+            return Some(b);
+        }
+    }
+    None
+}
+
+/// The starting value of lambda^mu_nu(gamma^2) off the integers: the root of the characteristic function followed
+/// from nu (nu + 1) at gamma^2 = 0 along t gamma^2, 0 <= t <= 1, in machine numbers, with linear prediction; a step
+/// is taken only when the root lies within 2% of the gap to the neighbouring eigenvalues at gamma = 0 from the
+/// prediction (else the step is halved), so that the root followed is the one of the definition by continuity.
+fn sph_start_general(nu: C64, mu: C64, g2: C64, kd: i64, ku: i64) -> Option<C64> {
+    let one = C64::real(1.0);
+    let b0 = |k: i64| {
+        let l = nu + C64::real(2.0 * k as f64);
+        l * (l + one)
+    };
+    let lam0 = b0(0);
+    let gap = (-kd..=ku).filter(|&k| k != 0).map(|k| c_abs(b0(k) - lam0)).fold(f64::INFINITY, f64::min);
+    if !(gap.is_finite() && gap > 0.0) {
+        return None;
+    }
+    let tol = 0.02 * gap;
+    let (mut t, mut lam) = (0.0f64, lam0);
+    let mut prev: Option<(f64, C64)> = None;
+    let mut h = (1.0 / (1.0 + c_abs(g2))).min(0.125);
+    let mut steps = 0;
+    while t < 1.0 {
+        steps += 1;
+        if steps > 4000 || h < 1e-7 {
+            return None;
+        }
+        let t1 = (t + h).min(1.0);
+        let g = g2 * C64::real(t1);
+        let pred = match prev {
+            Some((tp, lp)) => lam + (lam - lp) * C64::real((t1 - t) / (t - tp)),
+            None => lam,
+        };
+        let f = |x: C64| sph_f_c(nu, mu, g, x, kd, ku);
+        match secant_c(f, pred) {
+            Some(x) if c_abs(x - pred) <= tol => {
+                prev = Some((t, lam));
+                t = t1;
+                lam = x;
+                h = (h * 1.5).min(0.25);
+            }
+            _ => h /= 2.0,
+        }
+    }
+    Some(lam)
+}
+
+/// The eigenvalues of a complex upper Hessenberg matrix by the shifted QR algorithm (Givens rotations, Wilkinson
+/// shifts, deflation at negligible subdiagonals; Golub and Van Loan, Matrix Computations, 7.5). `None` when an
+/// eigenvalue takes more than 60 steps.
+fn hessenberg_eigenvalues(mut h: Vec<Vec<C64>>) -> Option<Vec<C64>> {
+    let conj = |z: C64| C64::new(z.re, -z.im);
+    let n = h.len();
+    let mut out = Vec::with_capacity(n);
+    let mut hi = n;
+    let mut its = 0;
+    while hi > 0 {
+        let top = hi - 1;
+        // the start of the active block
+        let mut l = top;
+        while l > 0 {
+            let s = c_abs(h[l][l]) + c_abs(h[l - 1][l - 1]);
+            if c_abs(h[l][l - 1]) <= f64::EPSILON * s.max(f64::MIN_POSITIVE) {
+                h[l][l - 1] = C64::real(0.0);
+                break;
+            }
+            l -= 1;
+        }
+        if l == top {
+            out.push(h[top][top]);
+            hi = top;
+            its = 0;
+            continue;
+        }
+        its += 1;
+        if its > 60 {
+            return None;
+        }
+        // the Wilkinson shift: the eigenvalue of the trailing 2 x 2 block nearer its last diagonal entry
+        let (a, b, c, d) = (h[top - 1][top - 1], h[top - 1][top], h[top][top - 1], h[top][top]);
+        let tr = a + d;
+        let det = a * d - b * c;
+        let disc = (tr * tr - C64::real(4.0) * det).sqrt();
+        let half = C64::real(0.5);
+        let (r1, r2) = ((tr + disc) * half, (tr - disc) * half);
+        let mut mu = if c_abs(r1 - d) < c_abs(r2 - d) { r1 } else { r2 };
+        if its % 11 == 10 {
+            mu = mu + C64::real(c_abs(h[top][top - 1]));
+        }
+        for (i, row) in h.iter_mut().enumerate().take(top + 1).skip(l) {
+            row[i] = row[i] - mu;
+        }
+        let mut rot = Vec::with_capacity(top - l);
+        for k in l..top {
+            let (x, y) = (h[k][k], h[k + 1][k]);
+            let r = x.re.hypot(x.im).hypot(y.re.hypot(y.im));
+            let (cc, ss) = if r == 0.0 { (C64::real(1.0), C64::real(0.0)) } else { (x / C64::real(r), y / C64::real(r)) };
+            let (upper, lower) = h.split_at_mut(k + 1);
+            let (rk, rk1) = (&mut upper[k], &mut lower[0]);
+            for (u, v) in rk.iter_mut().zip(rk1.iter_mut()).take(top + 1).skip(k) {
+                let (a, b) = (*u, *v);
+                *u = conj(cc) * a + conj(ss) * b;
+                *v = C64::real(0.0) - ss * a + cc * b;
+            }
+            rot.push((cc, ss));
+        }
+        for (k, &(cc, ss)) in (l..top).zip(&rot) {
+            for row in h.iter_mut().take((k + 2).min(top) + 1).skip(l) {
+                let (u, v) = (row[k], row[k + 1]);
+                row[k] = u * cc + v * ss;
+                row[k + 1] = v * conj(cc) - u * conj(ss);
+            }
+        }
+        for (i, row) in h.iter_mut().enumerate().take(top + 1).skip(l) {
+            row[i] = row[i] + mu;
+        }
+    }
+    Some(out)
+}
+
+/// The starting value of lambda^mu_nu(gamma^2) for real nu, mu, gamma^2 past the points where two eigenvalues meet:
+/// the eigenvalue of the truncated two-sided matrix whose rank in the order of real parts is the rank of nu (nu + 1)
+/// among the diagonal at gamma = 0 (the order the eigenvalues keep while they stay real and apart). `None` unless
+/// that eigenvalue is real and apart from its neighbours.
+fn sph_start_ranked(nu: f64, mu: f64, g2: f64, kd: i64, ku: i64) -> Option<f64> {
+    let n = (kd + ku + 1) as usize;
+    if n > 400 {
+        return None;
+    }
+    let (nuc, muc, g2c) = (C64::real(nu), C64::real(mu), C64::real(g2));
+    let mut h = vec![vec![C64::real(0.0); n]; n];
+    for (i, k) in (-kd..=ku).enumerate() {
+        let (a, b, c) = sph_abc_c(nuc, muc, g2c, k);
+        h[i][i] = b;
+        if i > 0 {
+            h[i][i - 1] = a;
+        }
+        if i + 1 < n {
+            h[i][i + 1] = c;
+        }
+    }
+    let lam0 = nu * (nu + 1.0);
+    let rank = (-kd..=ku).filter(|&k| {
+        let l = nu + 2.0 * k as f64;
+        k != 0 && l * (l + 1.0) < lam0
+    }).count();
+    let mut ev = hessenberg_eigenvalues(h)?;
+    ev.sort_by(|x, y| x.re.total_cmp(&y.re));
+    let v = *ev.get(rank)?;
+    let scale = v.re.abs().max(1.0);
+    let apart = |j: Option<&C64>| j.is_none_or(|w| (w.re - v.re).abs() > 1e-6 * scale);
+    (v.im.abs() <= 1e-9 * scale && apart(ev.get(rank + 1)) && apart(rank.checked_sub(1).and_then(|j| ev.get(j)))).then_some(v.re)
+}
+
+/// A_k, B_k, C_k of the two-sided recurrence for numbers nu, mu (as terms, evaluated by the caller).
+fn sph_abc_gen<'h>(fx: &Fx<'_, '_, '_, 'h>, nu: T<'h>, mu: T<'h>, g2: T<'h>, k: i64) -> [T<'h>; 3] {
+    let kk = fx.int(2 * k);
+    let lin = |x: T<'h>, c: i64| fx.add(&[x, fx.int(c)]);
+    let l = fx.add(&[nu, kk]);
+    let nm = fx.add(&[nu, fx.neg(mu), kk]);
+    let np = fx.add(&[nu, mu, kk]);
+    let t = fx.add(&[fx.mul(&[fx.int(2), nu]), fx.int(4 * k)]);
+    let ll = fx.mul(&[l, lin(l, 1)]);
+    let a = fx.neg(fx.div(fx.mul(&[g2, lin(nm, -1), nm]), fx.mul(&[lin(t, -3), lin(t, -1)])));
+    let b = fx.sub(ll, fx.div(fx.mul(&[g2, fx.int(2), fx.add(&[ll, fx.mul(&[mu, mu]), fx.int(-1)])]), fx.mul(&[lin(t, -1), lin(t, 3)])));
+    let c = fx.neg(fx.div(fx.mul(&[g2, lin(np, 1), lin(np, 2)]), fx.mul(&[lin(t, 3), lin(t, 5)])));
+    [a, b, c]
+}
+
+/// The characteristic function of the two-sided recurrence at working precision.
+fn sph_cf_gen<'h>(fx: &mut Fx<'_, '_, '_, 'h>, nu: T<'h>, mu: T<'h>, g2: T<'h>, lam: T<'h>, kd: i64, ku: i64) -> Res<Option<T<'h>>> {
+    let mut r = fx.int(0);
+    for k in (1..=ku).rev() {
+        let [a, b, c] = sph_abc_gen(fx, nu, mu, g2, k);
+        let den = fx.eval(fx.add(&[fx.sub(b, lam), fx.mul(&[c, r])]))?;
+        if fx.num(den).is_none_or(|v| v.is_zero()) {
+            return Ok(None);
+        }
+        r = fx.eval(fx.neg(fx.div(a, den)))?;
+    }
+    let mut l = fx.int(0);
+    for k in -kd..0 {
+        let [a, b, c] = sph_abc_gen(fx, nu, mu, g2, k);
+        let den = fx.eval(fx.add(&[fx.sub(b, lam), fx.mul(&[a, l])]))?;
+        if fx.num(den).is_none_or(|v| v.is_zero()) {
+            return Ok(None);
+        }
+        l = fx.eval(fx.neg(fx.div(c, den)))?;
+    }
+    let [a0, b0, c0] = sph_abc_gen(fx, nu, mu, g2, 0);
+    let f = fx.eval(fx.add(&[fx.sub(b0, lam), fx.mul(&[a0, l]), fx.mul(&[c0, r])]))?;
+    Ok(fx.num(f).map(|_| f))
+}
+
+/// lambda^mu_nu(gamma^2) for a degree or an order that is not an integer (Meixner and Schaefke, Mathieusche
+/// Funktionen und Sphaeroidfunktionen, 3.5): the expansion sum (-1)^k a_k P^mu_(nu+2k) runs over all integers k
+/// and lambda is the root of the two-sided continued fraction that tends to nu (nu + 1) as gamma -> 0: for real
+/// nu, mu, gamma^2 the one of the same rank in the order of the eigenvalues ([`sph_start_ranked`], which also
+/// passes the points where two eigenvalues meet and leave the real axis), else the one followed along t gamma^2
+/// ([`sph_start_general`]); the start is refined by the secant method at working precision. Declined
+/// where the recurrence divides by 0 (nu + 1/2 an integer), where it splits (nu - |mu| a negative integer), and at
+/// integer nu, mu (the one-sided expansion of [`spheroidal_eigenvalue`]).
+fn spheroidal_eigenvalue_general<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if !crate::cover::numeric(fx, a) {
+        return Ok(None);
+    }
+    let (Some(nup), Some(mut mup)) = (parts(fx, a[0]), parts(fx, a[1])) else { return Ok(None) };
+    let int = |v: (f64, f64)| v.1 == 0.0 && v.0.fract() == 0.0;
+    if (int(nup) && int(mup)) || (nup.1 == 0.0 && (nup.0 + 0.5).fract() == 0.0) {
+        return Ok(None);
+    }
+    // lambda depends on mu^2 only
+    let mu = if mup.1 == 0.0 && mup.0 < 0.0 {
+        mup.0 = -mup.0;
+        fx.neg(a[1])
+    } else {
+        a[1]
+    };
+    let dnm = (nup.0 - mup.0, nup.1 - mup.1);
+    if int(dnm) && dnm.0 < 0.0 {
+        return Ok(None);
+    }
+    let Some((wk, xs)) = work(fx, &[a[0], mu, a[2]], 24) else { return Ok(None) };
+    let g2 = fx.eval(fx.mul(&[xs[2], xs[2]]))?;
+    let Some(g2f) = parts(fx, g2) else { return Ok(None) };
+    let gm = g2f.0.hypot(g2f.1).sqrt();
+    let nmag = nup.0.hypot(nup.1);
+    if gm.is_nan() || gm > 1e3 || nmag > 1e4 || mup.0.hypot(mup.1) > 1e4 {
+        return Ok(None);
+    }
+    let real = nup.1 == 0.0 && mup.1 == 0.0 && g2f.1 == 0.0;
+    let (nuc, muc, g2c) = (C64::new(nup.0, nup.1), C64::new(mup.0, mup.1), C64::new(g2f.0, if real { 0.0 } else { g2f.1 }));
+    let terms = |ww: u64| {
+        let ku = sph_terms(0, gm, ww) + (nmag / 4.0) as i64;
+        (ku + (nmag / 2.0) as i64 + 4, ku)
+    };
+    let (kd, ku) = terms(53);
+    let s = if real { sph_start_ranked(nup.0, mup.0, g2f.0, kd, ku).map(C64::real) } else { sph_start_general(nuc, muc, g2c, kd, ku) };
+    let Some(s) = s else { return Ok(None) };
+    let (nu_t, mu_t) = (xs[0], xs[1]);
+    let g2 = match (real, fx.num(g2)) {
+        (true, Some(Num::Complex(x, _))) => fx.ar.number(&Num::Real(x)),
+        _ => g2,
+    };
+    let Some(v) = sph_secant(fx, g2, (s.re, if real { 0.0 } else { s.im }), wk.w, |fx, g2w, x, ww| {
+        let (kd, ku) = terms(ww);
+        let (n1, m1) = (retag(fx, crate::cover::mid_term(fx, nu_t), ww), retag(fx, crate::cover::mid_term(fx, mu_t), ww));
+        sph_cf_gen(fx, n1, m1, g2w, x, kd, ku)
+    })?
+    else {
+        return Ok(None);
+    };
+    let mrad = mc_arith::num::Mag::from_float_up(&crate::ball::float_of((mag(fx, v).max(1.0) * 2f64.powi(-((wk.p as i32).min(1000) - 4))).max(1e-300)));
+    let v = crate::cover::map_balls(fx, v, |b| crate::ball::widen(b.clone(), &mrad));
+    Ok(wk.out(fx, v, real))
+}
+
 /// Integer parameters n >= |m| (as numbers of any kind).
 fn int_nm<'h>(fx: &Fx<'_, '_, '_, 'h>, n: T<'h>, m: T<'h>) -> Option<(i64, i64)> {
     let (nf, mf) = (fx.f64_of(n)?, fx.f64_of(m)?);
@@ -563,7 +896,7 @@ fn spheroidal_eigenvalue<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> 
     if fx.is_int(g, 0) {
         return Ok(Some(fx.mul(&[n, fx.add(&[n, fx.int(1)])])));
     }
-    let Some((ni, mi)) = int_nm(fx, n, m) else { return Ok(None) };
+    let Some((ni, mi)) = int_nm(fx, n, m) else { return spheroidal_eigenvalue_general(fx, a) };
     if !crate::cover::numeric(fx, a) {
         return Ok(None);
     }
@@ -586,6 +919,12 @@ fn spheroidal_eigenvalue<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> 
 /// 2 (n + m)!/((2n + 1)(n - m)!), with a_0 > 0 at small gamma (the principal root).
 fn spheroidal_ps<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let (n, m, g, x) = (a[0], a[1], a[2], a[3]);
+    // at gamma = 0 the equation is Legendre's: Ps^mu_nu(x, 0) = P^mu_nu(x) for every degree and order (DLMF 30.2.1
+    // with 14.2.2); integers keep the conditions below
+    let negative_integer = [n, m].iter().any(|&t| fx.int_of(t).is_some_and(|v| v < 0));
+    if !negative_integer && fx.is_int(g, 0) && [n, m, x].iter().all(|&t| fx.num(t).is_none_or(|v| v.is_exact())) {
+        return Ok(Some(fx.call("legendre_p", &[n, m, x])));
+    }
     let Some((ni, mi)) = int_nm(fx, n, m) else { return Ok(None) };
     if mi < 0 {
         return Ok(None);
@@ -597,7 +936,9 @@ fn spheroidal_ps<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         return Ok(None);
     }
     let Some(xp) = parts(fx, x) else { return Ok(None) };
-    if xp.1 == 0.0 && xp.0.abs() >= 1.0 {
+    // order 0: the Legendre polynomials have no branch point, and the series converges for every x, since a_k
+    // falls like (gamma/4)^(2k)/(k!)^2 while P_(n+2k)(x) grows geometrically; other orders stay inside (-1, 1)
+    if xp.1 == 0.0 && (xp.0.abs() == 1.0 || (xp.0.abs() > 1.0 && mi != 0)) {
         return Ok(None);
     }
     let Some((wk, xs)) = work(fx, &[g, x], 32) else { return Ok(None) };

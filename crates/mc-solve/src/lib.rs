@@ -40,6 +40,7 @@ mod reduce_steps;
 mod rootobj;
 mod solve;
 mod system;
+mod tails;
 mod transwrap;
 mod univariate;
 

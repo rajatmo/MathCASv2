@@ -45,7 +45,7 @@ pub enum Goal {
 }
 
 impl Goal {
-    fn max(self) -> bool {
+    pub(crate) fn max(self) -> bool {
         matches!(self, Goal::Maximize | Goal::MaxValue | Goal::ArgMax)
     }
 }
@@ -66,6 +66,9 @@ impl Native for Optimize {
         match self.inner.call(cx, t, args)? {
             Reply::Decline => {}
             r => return Ok(r),
+        }
+        if let Some(r) = crate::instances::optimize_integers(cx, &self.stop, self.goal, args)? {
+            return Ok(Reply::Done(r));
         }
         Ok(match optimize(cx, &self.stop, self.goal, args)? {
             Some(r) => Reply::Done(r),

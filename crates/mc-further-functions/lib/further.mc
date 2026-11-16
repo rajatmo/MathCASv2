@@ -771,6 +771,14 @@ fn gram_sos_certify(q0, free, b, vs, pe) =
     }
   }
 fn polynomial_sum_of_squares_list(p, vs) when is_list(vs) and is_polynomial_expression(p, vs) and ff_total_degree(p, vs) > 2 and gram_sos_value(p, vs) !== none = gram_sos_value(p, vs)
+# Inexact coefficients: each is the exact rational number it stands for, the exact certificate of that polynomial is
+# found as above, and its squares are given at the precision of the input.
+fn ff_sos_inexact(p, vs) = {
+  let pr = rationalize(expand(p), 0)
+  let s = if ff_total_degree(pr, vs) <= 2 then ff_sos_quadratic(pr, vs) else gram_sos_value(pr, vs)
+  if s === none or not is_list(s) then none else expand(if precision(p) == machine_precision then n(s) else n(s, precision(p)))
+}
+fn polynomial_sum_of_squares_list(p, vs) when is_list(vs) and is_polynomial_expression(p, vs) and some(coefficient_rules(expand(p), vs), r => is_inexact(r[2])) and ff_sos_inexact(p, vs) !== none = ff_sos_inexact(p, vs)
 
 # --- inverse_radon_transform ---
 # inverse_radon_transform(g, [p, phi], [x, y]) for g = e^(-p^2) Q(p, cos phi, sin phi), Q a polynomial: the preimage
@@ -853,8 +861,9 @@ fn inverse_radon_transform(g, pf, xy) when is_list(pf) and is_list(xy) and lengt
 # is free of u and depends explicitly on at most one variable x_k (the last variable when none): the derivatives
 # p_j = c(j' + 1) of the other variables are constants (numbered in the order of the variables, after the additive constant c(1)), p_k solves F = 0, and
 # u = c(1) + integrate(p_k, x_k) + sum c(j' + 1) x_j, the separable complete integral (Courant and Hilbert, Methods of
-# mathematical physics II, II.4; Evans, Partial differential equations, 3.1). Other equations (needing the
-# characteristic strips of Lagrange and Charpit) stay unevaluated.
+# mathematical physics II, II.4; Evans, Partial differential equations, 3.1). Equations F(u, p) = 0 free of the
+# variables and quasi-linear equations in two variables follow below (Charpit, Lagrange); conditions u(point) == value
+# after the equation fix the constants. Other equations stay unevaluated.
 # Clairaut's equation u == sum x_i p_i + g(p): the complete integral u = sum c_i x_i + g(c) (Courant and Hilbert II.2)
 fn ff_clairaut(eq, uc, xs) = {
   let k0 = length(xs)
@@ -868,10 +877,116 @@ fn ff_clairaut(eq, uc, xs) = {
     else expand(total(map(i => c(i)*xs[i], range(k0))) + rewrite(g, map(i => ps[i] -> c(i), range(k0))))
   }
 }
-fn ff_ci(eq, uc, xs) = {
+fn ff_ci(eq, uc, xs) = if not is_atom(eq) and head(eq) === `and` then none else {
   let cl = ff_clairaut(eq, uc, xs)
-  if cl !== none then cl else ff_ci_separable(eq, uc, xs)
+  let sep = if cl !== none then cl else ff_ci_separable(eq, uc, xs)
+  let aut = if sep !== none then sep else ff_ci_checked(eq, uc, xs, ff_ci_autonomous(eq, uc, xs))
+  if aut !== none then aut else ff_ci_checked(eq, uc, xs, ff_ci_lagrange(eq, uc, xs))
 }
+# the equation F(x, u, p) with p_i and u as the symbols ff_cip(i) and ff_cu
+fn ff_ci_f(eq, uc, xs) = {
+  let k0 = length(xs)
+  let f0 = if not is_atom(eq) and head(eq) === equal then eq[1] - eq[2] else eq
+  rewrite(rewrite(f0, map(i => d(uc, xs[i]) -> ff_cip(i), range(k0))), uc -> ff_cu)
+}
+# s when F vanishes at u = s (its derivatives substituted, simplified to 0), else none
+fn ff_ci_checked(eq, uc, xs, s) =
+  if is_failure(s) or s === none then none else {
+    let f = ff_ci_f(eq, uc, xs)
+    let r = rewrite(f, join(map(i => ff_cip(i) -> d(s, xs[i]), range(length(xs))), [ff_cu -> s]))
+    if simplify(together(r)) === 0 then s else none
+  }
+# F(u, p) = 0 free of the variables (Charpit's equations give p_j / p_n constant; Sneddon, Elements of partial
+# differential equations, 2.13): p_j = c(j) p_n for j < n, p_n = phi(u) from F = 0, and du = phi(u)(c(1) x_1 + ... +
+# x_n) integrates to G(u) = c(1) x_1 + ... + c(n - 1) x_(n-1) + x_n + c(n), solved for u.
+fn ff_ci_autonomous(eq, uc, xs) = {
+  let k0 = length(xs)
+  let f = ff_ci_f(eq, uc, xs)
+  if k0 < 2 or free_of(f, ff_cu) or some(xs, v => not free_of(f, v)) or not free_of(f, head(uc)) then none else {
+    let pn = ff_cip(k0)
+    let fk = rewrite(f, map(j => ff_cip(j) -> c(j)*pn, range(k0 - 1)))
+    let sol = ff_solve(fk == 0, pn)
+    # one branch p_n = phi(u) when F = 0 has several (u_x u_y = u: p_y = (u/c(1))^(1/2)); the answer is checked
+    if sol === none or not is_list(sol) or length(sol) == 0 then none else {
+      let phi = ff_ci_branch(rewrite(pn, sol[length(sol)]))
+      if free_of(phi, ff_cu) or not free_of(phi, pn) then none else {
+        let g = integrate(1/phi, ff_cu)
+        if is_failure(g) or not free_of(g, integrate) then none else {
+          let rhs = total(map(j => c(j)*xs[j], range(k0 - 1))) + xs[k0] + c(k0)
+          let us = ff_solve(g == rhs, ff_cu)
+          if not ff_ci_clean(us) then none else together(rewrite(ff_cu, us[1]))
+        }
+      }
+    }
+  }
+}
+# A quasi-linear equation a u_x + b u_y = c in two variables with a and c free of y (Lagrange's method; Courant and
+# Hilbert II, II.2; Sneddon 2.4): the characteristic equation du/dx = c/a gives the first integral phi1(x, u) (the
+# constant of its general solution), dy/dx = b/a with u from that solution gives phi2(x, y, u) (the constant of its
+# general solution with phi1 in place of the first constant), and phi2 = c(1) + c(2) phi1, solved for u, is a
+# complete integral. The result is kept only when it satisfies the equation (ff_ci_checked).
+fn ff_ci_lagrange(eq, uc, xs) = {
+  let f = ff_ci_f(eq, uc, xs)
+  if length(xs) != 2 or not free_of(f, head(uc)) then none else {
+    let x = xs[1]
+    let y = xs[2]
+    let a = coefficient(f, ff_cip(1), 1)
+    let b = coefficient(f, ff_cip(2), 1)
+    let c0 = -rewrite(f, [ff_cip(1) -> 0, ff_cip(2) -> 0])
+    let lin = expand(f - a*ff_cip(1) - b*ff_cip(2) + c0)
+    if lin !== 0 or a === 0 or b === 0 or not free_of([a, b, c0], ff_cip(1)) or not free_of([a, b, c0], ff_cip(2)) or not free_of([a, c0], y) then none else {
+      # (a failure of a solver means no answer by this method)
+      let us = ff_dsolve(d(ff_lu(x), x) == rewrite(c0/a, ff_cu -> ff_lu(x)), ff_lu(x), x)
+      if us === none or not is_list(us) or length(us) != 1 then none else {
+        let ux = rewrite(ff_lu(x), us[1])
+        let k1 = ff_solve(ux == ff_cu, c(1))
+        if k1 === none or not is_list(k1) or length(k1) != 1 then none else {
+          let phi1 = ff_ci_branch(rewrite(c(1), k1[1]))
+          let uxa = rewrite(ux, c(1) -> ff_ca)
+          let ys = ff_dsolve(d(ff_ly(x), x) == rewrite(b/a, [ff_cu -> uxa, y -> ff_ly(x)]), ff_ly(x), x)
+          # a branch of the general solution gives the first integral (the answer is checked by substitution)
+          if ys === none or not is_list(ys) or length(ys) == 0 then none else {
+            let k2 = ff_solve(rewrite(ff_ly(x), ys[length(ys)]) == y, c(1))
+            if k2 === none or not is_list(k2) or length(k2) != 1 then none else {
+              let phi2 = rewrite(ff_ci_branch(rewrite(c(1), k2[1])), ff_ca -> phi1)
+              # phi2 itself, else its logarithm or its product with phi1 (first integrals too: y exp(g) gives
+              # log(y) + g, g(y)/phi1 + h gives g(y) + h phi1), whichever relation solves for u in closed form
+              let s1 = ff_solve(phi2 == c(1) + c(2)*phi1, ff_cu)
+              let s2 = if ff_ci_clean(s1) then s1 else ff_solve(power_expand(log(phi2)) == c(1) + c(2)*phi1, ff_cu)
+              let sol = if ff_ci_clean(s2) then s2 else ff_solve(expand(phi1*phi2) == c(1) + c(2)*phi1, ff_cu)
+              if not ff_ci_clean(sol) then none else together(rewrite(ff_cu, sol[1]))
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# solve and d_solve, none in place of a failure (a failure cannot be passed on)
+fn ff_solve(e, v) = if is_failure(solve(e, v)) then none else solve(e, v)
+fn ff_dsolve(e, y, x) = if is_failure(d_solve(e, y, x)) then none else d_solve(e, y, x)
+# the value of a conditional solution (the branch is checked with the answer)
+fn ff_ci_branch(v) = if not is_atom(v) and head(v) === conditional_expression then v[1] else v
+# one closed-form solution for u
+fn ff_ci_clean(s) = is_list(s) and length(s) == 1 and free_of(s, ff_ca) and free_of(s, product_log) and free_of(s, conditional_expression)
+# conditions u(point) == value with the equation: the constants of the complete integral that the conditions fix
+# (one solution of the equations for them), substituted
+fn ff_ci_conditions(eq, conds, uc, xs) = {
+  let s = ff_ci(eq, uc, xs)
+  if s === none then none else {
+    let f = rewrite(`fn`(ff_civars, ff_cibody), [ff_civars -> xs, ff_cibody -> s])
+    let eqs = map(q => rewrite(q, head(uc) -> f), conds)
+    let ks = select(map(j => c(j), range(length(xs) + 1)), k => not free_of(s, k))
+    let sol = ff_solve(eqs, ks)
+    if sol === none or not is_list(sol) or length(sol) != 1 or length(sol[1]) != length(ks) then none else {
+      let r = together(rewrite(s, sol[1]))
+      if every(conds, q => simplify(rewrite(q, head(uc) -> rewrite(`fn`(ff_civars, ff_cibody), [ff_civars -> xs, ff_cibody -> r]))) === true) then r else none
+    }
+  }
+}
+fn ff_ci_split(sys) = if not is_atom(sys) and head(sys) === `and` then apply(list, sys) else [sys]
+fn complete_integral(sys, uc, xs) when is_list(xs) and not is_atom(uc) and apply(list, uc) === xs and length(ff_ci_split(sys)) > 1 and ff_ci_conditions(ff_ci_split(sys)[1], drop(ff_ci_split(sys), 1), uc, xs) !== none =
+  [[uc -> ff_ci_conditions(ff_ci_split(sys)[1], drop(ff_ci_split(sys), 1), uc, xs)]]
 fn ff_ci_separable(eq, uc, xs) = {
   let k0 = length(xs)
   let ps = map(i => ff_cip(i), range(k0))

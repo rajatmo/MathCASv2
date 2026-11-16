@@ -456,7 +456,21 @@ pub(crate) fn real<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<f6
         return Ok(Some(x).filter(|x| x.is_finite()));
     }
     let v = cx.eval(h.call(h.sym("n"), &[t]))?;
-    Ok(direct(v).filter(|x| x.is_finite()))
+    if let Some(x) = direct(v) {
+        return Ok(Some(x).filter(|x| x.is_finite()));
+    }
+    // a real value computed through complex numbers (roots of unity in a closed form) keeps an imaginary part
+    // of rounding size: drawn at its real part when that part is below 1e-10 of the value's size
+    if let View::App { head, args: &[re, im] } = h.view(v) {
+        if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "complex") {
+            if let (Some(x), Some(y)) = (direct(re), direct(im)) {
+                if x.is_finite() && y.abs() <= 1e-10 * x.abs().max(1.0) {
+                    return Ok(Some(x));
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// The display hint for front ends: the PNG file an image term `image("path")` names and its size in pixels

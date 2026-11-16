@@ -270,10 +270,39 @@ fn inside_numeric<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>, pn: &[f64])
         }
         Region::Polyhedron { verts, faces } => {
             let Some(vn) = points(cx, verts)? else { return Ok(None) };
-            Some(in_convex_polyhedron(pn, &vn, faces))
+            if crate::props::oriented(faces) {
+                cx.tick(faces.len() as u64)?;
+                Some(in_closed_surface(pn, &vn, faces))
+            } else {
+                Some(in_convex_polyhedron(pn, &vn, faces))
+            }
         }
         _ => None,
     })
+}
+
+/// Whether a point lies in the solid a closed surface turned one way bounds (convex or not): on a face, or of
+/// winding number 1, the sum of the solid angles of the faces' triangles seen from the point over 4 pi (each solid
+/// angle by van Oosterom and Strackee, IEEE Trans. Biomed. Eng. 1983).
+pub fn in_closed_surface(p: &[f64], v: &[Vec<f64>], faces: &[Vec<usize>]) -> bool {
+    let scale = 1.0 + v.iter().flatten().fold(0.0f64, |a, b| a.max(b.abs())) + dot(p, p).sqrt();
+    let mut omega = 0.0;
+    for f in faces {
+        for i in 1..f.len() - 1 {
+            let tri = [v[f[0]].clone(), v[f[i]].clone(), v[f[i + 1]].clone()];
+            let (q, _) = nearest_simplex(p, &tri);
+            if dot(&sub(p, &q), &sub(p, &q)).sqrt() <= EPS * scale {
+                return true;
+            }
+            let (a, b, c) = (sub(&tri[0], p), sub(&tri[1], p), sub(&tri[2], p));
+            let (la, lb, lc) = (dot(&a, &a).sqrt(), dot(&b, &b).sqrt(), dot(&c, &c).sqrt());
+            let bc = [b[1] * c[2] - b[2] * c[1], b[2] * c[0] - b[0] * c[2], b[0] * c[1] - b[1] * c[0]];
+            let num = dot(&a, &bc);
+            let den = la * lb * lc + dot(&a, &b) * lc + dot(&a, &c) * lb + dot(&b, &c) * la;
+            omega += 2.0 * num.atan2(den);
+        }
+    }
+    (omega / (4.0 * std::f64::consts::PI)).abs() > 0.5
 }
 
 /// Whether a point lies in the convex hull of a polyhedron's corners (on the inner side of every face plane).
@@ -576,7 +605,13 @@ pub fn member<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>, p: &[T<'h>]) ->
         Region::Polyhedron { verts, faces } => {
             let Some(pn) = nums(cx, p)? else { return Ok(None) };
             let Some(vn) = points(cx, verts)? else { return Ok(None) };
-            e.sym(if in_convex_polyhedron(&pn, &vn, faces) { "true" } else { "false" })
+            let inside = if crate::props::oriented(faces) {
+                cx.tick(faces.len() as u64)?;
+                in_closed_surface(&pn, &vn, faces)
+            } else {
+                in_convex_polyhedron(&pn, &vn, faces)
+            };
+            e.sym(if inside { "true" } else { "false" })
         }
         _ => {
             let Some(pn) = nums(cx, p)? else { return Ok(None) };

@@ -19,7 +19,10 @@
 
 pub mod clip;
 pub mod construct;
+pub mod contour;
 pub mod coords;
+pub mod csg;
+pub mod curves;
 pub mod derived;
 pub mod ex;
 pub mod flat;
@@ -28,6 +31,7 @@ pub mod mesh;
 pub mod shapes;
 pub mod metric;
 pub mod props;
+pub mod quadric;
 pub mod region;
 mod natives;
 
@@ -54,9 +58,9 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("region_distance", "region_distance(reg, p): the distance from the point p to the region (0 inside)"),
     ("signed_region_distance", "signed_region_distance(reg, p): the distance from p to the region's boundary, negative inside a solid region"),
     ("region_nearest", "region_nearest(reg, p): the point of the region nearest to p"),
-    ("region_union", "region_union(r1, r2, ...): the union of plane polygons (rectangles, triangles, disks as fine polygons) as a polygon"),
-    ("region_intersection", "region_intersection(r1, r2, ...): the intersection of plane polygons as a polygon (empty_region(2) when empty)"),
-    ("region_difference", "region_difference(r1, r2): the part of the plane polygon r1 outside r2, as a polygon (with holes where r2 lies inside r1)"),
+    ("region_union", "region_union(r1, r2, ...): the union of plane polygons (rectangles, triangles, disks as fine polygons) as a polygon; of mesh regions (line meshes, boundary meshes of the plane and of space) as a mesh"),
+    ("region_intersection", "region_intersection(r1, r2, ...): the intersection of plane polygons as a polygon (empty_region(2) when empty); of mesh regions as a mesh; of segments of the line as a line"),
+    ("region_difference", "region_difference(r1, r2): the part of the plane polygon r1 outside r2, as a polygon (with holes where r2 lies inside r1); of mesh regions as a mesh"),
     ("region_integrate", "region_integrate(f, [x, y, ...], reg): the integral of f over the region, as iterated integrals of its parametrisation (also region_integrate(f, element([x, y], reg)))"),
     ("pyramid", "pyramid([p1, p2, p3, p4, p5]): the solid pyramid with base p1 p2 p3 p4 and apex p5 (a region and a graphics primitive)"),
     ("prism", "prism([p1, ..., p6]): the solid triangular prism with ends p1 p2 p3 and p4 p5 p6"),
@@ -103,8 +107,8 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("crossing_polygon", "crossing_polygon(curve): the region a closed curve encloses by the even-odd rule, as a polygon"),
     ("polygon_decomposition", "polygon_decomposition(reg): a polygon without holes (or a rectangle, triangle) as a list of triangles polygon([p1, p2, p3], [1, 2, 3])"),
     ("boolean_region", "boolean_region(f, [r1, r2, ...]): the plane region of the points whose membership in r1, r2, ... satisfies the Boolean function f (and, or, xor, or a function of true/false)"),
-    ("transformed_region", "transformed_region(reg, tf): the region reg under the transformation_function tf (points, lines, polygons, triangles, rectangles, cuboids, disks under similarities)"),
-    ("discretize_region", "discretize_region(reg): a triangle mesh_region of a plane region (disks as fine polygons), a line mesh of lines"),
+    ("transformed_region", "transformed_region(reg, tf): the region reg under the transformation_function tf or an affine function (points, lines, polygons, triangles, rectangles, cuboids, disks under similarities; boxes and simplices mapped onto the plane as their convex hull)"),
+    ("discretize_region", "discretize_region(reg), discretize_region(reg, ranges): a triangle mesh_region of a plane region (disks as fine polygons), a line mesh of lines; for an implicit region a mesh on a grid (plane regions and surfaces as triangles, curves as segments)"),
     ("highlight_mesh", "highlight_mesh(m, style(d, directives...), ...): the mesh region m shown with its cells of dimension d drawn with the directives (style(d) or d alone: red)"),
     ("capsule_shape", "capsule_shape([p1, p2], r): the points within r of the segment p1 p2 (cylinder with hemispherical ends); capsule_shape() has [[-1, 0, 0], [1, 0, 0]] and radius 1; its volume is known"),
     ("polygon_coordinates","polygon_coordinates(p): the distinct corners of a polygon, sorted"),

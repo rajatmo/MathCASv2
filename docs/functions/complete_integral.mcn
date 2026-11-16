@@ -16,7 +16,16 @@
 # Equations `F(x, p) = 0` in the derivatives `p_i = d(u, x_i)` that are free of `u` and depend explicitly on at most one variable `x_k` are solved by separation: the other derivatives are constants `c(j)`, `p_k` solves the equation, and `u = integrate(p_k, x_k) + sum c(j) x_j + c(n)`.
 
 #% item
-# Other equations stay unevaluated.
+# Equations `F(u, p) = 0` free of the variables follow Charpit's method: `p_j = c(j) p_n`, `p_n` from the equation, and the integral of `du/p_n` is `c(1) x_1 + ... + x_n + c(n)`.
+
+#% item
+# Quasi-linear equations `a u_x + b u_y = c` in two variables with `a` and `c` free of `y` follow Lagrange's characteristics: two first integrals `phi1`, `phi2`, and `phi2 = c(1) + c(2) phi1` solved for `u`.
+
+#% item
+# Conditions `u(point) == value` joined to the equation by `and` fix the constants.
+
+#% item
+# Every answer of the last two methods is checked by substitution into the equation. Other equations stay unevaluated.
 
 #% section
 # Examples
@@ -41,6 +50,24 @@ sol = complete_integral(d(u(x, y), x)*d(u(x, y), y) == 1, u, [x, y])
 rewrite(d(u(x, y), x)*d(u(x, y), y) - 1, sol[1])
 #% output
 #= 0
+
+#% subsection
+# Scope
+
+#% cell
+complete_integral(d(u(x, y), x) + d(u(x, y), y) == u(x, y)^2, u(x, y), [x, y])
+#% output
+#= [[u(x, y) -> (-1 - c(1))/(y + c(2) + x*c(1))]]
+
+#% cell
+complete_integral(d(u(x, y), x) - u(x, y)*d(u(x, y), y) == 0, u(x, y), [x, y])
+#% output
+#= [[u(x, y) -> (c(1) - y)/(x - c(2))]]
+
+#% cell
+complete_integral(d(u(x, y, z), x)^3 == d(u(x, y, z), y) + d(u(x, y, z), z) and u(0, 1, 1) == 1 and u(1, 0, 1) == 1 and u(0, 0, 1) == 1/2, u(x, y, z), [x, y, z])
+#% output
+#= [[u(x, y, z) -> (1/8)*(7 - 3*z + 4*x + 4*y)]]
 
 #% section
 # See also

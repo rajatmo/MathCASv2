@@ -9,6 +9,12 @@ bounds, membership, distance and nearest point, Boolean operations on plane poly
 - `props`: dimension, measure, centroid and bounds as exact terms where the coordinates allow it.
 - `metric`, `flat`: membership, distance, nearest points and signed distance; tori, flats and cones.
 - `clip`: union, intersection and difference of plane polygons through the arrangement of their edges.
+- `csg`: Boolean operations on mesh regions (intervals on the line, the arrangement in the plane, BSP trees in space),
+  each result a mesh of the first region's kind.
+- `quadric`: implicit regions that are disks, balls, spheres or axis-aligned ellipses and ellipsoids; circles and
+  disks under affine maps as ellipses.
+- `curves`: length and centroid of curves joined from straight and Bezier pieces.
+- `contour`: meshes of implicit regions on a grid (marching triangles and tetrahedra).
 - `hrep`: membership of a symbolic point as a condition on its coordinates.
 - `construct`, `derived`, `coords`: regions built from measurements, regions made from other regions (winding and
   crossing polygons), measures written as a map with ranges.
@@ -20,6 +26,8 @@ bounds, membership, distance and nearest point, Boolean operations on plane poly
   the exact term of the chosen case is the result.
 - Polygon Boolean operations use machine numbers; coordinates that come out as small-denominator rationals of exact
   input are given back exactly.
+- Polyhedra whose faces form a closed surface turned one way have their volume, centroid and membership from signed
+  tetrahedra and the winding number, so non-convex solids are measured correctly; other polyhedra are taken as convex.
 - `region_integrate` writes an integral over a region as iterated integrals over its parametrisation and hands them to
   `integrate`.
 - Depends on `mc-api`, `mc-core`, `mc-eval`, `mc-numfn` and `mc-syntax`.

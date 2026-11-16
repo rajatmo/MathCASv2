@@ -258,7 +258,12 @@ pub fn measure<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>) -> Res<Option<
         }
         Region::Polyhedron { verts, faces } => {
             let tets = tetrahedra(verts, faces);
-            e.add(&tets.iter().map(|t| simplex_measure(e, t)).collect::<Vec<_>>())
+            if oriented(faces) {
+                // a closed surface turned one way: the signed volumes add up for any solid, convex or not
+                e.f("abs", &[e.add(&tets.iter().map(|t| signed_volume(e, t)).collect::<Vec<_>>())])
+            } else {
+                e.add(&tets.iter().map(|t| simplex_measure(e, t)).collect::<Vec<_>>())
+            }
         }
         Region::Revolved { a, b, r, cone } => {
             let v = e.mul(&[e.pi(), e.sq(*r), e.dist(b, a)]);
@@ -357,7 +362,29 @@ pub fn torus_radii<'h>(e: E<'h>, r0: T<'h>, r1: T<'h>) -> (T<'h>, T<'h>) {
     (e.mul(&[e.rat(1, 2), e.sub(r1, r0)]), e.mul(&[e.rat(1, 2), e.add(&[r0, r1])]))
 }
 
-/// A convex polyhedron cut into tetrahedra: the fan of each face not through the first corner, joined to it.
+/// Whether faces form a closed surface turned one way: every edge is met once in each direction.
+pub fn oriented(faces: &[Vec<usize>]) -> bool {
+    let mut count: std::collections::HashMap<(usize, usize), i64> = std::collections::HashMap::new();
+    for f in faces {
+        for i in 0..f.len() {
+            let (a, b) = (f[i], f[(i + 1) % f.len()]);
+            if a == b {
+                return false;
+            }
+            *count.entry((a, b)).or_default() += 1;
+        }
+    }
+    count.iter().all(|(&(a, b), &n)| n == 1 && count.get(&(b, a)) == Some(&1))
+}
+
+/// The signed volume of a tetrahedron, det(b - a, c - a, d - a) / 6.
+pub fn signed_volume<'h>(e: E<'h>, v: &[Vec<T<'h>>]) -> T<'h> {
+    let edges: Vec<T<'h>> = v[1..].iter().map(|p| e.list(&e.vsub(p, &v[0]))).collect();
+    e.div(e.f("det", &[e.list(&edges)]), e.int(6))
+}
+
+/// A polyhedron cut into tetrahedra: the fan of each face not through the first corner, joined to it (for a convex
+/// polyhedron the tetrahedra fill it; for a closed surface turned one way their signed volumes add up to its volume).
 pub fn tetrahedra<'h>(verts: &[Vec<T<'h>>], faces: &[Vec<usize>]) -> Vec<Vec<Vec<T<'h>>>> {
     let mut out = vec![];
     for f in faces {
@@ -456,7 +483,8 @@ pub fn centroid<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>) -> Res<Option
         }
         Region::Polyhedron { verts, faces } => {
             let tets = tetrahedra(verts, faces);
-            let items: Vec<_> = tets.iter().map(|t| (simplex_measure(e, t), mean(e, t))).collect();
+            let signed = oriented(faces);
+            let items: Vec<_> = tets.iter().map(|t| (if signed { signed_volume(e, t) } else { simplex_measure(e, t) }, mean(e, t))).collect();
             weighted(e, &items)
         }
         Region::Torus { c, .. } => c.clone(),

@@ -943,11 +943,17 @@ pub static TABLE: &[Entry] = &[
     // nonnegative where the integral starts at an end (cn, cd, dn, nd); for m > 1 through sn(z|m) = m^(-1/2)
     // sn(m^(1/2) z|1/m), cn(z|m) = dn(m^(1/2) z|1/m), dn(z|m) = cn(m^(1/2) z|1/m) (DLMF 22.17.2-22.17.4): arcdc(x|m) =
     // m^(-1/2) arccd(x|1/m), arcnc(x|m) = m^(-1/2) arcnd(x|1/m), arcsd(x|m) = m^(-1/2) arcsc(m^(1/2) x|1/m), ...
+    // Singular on the line: the complement of the open interior of the real domain (its finite ends are zeros of the
+    // integrand's radicand, branch points; beyond them the principal values are not real, and between a branch point
+    // and the next one the line is a cut), and 0 for arccs with m < 1 and arcds with m > 1, real on the whole line but
+    // odd with arccs(x|m) = integral of ((1 + t^2)(1 - m + t^2))^(-1/2) from x to inf for x > 0 (DLMF 22.15.11; ds:
+    // ((t^2 + m)(t^2 + m - 1))^(-1/2), 22.15.12), which tends to K(m) at 0+ and to -K(m) at 0-: a jump.
     Entry {
         name: "inverse_jacobi_sn",
         arity: 2,
         when: M_NOT_1,
         real: "$a < 1 and -1 <= $u and $u <= 1 or $a > 1 and -1 <= $u*$a^(1/2) and $u*$a^(1/2) <= 1",
+        sr: Some(&[("$a < 1 and ($u <= -1 or $u >= 1) or $a > 1 and ($u <= -$a^(-1/2) or $u >= $a^(-1/2))", BR)]),
         onto: &[("", false)],
         mono: &[("", 1)],
         refs: "DLMF 22.15.1, 22.17.4",
@@ -958,6 +964,7 @@ pub static TABLE: &[Entry] = &[
         arity: 2,
         when: M_NOT_1,
         real: "$a < 1 and -1 <= $u and $u <= 1 or $a > 1 and (1 - 1/$a)^(1/2) <= $u and $u <= 1",
+        sr: Some(&[("$a < 1 and ($u <= -1 or $u >= 1) or $a > 1 and ($u <= (1 - 1/$a)^(1/2) or $u >= 1)", BR)]),
         onto: &[("", false)],
         mono: &[("", -1)],
         signs: &[("", 2)],
@@ -969,6 +976,7 @@ pub static TABLE: &[Entry] = &[
         arity: 2,
         when: M_NOT_1,
         real: "$a < 1 and min((1 - $a)^(1/2), 1) <= $u and $u <= max((1 - $a)^(1/2), 1) or $a > 1 and -1 <= $u and $u <= 1",
+        sr: Some(&[("$a < 1 and ($u <= min((1 - $a)^(1/2), 1) or $u >= max((1 - $a)^(1/2), 1)) or $a > 1 and ($u <= -1 or $u >= 1)", BR)]),
         onto: &[("", false)],
         mono: &[("0 < $a and $a < 1", -1), ("$a > 1", -1)],
         signs: &[("0 < $a and $a < 1", 2), ("$a > 1", 2)],
@@ -980,6 +988,7 @@ pub static TABLE: &[Entry] = &[
         arity: 2,
         when: M_NOT_1,
         real: "$a < 1 and -1 <= $u and $u <= 1 or $a > 1 and ($u <= -1 or $u >= 1)",
+        sr: Some(&[("$a < 1 and ($u <= -1 or $u >= 1) or $a > 1 and -1 <= $u and $u <= 1", BR)]),
         onto: &[("", false)],
         mono: &[("$a < 1", -1)],
         signs: &[("$a < 1", 2)],
@@ -991,6 +1000,7 @@ pub static TABLE: &[Entry] = &[
         arity: 2,
         when: M_NOT_1,
         real: "$a < 1 and -1 <= $u*(1 - $a)^(1/2) and $u*(1 - $a)^(1/2) <= 1 or $a > 1",
+        sr: Some(&[("$a < 1 and ($u <= -(1 - $a)^(-1/2) or $u >= (1 - $a)^(-1/2))", BR)]),
         onto: &[("", false)],
         mono: &[("", 1)],
         refs: "DLMF 22.15.5, 22.17.4",
@@ -1001,6 +1011,7 @@ pub static TABLE: &[Entry] = &[
         arity: 2,
         when: M_NOT_1,
         real: "$a < 1 and min((1 - $a)^(-1/2), 1) <= $u and $u <= max((1 - $a)^(-1/2), 1) or $a > 1 and ($u <= -1 or $u >= 1)",
+        sr: Some(&[("$a < 1 and ($u <= min((1 - $a)^(-1/2), 1) or $u >= max((1 - $a)^(-1/2), 1)) or $a > 1 and -1 <= $u and $u <= 1", BR)]),
         onto: &[("", false)],
         mono: &[("0 < $a and $a < 1", 1)],
         signs: &[("0 < $a and $a < 1", 2)],
@@ -1012,6 +1023,7 @@ pub static TABLE: &[Entry] = &[
         arity: 2,
         when: M_NOT_1,
         real: "$a < 1 and ($u <= -1 or $u >= 1) or $a > 1 and -1 <= $u and $u <= 1",
+        sr: Some(&[("$a < 1 and -1 <= $u and $u <= 1 or $a > 1 and ($u <= -1 or $u >= 1)", BR)]),
         onto: &[("", false)],
         mono: &[("$a > 1", -1)],
         signs: &[("$a > 1", 2)],
@@ -1023,6 +1035,7 @@ pub static TABLE: &[Entry] = &[
         arity: 2,
         when: M_NOT_1,
         real: "$a < 1 and ($u <= -1 or $u >= 1) or $a > 1 and 1 <= $u and $u <= (1 - 1/$a)^(-1/2)",
+        sr: Some(&[("$a < 1 and -1 <= $u and $u <= 1 or $a > 1 and ($u <= 1 or $u >= (1 - 1/$a)^(-1/2))", BR)]),
         onto: &[("", false)],
         mono: &[("$a > 1", 1)],
         signs: &[("$a > 1", 2)],
@@ -1034,6 +1047,7 @@ pub static TABLE: &[Entry] = &[
         arity: 2,
         when: M_NOT_1,
         real: "$a < 1 and ($u <= -1 or $u >= 1) or $a > 1 and ($u <= -$a^(1/2) or $u >= $a^(1/2))",
+        sr: Some(&[("$a < 1 and -1 <= $u and $u <= 1 or $a > 1 and -$a^(1/2) <= $u and $u <= $a^(1/2)", BR)]),
         onto: &[("", false)],
         refs: "DLMF 22.15.9, 22.17.4",
         ..E
@@ -1054,6 +1068,7 @@ pub static TABLE: &[Entry] = &[
         arity: 2,
         when: M_NOT_1,
         real: "$a < 1 or $a > 1 and ($u <= -($a - 1)^(1/2) or $u >= ($a - 1)^(1/2))",
+        sr: Some(&[("$a < 1 and $u == 0 or $a > 1 and -($a - 1)^(1/2) <= $u and $u <= ($a - 1)^(1/2)", BR)]),
         onto: &[("", false)],
         refs: "DLMF 22.15.11, 22.17.4",
         ..E
@@ -1063,6 +1078,7 @@ pub static TABLE: &[Entry] = &[
         arity: 2,
         when: M_NOT_1,
         real: "$a < 1 and ($u <= -(1 - $a)^(1/2) or $u >= (1 - $a)^(1/2)) or $a > 1",
+        sr: Some(&[("$a < 1 and -(1 - $a)^(1/2) <= $u and $u <= (1 - $a)^(1/2) or $a > 1 and $u == 0", BR)]),
         onto: &[("", false)],
         refs: "DLMF 22.15.12, 22.17.4",
         ..E

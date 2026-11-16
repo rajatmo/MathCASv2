@@ -56,12 +56,17 @@ impl Native for SeriesSpecial {
         let r = self.inner.call(cx, t, args)?;
         let h = cx.heap();
         // a value with unevaluated derivatives (the Taylor table of a function whose derivatives do not evaluate at
-        // the point) is replaced by the library's expansion when it has one
-        let unresolved = match &r {
-            Reply::Done(v) | Reply::Again(v) => mentions_derivative(h, *v),
+        // the point) is replaced by the library's expansion when it has one; a table with infinite values is no answer
+        let infinite = match &r {
+            Reply::Done(v) | Reply::Again(v) => mentions_infinite_bessel(h, *v),
             _ => false,
         };
-        if !matches!(r, Reply::Decline) && !unresolved {
+        let unresolved = !infinite
+            && match &r {
+                Reply::Done(v) | Reply::Again(v) => mentions_derivative(h, *v),
+                _ => false,
+            };
+        if !matches!(r, Reply::Decline) && !unresolved && !infinite {
             return Ok(r);
         }
         // series(e, x, x0, n) with a symbol x and an integer order only
@@ -96,6 +101,23 @@ fn mentions_derivative<'h>(h: &'h mc_core::Heap, t: T<'h>) -> bool {
             return true;
         }
         if let View::App { head, args } = h.view(u) {
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    false
+}
+
+/// Does `t` mention Y, K or a Hankel function at the argument 0, where each is infinite for every order (DLMF
+/// 10.7.1, 10.30.2)? A Taylor table with such values is no expansion.
+fn mentions_infinite_bessel<'h>(h: &'h mc_core::Heap, t: T<'h>) -> bool {
+    let heads = ["bessel_y", "bessel_k", "hankel_h1", "hankel_h2"].map(|s| h.sym_term(h.sym(s)));
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if heads.contains(&head) && args.len() == 2 && matches!(h.view(args[1]), View::Int(0)) {
+                return true;
+            }
             stack.push(head);
             stack.extend_from_slice(args);
         }

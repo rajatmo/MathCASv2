@@ -515,6 +515,57 @@ pub fn region<'h>(cx: &NativeCx<'_, '_, 'h>, name: &str, args: &[T<'h>]) -> Opti
     as_region(h, &m)
 }
 
+/// The measure of a `mesh_region` whose cells all have one dimension (segments; triangles and polygons, flat in the
+/// plane or in space; tetrahedra), summed cell by cell in machine numbers (the coordinates of a mesh are machine
+/// numbers); `None` for other meshes, or when `want` asks for another dimension.
+pub fn numeric_measure<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, want: Option<usize>) -> Res<Option<f64>> {
+    let h = cx.heap();
+    let Some((name, args)) = call_parts(h, t) else { return Ok(None) };
+    if name != "mesh_region" {
+        return Ok(None);
+    }
+    let Some(m) = parse(cx, &name, args)? else { return Ok(None) };
+    let d = m.dim();
+    if want.is_some_and(|k| k != d) || m.cells().any(|c| c.kind.dim() != d) || d == 0 {
+        return Ok(None);
+    }
+    let n = m.pts[0].len();
+    let sub = |a: usize, b: usize| -> Vec<f64> { (0..n).map(|k| m.pts[b][k] - m.pts[a][k]).collect() };
+    let mut total = 0.0;
+    for (i, c) in m.cells().enumerate() {
+        if i % 4096 == 0 {
+            cx.tick(1)?;
+        }
+        total += match c.kind {
+            Kind::Line => sub(c.v[0], c.v[1]).iter().map(|x| x * x).sum::<f64>().sqrt(),
+            Kind::Polygon if n == 2 => {
+                let p = &c.v;
+                (0..p.len()).map(|k| {
+                    let (a, b) = (&m.pts[p[k]], &m.pts[p[(k + 1) % p.len()]]);
+                    a[0] * b[1] - b[0] * a[1]
+                }).sum::<f64>().abs() / 2.0
+            }
+            Kind::Polygon if n == 3 => {
+                // a flat polygon: half the length of the sum of the fan's cross products
+                let mut s = [0.0; 3];
+                for k in 1..c.v.len() - 1 {
+                    let (u, w) = (sub(c.v[0], c.v[k]), sub(c.v[0], c.v[k + 1]));
+                    s[0] += u[1] * w[2] - u[2] * w[1];
+                    s[1] += u[2] * w[0] - u[0] * w[2];
+                    s[2] += u[0] * w[1] - u[1] * w[0];
+                }
+                (s[0] * s[0] + s[1] * s[1] + s[2] * s[2]).sqrt() / 2.0
+            }
+            Kind::Tetrahedron if n == 3 => {
+                let (u, v, w) = (sub(c.v[0], c.v[1]), sub(c.v[0], c.v[2]), sub(c.v[0], c.v[3]));
+                (u[0] * (v[1] * w[2] - v[2] * w[1]) - u[1] * (v[0] * w[2] - v[2] * w[0]) + u[2] * (v[0] * w[1] - v[1] * w[0])).abs() / 6.0
+            }
+            _ => return Ok(None),
+        };
+    }
+    Ok(Some(total))
+}
+
 // ---- natives
 
 fn mesh_arg<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Mesh<'h>>> {

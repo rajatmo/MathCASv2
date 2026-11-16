@@ -1365,6 +1365,10 @@ fn leading_digits(p: &Nat, q: &Nat, b: u64, n: usize) -> Option<(Vec<u64>, i64)>
 /// x as (a + b sqrt(d))/c with integers, b != 0, d > 1 not a square, from a canonical sum of a rational and a
 /// rational multiple of a square root of an integer.
 fn quadratic<'h>(fx: &Fx<'_, '_, '_, 'h>, x: T<'h>) -> Option<(i128, i128, i128, i128)> {
+    // the golden ratio is (1 + 5^(1/2))/2
+    if matches!(fx.h.view(x), mc_api::View::Sym(s) if fx.h.sym_name(s) == "golden_ratio") {
+        return Some((1, 1, 2, 5));
+    }
     // a rational multiple of such a sum, as (1/2)(1 + 5^(1/2)) is held
     if let Some(&[k, s]) = fx.call_of(x, "mul") {
         if let (Some(k), true) = (fx.rat_of(k), fx.call_of(s, "add").is_some()) {

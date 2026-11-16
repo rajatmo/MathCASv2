@@ -1,6 +1,6 @@
 //! Root objects of analytic functions (`mc_algebra::transroot`) where other functions meet them: `n` gives their
-//! values, and the one-variable extrema on a closed bounded interval give them as critical points when the methods
-//! installed before decline.
+//! values, and the one-variable extrema on a closed bounded interval, the real line or a closed half-line (through
+//! `tails`) give them as critical points when the methods installed before decline.
 use mc_algebra::transroot::{self, Goal};
 use mc_api::{Store, View, T};
 use mc_eval::{Native, NativeCx, Reply, Res};
@@ -50,7 +50,7 @@ impl Native for NumericRoots {
 }
 
 /// `minimize`, `maximize`, `min_value`, `max_value`, `arg_min`, `arg_max` of a function of one variable on a
-/// closed bounded interval, after the methods installed before decline.
+/// closed bounded interval, the real line or a closed half-line, after the methods installed before decline.
 pub(crate) struct Extremum {
     pub inner: Box<dyn Native>,
     pub stop: Arc<AtomicBool>,
@@ -77,8 +77,18 @@ impl Native for Extremum {
             return Ok(r);
         }
         let &[fc, x] = args else { return Ok(r) };
-        let Some(&[f, cond]) = cx.as_list(fc) else { return Ok(r) };
-        Ok(match transroot::minimize_interval(cx, &self.stop, f, cond, x, self.max, self.goal)? {
+        let (f, cond) = match cx.as_list(fc) {
+            Some(&[f, cond]) => (f, Some(cond)),
+            Some(_) => return Ok(r),
+            None => (fc, None),
+        };
+        if let Some(cond) = cond {
+            if let Some(v) = transroot::minimize_interval(cx, &self.stop, f, cond, x, self.max, self.goal)? {
+                return Ok(Reply::Done(v));
+            }
+        }
+        // the real line or a closed half-line
+        Ok(match crate::tails::minimize_line(cx, &self.stop, f, cond, x, self.max, self.goal)? {
             Some(v) => Reply::Done(v),
             None => r,
         })

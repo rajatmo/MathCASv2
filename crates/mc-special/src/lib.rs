@@ -154,7 +154,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("chebyshev_t", "chebyshev_t(n, x): the Chebyshev polynomial of the first kind T_n(x) = cos(n acos(x))"),
     ("chebyshev_u", "chebyshev_u(n, x): the Chebyshev polynomial of the second kind U_n(x)"),
     ("legendre_p", "legendre_p(n, x): the Legendre polynomial P_n(x); legendre_p(n, m, x): the associated Legendre function P_n^m(x)"),
-    ("legendre_q", "legendre_q(n, x): the Legendre function of the second kind Q_n(x) at integer n"),
+    ("legendre_q", "legendre_q(n, x): the Legendre function of the second kind Q_n(x); legendre_q(n, m, x): the associated function Q_n^m(x); legendre_q(n, m, a, z): of type a (2 as legendre_q(n, m, z), 3 on the plane cut along (-inf, 1])"),
     ("hermite_h", "hermite_h(n, x): the Hermite polynomial H_n(x) (physicists' normalization)"),
     ("laguerre_l", "laguerre_l(n, x): the Laguerre polynomial L_n(x); laguerre_l(n, a, x): the generalized Laguerre polynomial"),
     ("gegenbauer_c", "gegenbauer_c(n, a, x): the Gegenbauer polynomial C_n^(a)(x); gegenbauer_c(n, x) = (2/n) T_n(x)"),

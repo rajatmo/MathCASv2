@@ -1,13 +1,121 @@
 //! Plots hold their functions. A function plot evaluates its first argument as before, but an expression that
 //! evaluates to a failure with a symbolic variable (`n_integrate(f(x, r), [r, 0, 1])` with `x` the plot
 //! variable) is kept as written, so the plot evaluates it at each sample point instead. In a list of functions
-//! each element is kept or replaced on its own.
+//! each element is kept or replaced on its own. The variables of the ranges are the plot's own: a value a variable
+//! has outside does not enter the plot (see [`localize`]).
 use mc_core::{Heap, Raw, Store, View, T};
 use mc_eval::{Attributes, Hold, Kernel, Native, NativeCx, Reply, Res};
 
-/// The attributes of a function plot: the first argument held (and evaluated by [`Held`]).
+/// The attributes of a function plot: every argument held; [`Held`] evaluates the first and [`localize`] the others.
 fn held_attributes() -> Attributes {
-    Attributes { hold: Hold::First, ..Attributes::default() }
+    Attributes { hold: Hold::All, ..Attributes::default() }
+}
+
+/// `t` with every occurrence of the symbol `from` replaced by `to`, without evaluating anything (packed arrays,
+/// which hold no symbols, as they are).
+pub(crate) fn replace_sym<'h>(h: &'h Heap, t: T<'h>, from: T<'h>, to: T<'h>, depth: usize) -> T<'h> {
+    if t == from {
+        return to;
+    }
+    if depth > 400 || h.packed(t).is_some() {
+        return t;
+    }
+    match h.view(t) {
+        View::App { head, args } => {
+            let nh = replace_sym(h, head, from, to, depth + 1);
+            let na: Vec<T<'h>> = args.iter().map(|&a| replace_sym(h, a, from, to, depth + 1)).collect();
+            if nh == head && na.as_slice() == args {
+                t
+            } else {
+                h.app(nh, &na)
+            }
+        }
+        _ => t,
+    }
+}
+
+/// The evaluation monitor of a plot of a complex variable z: the plot samples its function at the real and
+/// imaginary parts (x, y), and the monitor is called with z = x + i y, as `(x, y) => m(x + im*y)`.
+fn complex_monitor<'h>(h: &'h Heap, args: &mut [T<'h>]) {
+    let is_monitor = |k: T<'h>| matches!(h.view(k), View::Sym(s) if h.sym_name(s) == "evaluation_monitor");
+    let wrap = |m: T<'h>| {
+        let (x, y) = (h.sym_term(h.sym("monitor$x")), h.sym_term(h.sym("monitor$y")));
+        let z = h.call(h.sym(mc_api::names::ADD), &[x, h.call(h.sym(mc_api::names::MUL), &[h.sym_term(h.sym("im")), y])]);
+        h.call(h.sym("fn"), &[h.call(h.sym(mc_api::names::LIST), &[x, y]), h.app(m, &[z])])
+    };
+    let rewrite_rule = |r: T<'h>| match h.view(r) {
+        View::App { head, args: &[k, m] } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == mc_api::names::RULE) && is_monitor(k) => {
+            Some(h.app(head, &[k, wrap(m)]))
+        }
+        _ => None,
+    };
+    for a in args.iter_mut() {
+        if let Some(r) = rewrite_rule(*a) {
+            *a = r;
+            continue;
+        }
+        if let View::App { head, args: items } = h.view(*a) {
+            if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "options") && items.iter().any(|&r| rewrite_rule(r).is_some()) {
+                let new: Vec<T<'h>> = items.iter().map(|&r| rewrite_rule(r).unwrap_or(r)).collect();
+                *a = h.app(head, &new);
+            }
+        }
+    }
+}
+
+/// The arguments of a plot after its function, evaluated as a strict call evaluates them, except the variable of
+/// each range `[x, a, b, ...]` and the variables of a domain `element([x, y], region)`, which stay symbols: a plot's
+/// variables are its own. When a variable has a value outside the plot, the function and the range name a fresh
+/// symbol in its place, so the plot samples its function with the variable free (as a block would).
+fn localize<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<(Vec<T<'h>>, bool)> {
+    let h = cx.heap();
+    let Some((&f, rest)) = args.split_first() else { return Ok((args.to_vec(), false)) };
+    let mut renames: Vec<(T<'h>, T<'h>)> = vec![];
+    let fresh = |cx: &mut NativeCx<'_, '_, 'h>, v: T<'h>, renames: &mut Vec<(T<'h>, T<'h>)>| -> Res<T<'h>> {
+        let View::Sym(s) = h.view(v) else { return Ok(v) };
+        if let Some(&(_, to)) = renames.iter().find(|r| r.0 == v) {
+            return Ok(to);
+        }
+        if cx.eval(v)? == v {
+            return Ok(v);
+        }
+        let to = h.sym_term(h.sym(&format!("{}$plot", h.sym_name(s))));
+        renames.push((v, to));
+        Ok(to)
+    };
+    let mut out = vec![f];
+    for &a in rest {
+        if let Some(items) = cx.as_list(a).map(|l| l.to_vec()) {
+            if items.len() >= 2 && matches!(h.view(items[0]), View::Sym(_)) {
+                let mut spec = vec![fresh(cx, items[0], &mut renames)?];
+                for &x in &items[1..] {
+                    spec.push(cx.eval(x)?);
+                }
+                out.push(cx.list(&spec));
+                continue;
+            }
+        }
+        if let Some((n, &[vars, reg])) = crate::values::call_of(h, a) {
+            if n == "element" {
+                let vs: Vec<T<'h>> = cx.as_list(vars).map(|l| l.to_vec()).unwrap_or_else(|| vec![vars]);
+                if vs.iter().all(|&v| matches!(h.view(v), View::Sym(_))) {
+                    let mut nv = vec![];
+                    for v in vs {
+                        nv.push(fresh(cx, v, &mut renames)?);
+                    }
+                    let nvars = if cx.as_list(vars).is_some() { cx.list(&nv) } else { nv[0] };
+                    let reg = cx.eval(reg)?;
+                    out.push(h.call(h.sym("element"), &[nvars, reg]));
+                    continue;
+                }
+            }
+        }
+        out.push(cx.eval(a)?);
+    }
+    for &(from, to) in &renames {
+        out[0] = replace_sym(h, out[0], from, to, 0);
+    }
+    Ok((out, !renames.is_empty()))
 }
 
 /// Register `native` as `name` holding its first argument.
@@ -25,6 +133,41 @@ fn is_failure<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> bool {
 
 impl Native for Held {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let (mut local, renamed) = localize(cx, args)?;
+        if self.1.starts_with("complex_") {
+            complex_monitor(cx.heap(), &mut local);
+        }
+        match self.plot(cx, t, &local)? {
+            // left as it is: shown with its arguments after the first evaluated, as a call holding only its
+            // function shows them
+            Reply::Decline if !renamed => {
+                let h = cx.heap();
+                let View::App { head, args: orig } = h.view(t) else { return Ok(Reply::Decline) };
+                if orig.len() != local.len() || orig.is_empty() {
+                    return Ok(Reply::Decline);
+                }
+                let mut shown = vec![orig[0]];
+                shown.extend_from_slice(&local[1..]);
+                let u = h.app(head, &shown);
+                Ok(if u == t { Reply::Decline } else { Reply::Done(u) })
+            }
+            r => Ok(r),
+        }
+    }
+    fn trace(&mut self, visit: &mut dyn FnMut(&mut Raw)) {
+        self.0.trace(visit)
+    }
+    fn reads_term(&self) -> bool {
+        self.0.reads_term()
+    }
+    fn curried(&self) -> bool {
+        self.0.curried()
+    }
+}
+
+impl Held {
+    /// The plot of the arguments as [`localize`] gives them.
+    fn plot<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         // monitors take a function (design NUM.8): a value that is not one is a failure showing the form to write. The
         // evaluation monitor is called at every sample with the sample point (one argument per variable); a plot
         // takes no steps, so a step monitor is an unknown option, never accepted and ignored
@@ -56,15 +199,6 @@ impl Native for Held {
         let r = self.sampled(cx, t, &args);
         MONITORS.with(|m| m.replace(before));
         r
-    }
-    fn trace(&mut self, visit: &mut dyn FnMut(&mut Raw)) {
-        self.0.trace(visit)
-    }
-    fn reads_term(&self) -> bool {
-        self.0.reads_term()
-    }
-    fn curried(&self) -> bool {
-        self.0.curried()
     }
 }
 
@@ -185,7 +319,7 @@ fn finite_window<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> T<'h> {
 /// A domain `element(x, region)` or `element([x, y, ...], region)`: the ranges `[x, lo, hi]` of the region's
 /// bounding box, one per variable, and the condition that a point is in the region when it can be written down
 /// (`None` when the box is all there is to use). `None` for anything else.
-fn region_domain<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<(Vec<T<'h>>, Option<T<'h>>)>> {
+pub(crate) fn region_domain<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<(Vec<T<'h>>, Option<T<'h>>)>> {
     let h = cx.heap();
     let Some((n, &[vars, reg])) = crate::values::call_of(h, t) else { return Ok(None) };
     if n != "element" {

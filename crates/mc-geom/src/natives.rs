@@ -98,9 +98,28 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     reg("sas_triangle", |cx, a| crate::construct::triangle_of(cx, a, "sas"));
     reg("asa_triangle", |cx, a| crate::construct::triangle_of(cx, a, "asa"));
     reg("aas_triangle", |cx, a| crate::construct::triangle_of(cx, a, "aas"));
-    reg("perimeter", |cx, a| match crate::coords::perimeter(cx, a)? {
-        Some(t) => Ok(Reply::Done(t)),
-        None => crate::construct::perimeter(cx, a),
+    reg("perimeter", |cx, a| {
+        if let [t] = a {
+            // an implicit disk or ellipse: the perimeter of that region
+            if let Some(q) = crate::quadric::quadric(cx, *t)? {
+                let h = cx.heap();
+                return Ok(Reply::Done(cx.eval(h.call(h.sym("perimeter"), &[q]))?));
+            }
+            // the intersection of two disks: the two arcs
+            if let Some((n, args)) = call_parts(cx.heap(), *t) {
+                if n == "region_intersection" {
+                    if let Some(d) = disks(cx, args, true)? {
+                        if let Some(v) = lens_perimeter(cx, &d)? {
+                            return Ok(Reply::Done(v));
+                        }
+                    }
+                }
+            }
+        }
+        match crate::coords::perimeter(cx, a)? {
+            Some(t) => Ok(Reply::Done(t)),
+            None => crate::construct::perimeter(cx, a),
+        }
     });
     reg("circumsphere", crate::construct::circumsphere);
     reg("region_moment", |cx, a| match lens(cx, a, 2)? {
@@ -248,6 +267,36 @@ fn region_member<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h
 
 fn measure_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], want: Option<usize>) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // a curve joined from straight and Bezier pieces: its length
+    if let ([t], None | Some(1)) = (a, want) {
+        if let Some(ps) = crate::curves::pieces(cx, *t) {
+            if let Some((len, _)) = crate::curves::length_and_moments(cx, &ps, false)? {
+                return finish(cx, len, inexact(h, *t));
+            }
+        }
+    }
+    // a mesh of segments, triangles and polygons or tetrahedra (machine coordinates): the measure summed in machine
+    // numbers, cell by cell
+    if let [t] = a {
+        if let Some(v) = crate::mesh::numeric_measure(cx, *t, want)? {
+            return Ok(Reply::Done(h.real(v)));
+        }
+    }
+    // an implicit disk, circle, ball, sphere or axis-aligned ellipse or ellipsoid, or a circle or disk under an affine
+    // map of the plane: the measure of the congruent region
+    if let [t] = a {
+        let (same, mapped) = match crate::quadric::quadric(cx, *t)? {
+            Some(q) => (Some(q), false),
+            None => (crate::quadric::mapped_ellipse(cx, *t)?, true),
+        };
+        if let Some(q) = same {
+            if let Reply::Done(v) = measure_of(cx, &[q], want)? {
+                // the product of the semi-axes of a mapped disk expands to |det L| r^2
+                let v = if mapped { cx.eval(h.call(h.sym("simplify"), &[h.call(h.sym("expand"), &[v])]))? } else { v };
+                return Ok(Reply::Done(v));
+            }
+        }
+    }
     // the intersection of two exact disks: the lens
     if let ([t], None | Some(2)) = (a, want) {
         if let Some((n, args)) = call_parts(h, *t) {
@@ -498,6 +547,19 @@ fn dnf<'h>(h: &'h Heap, t: T<'h>, cap: usize) -> Option<Vec<Vec<T<'h>>>> {
 
 fn region_centroid<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    if let [t] = a {
+        if let Some(q) = crate::quadric::quadric(cx, *t)? {
+            return region_centroid(cx, &[q]);
+        }
+        // a joined curve: the moments of its pieces over its length
+        if let Some(ps) = crate::curves::pieces(cx, *t) {
+            if let Some((len, ms)) = crate::curves::length_and_moments(cx, &ps, true)? {
+                let e = E { h };
+                let c: Vec<T<'h>> = ms.iter().map(|&m| e.f("simplify", &[e.div(m, len)])).collect();
+                return finish(cx, cx.list(&c), inexact(h, *t));
+            }
+        }
+    }
     let Some(r) = one_region(cx, a) else { return Ok(Reply::Decline) };
     let numeric = inexact(h, a[0]);
     match props::centroid(cx, &r)? {
@@ -535,6 +597,12 @@ fn region_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h
 fn distance<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], q: Query) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [r, p] = a else { return Ok(Reply::Decline) };
+    // an implicit disk, circle, ball or sphere: the distances to that region
+    if let Some(ball) = crate::quadric::quadric(cx, *r)? {
+        if matches!(read(cx, ball), Some(Region::Ball { r: Radius::One(_), .. })) {
+            return distance(cx, &[ball, *p], q);
+        }
+    }
     let Some(reg) = read(cx, *r) else { return Ok(Reply::Decline) };
     let numeric = inexact(h, *r) || inexact(h, *p);
     let one = |cx: &mut NativeCx<'_, '_, 'h>, p: T<'h>| -> Res<Option<T<'h>>> {
@@ -622,6 +690,28 @@ fn syms<'h>(h: &'h Heap, vars: &[T<'h>]) -> Option<Vec<Sym>> {
             _ => None,
         })
         .collect()
+}
+
+/// The numeric bounds of an implicit region; a curve of space given by two equations gets the box both surfaces'
+/// boxes have in common.
+pub(crate) fn implicit_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>) -> Res<Option<Vec<(f64, f64)>>> {
+    let h = cx.heap();
+    if let Region::Implicit { cond, vars } = r {
+        if let Some(("and", parts)) = call_parts(h, *cond).as_ref().map(|(n, p)| (n.as_str(), *p)) {
+            if parts.len() == 2 && parts.iter().all(|&p| call_parts(h, p).is_some_and(|(n, a)| n == "equal" && a.len() == 2)) {
+                let mut acc: Option<Vec<(f64, f64)>> = None;
+                for &p in parts {
+                    let Some(b) = numeric_bounds(cx, &Region::Implicit { cond: p, vars: vars.clone() })? else { continue };
+                    acc = Some(match acc {
+                        None => b,
+                        Some(a) => a.iter().zip(&b).map(|(x, y)| (x.0.max(y.0), x.1.min(y.1))).collect(),
+                    });
+                }
+                return Ok(acc.filter(|b| b.iter().all(|x| x.0.is_finite() && x.1.is_finite() && x.0 <= x.1)));
+            }
+        }
+    }
+    numeric_bounds(cx, r)
 }
 
 /// The bounds of an implicit region (sampled on growing boxes, the extreme samples refined by bisection) or of a
@@ -1074,9 +1164,44 @@ fn lens_area<'h>(cx: &mut NativeCx<'_, '_, 'h>, d: &[Disk<'h>; 2]) -> Res<Option
     Ok(Some(cx.eval(e.f("simplify", &[v]))?))
 }
 
+/// The perimeter of the intersection of two disks: 0 apart, the smaller circle when one disk lies in the other,
+/// else the two arcs 2 r1 acos((d^2 + r1^2 - r2^2)/(2 d r1)) + 2 r2 acos((d^2 + r2^2 - r1^2)/(2 d r2)) (each arc
+/// subtends twice the angle at its centre between the line of centres and a crossing point).
+fn lens_perimeter<'h>(cx: &mut NativeCx<'_, '_, 'h>, d: &[Disk<'h>; 2]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let e = E { h };
+    let [(c1, r1), (c2, r2)] = d;
+    let (r1, r2) = (*r1, *r2);
+    let dd = e.dist(c1, c2);
+    let (Some(dv), Some(a), Some(b)) = (num(cx, dd)?, num(cx, r1)?, num(cx, r2)?) else { return Ok(None) };
+    let v = if dv >= a + b {
+        h.int(0)
+    } else if dv <= (a - b).abs() {
+        let r = if a <= b { r1 } else { r2 };
+        e.mul(&[e.int(2), e.pi(), r])
+    } else {
+        let arc = |ra: T<'h>, rb: T<'h>| {
+            let arg = e.div(e.sub(e.add(&[e.sq(dd), e.sq(ra)]), e.sq(rb)), e.mul(&[e.int(2), dd, ra]));
+            e.mul(&[e.int(2), ra, e.f("acos", &[arg])])
+        };
+        e.add(&[arc(r1, r2), arc(r2, r1)])
+    };
+    Ok(Some(cx.eval(e.f("simplify", &[v]))?))
+}
+
 fn boolean<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], op: Op) -> Res<Reply<'h>> {
     if a.is_empty() || (op == Op::Difference && a.len() != 2) {
         return Ok(Reply::Decline);
+    }
+    // mesh regions of the line, plane boundary meshes and boundary meshes of space: a mesh of the same kind
+    if let Some(t) = crate::csg::combine(cx, a, |_, bits| Ok(Some(crate::csg::op_truth(op, bits))))? {
+        return Ok(Reply::Done(t));
+    }
+    // the common part of segments of the line (a union of segments stays as it is: it is already a region)
+    if op == Op::Intersection {
+        if let Some(t) = crate::csg::line_segments(cx, a, op)? {
+            return Ok(Reply::Done(t));
+        }
     }
     // two exact disks: kept as the intersection (its area is the exact lens, `measure_of`; `discretize_region` takes
     // the polygon), not replaced by the intersection of two 256-gons, whose area is off by 2e-4

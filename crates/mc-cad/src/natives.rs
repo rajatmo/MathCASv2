@@ -498,6 +498,10 @@ pub struct FindInstance {
 
 impl Native for FindInstance {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        // sums of squares, primes, integer subsets, bounded integer problems with other functions
+        if let Some(r) = crate::instances::find(cx, &self.stop, args)? {
+            return Ok(Reply::Done(r));
+        }
         if let Some(r) = find_instance(cx, &self.stop, args)? {
             return Ok(Reply::Done(r));
         }
@@ -752,22 +756,71 @@ fn one_integer<'h>(cx: &mut NativeCx<'_, '_, 'h>, cond: T<'h>, x: T<'h>, n: usiz
 fn find_several<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, cond: T<'h>, vars: &[T<'h>], n: usize) -> Res<Option<T<'h>>> {
     let h = cx.heap();
     let fr = Front::new(h);
-    let r = metered(cx, stop, |m| -> WorkResult<Option<Vec<Vec<Coord>>>> {
-        let Ok(p) = fr.problem(cond, vars, m)? else { return Ok(None) };
-        if p.prob.nfree != vars.len() {
-            return Ok(None);
+    // the points of a finite solution set (all of them), or the sample points of true cells of positive dimension
+    // (each satisfies the formula, which is invariant on a cell); for more of the latter the formula is decomposed
+    // again with the rational first coordinates found so far excluded, which splits their cells
+    let mut pts: Vec<Vec<Coord>> = vec![];
+    let mut excluded: Vec<T<'h>> = vec![];
+    let mut complete = false;
+    for _ in 0..n.min(8) {
+        let f = if excluded.is_empty() {
+            cond
+        } else {
+            let mut parts = vec![cond];
+            parts.extend(excluded.iter().copied());
+            h.call(h.sym("and"), &parts)
+        };
+        let r = metered(cx, stop, |m| -> WorkResult<Option<(bool, Vec<Vec<Coord>>)>> {
+            let Ok(p) = fr.problem(f, vars, m)? else { return Ok(None) };
+            if p.prob.nfree != vars.len() {
+                return Ok(None);
+            }
+            let Ok(o) = decompose(&p.prob, &Limits::default(), &mut |_, _| {}, m)? else { return Ok(None) };
+            if o.truth == Some(false) {
+                return Ok(Some((true, vec![])));
+            }
+            let mut found = vec![];
+            if points(&o.cells, &mut vec![], vars.len(), &mut found) {
+                return Ok(Some((true, found)));
+            }
+            found.clear();
+            samples(&o.cells, &mut vec![], vars.len(), n, &mut found);
+            Ok(Some((false, found)))
+        })?;
+        let Some(Some((finite, found))) = r else { return Ok(None) };
+        if finite && excluded.is_empty() {
+            pts = found;
+            complete = true;
+            break;
         }
-        let Ok(o) = decompose(&p.prob, &Limits::default(), &mut |_, _| {}, m)? else { return Ok(None) };
-        if o.truth == Some(false) {
-            return Ok(Some(vec![]));
+        let before = pts.len();
+        for p in found {
+            if pts.len() < n && !pts.iter().any(|q| same_point(q, &p)) {
+                pts.push(p);
+            }
         }
-        let mut pts = vec![];
-        if !points(&o.cells, &mut vec![], vars.len(), &mut pts) {
-            return Ok(None);
+        if pts.len() >= n || pts.len() == before {
+            break;
         }
-        Ok(Some(pts))
-    })?;
-    let Some(Some(pts)) = r else { return Ok(None) };
+        // exclude the rational first coordinates seen
+        let w = Writer::new_unmetered(h, &[]);
+        excluded = vec![];
+        let mut firsts: Vec<&Rat> = vec![];
+        for p in &pts {
+            if let Some(Coord::Rat(q)) = p.first() {
+                if !firsts.contains(&q) {
+                    firsts.push(q);
+                    excluded.push(h.call(h.sym("unequal"), &[vars[0], w.rat(q)]));
+                }
+            }
+        }
+        if excluded.is_empty() {
+            break;
+        }
+    }
+    if pts.len() < n && !complete {
+        return Ok(None);
+    }
     let mut out = vec![];
     for pt in pts.into_iter().take(n) {
         let mut rules = vec![];
@@ -809,6 +862,46 @@ fn points(cells: &[crate::cad::Cell], pre: &mut Vec<Coord>, n: usize, out: &mut 
         }
     }
     true
+}
+
+/// Are two sample points equal (coordinates compared exactly)?
+fn same_point(a: &[Coord], b: &[Coord]) -> bool {
+    let mut w = mc_poly::work::Unlimited;
+    let mut m = Meter::new(&mut w);
+    a.len() == b.len()
+        && a.iter().zip(b).all(|(x, y)| {
+            let mut x = match x {
+                Coord::Rat(q) => RealAlg::rational(q),
+                Coord::Alg(r) => r.clone(),
+            };
+            let mut y = match y {
+                Coord::Rat(q) => RealAlg::rational(q),
+                Coord::Alg(r) => r.clone(),
+            };
+            matches!(x.compare(&mut y, &mut m), Ok(Ordering::Equal))
+        })
+}
+
+/// The sample points of up to `n` true cells, in the order of the decomposition; a cell true below the last level
+/// holds on its whole cylinder, so its point is completed with zeros.
+fn samples(cells: &[crate::cad::Cell], pre: &mut Vec<Coord>, nv: usize, n: usize, out: &mut Vec<Vec<Coord>>) {
+    use crate::cad::Truth;
+    for c in cells {
+        if out.len() >= n {
+            return;
+        }
+        pre.push(c.coord.clone());
+        match c.truth {
+            Truth::True => {
+                let mut p = pre.clone();
+                p.resize(nv, Coord::Rat(Rat::from_i64(0)));
+                out.push(p);
+            }
+            Truth::Mixed if pre.len() < nv => samples(&c.children, pre, nv, n, out),
+            _ => {}
+        }
+        pre.pop();
+    }
 }
 
 /// A coordinate as a term: a rational, a quadratic radical, or a root object.

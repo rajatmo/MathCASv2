@@ -26,6 +26,18 @@
 # the integers 0, 1, -1, 2, -2, ... up to 20000 in absolute value are tried in turn: the first ones at which the
 # condition evaluates to `true`.
 
+#% item
+# `positive_integers`, `nonnegative_integers`, `negative_integers` and `nonpositive_integers` are the integers with a sign condition on each variable. A sum of squares `x1^2 + ... + xk^2 == N` is decomposed directly, largest square first.
+
+#% item
+# Several integer variables with other functions in the condition (`euler_phi`, `power_mod`): the integer points of the box of the polynomial conditions, the whole condition evaluated at each.
+
+#% item
+# `find_instance(cond, p, primes)` (or `element(p, primes)` in the condition): the primes from the lower bound of the condition upward.
+
+#% item
+# `find_instance(cond, vars, n)` without a domain lists up to `n` points: all of them for a finite solution set, else points of the solution families (periodic equations with their integer parameter set to 0, 1, -1, ...). Over the reals, sets of positive dimension give sample points of several cells.
+
 #% section
 # Examples
 
@@ -103,6 +115,40 @@ find_instance(prime_pi(n) == 7, n, integers)
 find_instance([mod(x, 3) == 1, mod(x, 5) == 2], x, integers)
 #% output
 #= [[x -> 7]]
+
+#% text
+# Seven squares, all of them positive:
+
+#% cell
+find_instance(x^2 + y^2 + z^2 + t^2 + u^2 + v^2 + w^2 == 1234567890987654321, [x, y, z, t, u, v, w], positive_integers)
+#% output
+#= [[x -> 1111111106, y -> 33333, z -> 148, t -> 17, u -> 1, v -> 1, w -> 1]]
+
+#% text
+# Primes and twin primes:
+
+#% cell
+find_instance(p > 10^10, p, primes)
+#% output
+#= [[p -> 10000000019]]
+
+#% cell
+rewrite(p, find_instance(element(p, primes) and element(p + 2, primes), p, 5))
+#% output
+#= [3, 5, 11, 17, 29]
+
+#% text
+# Several points of a periodic equation and of a finite set:
+
+#% cell
+find_instance(1 + cos(x) == 3/2, x, 3)
+#% output
+#= [[x -> (-1/3)*pi], [x -> (1/3)*pi], [x -> (5/3)*pi]]
+
+#% cell
+find_instance(x^2 + y^2 == 1 and x == 2*y + 1, [x, y], 5)
+#% output
+#= [[x -> -3/5, y -> -4/5], [x -> 1, y -> 0]]
 
 #% subsection
 # Properties and relations

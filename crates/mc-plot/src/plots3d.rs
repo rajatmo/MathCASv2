@@ -218,6 +218,26 @@ fn spec<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<(Sym, f64, f6
     Ok((a < b).then_some((v, a, b)))
 }
 
+/// A range `[y, lo(x), hi(x)]` whose ends are functions of the first variable x: the variable and the ends at each
+/// of `n` equally spaced x in [a, b] (`None` when an end has no real value somewhere or the ends cross).
+#[allow(clippy::type_complexity)]
+pub(crate) fn dependent_ends<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, x: Sym, a: f64, b: f64, n: usize) -> Res<Option<(Sym, Vec<(f64, f64)>)>> {
+    let h = cx.heap();
+    let Some(&[v, lo, hi]) = cx.as_list(t) else { return Ok(None) };
+    let View::Sym(y) = h.view(v) else { return Ok(None) };
+    let (mut flo, mut fhi) = (compile(cx, lo, &[x])?, compile(cx, hi, &[x])?);
+    let mut ends = Vec::with_capacity(n);
+    for i in 0..n {
+        let xi = a + (b - a) * i as f64 / (n - 1).max(1) as f64;
+        let (c, d) = (value(cx, &mut flo, &[xi])?, value(cx, &mut fhi, &[xi])?);
+        if !c.is_finite() || !d.is_finite() || c > d {
+            return Ok(None);
+        }
+        ends.push((c, d));
+    }
+    Ok(Some((y, ends)))
+}
+
 /// Builds terms.
 struct B<'h> {
     h: &'h Heap,
@@ -379,19 +399,41 @@ impl Native for Plot3 {
             Kind::Plot => {
                 let [f, sx, sy] = args else { return Ok(Reply::Decline) };
                 let Some((x, a, bx)) = spec(cx, *sx)? else { return Ok(bad(h, name, 2)) };
-                let Some((y, c, d)) = spec(cx, *sy)? else { return Ok(bad(h, name, 3)) };
-                let fs: Vec<T<'h>> = cx.as_list(*f).map(|l| l.to_vec()).unwrap_or_else(|| vec![*f]);
                 let n = grid_n(&o);
+                // the y range: numbers, or ends that are functions of x (the grid follows them across x)
+                let (y, ends) = match spec(cx, *sy)? {
+                    Some((y, c, d)) => (y, vec![(c, d); n]),
+                    None => match dependent_ends(cx, *sy, x, a, bx, n)? {
+                        Some(r) => r,
+                        None => return Ok(bad(h, name, 3)),
+                    },
+                };
+                let c = ends.iter().map(|e| e.0).fold(f64::INFINITY, f64::min);
+                let d = ends.iter().map(|e| e.1).fold(f64::NEG_INFINITY, f64::max);
+                let fs: Vec<T<'h>> = cx.as_list(*f).map(|l| l.to_vec()).unwrap_or_else(|| vec![*f]);
                 let mut meshes = vec![];
                 for &f in &fs {
                     let mut fun = compile(cx, f, &[x, y])?;
                     let mut p = Vec::with_capacity(n * n);
-                    for i in 0..n {
+                    for (i, &(ci, di)) in ends.iter().enumerate() {
                         cx.tick(1)?;
                         let xi = a + (bx - a) * i as f64 / (n - 1) as f64;
                         for j in 0..n {
-                            let yj = c + (d - c) * j as f64 / (n - 1) as f64;
+                            let yj = ci + (di - ci) * j as f64 / (n - 1) as f64;
                             p.push([xi, yj, value(cx, &mut fun, &[xi, yj])?]);
+                        }
+                    }
+                    // no value at all from the compiled function (a call the compiler does not know, such as a
+                    // distance to a region, that evaluates only at numbers): each point substituted and evaluated
+                    if p.iter().all(|q| !q[2].is_finite()) {
+                        for (k, q) in p.iter_mut().enumerate() {
+                            if k % n == 0 {
+                                cx.tick(n as u64)?;
+                            }
+                            let at = crate::held::replace_sym(h, f, h.sym_term(x), h.real(q[0]), 0);
+                            let at = crate::held::replace_sym(h, at, h.sym_term(y), h.real(q[1]), 0);
+                            let v = cx.eval(h.call(h.sym("n"), &[at]))?;
+                            q[2] = real(cx, v)?.unwrap_or(f64::NAN);
                         }
                     }
                     meshes.push(Mesh { nu: n, nv: n, p });
@@ -424,12 +466,18 @@ impl Native for Plot3 {
                         if items.len() == 3 && items.iter().all(|&e| cx.as_list(e).is_none()) {
                             vec![items.to_vec()]
                         } else {
+                            // several curves or surfaces; an entry that is not a list (an undefined symbol) has no
+                            // points and is drawn as nothing, as a function without values in `plot`
                             let mut all = vec![];
                             for &e in items {
                                 match cx.as_list(e) {
                                     Some(c) if c.len() == 3 => all.push(c.to_vec()),
+                                    None if items.len() > 1 => {}
                                     _ => return Ok(bad(h, name, 1)),
                                 }
+                            }
+                            if all.is_empty() {
+                                return Ok(bad(h, name, 1));
                             }
                             all
                         }

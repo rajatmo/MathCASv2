@@ -10,6 +10,7 @@
 //!   `im_part(z)`.
 //! - A disjunction in one real variable: each relation reduced on its own.
 use super::sets;
+use crate::common::is_free;
 use crate::term::Build;
 use mc_api::{names, Store, View, T};
 use mc_eval::{NativeCx, Res};
@@ -62,6 +63,7 @@ pub fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, cs: &mut Vec<T<'
         for o in out.iter_mut() {
             *o = reduce_disjuncts(cx, b, *o, vars[0])?;
         }
+        periodic_forms(cx, b, &mut out, vars[0])?;
     }
     // not_element first
     let (mut ne, rest): (Vec<T<'h>>, Vec<T<'h>>) = out.into_iter().partition(|&c| sets::is_head(b, c, "not_element"));
@@ -142,6 +144,133 @@ fn integer_shift<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, e: T<'h>) -> 
         }
     }
     Ok(e)
+}
+
+/// Is `c` an order relation (`<`, `<=`, `>`, `>=`)?
+fn is_order<'h>(b: &Build<'h>, c: T<'h>) -> bool {
+    ["less", "less_equal", "greater", "greater_equal"].iter().any(|n| sets::is_head(b, c, n))
+}
+
+/// Does `t` hold a circular function of `x`?
+fn has_circular<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
+    let h = b.heap();
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if b.sym_of(head).is_some_and(|s| matches!(h.sym_name(s).as_str(), "sin" | "cos" | "tan" | "cot" | "sec" | "csc")) && !is_free(b, u, x) {
+                return true;
+            }
+            stack.extend(args.iter().copied());
+        }
+    }
+    false
+}
+
+/// Order relations with circular functions of `x` solved:
+/// - with polynomial relations beside them (a bounded range of x, as `x^2 < 1`), the conjunction by `reduce`;
+/// - alone, through the period P of `l - r` (`function_period`): the solutions in one period [0, P) by `reduce`, an
+///   interval that starts at 0 and one that ends at P joined across the end, then shifted by P c(1) with
+///   `element(c(1), integers)`. Both steps are exact, so the family is the solution set.
+fn periodic_forms<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, out: &mut Vec<T<'h>>, x: T<'h>) -> Res<()> {
+    let h = b.heap();
+    let reals = h.sym_term(h.sym("reals"));
+    let trig: Vec<usize> = (0..out.len()).filter(|&i| is_order(b, out[i]) && !sets::polynomial_formula(b, out[i], &[x]) && has_circular(b, out[i], x)).collect();
+    if trig.is_empty() {
+        return Ok(());
+    }
+    let poly: Vec<usize> = (0..out.len()).filter(|&i| is_order(b, out[i]) && sets::polynomial_formula(b, out[i], &[x]) && !is_free(b, out[i], x)).collect();
+    let others = (0..out.len()).any(|i| !trig.contains(&i) && !poly.contains(&i) && !sets::is_head(b, out[i], "not_element") && !is_free(b, out[i], x));
+    if others {
+        return Ok(());
+    }
+    let ok = |r: T<'h>| !sets::is_head(b, r, "reduce") && !sets::is_head(b, r, names::FAILURE) && !has_circular(b, r, x);
+    if !poly.is_empty() {
+        let parts: Vec<T<'h>> = trig.iter().chain(&poly).map(|&i| out[i]).collect();
+        let r = cx.eval(b.call("reduce", &[h.call(h.sym("and"), &parts), x, reals]))?;
+        if ok(r) {
+            let mut kept: Vec<T<'h>> = (0..out.len()).filter(|i| !trig.contains(i) && !poly.contains(i)).map(|i| out[i]).collect();
+            match h.view(r) {
+                View::App { head, args } if b.sym_of(head) == Some(h.sym("and")) => kept.extend_from_slice(args),
+                _ => kept.push(r),
+            }
+            *out = kept;
+        }
+        return Ok(());
+    }
+    if trig.len() != 1 {
+        return Ok(());
+    }
+    let c = out[trig[0]];
+    let View::App { args: &[l, r], .. } = h.view(c) else { return Ok(()) };
+    let p = cx.eval(b.call("function_period", &[b.sub(l, r), x]))?;
+    if !is_free(b, p, x) || sets::is_head(b, p, "function_period") || { let pos = cx.eval(b.call("greater", &[p, b.zero()]))?; !cx.is_true(pos) } {
+        return Ok(());
+    }
+    let window = h.call(h.sym("and"), &[c, b.call("less_equal", &[b.zero(), x]), b.call("less", &[x, p])]);
+    let w = cx.eval(b.call("reduce", &[window, x, reals]))?;
+    if !ok(w) {
+        return Ok(());
+    }
+    // the intervals (lo, lo strict, hi, hi strict) of the solutions in [0, P)
+    let disjuncts: Vec<T<'h>> = match h.view(w) {
+        View::App { head, args } if b.sym_of(head) == Some(h.sym("or")) => args.to_vec(),
+        _ => vec![w],
+    };
+    let mut ivs: Vec<(T<'h>, bool, T<'h>, bool)> = vec![];
+    for d in disjuncts {
+        let View::App { head, args: &[r1, r2] } = h.view(d) else { return Ok(()) };
+        if b.sym_of(head) != Some(h.sym("and")) {
+            return Ok(());
+        }
+        let side = |rel: T<'h>| -> Option<(bool, T<'h>, bool)> {
+            // (x is on the right, the bound, strict)
+            let View::App { head, args: &[a, c] } = h.view(rel) else { return None };
+            let strict = match b.sym_of(head).map(|s| h.sym_name(s).to_string()).as_deref() {
+                Some("less") => true,
+                Some("less_equal") => false,
+                _ => return None,
+            };
+            if c == x && is_free(b, a, x) {
+                Some((true, a, strict))
+            } else if a == x && is_free(b, c, x) {
+                Some((false, c, strict))
+            } else {
+                None
+            }
+        };
+        let (Some((true, lo, ls)), Some((false, hi, hs))) = (side(r1), side(r2)) else { return Ok(()) };
+        ivs.push((lo, ls, hi, hs));
+    }
+    if ivs.is_empty() {
+        return Ok(());
+    }
+    // an interval [0, a) and one (b, P) are one interval (b - P, a) of the family
+    if ivs.len() > 1 {
+        let (f0, l0) = (ivs[0], ivs[ivs.len() - 1]);
+        if f0.0 == b.zero() && !f0.1 && l0.2 == p && l0.3 {
+            let lo = cx.eval(b.sub(l0.0, p))?;
+            ivs.pop();
+            ivs[0] = (lo, l0.1, f0.2, f0.3);
+        }
+    }
+    let k = h.call(h.sym("c"), &[h.int(1)]);
+    let shift = b.mul(&[p, k]);
+    let mut fam = vec![];
+    for (lo, ls, hi, hs) in ivs {
+        let lo = cx.eval(b.add(&[lo, shift]))?;
+        let hi = cx.eval(b.add(&[hi, shift]))?;
+        fam.push((b.call(if ls { "less" } else { "less_equal" }, &[lo, x]), b.call(if hs { "less" } else { "less_equal" }, &[x, hi])));
+    }
+    let mut kept: Vec<T<'h>> = (0..out.len()).filter(|&i| i != trig[0]).map(|i| out[i]).collect();
+    kept.push(b.call("element", &[k, h.sym_term(h.sym("integers"))]));
+    if fam.len() == 1 {
+        kept.extend([fam[0].0, fam[0].1]);
+    } else {
+        let alts: Vec<T<'h>> = fam.iter().map(|&(a, c)| h.call(h.sym("and"), &[a, c])).collect();
+        kept.push(h.call(h.sym("or"), &alts));
+    }
+    *out = kept;
+    Ok(())
 }
 
 /// A disjunction in `x`: each relation reduced on its own.
