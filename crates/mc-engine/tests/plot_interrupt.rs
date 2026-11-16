@@ -131,7 +131,13 @@ fn an_interrupted_plot_of_a_solution_returns_promptly() {
             // an interrupt after the last plot leaves a finished table; either way it came back promptly
             assert!(t0.elapsed() < Duration::from_secs(60), "delay {delay} ms: {:?}", t0.elapsed());
             if let Ok(v) = r {
-                assert!(v.printed.starts_with("[image("), "delay {delay} ms: {}", &v.printed[..v.printed.len().min(80)]);
+                // (a fast machine finishes all sixty plots before a late interrupt: the table of pictures, whatever
+                // the shape of one plot's value)
+                assert!(
+                    v.printed.starts_with('[') && v.printed.contains("image("),
+                    "delay {delay} ms: {}",
+                    &v.printed[..v.printed.len().min(80)]
+                );
             }
             assert_eq!(eval(&mut e, "1 + 1"), "2");
             let again = eval(&mut e, PLOT);
