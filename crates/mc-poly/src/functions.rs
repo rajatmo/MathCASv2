@@ -1087,6 +1087,73 @@ pub(crate) fn discriminant<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> 
     Ok(Out::Done(env.conv().to_term(&QPoly::new(d, den), &ring, m)?))
 }
 
+/// The fraction `f` (read from `t`) with its denominator kept as the product of powers of the denominators written
+/// in `t`, when the reduced denominator is such a product up to a constant and some factor is repeated:
+/// `-(3 - 2 x + x^2)/(-1 + x)^3` stays over `(-1 + x)^3` (the expanded cube hides the factor). `None` otherwise.
+fn factored_denominator<'h, S: Store + ?Sized>(c: &Conv<'_, 'h, S>, t: T<'h>, f: &ratfun::RatFun, ring: &Ring<'h>, m: &mut Meter) -> WorkResult<Option<T<'h>>> {
+    use crate::convert::Node;
+    if f.den.is_constant() {
+        return Ok(None);
+    }
+    // the bases of the negative powers among the factors of t (and of the terms of a sum)
+    let mut terms = vec![t];
+    if let Node::Add(xs) = c.node(t) {
+        terms = xs.to_vec();
+    }
+    let mut bases: Vec<T<'h>> = vec![];
+    for u in terms {
+        let fs = match c.node(u) {
+            Node::Mul(xs) => xs.to_vec(),
+            _ => vec![u],
+        };
+        for v in fs {
+            if let Node::Inv(b, _) = c.node(v) {
+                if !bases.contains(&b) {
+                    bases.push(b);
+                }
+            }
+        }
+    }
+    if bases.is_empty() || bases.len() > 8 {
+        return Ok(None);
+    }
+    let mut d = f.den.clone();
+    let mut parts: Vec<(Poly, u32)> = vec![];
+    for b in bases {
+        let Ok(bf) = ratfun::read(c, b, ring, m)? else { return Ok(None) };
+        if !bf.den.is_constant() || bf.num.is_constant() {
+            return Ok(None);
+        }
+        let mut e = 0u32;
+        while let Some(q) = d.div_exact(&bf.num, m)? {
+            d = q;
+            e += 1;
+            if e > 64 {
+                return Ok(None);
+            }
+        }
+        if e > 0 {
+            parts.push((bf.num, e));
+        }
+    }
+    let Some(k) = d.as_constant() else { return Ok(None) };
+    if !parts.iter().any(|&(_, e)| e >= 2) {
+        return Ok(None);
+    }
+    // the constant left is 1 or -1 (both polynomials primitive), which goes into the numerator
+    if k != Z::ONE && k != Z::ONE.neg() {
+        return Ok(None);
+    }
+    let st = c.ar.store();
+    let n = c.int_poly_term(&f.num.scale(&k), ring, m)?;
+    let mut fs = vec![n];
+    for (p, e) in &parts {
+        let pt = c.int_poly_term(p, ring, m)?;
+        fs.push(c.ar.pow(pt, st.int(-i64::from(*e))));
+    }
+    Ok(Some(c.ar.mul(&fs)))
+}
+
 /// `together(e)`: one fraction in lowest terms; `cancel(e)`: each term of a sum in lowest terms.
 pub(crate) fn together<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter, cancel: bool) -> WorkResult<Out<'h>> {
     // the options modulus: m, trig: true and extension: e are the library's rules
@@ -1111,13 +1178,23 @@ pub(crate) fn together<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter, cancel:
         };
         let c = Conv::rational(&env.ar, &env.hd);
         let mut out = Vec::with_capacity(parts.len());
+        // a denominator kept factored: the product is put in order by the evaluator
+        let mut factored = false;
         for t in parts {
             let (ring, _) = c.ring(&[t], &[], m)?;
             let Ok(f) = ratfun::read(&c, t, &ring, m)? else {
                 return Ok(division_by_zero(env));
             };
+            if !cancel {
+                if let Some(r) = factored_denominator(&c, t, &f, &ring, m)? {
+                    out.push(r);
+                    factored = true;
+                    continue;
+                }
+            }
             out.push(ratfun::to_term(&c, &f, &ring, m)?);
         }
-        Ok(Out::Done(if out.len() == 1 { out[0] } else { env.ar.add(&out) }))
+        let r = if out.len() == 1 { out[0] } else { env.ar.add(&out) };
+        Ok(if factored { Out::Again(r) } else { Out::Done(r) })
     })
 }

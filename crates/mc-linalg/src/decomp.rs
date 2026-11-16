@@ -303,6 +303,12 @@ pub fn svd<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'
         Domain::Real | Domain::Rational | Domain::Ball => {
             let mat = a.reals(env);
             let f = dense::svd(&mat, m)?;
+            // a real ball matrix with distinct nonzero singular values: the thin decomposition at its own precision
+            if a.domain == Domain::Ball && matches!(shape, SvdShape::Thin) {
+                if let Some(t) = ball_svd_term(env, &a, &f, m)? {
+                    return Ok(Out::Done(t));
+                }
+            }
             let (u, s, v) = svd_shaped(&mat, f, shape);
             Out::Done(env.list(&[env.real_matrix(&u), env.real_matrix(&s), env.real_matrix(&v)]))
         }
@@ -314,6 +320,33 @@ pub fn svd<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'
         }
         _ => Out::Decline,
     })
+}
+
+/// `[u, s, v]` of a real ball matrix at its precision ([`crate::apeigen::ball_svd`], on the transpose when it has
+/// more columns than rows: A^T = V S U^T), the signs of the columns those of the machine factors `f`.
+fn ball_svd_term<'h>(env: &Env<'h>, a: &Arr<'h>, f: &(Mat<f64>, Vec<f64>, Mat<f64>), m: &mut Meter) -> WorkResult<Option<T<'h>>> {
+    let (r, c) = (a.rows(), a.cols());
+    let nums = a.nums(env);
+    let cols_of = |x: &Mat<f64>| -> Vec<Vec<f64>> { (0..x.cols).map(|j| (0..x.rows).map(|i| x.at(i, j)).collect()).collect() };
+    let (u, s, v) = if r >= c {
+        match crate::apeigen::ball_svd(&nums, r, c, &cols_of(&f.2), m)? {
+            Some(x) => x,
+            None => return Ok(None),
+        }
+    } else {
+        let t: Vec<mc_arith::Num> = (0..c).flat_map(|j| (0..r).map(move |i| (i, j))).map(|(i, j)| nums[i * c + j].clone()).collect();
+        match crate::apeigen::ball_svd(&t, c, r, &cols_of(&f.0), m)? {
+            Some((u2, s2, v2)) => (v2, s2, u2),
+            None => return Ok(None),
+        }
+    };
+    let k = s.len();
+    let matrix = |cols: &[Vec<mc_arith::Num>], rows: usize| -> T<'h> {
+        env.list(&(0..rows).map(|i| env.list(&(0..k).map(|j| env.num(&cols[j][i])).collect::<Vec<_>>())).collect::<Vec<_>>())
+    };
+    let zero = env.num(&mc_arith::Num::int(0));
+    let sm = env.list(&(0..k).map(|i| env.list(&(0..k).map(|j| if i == j { env.num(&s[i]) } else { zero }).collect::<Vec<_>>())).collect::<Vec<_>>());
+    Ok(Some(env.list(&[matrix(&u, r), sm, matrix(&v, c)])))
 }
 
 /// The machine singular values above the rank tolerance.

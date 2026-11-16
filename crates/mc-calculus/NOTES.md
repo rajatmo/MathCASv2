@@ -1858,3 +1858,48 @@ Wronskian of P and Q (DLMF 14.2.4) at 30 digits in `mc-engine/tests/round45_spec
   the default 0 (`convolve` of two uniform densities was 0 at y = 1, where it is 1). The convolution of two bounded
   functions of bounded support is continuous, so each piece now holds at its upper break, lo < y <= hi (the lowest
   break keeps the default 0, which is its value).
+
+## Round 46: conditions exact at their boundaries
+
+- A generator (`mc-engine/tests/round46_boundaries.rs`) takes property calls with parameters (sign, monotonicity,
+  convexity, injective, surjective, bijective, continuous, analytic; 51 templates), solves each relation of the
+  condition of a conditional answer as an equation for one parameter (the others from a pool), and at those points
+  and 1/7 beside them compares the condition's truth with the same call at those values, and the claimed value with
+  30-digit values on a grid of exact points. Defects it found, and their fixes:
+  - injective/bijective of a polynomial asked `for_all(x, f' > 0)`: `x^3 + a x^2 + b x + c` was bijective for
+    a^2 - 3 b < 0 only, but at a^2 = 3 b, f' = 3 (x + a/3)^2 has an isolated zero and f is strictly increasing. Now
+    `for_all(x, f' >= 0) and exists(x, f' != 0)` (or `<= 0`), on the line or on one interval with an interior
+    (`onto::fixed_interval`): `a^2 - 3 b <= 0`. The same weak sign gives strictly monotonic (`x^3 + a x` with
+    strict_inequalities: a >= 0; `x^3` was `indeterminate`) and strictly convex in one variable (`x^4` was
+    `indeterminate`). A real polynomial of odd degree with a numeric leading coefficient is onto at once: the quintic
+    `x^5 + a x^4 + b x^3 + c x^2 + d x` (four parameters) now has its condition in 0.5 s (it timed out).
+  - the derivative's sign over a region of several intervals: `function_injective([x^3 - 3 x, x < -3/2 or
+    x > 11/10], x)` was `true` (f' > 0 on both, f(-3/2) = 9/8 > f(6/5)); `function_monotonicity` with a parameter
+    took the same shortcut. Monotonicity and convexity by the decomposition (`shape.rs`) now need one interval (one
+    variable) or a box (several), and convexity, like monotonicity, no pole inside: `1/x^2 + a` was convex, while
+    `1/x^2` is `indeterminate`.
+  - several variables with strict_inequalities: positive principal minors are only sufficient (x^4 + y^4 is strictly
+    convex, its Hessian is singular at 0, and the answer was `indeterminate`). Now 1 or -1 from them,
+    `indeterminate` only when f is not convex at all, otherwise no answer.
+  - the parameters of the condition (`[x^3 + a x, x > b]`) were not parameters: the condition was reduced in `a`
+    with `b` as a constant and lost `a > 0`.
+  - `sqrt(u)`, `u^(p/q)`, `abs(u)`, `ramp(u)` at a zero of u of even order: `function_analytic(sqrt(x^2), x)` and
+    `(x^4)^(1/4)` were `true` (|x|), `abs(x^2)` was `false` (it is x^2); `sqrt(x^2 + a)` was continuous for a > 0
+    only (at a = 0 it is |x|). Near a zero of order m, u = c t^m (1 + O(t)): `u^e` is continuous where u >= 0 nearby
+    (first nonzero derivative of even order and positive) and analytic there exactly when m e is an even integer;
+    `abs(u)` and `ramp(u)` are analytic at zeros of even order (`sets::local_minimum_zeros`, `odd_order_zeros`,
+    `root_zeros`; polynomials of degree 2 to 8 in one variable).
+- Ran: 51 templates, about 1,300 parameter points (the short test runs 3 pool values); 0 faults left. The grid
+  check of refutations (`indeterminate`, `false`) is not used: a refutation beside a boundary hides between grid
+  points (`x^2 - (15/7) x` on x > 1 dips by 10^-3 between them); the call at those values confirms its own
+  witnesses.
+- Several variables with strict_inequalities and a convex f whose Hessian determinant is identically 0: the graph is
+  developable, ruled by segments along which f is affine (Hartman and Nirenberg, Amer. J. Math. 81 (1959)), so not
+  strictly convex: `x^2` in [x, y] is `indeterminate` again.
+- `function_range`: `binomial(u, k)` and `factorial_power(u, k)` of an integer 0 <= k <= 12 are expanded to
+  polynomials first (`binomial(x, 2)`: y >= -1/8); when the critical points are not found (tanh(x) = 2 x for
+  sinh(x)/sqrt(x)) but f is proved monotonic on every piece of its domain, there are none inside and the range is
+  between the limits at the ends (`bessel_i(1/2, x)`, `struve_l(1/2, x)`: y > 0).
+- Left: `function_monotonicity(sin(x) + a x, x)`, `exp(x) + a x` and `cosh(x) + a` stay unevaluated (parameters
+  with a function that is not polynomial: no method yet); a conditional answer gives one value only (`atan(x) + a x`
+  is 1 for a >= 0 and -1 for a <= -1, only the first is said).

@@ -369,3 +369,10 @@ coefficient of every prime are 0 (unique factorisation; a nonzero combination is
 than 1, irrational). `log(16) == 4 log(2)` and `divisor_sum(27, &(moebius_mu(27/&1) log(&1))) == mangoldt_lambda(27)`
 are true. Tests `tests/round45_general.rs` (also the series, recurrence, divisor-sum and principal-range methods
 of this round in mc-poly, mc-sums, mc-numtheory, mc-calculus).
+
+## Round 46: the order of equal constants
+
+`less(pi, pi)` stayed unevaluated: the balls of equal constants never separate, and the exact comparison took only
+calls of functions. Identical closed exact terms (a constant on its own included) are equal, and a constant on its
+own is compared exactly with a close value (`pi < pi + 10^-40`). Tests `tests/round46_decisions.rs`, and
+`tests/round46_boundaries.rs` (the boundary generator of the property answers: mc-calculus NOTES).

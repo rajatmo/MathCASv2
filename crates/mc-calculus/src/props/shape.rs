@@ -27,7 +27,10 @@ pub fn shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ord
     if s.vector || s.dom != spec::Dom::Reals || order == 1 && s.vars.len() != 1 {
         return Ok(None);
     }
-    let ps = spec::params(b, &s.comps, &s.vars);
+    // the parameters of the function and of the condition (`x > b`: a condition in `a` alone took b for a constant)
+    let mut with_cond = s.comps.clone();
+    with_cond.extend(s.cond);
+    let ps = spec::params(b, &with_cond, &s.vars);
     if s.speed && !ps.is_empty() {
         return Ok(None);
     }
@@ -36,6 +39,80 @@ pub fn shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ord
     if super::nonsmooth_any(b, f, &s.vars) {
         return Ok(None);
     }
+    // monotonicity and convexity from the sign of a derivative hold on one interval (a convex region) only: over
+    // several pieces the values across the gaps decide (`x^3 - 3 x + a` on `x < -3/2 or x > 11/10` is not monotonic)
+    if order >= 1 {
+        if let Some(c) = s.cond {
+            let convex = match s.vars.as_slice() {
+                [x] => super::onto::fixed_interval(cx, b, c, *x)?,
+                _ => is_box(b, c, &s.vars),
+            };
+            if !convex {
+                return Ok(None);
+            }
+        }
+    }
+    // strictly monotonic (strictly convex in one variable) exactly when the derivative keeps one weak sign and is not
+    // 0 on a piece of the interval: the zeros of a rational N/D with N != 0 are isolated (x^3 strictly increasing,
+    // x^4 strictly convex); in several variables a definite Hessian is only sufficient (x^4 + y^4), see the end
+    let weak_strict = s.strict && (order == 1 || order == 2 && s.vars.len() == 1);
+    if s.strict && order == 2 && s.vars.len() > 1 {
+        // strict minors: a definite Hessian proves strict convexity; anything else only when f is not convex at all
+        let r = decide(cx, b, s, order, false, &ps)?;
+        if r.is_some_and(|r| r == b.one() || r == b.int(-1)) {
+            return Ok(r);
+        }
+        let weak = Spec { strict: false, ..s.clone() };
+        let w = decide(cx, b, &weak, order, false, &ps)?;
+        let ind = h.sym_term(h.sym("indeterminate"));
+        if w.is_some_and(|w| w == ind) {
+            return Ok(Some(ind));
+        }
+        // convex (concave) with a Hessian singular everywhere: the graph is developable, ruled by segments along which
+        // f is affine (Hartman and Nirenberg, Amer. J. Math. 81 (1959)), so f is not strictly convex (x^2 in [x, y])
+        if w.is_some_and(|w| w == b.one() || w == b.int(-1)) && ps.is_empty() {
+            let mut rows = vec![];
+            for &xi in &s.vars {
+                let di = cx.eval(b.call("d", &[s.f, xi]))?;
+                let mut row = vec![];
+                for &xj in &s.vars {
+                    row.push(cx.eval(b.call("d", &[di, xj]))?);
+                }
+                rows.push(cx.list(&row));
+            }
+            let m = cx.list(&rows);
+            let det = cx.eval(b.call("expand", &[b.call("det", &[m])]))?;
+            if b.is_zero(det) {
+                return Ok(Some(ind));
+            }
+        }
+        return Ok(None);
+    }
+    decide(cx, b, s, order, weak_strict, &ps)
+}
+
+/// Is the condition a conjunction of relations between one variable and a term free of the variables (a box)?
+fn is_box<'h>(b: &Build<'h>, c: T<'h>, vars: &[T<'h>]) -> bool {
+    let h = b.heap();
+    let atoms: Vec<T<'h>> = match h.view(c) {
+        View::App { head, args } if b.sym_of(head) == Some(h.sym("and")) => args.to_vec(),
+        _ => vec![c],
+    };
+    let free = |t: T<'h>| vars.iter().all(|&x| crate::common::is_free(b, t, x));
+    atoms.iter().all(|&a| {
+        let View::App { head, args: &[l, r] } = h.view(a) else { return false };
+        let Some(sy) = b.sym_of(head) else { return false };
+        matches!(h.sym_name(sy).as_str(), "less" | "greater" | "less_equal" | "greater_equal")
+            && (vars.contains(&l) && free(r) || vars.contains(&r) && free(l))
+    })
+}
+
+/// The answer from the signs of the quantities (module comment); `weak_strict`: strictness from a weak sign that is
+/// not 0 everywhere.
+fn decide<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, order: usize, weak_strict: bool, ps: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let ps = ps.to_vec();
+    let f = s.f;
     // the quantities: (expression, relation for "1", relation for "-1")
     let mut qs: Vec<(T<'h>, &str, &str)> = vec![];
     match order {
@@ -66,9 +143,10 @@ pub fn shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ord
     }
     let region = s.cond.unwrap_or_else(|| cx.bool(true));
     let xs = cx.list(&s.vars);
-    // monotonicity: a real pole of `f` inside the region breaks it (the function jumps across the pole; B26-5)
+    // monotonicity and convexity: a real pole of `f` inside the region breaks it (the function jumps across the pole,
+    // B26-5; and the domain is no longer one interval: `1/x^2 + a` is not convex on x != 0, as `1/x^2` is not)
     let mut no_pole = vec![];
-    if order == 1 {
+    if order >= 1 {
         let tf = cx.eval(b.call("together", &[f]))?;
         let fden = cx.eval(b.call("denominator", &[tf]))?;
         let mut syms = s.vars.clone();
@@ -98,8 +176,8 @@ pub fn shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ord
         let nd = cx.eval(b.mul(&[num, den]))?;
         let dz = b.call("unequal", &[den, b.zero()]);
         let hyp = b.call("and", &[region, dz]);
-        let up = if s.strict { strictly(up) } else { up };
-        let down_rel = if s.strict { strictly(down) } else { down };
+        let up = if s.strict && !weak_strict { strictly(up) } else { up };
+        let down_rel = if s.strict && !weak_strict { strictly(down) } else { down };
         let free = |t: T<'h>| s.vars.iter().all(|&x| crate::common::is_free(b, t, x));
         // for_all(x, hyp implies body), without the quantifier when nothing depends on x
         let all = |cx: &mut NativeCx<'_, '_, 'h>, body: T<'h>| -> Res<T<'h>> {
@@ -124,7 +202,7 @@ pub fn shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ord
     let zero_all = and(cx, &s_zero);
     let p = and(cx, &defined);
     // monotonicity: a constant function is not increasing (`a x + 1` increases for `a > 0`)
-    let not_zero = if order == 1 { b.call("not", &[zero_all]) } else { cx.bool(true) };
+    let not_zero = if order == 1 || weak_strict { b.call("not", &[zero_all]) } else { cx.bool(true) };
     let all_up = and(cx, &s_up);
     let all_down = and(cx, &s_down);
     let np = and(cx, &no_pole);

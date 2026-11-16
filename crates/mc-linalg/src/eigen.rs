@@ -625,10 +625,19 @@ fn eigen<'h>(env: &Env<'h>, a: &Arr<'h>, vectors: bool, m: &mut Meter) -> WorkRe
             };
             // other ball matrices: the eigenvalues at the input's precision, refined from the machine ones and
             // enclosed (their eigenvectors stay machine vectors); clustered eigenvalues keep the machine values
-            if a.domain == Domain::Ball && !vectors {
+            if a.domain == Domain::Ball {
                 let start: Vec<(f64, f64)> = vals.iter().map(|z| (z.re, z.im)).collect();
                 if let Some(bv) = crate::apeigen::ball_general_eigenvalues(&a.nums(env), n, &start, m)? {
-                    return Ok(Ok((bv.iter().map(|z| env.num(z)).collect(), vec![])));
+                    if !vectors {
+                        return Ok(Ok((bv.iter().map(|z| env.num(z)).collect(), vec![])));
+                    }
+                    // the eigenvectors of these simple eigenvalues at the same precision
+                    let mv: Vec<Vec<(f64, f64)>> = vecs.iter().map(|v| v.iter().map(|z| (z.re, z.im)).collect()).collect();
+                    if let Some(bvec) = crate::apeigen::ball_eigenvectors(&a.nums(env), n, &bv, &mv, m)? {
+                        let vals = bv.iter().map(|z| env.num(z)).collect();
+                        let vecs = bvec.iter().map(|v| env.list(&v.iter().map(|z| env.num(z)).collect::<Vec<_>>())).collect();
+                        return Ok(Ok((vals, vecs)));
+                    }
                 }
             }
             let vals = vals.iter().map(|&z| env.cx(z)).collect();

@@ -440,3 +440,14 @@ factor by factor and stay products.
 - Left: the branch points ±i of acsch (and of asinh): a series there in powers of (x -+ i)^(1/2) holds in a sector
   only; `sqrt(1/x^2 + 1)` under `x < 0` without a singular form in the term still gives the x > 0 expansion (the
   side marker is set only by singular and logarithmic forms).
+
+## Round 46: together with a repeated denominator; series of roots on the assumed side
+
+- `together(e)` keeps the denominator as the product of powers of the denominators written in `e` when the reduced
+  denominator is such a product (up to a sign) and some factor is repeated: `-(3 - 2 x + x^2)/(-1 + x)^3` stays
+  over `(-1 + x)^3` (a generating function), `1/x + 1/(x - 1)^3` over `x (-1 + x)^3`. A single simple factor
+  keeps the expanded form it had.
+- `series` under `x < x0` of a power with an exponent that is not an integer (`sqrt(1/x^2 + 1)`, `sqrt(x^2)`) gave
+  the expansion for x > x0 (`(x^-2)^(1/2)` read as `x^-1`): such a power now sets the side marker, so the expansion
+  is the one in the positive variable x0 - x (`-1/x - x/2 + x^3/8` for x < 0). Tests
+  `mc-engine/tests/round46_decisions.rs`.

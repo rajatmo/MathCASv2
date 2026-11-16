@@ -495,6 +495,15 @@ impl Native for FindInstance {
             };
             if let (Some(n), [c, x, d, ..]) = (n, args) {
                 if fr.sym_name(*d).as_deref() == Some("integers") && !fr.has_quantifier(*c) {
+                    // the integer solver proves there is none when the problem is bounded and searched completely
+                    // (`x^2 < 2 and x > 1`); a point it finds is left to the search below, which keeps its order
+                    if let Some(vars) = fr.qvars(*x).filter(|v| v.len() == 1) {
+                        if let Some(s) = crate::integers::find_integers(cx, &self.stop, *c, &vars, n)? {
+                            if cx.as_list(s).is_some_and(|l| l.is_empty()) {
+                                return Ok(Reply::Done(s));
+                            }
+                        }
+                    }
                     if let Some(s) = one_integer(cx, *c, *x, n)? {
                         return Ok(Reply::Done(s));
                     }

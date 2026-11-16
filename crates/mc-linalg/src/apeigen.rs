@@ -355,6 +355,188 @@ pub(crate) fn ball_general_eigenvalues(nums: &[Num], n: usize, start: &[(f64, f6
     Ok(Some(out))
 }
 
+/// The unit eigenvectors of a square matrix of balls and exact numbers for its enclosed eigenvalues `vals` (from
+/// [`ball_general_eigenvalues`]: simple, so rank(A - lambda I) = n - 1), at the input's precision. For each lambda the
+/// component k where the machine eigenvector `mvecs` is largest is fixed to 1 and n - 1 of the equations
+/// (A - lambda I) v = 0 are solved by Gaussian elimination in ball arithmetic with lambda as a ball: when no pivot
+/// contains 0 the reduced system is nonsingular for every value in the balls, so its solution, which the true
+/// eigenvector (scaled) satisfies, is enclosed (Neumaier, "Interval Methods for Systems of Equations", 4.5). Then
+/// v / |v|; a real vector takes the sign of the machine one, a complex one has its component k real and positive.
+/// `None` when some elimination meets a pivot that may be 0.
+pub(crate) fn ball_eigenvectors(nums: &[Num], n: usize, vals: &[Num], mvecs: &[Vec<(f64, f64)>], m: &mut Meter) -> WorkResult<Option<Vec<Vec<Num>>>> {
+    use mc_numeric::cball::CBall;
+    if n == 0 || n > 60 || nums.len() != n * n || vals.len() != n || mvecs.len() != n || mvecs.iter().any(|v| v.len() != n) {
+        return Ok(None);
+    }
+    let mut prec = 0u64;
+    let mut real_input = true;
+    for x in nums {
+        let Some((a, b)) = real_parts(x) else { return Ok(None) };
+        for p in [&a, &b] {
+            if let Real::Ball(_, q) = p {
+                prec = prec.max(*q);
+            }
+        }
+        real_input &= matches!(&b, Real::Exact(q) if q.is_zero());
+    }
+    if prec == 0 {
+        return Ok(None);
+    }
+    let w = prec + 64 + 8 * (64 - (n as u64).leading_zeros() as u64);
+    let to_cb = |x: &Num| -> Option<CBall> {
+        let b = |r: &Real| match r.to_kind(Kind::Ball, w) {
+            Real::Ball(b, _) => Some(b),
+            _ => None,
+        };
+        match x {
+            Num::Real(r) => Some(CBall::real(b(r)?)),
+            Num::Complex(x, y) => Some(CBall::new(b(x)?, b(y)?)),
+        }
+    };
+    let Some(a) = nums.iter().map(to_cb).collect::<Option<Vec<CBall>>>() else { return Ok(None) };
+    let mag = |z: &CBall| f64_of(&z.re.mid).hypot(f64_of(&z.im.mid));
+    let mut out = Vec::with_capacity(n);
+    for (lam, mv) in vals.iter().zip(mvecs) {
+        m.step((n * n * n) as u64 + 1)?;
+        let Some(l) = to_cb(lam) else { return Ok(None) };
+        let real = real_input && matches!(lam, Num::Real(_));
+        let b: Vec<CBall> = (0..n * n).map(|ix| if ix / n == ix % n { a[ix].sub(&l, w) } else { a[ix].clone() }).collect();
+        let k = (0..n).max_by(|&i, &j| mv[i].0.hypot(mv[i].1).partial_cmp(&mv[j].0.hypot(mv[j].1)).unwrap_or(Ordering::Equal)).unwrap_or(0);
+        // the equation left out: each in turn until the elimination certifies
+        let mut sol = None;
+        for r in (0..n).rev() {
+            let rows: Vec<usize> = (0..n).filter(|&i| i != r).collect();
+            let cols: Vec<usize> = (0..n).filter(|&j| j != k).collect();
+            let s = cols.len();
+            // augmented rows [M | -B[., k]]
+            let mut mat: Vec<Vec<CBall>> = rows.iter().map(|&i| {
+                let mut row: Vec<CBall> = cols.iter().map(|&j| b[i * n + j].clone()).collect();
+                row.push(b[i * n + k].neg());
+                row
+            }).collect();
+            let mut ok = true;
+            for c in 0..s {
+                let p = (c..s).max_by(|&x, &y| mag(&mat[x][c]).partial_cmp(&mag(&mat[y][c])).unwrap_or(Ordering::Equal)).unwrap_or(c);
+                mat.swap(c, p);
+                if mat[c][c].contains_zero() {
+                    ok = false;
+                    break;
+                }
+                for i in c + 1..s {
+                    let Some(f) = mat[i][c].div(&mat[c][c], w) else {
+                        ok = false;
+                        break;
+                    };
+                    let pivot_row = mat[c].clone();
+                    for (cell, p) in mat[i].iter_mut().zip(&pivot_row).skip(c) {
+                        *cell = cell.sub(&f.mul(p, w), w);
+                    }
+                }
+                if !ok {
+                    break;
+                }
+            }
+            if !ok {
+                continue;
+            }
+            let mut x = vec![CBall::from_i64(0); s];
+            for c in (0..s).rev() {
+                let mut acc = mat[c][s].clone();
+                for j in c + 1..s {
+                    acc = acc.sub(&mat[c][j].mul(&x[j], w), w);
+                }
+                let Some(q) = acc.div(&mat[c][c], w) else {
+                    ok = false;
+                    break;
+                };
+                x[c] = q;
+            }
+            if ok {
+                let mut v = vec![CBall::from_i64(1); n];
+                for (t, &j) in cols.iter().enumerate() {
+                    v[j] = x[t].clone();
+                }
+                sol = Some(v);
+                break;
+            }
+        }
+        let Some(v) = sol else { return Ok(None) };
+        // unit length
+        let mut s2 = Ball::exact(Float::zero());
+        for z in &v {
+            s2 = s2.add(&z.re.mul(&z.re, w), w).add(&z.im.mul(&z.im, w), w);
+        }
+        let Some(norm) = s2.sqrt(w) else { return Ok(None) };
+        let sign = if real && mv[k].0 < 0.0 { -1 } else { 1 };
+        let Some(scale) = Ball::exact(float_f64(f64::from(sign))).div(&norm, w) else { return Ok(None) };
+        let mut vec = Vec::with_capacity(n);
+        for z in &v {
+            let re = Real::Ball(z.re.mul(&scale, w), prec);
+            if real {
+                vec.push(Num::Real(re));
+            } else {
+                vec.push(Num::Complex(re, Real::Ball(z.im.mul(&scale, w), prec)));
+            }
+        }
+        out.push(vec);
+    }
+    Ok(Some(out))
+}
+
+/// The thin singular value decomposition of a real r x c matrix (r >= c) of balls and exact numbers at the input's
+/// precision: the eigenvalues s_i^2 and unit eigenvectors v_i of A^T A by [`ball_symmetric`], u_i = A v_i / s_i
+/// (Golub and Van Loan, 4th ed., 8.6.1). The columns of u and v as lists, the singular values decreasing; each pair
+/// (u_i, v_i) takes the sign that points v_i along the machine column `mv[i]`. `None` when an entry is not real, a
+/// singular value may be 0, or the eigenproblem is not settled (equal or clustered singular values).
+#[allow(clippy::type_complexity)]
+pub(crate) fn ball_svd(nums: &[Num], r: usize, c: usize, mv: &[Vec<f64>], m: &mut Meter) -> WorkResult<Option<(Vec<Vec<Num>>, Vec<Num>, Vec<Vec<Num>>)>> {
+    if r < c || c == 0 || nums.len() != r * c || mv.len() != c || nums.iter().any(|x| real_parts(x).is_none_or(|(_, b)| !matches!(b, Real::Exact(q) if q.is_zero()))) {
+        return Ok(None);
+    }
+    let mut prec = 0u64;
+    for x in nums {
+        if let Num::Real(Real::Ball(_, p)) = x {
+            prec = prec.max(*p);
+        }
+    }
+    if prec == 0 {
+        return Ok(None);
+    }
+    let w = prec + 64;
+    let at = crate::systems::num_adjoint(nums, r, c);
+    let g = crate::systems::num_mul(&at, nums, c, r, c, m)?;
+    // A^T A of a matrix with exact entries is symmetric entry by entry (the same products in the same order)
+    let Some((vals, vecs)) = ball_symmetric(&g, c, true, m)? else { return Ok(None) };
+    if vecs.len() != c {
+        return Ok(None);
+    }
+    // equal or close singular values: their vectors are not determined (wide balls); the machine factors stand
+    let tight = |x: &Num| matches!(x, Num::Real(Real::Ball(b, _)) if f64_of(&b.rad.to_float()) < 2f64.powi(-((prec / 2) as i32).min(1000))) || matches!(x, Num::Real(Real::Exact(_)));
+    if !vecs.iter().all(|v| v.iter().all(tight)) {
+        return Ok(None);
+    }
+    let mut us = Vec::with_capacity(c);
+    let mut ss = Vec::with_capacity(c);
+    let mut vs = Vec::with_capacity(c);
+    for (i, (lam, v)) in vals.iter().zip(&vecs).enumerate() {
+        let Num::Real(Real::Ball(l, _)) = lam.to_kind(Kind::Ball, w) else { return Ok(None) };
+        if l.contains_zero() || l.mid.neg {
+            return Ok(None);
+        }
+        let Some(s) = l.sqrt(w) else { return Ok(None) };
+        let Some(inv) = Ball::exact(float_f64(1.0)).div(&s, w) else { return Ok(None) };
+        let inv = Num::Real(Real::Ball(inv, prec));
+        // v along the machine column, u = A v / s
+        let dot: f64 = v.iter().zip(&mv[i]).map(|(x, &y)| if let Num::Real(rx) = x { rx.to_f64() * y } else { 0.0 }).sum();
+        let v: Vec<Num> = v.iter().map(|x| if dot < 0.0 { x.neg() } else { x.clone() }).collect();
+        let av = crate::systems::num_mul(nums, &v, r, c, 1, m)?;
+        us.push(av.iter().map(|x| x.mul(&inv)).collect());
+        ss.push(Num::Real(Real::Ball(s, prec)));
+        vs.push(v);
+    }
+    Ok(Some((us, ss, vs)))
+}
+
 /// 2^k as a radius.
 fn pow2(k: i64) -> Mag {
     Mag::pow2(k)

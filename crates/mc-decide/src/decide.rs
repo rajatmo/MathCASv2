@@ -177,6 +177,8 @@ pub struct Decider<'h> {
     terms: Vec<T<'h>>,
     /// the depth of nested tier runs (a normal form is decided by the later tiers only)
     nested: u32,
+    /// does a relation hold several variables (`None` until asked)
+    joined: Option<bool>,
 }
 
 impl<'h> Decider<'h> {
@@ -214,6 +216,7 @@ impl<'h> Decider<'h> {
             stats: Stats::default(),
             terms: facts.to_vec(),
             nested: 0,
+            joined: None,
         })
     }
 
@@ -240,6 +243,15 @@ impl<'h> Decider<'h> {
             self.stats.memo += 1;
             return Ok(*i);
         }
+        // the signs of the variables first, when relations join several of them (`a > b and a > -b`: a > 0, so
+        // sqrt(a) is real): the structure tier then builds on them
+        if self.nested == 0 && !self.terms.is_empty() && self.b.sym_of(t).is_none() && self.joined_relations() {
+            for v in self.variables(t).unwrap_or_default() {
+                if v != t && !self.memo.contains_key(&v) {
+                    self.info(cx, v)?;
+                }
+            }
+        }
         let mut i = self.facts.info(cx, t)?;
         if !self.facts.decided(&i) && !self.terms.is_empty() && self.nested == 0 && !self.deadline.expired(cx) {
             self.nested += 1;
@@ -250,6 +262,16 @@ impl<'h> Decider<'h> {
         }
         self.memo.insert(t, i);
         Ok(i)
+    }
+
+    /// Does some relation of the facts hold two or more variables?
+    fn joined_relations(&mut self) -> bool {
+        if let Some(j) = self.joined {
+            return j;
+        }
+        let j = self.facts.relations().into_iter().any(|(d, _)| self.variables(d).is_some_and(|v| v.len() >= 2));
+        self.joined = Some(j);
+        j
     }
 
     /// What is known of the sign of `t`.
@@ -797,18 +819,43 @@ impl<'h> Decider<'h> {
         Ok(r.filter(|&(s, _)| s != 0))
     }
 
-    /// The sign of `t` (in the one variable `x`) by `reduce` of the facts on `x` with each sign case.
+    /// The sign of `t` (in the one variable `x`) by `reduce` of the facts on `x` with each sign case; when that does
+    /// not decide, with the variables the rational relations join to those of `t` (at most four: `a > b and a > -b`
+    /// decide `a > 0` through b).
     fn by_reduce(&mut self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, xs: &[T<'h>]) -> Res<Option<(i32, bool)>> {
-        let b = self.b.clone();
-        let h = b.heap();
-        let mut conds = vec![];
-        let zero = b.int(0);
-        for (d, rel) in self.facts.relations() {
-            let vs = self.variables(d);
-            if vs.is_some_and(|vs| !vs.is_empty() && vs.iter().all(|v| xs.contains(v))) {
-                conds.push(h.call(h.sym(rel), &[d, zero]));
+        let h = self.b.heap();
+        let rels: Vec<(T<'h>, &str, Vec<T<'h>>)> =
+            self.facts.relations().into_iter().filter_map(|(d, rel)| self.variables(d).filter(|v| !v.is_empty()).map(|v| (d, rel, v))).collect();
+        if let Some(s) = self.by_reduce_in(cx, t, xs, &rels)? {
+            return Ok(Some(s));
+        }
+        let mut all: Vec<T<'h>> = xs.to_vec();
+        loop {
+            let before = all.len();
+            for (d, _, vs) in &rels {
+                if rational(h, *d) && vs.iter().any(|v| all.contains(v)) {
+                    for v in vs {
+                        if !all.contains(v) {
+                            all.push(*v);
+                        }
+                    }
+                }
+            }
+            if all.len() == before {
+                break;
             }
         }
+        if all.len() == xs.len() || all.len() > 4 {
+            return Ok(None);
+        }
+        self.by_reduce_in(cx, t, &all, &rels)
+    }
+
+    fn by_reduce_in(&mut self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, xs: &[T<'h>], rels: &[(T<'h>, &str, Vec<T<'h>>)]) -> Res<Option<(i32, bool)>> {
+        let b = self.b.clone();
+        let h = b.heap();
+        let zero = b.int(0);
+        let conds: Vec<T<'h>> = rels.iter().filter(|(_, _, vs)| vs.iter().all(|v| xs.contains(v))).map(|(d, rel, _)| h.call(h.sym(rel), &[*d, zero])).collect();
         if conds.is_empty() {
             return Ok(None);
         }

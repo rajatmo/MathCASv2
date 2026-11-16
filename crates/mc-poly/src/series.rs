@@ -1969,6 +1969,19 @@ fn taylor_table_with<'h>(
         let View::App { head, args: fargs } = h.view(t) else { continue };
         stack.extend(fargs.iter().map(|&a| (a, want)));
         let View::Sym(fs) = h.view(head) else { continue };
+        // a power with an exponent that is not an integer: its principal value on the side the assumptions give
+        // (`sqrt(1/x^2 + 1)` under x < 0 is -1/x - x/2 + ..., the expansion in x - x0 took (x^-2)^(1/2) as x^-1)
+        if all && head == h.sym_term(h.sym(mc_api::names::POW)) {
+            if let [base, ex] = fargs {
+                // only below x0: above it the expansion in x - x0 is already the one on that side
+                if mentions(h, *base, *x) && !matches!(h.view(*ex), View::Int(_)) && !cx.assumptions().is_empty() && !table.contains_key(x) {
+                    let r = cx.eval(h.call(h.sym("refine"), &[h.call(h.sym("less"), &[*x, *x0])]))?;
+                    if cx.is_true(r) {
+                        table.insert(*x, Taylor { arg: *x, u0: h.int(-1), c: vec![], subst: None });
+                    }
+                }
+            }
+        }
         if kernel_head(&h.sym_name(fs)) {
             continue;
         }

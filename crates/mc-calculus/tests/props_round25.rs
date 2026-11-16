@@ -97,7 +97,8 @@ fn surjective_bijective_injective() {
         ("function_bijective(sinh(x), x, complexes)", "false"),
         // onto the strip: `solve` gives x = exp(y) under exactly the strip's condition (a stated solution)
         ("function_bijective([log(x), true, -pi < im_part(y) and im_part(y) <= pi], x, y, complexes)", "true"),
-        ("function_bijective(x^3 + a*x + b, x)", "conditional_expression(true, element(a | b, reals) and a > 0)"),
+        // a = 0 included: x^3 + b is bijective (f' = 3 x^2 >= 0 with one zero)
+        ("function_bijective(x^3 + a*x + b, x)", "conditional_expression(true, element(a | b, reals) and a >= 0)"),
         ("function_bijective(a*x, x, complexes)", "conditional_expression(true, a != 0)"),
         ("function_bijective([x + 2*y + 3*z, 4*x + 5*y + 6*z, 7*x + 8*y + 9*z], [x, y, z])", "false"),
         ("function_injective([x^2 + 2*x, x^3 - x], x)", "true"),

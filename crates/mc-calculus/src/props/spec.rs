@@ -41,6 +41,7 @@ pub enum Gc {
 }
 
 /// The pieces of one call.
+#[derive(Clone)]
 pub struct Spec<'h> {
     /// the function: one term, or the list of components
     pub f: T<'h>,

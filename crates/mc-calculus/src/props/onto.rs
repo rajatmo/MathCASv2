@@ -9,9 +9,10 @@
 //!   the rank of the coefficient matrix is the number of components, injective when it is the number of variables.
 //! - **Polynomial maps over the reals**: the sentences `for_all(y, ycond implies exists(x, cond and f(x) == y))`
 //!   and `for_all([x1, x2], cond(x1) and cond(x2) and f(x1) == f(x2) implies x1 == x2)` decided by the cylindrical
-//!   decomposition (`resolve`); with parameters their condition. A scalar polynomial of one variable is injective
-//!   when its derivative is of one strict sign (`for_all(x, f' > 0)` or `< 0`), the condition the parameters are
-//!   given.
+//!   decomposition (`resolve`); with parameters their condition. A scalar polynomial of one variable on the line or
+//!   on one interval with an interior is injective exactly when its derivative keeps one weak sign and is not 0
+//!   everywhere (`for_all(x, f' >= 0) and exists(x, f' != 0)`, or `<= 0`; zeros of f' are isolated), the condition
+//!   the parameters are given; the condition is then exact on its boundary (`a^2 - 3 b <= 0` for a cubic).
 //! - **Polynomial maps over the complexes** without conditions: the same sentences decided by complex quantifier
 //!   elimination (`resolve(..., complexes)`); with conditions over the real and imaginary parts; one variable: a
 //!   nonconstant polynomial is surjective, and injective only when of degree 1.
@@ -242,6 +243,15 @@ fn surjective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps
         && s.cond.is_none_or(|c| sets::polynomial_formula(b, c, &s.vars))
         && s.ycond.is_none_or(|c| sets::polynomial_formula(b, c, &ys));
     if poly {
+        // a real polynomial of odd degree with a numeric leading coefficient: onto by intermediate values
+        if !complex && s.vars.len() == 1 && s.comps.len() == 1 && s.cond.is_none() && s.ycond.is_none() {
+            let cl = cx.eval(b.call("coefficient_list", &[s.comps[0], s.vars[0]]))?;
+            if let Some(&lead) = cx.as_list(cl).and_then(|cs| cs.last().filter(|_| cs.len() % 2 == 0)) {
+                if sets::real_rational(b, lead) && lead != b.zero() {
+                    return Ok(Ans::Bool(true));
+                }
+            }
+        }
         if complex && s.vars.len() == 1 && s.comps.len() == 1 && s.cond.is_none() && s.ycond.is_none() {
             // a polynomial of one complex variable is onto when some coefficient of a positive power is nonzero
             let cl = cx.eval(b.call("coefficient_list", &[s.comps[0], s.vars[0]]))?;
@@ -827,10 +837,15 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps:
     if !poly {
         return Ok(Ans::Unknown);
     }
-    // one variable, one component: a derivative of one strict sign
-    if s.vars.len() == 1 && s.comps.len() == 1 {
+    // one variable, one component, on the line or on one interval with an interior: strictly monotonic exactly when
+    // the derivative keeps one weak sign and is not 0 everywhere there (a polynomial's zeros are isolated, so f' >= 0
+    // with f' not identically 0 gives a strictly increasing f: `x^3 + 3 x^2 + 3 x` with f' = 3 (x + 1)^2). Over a
+    // region of several intervals one sign of f' proves nothing (the images of the pieces may overlap): the pairs.
+    if s.vars.len() == 1 && s.comps.len() == 1 && dcond.map_or(Ok(true), |c| fixed_interval(cx, b, c, s.vars[0]))? {
         let x = s.vars[0];
         let d = cx.eval(b.call("d", &[s.comps[0], x]))?;
+        let region = dcond.unwrap_or_else(|| cx.bool(true));
+        let nonzero = b.call("exists", &[x, b.call("and", &[region, b.call("unequal", &[d, b.zero()])])]);
         let mk = |cx: &mut NativeCx<'_, '_, 'h>, rel: &str| {
             let p = b.call(rel, &[d, b.zero()]);
             let body = match dcond {
@@ -838,10 +853,10 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps:
                 None => p,
             };
             let _ = cx;
-            b.call("for_all", &[x, body])
+            b.call("and", &[b.call("for_all", &[x, body]), nonzero])
         };
-        let up = mk(cx, "greater");
-        let down = mk(cx, "less");
+        let up = mk(cx, "greater_equal");
+        let down = mk(cx, "less_equal");
         let (u, w) = (resolve(cx, b, up, false)?, resolve(cx, b, down, false)?);
         let r = match (u, w) {
             (Ans::Bool(true), _) | (_, Ans::Bool(true)) => Ans::Bool(true),
@@ -874,6 +889,47 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps:
     let sentence = b.call("for_all", &[cx.list(&all), b.call("implies", &[hyp, concl])]);
     let r = resolve(cx, b, sentence, false)?;
     under_facts(cx, b, s, r)
+}
+
+/// Is the region of the condition `c` on `x` one interval with an interior for every value of the parameters (a
+/// half-line, or `lo < x < hi` with `lo < hi` proved, each end open or closed)? Two ends with parameters may meet or
+/// cross, where the region is a point or empty; such a region is not taken.
+pub(super) fn fixed_interval<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: T<'h>, x: T<'h>) -> Res<bool> {
+    let h = b.heap();
+    let r = cx.eval(b.call("reduce", &[c, x, h.sym_term(h.sym("reals"))]))?;
+    // (end, x above it)
+    let end = |t: T<'h>| -> Option<(T<'h>, bool)> {
+        let View::App { head, args: &[l, rt] } = h.view(t) else { return None };
+        let name = h.sym_name(b.sym_of(head)?);
+        let numeric = |e: T<'h>| is_free(b, e, x);
+        let above = match name.as_str() {
+            "greater" | "greater_equal" => true,
+            "less" | "less_equal" => false,
+            _ => return None,
+        };
+        if l == x && numeric(rt) {
+            Some((rt, above))
+        } else if rt == x && numeric(l) {
+            Some((l, !above))
+        } else {
+            None
+        }
+    };
+    if end(r).is_some() {
+        return Ok(true);
+    }
+    let View::App { head, args: &[p, q] } = h.view(r) else { return Ok(false) };
+    if b.sym_of(head) != Some(h.sym("and")) {
+        return Ok(false);
+    }
+    let (Some((e1, a1)), Some((e2, a2))) = (end(p), end(q)) else { return Ok(false) };
+    let (lo, hi) = match (a1, a2) {
+        (true, false) => (e1, e2),
+        (false, true) => (e2, e1),
+        _ => return Ok(false),
+    };
+    let lt = cx.eval(b.call("less", &[lo, hi]))?;
+    Ok(cx.is_true(lt))
 }
 
 /// Fresh copies of the variables and the rules renaming them.

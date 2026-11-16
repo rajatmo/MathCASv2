@@ -265,3 +265,21 @@ No Rust change. Conventions recorded with property tests (`mc-engine/tests/r36_w
 u[k][j])/u[i][i]` (Golub and Van Loan 4.2.5). A pivot with a closed numeric value must be proved positive by its sign
 (`failure(not_positive_definite)` when proved not, no answer when undecided); with symbols the formula is the generic
 one. Exact rational and machine matrices keep the native kernels.
+
+## Round 46: eigenvectors and the svd of balls
+
+- Eigenvectors of a square ball matrix whose eigenvalues are enclosed as simple (`ball_general_eigenvalues`): for
+  each lambda the component where the machine vector is largest is fixed to 1 and n - 1 equations of
+  (A - lambda I) v = 0 are solved by Gaussian elimination in ball arithmetic with lambda as a ball; with no pivot
+  that may be 0 the reduced system is nonsingular for every value in the balls, so its solution, which the
+  eigenvector satisfies, is enclosed (Neumaier, Interval Methods for Systems of Equations, 4.5). Unit length; a real
+  vector takes the machine sign, a complex one has its largest component real and positive. They came back in
+  machine numbers.
+- `svd` (thin) of a real ball matrix: the eigenvalues s_i^2 and unit vectors v_i of A^T A by `ball_symmetric`,
+  u_i = A v_i / s_i (Golub and Van Loan 8.6.1), on the transpose when there are more columns; the signs of the
+  machine factors. Equal or close singular values (vectors not settled to half the precision) keep the machine
+  factors.
+- `matrix_minimal_polynomial` of a machine matrix: the leading coefficient c/c rounded to 0.9999999999999999; it is
+  1.0 by construction now (lib/lists.mc).
+- Left: the minimal polynomial of a 30-digit matrix fails (`null_space` of balls cannot certify a rank drop).
+  Tests `mc-engine/tests/round46_decisions.rs`.

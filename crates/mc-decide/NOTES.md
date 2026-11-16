@@ -143,3 +143,13 @@ the Rust API through test natives), unit tests of `sturm` and `quad`, the doc te
 - Parity from the parts (`parity_by_parts`): integer numbers, a prime above 2 is odd (2 is even), the parities of
   the terms of a sum of integers add, a product is even when a factor is. So `p + 1` is even for a prime `p > 2`,
   `cos((p + q) pi)` is 1 for two such primes. Tests `mc-engine/tests/round44_general.rs`.
+
+## Round 46: facts that join several variables
+
+- The `reduce` tier took only the relations whose variables are all variables of the question, so `a > 0` under
+  `a > b and a > -b` stayed open. When the question's own variables do not decide, the
+  variables the rational relations join to them are added (at most four) and the hook decides the conjunction in
+  all of them. When some relation holds two or more variables, the decider first settles the sign of each variable
+  of a compound question (memoised), so that the structure tier builds on it: `sqrt(a)` is real,
+  `conjugate(sqrt(a))` is `sqrt(a)`, and `full_simplify(dot(conjugate_transpose(c), c), a > b and a > -b)` of the
+  Cholesky factor c of [[a, b], [b, a]] is the matrix. Tests `mc-engine/tests/round46_decisions.rs`.

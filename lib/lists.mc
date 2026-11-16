@@ -536,7 +536,8 @@ fn matrix_minimal_polynomial(m, x) when is_matrix(m) and length(m) == length(m[1
     cur = dot(cur, m)
     pows = append(pows, flatten(cur))
     let ns = null_space(transpose(pows))
-    if length(ns) > 0 then { let c = ns[1]; res = total(map(i => c[i]/c[d + 1]*x^(i - 1), range(d + 1))) }
+    # the leading coefficient is 1 (1.0 for machine numbers): c[d + 1]/c[d + 1] rounds to 0.9999999999999999
+    if length(ns) > 0 then { let c = ns[1]; res = total(map(i => c[i]/c[d + 1]*x^(i - 1), range(d))) + (1 + 0*re(c[d + 1]))*x^d }
   }
   res
 }

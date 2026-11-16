@@ -51,6 +51,17 @@ pub fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
         None => (*fc, None),
     };
     let (f, x, y) = (f, *x, *y);
+    // binomial(u, k) and factorial_power(u, k) of an integer k >= 0: polynomials in u (binomial(x, 2) = x (x - 1)/2)
+    let f = if (super::contains_call(b, f, "binomial") || super::contains_call(b, f, "factorial_power")) && integer_second_args(b, f) {
+        let g = cx.eval(b.call("function_expand", &[f]))?;
+        if super::contains_call(b, g, "binomial") || super::contains_call(b, g, "factorial_power") {
+            f
+        } else {
+            g
+        }
+    } else {
+        f
+    };
     if complex {
         return match cond {
             None => complex_range(cx, b, f, x, y),
@@ -61,7 +72,7 @@ pub fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
         Some(r) => Some(r),
         None => match harmonic(cx, b, f, cond, x, y)? {
             Some(r) => Some(r),
-            None => intervals(cx, b, f, cond, x, y)?,
+            None => intervals(cx, b, f, cond, x, y, false)?,
         },
     };
     if let Some(r) = r {
@@ -87,7 +98,64 @@ pub fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
             return Ok(None);
         }
     }
+    // last: critical points not found but f monotonic on the pieces of its domain
+    if let Some(r) = intervals(cx, b, f, cond, x, y, true)? {
+        // the samples only where f is defined (values outside its real domain can be slow: E_n of x < 0)
+        let mut all = super::conditions(cx, b, f, &[x], false)?.unwrap_or_default();
+        all.extend(cond);
+        let within = match all.as_slice() {
+            [] => None,
+            [c] => Some(*c),
+            _ => Some(cx.eval(b.call("and", &all))?),
+        };
+        if checks_out(cx, b, f, within, x, y, r)? {
+            return Ok(Some(r));
+        }
+    }
     Ok(None)
+}
+
+/// Is `f` proved monotonic (`function_monotonicity` 1 or -1, a proof) on the open interval of every piece?
+fn monotonic_pieces<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, ps: &[Piece<'h>]) -> Res<bool> {
+    if ps.is_empty() || ps.len() > 4 {
+        return Ok(false);
+    }
+    for p in ps {
+        let mut cs = vec![];
+        if let Some((l, _)) = p.lo {
+            cs.push(b.call("greater", &[x, l]));
+        }
+        if let Some((u, _)) = p.hi {
+            cs.push(b.call("less", &[x, u]));
+        }
+        let call = match cs.as_slice() {
+            [] => b.call("function_monotonicity", &[f, x]),
+            [c] => b.call("function_monotonicity", &[cx.list(&[f, *c]), x]),
+            _ => b.call("function_monotonicity", &[cx.list(&[f, b.call("and", &cs)]), x]),
+        };
+        let r = cx.eval(call)?;
+        if r != b.one() && r != b.int(-1) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// Is the second argument of every `binomial` and `factorial_power` call in `t` an integer from 0 to 12?
+fn integer_second_args<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if let Some(s) = b.sym_of(head) {
+                if matches!(h.sym_name(s).as_str(), "binomial" | "factorial_power") && !matches!(args.get(1).map(|&a| h.view(a)), Some(View::Int(0..=12))) {
+                    return false;
+                }
+            }
+            stack.extend(args.iter().copied());
+        }
+    }
+    true
 }
 
 /// `f = c g + d` with `c`, `d` free of `x` and `c` a nonzero real number: `(g, c, d)`; `(f, 1, 0)`
@@ -558,8 +626,9 @@ fn better<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, cur: Option<Ext<'h>>
     })
 }
 
-/// Continuous functions of one variable (no parameters) by the extreme values on the intervals of the domain.
-fn intervals<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: Option<T<'h>>, x: T<'h>, y: T<'h>) -> Res<Option<T<'h>>> {
+/// Continuous functions of one variable (no parameters) by the extreme values on the intervals of the domain; with
+/// `monotone`, also when the critical points are not found but f is proved monotonic on every piece (none inside).
+fn intervals<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: Option<T<'h>>, x: T<'h>, y: T<'h>, monotone: bool) -> Res<Option<T<'h>>> {
     let h = b.heap();
     if !spec::params(b, &[f], &[x]).is_empty() || has_jumps(b, f) {
         return Ok(None);
@@ -619,7 +688,34 @@ fn intervals<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: O
             continue;
         }
         if critical(cx, b, dg, x, &mut cands, &mut fams)?.is_none() {
-            return Ok(None);
+            // critical points not found (tanh(x) = 2 x for sinh(x)/sqrt(x)): when f is proved monotonic on every
+            // piece of the domain there are none inside, and the extremes are the limits at the ends
+            if !monotone || !kinks.is_empty() {
+                return Ok(None);
+            }
+            cands.clear();
+            fams.clear();
+            if !monotonic_pieces(cx, b, f, x, &ps)? {
+                // an even f monotonic on each side of 0 (x (log(1 + x) - log(1 - x))/2 - 1): 0 is the only candidate
+                let fm = at(cx, b, f, x, b.neg(x))?;
+                let even = cx.eval(b.call("simplify", &[b.sub(fm, f)]))? == b.zero();
+                let split: Vec<Piece<'h>> = ps
+                    .iter()
+                    .flat_map(|p| {
+                        let below = p.lo.is_none_or(|(l, _)| b.ar.compare(l, b.zero()) == Some(mc_arith::Cmp3::Less));
+                        let above = p.hi.is_none_or(|(u, _)| b.ar.compare(u, b.zero()) == Some(mc_arith::Cmp3::Greater));
+                        if below && above {
+                            vec![Piece { lo: p.lo, hi: Some((b.zero(), false)) }, Piece { lo: Some((b.zero(), false)), hi: p.hi }]
+                        } else {
+                            vec![Piece { lo: p.lo, hi: p.hi }]
+                        }
+                    })
+                    .collect();
+                if !even || split.len() == ps.len() || !monotonic_pieces(cx, b, f, x, &split)? {
+                    return Ok(None);
+                }
+                cands.push(b.zero());
+            }
         }
     }
     for u in kinks {

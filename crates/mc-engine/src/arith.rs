@@ -634,8 +634,16 @@ fn log_combination_zero<'h>(cx: &mut NativeCx<'_, '_, 'h>, d: T<'h>) -> Res<bool
 
 fn exact_sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>) -> Res<Option<Ordering>> {
     let h = cx.heap();
-    let number = |t: T<'h>| matches!(h.view(t), View::Int(_) | View::Rational { .. } | View::BigInt { .. });
+    // a real constant on its own (`pi < pi`, `e <= e`, `pi < pi + 10^-40`): its ball never separates it from an
+    // equal or very close value
+    let number = |t: T<'h>| {
+        matches!(h.view(t), View::Int(_) | View::Rational { .. } | View::BigInt { .. })
+            || matches!(h.view(t), View::Sym(s) if matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio"))
+    };
     let (ca, cb) = (closed_exact(h, a), closed_exact(h, b));
+    if a == b && (ca || number(a)) {
+        return Ok(Some(Ordering::Equal));
+    }
     if !((ca || number(a)) && (cb || number(b)) && (ca || cb)) {
         return Ok(None);
     }

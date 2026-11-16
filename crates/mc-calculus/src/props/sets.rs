@@ -378,7 +378,14 @@ fn walk<'h>(
                     push(rel("equal", *base, zero), Kind::Branch);
                     push(log_cut(*base), Kind::Branch);
                 } else if positive_exponent(b, *ex) && nonneg(b, *base) {
-                    // a positive power of a quantity that is never negative: continuous at its zeros (B26-6)
+                    // a positive power of a quantity that is never negative: continuous at its zeros (B26-6); not
+                    // analytic at a zero of order m unless m ex is an even integer (`(x^2)^(1/2)` is |x|, `(x^4)^(1/2)`
+                    // is x^2)
+                    if mode == Mode::Sing && !root_zeros(cx, b, *base, *ex, vars, &mut push)? {
+                        return Ok(false);
+                    }
+                } else if let Some(a) = local_minimum_zeros(cx, b, *base, *ex, vars, mode)? {
+                    push(a, Kind::Branch);
                 } else {
                     push(rel("less_equal", *base, zero), Kind::Branch);
                 }
@@ -581,7 +588,12 @@ fn walk<'h>(
         // kinks
         ("abs" | "ramp" | "real_abs", false) if one_arg => {
             if mode == Mode::Sing {
-                push(rel("equal", a0.unwrap(), zero), Kind::Kink)
+                // a zero of even order k is no kink: |u| = +-u and ramp(u) = u or 0 near it (`abs(x^2)` is x^2)
+                let u = a0.unwrap();
+                match odd_order_zeros(cx, b, u, vars)? {
+                    Some(a) => push(a, Kind::Kink),
+                    None => push(rel("equal", u, zero), Kind::Kink),
+                }
             }
         }
         ("max" | "min", false) => {
@@ -1000,6 +1012,155 @@ pub enum Meet<'h> {
 }
 
 /// Is `e` a positive rational number?
+/// The zeros of a base `u >= 0` where `u^ex` (`ex` a positive rational, not an integer) is not real-analytic: near a
+/// zero of order m, u = c t^m (1 + O(t)) with c > 0 and m even, so u^ex = c^ex |t|^(m ex) (1 + ...), analytic exactly
+/// when m ex is an even integer. A polynomial in one variable by its square-free factors (each factor's zeros have
+/// the order of its index); `w^k` as `w` with the exponent `k ex`; a base without real zeros (exp, cosh, a positive
+/// constant plus terms >= 0) has none. `false` when the zeros are not known.
+fn root_zeros<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, ex: T<'h>, vars: &[T<'h>], push: &mut dyn FnMut(T<'h>, Kind)) -> Res<bool> {
+    let h = b.heap();
+    let even_int = |cx: &mut NativeCx<'_, '_, 'h>, r: T<'h>| -> Res<bool> {
+        let r = cx.eval(r)?;
+        Ok(matches!(h.view(r), View::Int(k) if k % 2 == 0))
+    };
+    if no_real_zero(b, u) {
+        return Ok(true);
+    }
+    if let View::App { head, args: &[w, k] } = h.view(u) {
+        if b.sym_of(head) == Some(b.hd.pow) && matches!(h.view(k), View::Int(_)) {
+            let e2 = cx.eval(b.mul(&[k, ex]))?;
+            if even_int(cx, e2)? {
+                return Ok(true);
+            }
+            return root_zeros(cx, b, w, e2, vars, push);
+        }
+    }
+    let [x] = vars else { return Ok(false) };
+    if poly_degree(b, u, &[*x]).is_none() || !super::spec::params(b, &[u], vars).is_empty() {
+        return Ok(false);
+    }
+    let l = cx.eval(b.call("factor_square_free_list", &[u]))?;
+    let Some(fs) = cx.as_list(l).map(|v| v.to_vec()) else { return Ok(false) };
+    for f in fs {
+        let Some(&[g, i]) = cx.as_list(f) else { return Ok(false) };
+        if is_free(b, g, *x) {
+            continue;
+        }
+        let r = b.mul(&[i, ex]);
+        if !even_int(cx, r)? {
+            push(h.call(h.sym("equal"), &[g, b.zero()]), Kind::Branch);
+        }
+    }
+    Ok(true)
+}
+
+/// The real points where `u^ex` (`ex` not an integer) is not continuous (`Disc`) or not analytic (`Sing`), for a
+/// polynomial `u` of degree at most 8 in one variable (parameters allowed): `u <= 0` without the zeros where u is at
+/// least 0 nearby, those whose first nonzero derivative u^(k) has an even order k and is positive (a local minimum 0:
+/// `sqrt(x^2 + a)` is continuous for a >= 0, at a = 0 too), and for `Sing` only those where k ex is an even integer
+/// (u^ex = c |t|^(k ex) (1 + ...) there). `None` for other bases (the caller takes `u <= 0`).
+fn local_minimum_zeros<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, ex: T<'h>, vars: &[T<'h>], mode: Mode) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let [x] = vars else { return Ok(None) };
+    let Some(n) = poly_degree(b, u, &[*x]) else { return Ok(None) };
+    if !(2..=8).contains(&n) || b.ar.num(ex).is_none() {
+        return Ok(None);
+    }
+    let mut ds = vec![u];
+    for _ in 0..n {
+        let last = *ds.last().unwrap_or(&u);
+        ds.push(cx.eval(b.call("d", &[last, *x]))?);
+    }
+    let mut keep = vec![];
+    for k in (2..=n as usize).step_by(2) {
+        if mode == Mode::Sing {
+            let r = cx.eval(b.mul(&[b.int(k as i64), ex]))?;
+            if !matches!(h.view(r), View::Int(m) if m % 2 == 0) {
+                continue;
+            }
+        }
+        let mut c: Vec<T<'h>> = ds[..k].iter().map(|&d| h.call(h.sym("equal"), &[d, b.zero()])).collect();
+        c.push(h.call(h.sym("greater"), &[ds[k], b.zero()]));
+        keep.push(h.call(h.sym("and"), &c));
+    }
+    let le = h.call(h.sym("less_equal"), &[u, b.zero()]);
+    if keep.is_empty() {
+        return Ok(Some(le));
+    }
+    without_points(cx, b, le, &keep, u, *x, vars).map(Some)
+}
+
+/// The zeros of odd order of a polynomial `u` of degree 2 to 8 in one variable (parameters allowed): `u == 0` without
+/// the zeros whose first nonzero derivative has an even order. `None` for other terms.
+fn odd_order_zeros<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, vars: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let [x] = vars else { return Ok(None) };
+    let Some(n) = poly_degree(b, u, &[*x]) else { return Ok(None) };
+    if !(2..=8).contains(&n) {
+        return Ok(None);
+    }
+    let mut ds = vec![u];
+    for _ in 0..n {
+        let last = *ds.last().unwrap_or(&u);
+        ds.push(cx.eval(b.call("d", &[last, *x]))?);
+    }
+    let keep: Vec<T<'h>> = (2..=n as usize)
+        .step_by(2)
+        .map(|k| {
+            let mut c: Vec<T<'h>> = ds[..k].iter().map(|&d| h.call(h.sym("equal"), &[d, b.zero()])).collect();
+            c.push(h.call(h.sym("unequal"), &[ds[k], b.zero()]));
+            h.call(h.sym("and"), &c)
+        })
+        .collect();
+    let eq = h.call(h.sym("equal"), &[u, b.zero()]);
+    without_points(cx, b, eq, &keep, u, *x, vars).map(Some)
+}
+
+/// `set and not (k_1 or k_2 ...)`; `set` itself when no point is left out (decided by `reduce` without parameters, so
+/// that the printed set is the one it was), the reduced form when some is.
+fn without_points<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, set: T<'h>, keep: &[T<'h>], u: T<'h>, x: T<'h>, vars: &[T<'h>]) -> Res<T<'h>> {
+    let h = b.heap();
+    let reals = h.sym_term(h.sym("reals"));
+    let any = cx.eval(if keep.len() == 1 { keep[0] } else { h.call(h.sym("or"), keep) })?;
+    let plain = super::spec::params(b, &[u], vars).is_empty();
+    let any = if plain && !cx.is_false(any) { cx.eval(h.call(h.sym("reduce"), &[any, x, reals]))? } else { any };
+    if cx.is_false(any) {
+        return Ok(set);
+    }
+    let r = cx.eval(h.call(h.sym("and"), &[set, h.call(h.sym("not"), &[any])]))?;
+    if plain {
+        let rr = cx.eval(h.call(h.sym("reduce"), &[r, x, reals]))?;
+        if !is_head(b, rr, "reduce") && !is_head(b, rr, mc_api::names::FAILURE) {
+            return Ok(rr);
+        }
+    }
+    Ok(r)
+}
+
+/// Is `u` positive for every real value of the variables by its structure (exp, cosh, a positive number, sums with
+/// a positive term and terms >= 0, products of such)?
+fn no_real_zero<'h>(b: &Build<'h>, u: T<'h>) -> bool {
+    let h = b.heap();
+    match h.view(u) {
+        View::Int(k) => k > 0,
+        View::Rational { .. } => b.ar.compare(u, b.zero()) == Some(mc_arith::Cmp3::Greater),
+        View::App { head, args } => {
+            let Some(s) = b.sym_of(head) else { return false };
+            if s == b.hd.add {
+                return args.iter().all(|&a| nonneg(b, a)) && args.iter().any(|&a| no_real_zero(b, a));
+            }
+            if s == b.hd.mul {
+                return args.iter().all(|&a| no_real_zero(b, a));
+            }
+            if s == b.hd.pow {
+                return args[0] == h.sym_term(b.hd.e) || no_real_zero(b, args[0]);
+            }
+            matches!(h.sym_name(s).as_str(), "exp" | "cosh")
+        }
+        _ => false,
+    }
+}
+
 fn positive_exponent<'h>(b: &Build<'h>, e: T<'h>) -> bool {
     matches!(b.heap().view(e), View::Rational { .. }) && b.ar.compare(e, b.zero()) == Some(mc_arith::Cmp3::Greater)
 }

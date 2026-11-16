@@ -333,3 +333,11 @@ are finite and real, so the intermediate value theorem gives a root. With severa
 fixed at 0, 1, -1, 1/2. Only `true` is answered (a failed search leaves the sentence); a pole between the two points
 makes the image unbounded, so `exists(x, 1 < x < 2, tan(x) == 0)` stays. Sentences that are false, universal
 sentences and inequalities are not decided this way.
+
+## Round 46: no integer instance
+
+`find_instance(c, x, integers)` in one variable searched the integers up to 20,000 and stayed unevaluated when none
+held. The integer solver is asked first; when it proves there is none (a bounded problem searched completely), the
+answer is `[]` (`x^2 < 2 and x > 1`). A point it finds is left to the search, whose order the answers keep.
+Found, not fixed: `reduce(a < 0 and b >= sqrt(-3 a)/3 or a >= 0, a, reals)` gives
+`b <= 0 and a == 0 or b > 0 and -3 b^2 <= a and a <= 0`, which loses a > 0 (the second symbol taken as a constant).
