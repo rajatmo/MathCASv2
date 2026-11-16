@@ -516,7 +516,7 @@ rule series_coefficient(f_, specs__) := fold((g, sp) => {
 # these: DLMF 4.6, 4.15, 15.4 and the binomial series); valid for the integers n >= m
 fn calc_sc_h(h, x, k) = {
   # coefficient of x^k in h (a function of x), k symbolic >= 0; null when unknown
-  if head(h) === pow and h[1] === e and not free_of(h[2], x) and simplify(d(h[2], x, x)) === 0 and rewrite(h[2], x -> 0) === 0 then simplify(d(h[2], x))^k/factorial(k)
+  if head(h) === pow and h[1] === e and not free_of(h[2], x) and simplify(d(h[2], x, x)) === 0 then exp(rewrite(h[2], x -> 0))*simplify(d(h[2], x))^k/factorial(k)
   else if head(h) === pow and free_of(h[2], x) and not free_of(h[1], x) then {
     let b = h[1]
     let u = rewrite(b, x -> 0)
@@ -524,7 +524,7 @@ fn calc_sc_h(h, x, k) = {
     if not free_of(v, x) or not free_of(simplify(b - u - v*x), x) or simplify(b - u - v*x) != 0 or u === 0 then null
     else u^h[2]*(if is_integer(h[2]) and h[2] < 0 then (-1)^k*binomial(k - h[2] - 1, k) else binomial(h[2], k))*(v/u)^k
   }
-  else if head(h) === exp and free_of(simplify(d(h[1], x, x)), x) and simplify(d(h[1], x, x)) === 0 and rewrite(h[1], x -> 0) === 0 then simplify(d(h[1], x))^k/factorial(k)
+  else if head(h) === exp and free_of(simplify(d(h[1], x, x)), x) and simplify(d(h[1], x, x)) === 0 then exp(rewrite(h[1], x -> 0))*simplify(d(h[1], x))^k/factorial(k)
   else if (head(h) === sin or head(h) === cos or head(h) === sinh or head(h) === cosh) and simplify(d(h[1], x, x)) === 0 and rewrite(h[1], x -> 0) === 0 then {
     let a = simplify(d(h[1], x))
     if head(h) === sin then a^k*sin(k*pi/2)/factorial(k)
@@ -533,6 +533,51 @@ fn calc_sc_h(h, x, k) = {
     else a^k*(1 + (-1)^k)/(2*factorial(k))
   }
   else calc_sc_h2(h, x, k)
+}
+# calc_sc_h with two more methods (Wilf, generatingfunctionology, 1994, section 2.2: the coefficient of x^n in
+# G(x^q) is that of y^(n/q) in G(y) when q divides n, else 0):
+# - logarithms: log(u + v x) with u > 0 is log(u) + sum_(k >= 1) -(-v/u)^k/k x^k, and log(B^p) = p log(B) when B(0) > 0
+#   (B stays near B(0) > 0, so the power and the logarithm keep their principal branches);
+# - substitution: h(x) = G(x^q) for q = 2, 3, 4 (G read off by x -> y^(1/q)), and h(x) = G(x^(1/2)) for an even G
+#   (cos(sqrt(x)): the coefficient of x^n is that of y^(2n) in G(y)); one level only (G by calc_sc_hb)
+fn calc_sc_hb(h, x, k) = {
+  let r = calc_sc_h(h, x, k)
+  if r === null and head(h) === log and length(h) == 1 then calc_sc_log(h[1], x, k) else r
+}
+fn calc_sc_hx(h, x, k) = {
+  let r = calc_sc_hb(h, x, k)
+  if r === null then calc_sc_sub(h, x, k) else r
+}
+fn calc_sc_pos0(b, x) = {
+  let u = rewrite(b, x -> 0)
+  is_numeric(u) and im_part(u) == 0 and u > 0
+}
+fn calc_sc_log(b, x, k) =
+  if head(b) === pow and free_of(b[2], x) and not free_of(b[1], x) and calc_sc_pos0(b[1], x) then {
+    let r = calc_sc_hx(log(b[1]), x, k)
+    if r === null then null else b[2]*r
+  }
+  else if calc_sc_pos0(b, x) and calc_sc_lin(b - rewrite(b, x -> 0), x) !== null then {
+    let u = rewrite(b, x -> 0)
+    let v = calc_sc_lin(b - u, x)
+    piecewise([[log(u), k == 0], [-(-v/u)^k/k, k >= 1]], 0)
+  }
+  else null
+# factorial(u) with u not an integer combination of k (k/2 for the coefficient of G(x^2)) as gamma(u + 1)
+fn calc_sc_gamma(t, k) = rewrite(t, factorial(z_) :> (if every(variables(k), v => is_integer(coefficient(z, v, 1))) then factorial(z) else gamma(together(z + 1))))
+fn calc_sc_sub(h, x, k) = {
+  let found = select(map(q => {
+    let g = rewrite(h, x -> calc_sc_y^(1/q))
+    let r = if free_of(g, x) then calc_sc_hb(g, calc_sc_y, calc_sc_j) else null
+    if r === null then null else piecewise([[calc_sc_gamma(rewrite(r, calc_sc_j -> k/q), k), mod(k, q) == 0]], 0)
+  }, [2, 3, 4]), r => r !== null)
+  if length(found) > 0 then found[1] else {
+    let g = power_expand(rewrite(h, x -> calc_sc_y^2))
+    if not free_of(g, x) or simplify(g - rewrite(g, calc_sc_y -> -calc_sc_y)) !== 0 then null else {
+      let r = calc_sc_hb(g, calc_sc_y, calc_sc_j)
+      if r === null then null else rewrite(r, calc_sc_j -> 2*k)
+    }
+  }
 }
 # more series with a known general term, h of a x (a free of x): polylog(s, a x) =
 # sum a^k k^-s x^k (k >= 1, DLMF 25.12.10); the hypergeometric series pFq(as; bs; a x) = sum prod (as)_k/prod (bs)_k
@@ -571,7 +616,7 @@ fn calc_sc_term(t, x, n) = {
   if length(hs) == 0 then null
   else if length(hs) > 1 then null
   else {
-    let r = calc_sc_h(hs[1], x, n - m)
+    let r = calc_sc_hx(hs[1], x, n - m)
     # the formulas hold for the orders n >= m; below, the coefficient is 0 (x/(x - 5) has no constant term)
     if r === null then null
     else if head(r) === piecewise and length(r) == 2 and r[2] === 0 then c*piecewise(map(pc => [pc[1], pc[2] and n >= m], r[1]), 0)
@@ -592,7 +637,13 @@ fn calc_sc_rat(f, x, n) = {
     piecewise(join(pieces, [[gen, if d < 0 then n >= 0 else n > d]]), 0)
   }
 }
-fn calc_sc_sym(f, x, n) = {
+fn calc_sc_sym(f, x, n) = if head(f) === piecewise and length(f) == 2 and free_of(map(pc => pc[2], f[1]), x) then {
+    let vs = map(pc => calc_sc_sym(pc[1], x, n), f[1])
+    let dflt = if f[2] === 0 then 0 else calc_sc_sym(f[2], x, n)
+    let pcs = map(j => [vs[j], f[1][j][2]], range(1, length(vs)))
+    if some(vs, v => v === null) or dflt === null then null else piecewise(pcs, dflt)
+  } else if free_of(f, x) then piecewise([[f, n == 0]], 0) else calc_sc_sym1(f, x, n)
+fn calc_sc_sym1(f, x, n) = {
   let r = together(f)
   if is_polynomial_expression(numerator(r), x) and is_polynomial_expression(denominator(r), x) and not free_of(denominator(r), x) then calc_sc_rat(f, x, n)
   else {
@@ -601,8 +652,62 @@ fn calc_sc_sym(f, x, n) = {
     if some(rs, r => r === null) then null else calc_total(rs)
   }
 }
-rule series_coefficient(f_, [x_, x0_, n_], options(assumptions -> a_)) := simplify(assuming(a, refine(calc_sc_sym(if x0 === 0 then f else rewrite(f, x -> x + x0), x, n))), element(n, integers) and a) when is_symbol(x) and is_symbol(n) and is_numeric(x0) and not (x0 === inf) and not (calc_sc_sym(if x0 === 0 then f else rewrite(f, x -> x + x0), x, n) === null)
-rule series_coefficient(f_, [x_, x0_, n_]) := simplify(calc_sc_sym(if x0 === 0 then f else rewrite(f, x -> x + x0), x, n), element(n, integers)) when is_symbol(x) and is_symbol(n) and is_numeric(x0) and not (x0 === inf) and not (calc_sc_sym(if x0 === 0 then f else rewrite(f, x -> x + x0), x, n) === null)
+rule series_coefficient(f_, [x_, x0_, n_], options(assumptions -> a_)) := simplify(calc_sc_flat(simplify(assuming(a, refine(calc_sc_sym(if x0 === 0 then f else rewrite(f, x -> x + x0), x, n))))), element(n, integers) and a) when is_symbol(x) and is_symbol(n) and is_numeric(x0) and not (x0 === inf) and not (calc_sc_sym(if x0 === 0 then f else rewrite(f, x -> x + x0), x, n) === null)
+# calc_sc_tidy(p): nested piecewise values with the default 0 merged into one piecewise, pieces of value 0 dropped
+fn calc_sc_tidy(p) = calc_sc_tidy(p, true)
+# values and conditions simplified piece by piece; a condition whose simplified form only reorders its conjuncts
+# keeps the order in which it was built (the conditions of the first variable first)
+fn calc_sc_tidy(p, asm) = {
+  let f = calc_sc_flat(calc_sc_ev(p))
+  if not is_atom(f) and head(f) === piecewise and length(f) == 2 and f[2] === 0 then {
+    let pcs = map(pc => [simplify(pc[1], asm), calc_sc_cond(pc[2], asm)], f[1])
+    let nz = select(pcs, pc => not (pc[1] === 0) and not (pc[2] === false))
+    if length(nz) == 0 then 0 else piecewise(nz, 0)
+  } else simplify(f, asm)
+}
+# z evaluated once more (the parts of a held piecewise, built from map(...), come back unevaluated)
+fn calc_sc_id(z) = z
+# p with the pieces of its (held) piecewise parts evaluated, the conditions in the order they were built
+fn calc_sc_ev(p) = if is_atom(p) then p
+  else if head(p) === piecewise and length(p) == 2 then {
+    let pcs = map(pc => [calc_sc_ev(pc[1]), pc[2]], calc_sc_id(p[1]))
+    let dflt = calc_sc_ev(calc_sc_id(p[2]))
+    piecewise(pcs, dflt)
+  }
+  else if head(p) === mul then apply(mul, map(calc_sc_ev, apply(list, p)))
+  else p
+fn calc_sc_cond(c, asm) = {
+  let c2 = simplify(c, asm)
+  if not is_atom(c) and not is_atom(c2) and head(c) === `and` and head(c2) === `and` and sort(apply(list, c)) === sort(apply(list, c2)) then c else c2
+}
+fn calc_sc_flat(p) = if not is_atom(p) and head(p) === piecewise and length(p) == 2 and p[2] === 0 then {
+    let ps = flatten(map(pc => {
+      let v = calc_sc_pull(calc_sc_flat(pc[1]))
+      if not is_atom(v) and head(v) === piecewise and length(v) == 2 and v[2] === 0 then map(qc => [qc[1], pc[2] and qc[2]], v[1]) else [[v, pc[2]]]
+    }, p[1]), 1)
+    let nz = select(ps, pc => not (pc[1] === 0))
+    if length(nz) == 0 then 0 else piecewise(nz, 0)
+  }
+  else if not is_atom(p) and head(p) === mul then calc_sc_pull(apply(mul, map(calc_sc_flat, apply(list, p))))
+  else p
+# c piecewise([[v1, c1], ...], 0) as piecewise([[c v1, c1], ...], 0) (one such factor)
+fn calc_sc_pull(v) = if is_atom(v) or not (head(v) === mul) then v else {
+    let pws = select(apply(list, v), t => not is_atom(t) and head(t) === piecewise and length(t) == 2 and t[2] === 0)
+    if length(pws) != 1 then v else {
+      let c = v/pws[1]
+      let pcs = map(pc => [c*pc[1], pc[2]], pws[1][1])
+      piecewise(pcs, 0)
+    }
+  }
+rule series_coefficient(f_, [x_, x0_, n_]) := calc_sc_tidy(calc_sc_sym(if x0 === 0 then f else rewrite(f, x -> x + x0), x, n), element(n, integers)) when is_symbol(x) and is_symbol(n) and is_numeric(x0) and not (x0 === inf) and not (calc_sc_sym(if x0 === 0 then f else rewrite(f, x -> x + x0), x, n) === null)
+# several variables in turn, an order symbolic: the coefficient in the first, then in the others (its conditions are
+# free of the later variables)
+fn calc_sc_spec(sp) = is_list(sp) and length(sp) == 3 and is_symbol(sp[1]) and is_numeric(sp[2]) and not (sp[2] === inf) and (is_symbol(sp[3]) or is_integer(sp[3]))
+fn calc_sc_multi(f, sps) = fold((g, sp) => if g === null then null else {
+  let r = series_coefficient(g, sp)
+  if free_of(r, series_coefficient) then r else null
+}, f, sps)
+rule series_coefficient(f_, specs__) := calc_sc_tidy(calc_sc_multi(f, specs)) when not (head(f) === series_data) and length(specs) >= 2 and every(specs, calc_sc_spec) and some(specs, sp => is_symbol(sp[3])) and calc_sc_multi(f, specs) !== null
 
 # --- polynomial structure: factor_list, factor_terms, exponent, collect, cyclotomic, polynomial_reduce,
 # polynomial_mod, partial_fractions, is_polynomial_expression, is_possible_zero ---

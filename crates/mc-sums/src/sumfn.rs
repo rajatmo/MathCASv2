@@ -616,6 +616,10 @@ fn infinite<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, m: &
     if let Some(s) = poly_geometric(sx, f, k, lo, m)? {
         return Ok(Some(s));
     }
+    // (-1)^k times a proper rational function: the series of consecutive pairs
+    if let Some(s) = crate::alternate::infinite(sx, f, k, lo)? {
+        return Ok(Some(s));
+    }
     if let Some(s) = series_sum(sx, f, k, lo, m)? {
         return Ok(Some(s));
     }

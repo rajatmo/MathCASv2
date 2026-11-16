@@ -13,7 +13,10 @@
 # For `p` of total degree at most 2 the Gram matrix of `p` in the monomials `x1, ..., xk, 1` is decomposed by symmetric Gaussian elimination, from the last variable to the first and then the constant.
 
 #% item
-# When `p` is not a sum of squares (a negative pivot, or a zero pivot with a nonzero row), or has a higher degree, the call stays unevaluated.
+# For higher even degrees the Gram matrix is taken in the monomials whose doubles lie in the degree range of `p`; among the Gram matrices that match the coefficients of `p` (at most 12 free entries), a positive definite one is sought, rounded to rational entries and decomposed exactly, so that the answer is proved.
+
+#% item
+# When `p` is not a sum of squares (a negative pivot, or a zero pivot with a nonzero row), when no Gram matrix is strictly positive definite, or when there are too many free entries, the call stays unevaluated.
 
 #% section
 # Examples
@@ -38,6 +41,17 @@ expand(x^2 + 2*y^2 + 3*z^2 - x*y - x*z - y*z - dot(q, q))
 polynomial_sum_of_squares_list(x^2 + 2*x + 5, [x])
 #% output
 #= [1 + x, 2]
+
+#% text
+# A quartic: the squares add up to the polynomial exactly.
+
+#% cell
+s = polynomial_sum_of_squares_list(x^4 + x*y + y^2 + 1/60, [x, y])
+
+#% cell
+expand(x^4 + x*y + y^2 + 1/60 - dot(s, s))
+#% output
+#= 0
 
 #% text
 # An indefinite form is not a sum of squares:

@@ -152,3 +152,17 @@ registrations. Library code is `lib/further.mc` (helpers prefixed `c30_`); the m
 - Linearity: a sum term by term with constant factors outside, calls `g(p, phi)` of undefined functions kept as
   `inverse_radon_transform(g(p, phi), [p, phi], [x, y])`; a term with no known preimage keeps the whole sum
   unevaluated. `inverse_radon_transform(radon_transform(f, [x, y], [p, phi]), [p, phi], [x, y])` is f.
+
+## Round 46: sums of squares of higher degree
+
+`polynomial_sum_of_squares_list` for even degrees above 2 (`lib/further.mc`, `gram_*`; Choi, Lam and Reznick 1995,
+Parrilo 2003, Peyrl and Parrilo 2008): a monomial basis whose doubles lie in the degree box of `p`, pruned of
+monomials whose doubles are no monomial of `p` and no sum of two basis monomials; the coefficient equations solved for
+the Gram entries (affine family, at most 12 free entries and 16 basis monomials); a point with a positive smallest
+eigenvalue found by coordinate ascent of the soft minimum `-tau log sum exp(-lambda_i/tau)` (smooth and concave) with
+golden-section line searches; that point rounded to rationals (tolerances 10^-2 ... 10^-8) and proved by exact
+`L D L^T` elimination (pivots exact, or positive at 40 digits for constants such as `pi`, `log(2)`), the squares
+expanded back to `p`. The library's `semidefinite_optimization` (principal minors handed to `minimize`) was tried
+first: exact roots for 4 x 4, no answer for 6 x 6.
+- Unevaluated: no strictly positive definite Gram matrix (`201/100 + 16x^4 + 16y^4 + 16xy`, nonnegative with a
+  singular Gram matrix only), too many free entries (`x^6 + y^6 + x^2 y^2 + 1`: 27), inexact coefficients.

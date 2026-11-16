@@ -371,3 +371,19 @@ differences and ratios, generating functions and convergence, interruption.
   in `sum(dot(matrix_power(a, n), c, ...), [n, 0, inf])`), and a list value gets no condition. Series summed
   formally inside other functions stay plain: generating functions (`natives::plain`), and the z and Mellin
   transforms pass `generate_conditions: false` to their sums.
+
+## Round 46: alternating series of rational functions
+
+`alternate.rs` (literature in its module doc): `sum(s (-1)^k g(k), [k, lo, inf])` for a proper rational `g` (sign
+written `(-1)^(a k + b)` with odd `a`, or `cos`/`sin` of `pi k + c`), tried in `sumfn::infinite` after Gosper and the
+polynomial-geometric rule.
+- Even summands about an integer centre `c` (`g(m + c)` even) with simple poles off the integers: the residue form
+  `-pi sum Res(g, z) csc(pi z)` halved, plus the finite terms between the centre and `lo` (`1/2 + pi/(2 sinh(pi))`).
+- Otherwise the series of consecutive pairs `g(lo + 2j) - g(lo + 2j + 1)` (rational, O(j^-2)) by the rational methods,
+  with Gauss's digamma theorem at denominators 2, 3, 4, 6 and `zeta(s, 3/4) = zeta(s, 1/4) - 4^s beta(s)` at odd `s`
+  (`catalan`, `pi/4`, `-pi^2/12`, `pi^3/32`, `(3 log 2 + sqrt(3) pi)/9`). Summands with parameters only through the
+  residue form (the pairs' digamma values at algebraic points are no closed form worth giving); `(-1)^k/(k^4 + 1)` stays.
+- Checks (`mc-engine/tests/round46_general.rs`): each value lies between two consecutive partial sums (Leibniz) and
+  agrees with `n_sum` to 20 digits.
+- Left: symbolic exponents (`sum((-1)^k (2k + 1)^-s)`, Hurwitz zeta with a symbolic order is not summed at all here),
+  `beta(2m)` (no closed form), summands not rational in `k`.

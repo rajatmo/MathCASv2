@@ -181,3 +181,12 @@ bases (the digits are the smallest places).
 
 `finite_group_count(p^e)` beyond the table for e <= 4: 1, 2, 5 and (p odd) 15 groups (Hoelder 1893 for p^3;
 Burnside, Theory of Groups of Finite Order, 1897, for p^4).
+
+## Round 46: sums of Bell and Stirling numbers
+
+`lib/combinat.mc` (`bs_sum`): `sum(stirling_s2(n, k), [k, 0, n]) = bell_b(n)`; Dobinski's formula `sum(k^n/k!, [k, 0,
+inf]) = e bell_b(n)` when `n` is a natural number (a literal, or the assumptions in force or given say so; otherwise
+the sum stays); the exponential generating functions `exp(exp(x) - 1)` of the Bell numbers and `(exp(x) - 1)^m/m!` of
+`stirling_s2(n, m)` (entire series); `sum((-1)^(n - k) k!, [k, n]) = alternating_factorial(n)`. Checked against the
+row sums, 60-term partial sums at 50 digits, Taylor coefficients and direct sums (`round46_general.rs`). A numeric power
+`sum(k^3/k!, [k, 0, inf])` is taken first by the hypergeometric route (`hypergeometric_pfq([2, 2], [1, 1], 1)`).

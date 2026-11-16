@@ -24,6 +24,7 @@
 //! assert_eq!(e.eval("sum(binomial(n, k), [k, 0, n])", &stop).unwrap().printed, "2^n");
 //! ```
 #![warn(missing_docs)]
+pub mod alternate;
 pub mod conv;
 pub mod cx;
 pub mod gf;

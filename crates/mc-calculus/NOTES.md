@@ -1903,3 +1903,17 @@ Wronskian of P and Q (DLMF 14.2.4) at 30 digits in `mc-engine/tests/round45_spec
 - Left: `function_monotonicity(sin(x) + a x, x)`, `exp(x) + a x` and `cosh(x) + a` stay unevaluated (parameters
   with a function that is not polynomial: no method yet); a conditional answer gives one value only (`atan(x) + a x`
   is 1 for a >= 0 and -1 for a <= -1, only the first is said).
+## Round 46: general series coefficients
+
+`lib/calculus.mc` (`calc_sc_*`), `series_coefficient(f, [x, x0, n])` with a symbolic `n`:
+- `exp(a x + b)` with `b` not 0 (`e^b a^n/n!`);
+- logarithms: `log(u + v x)` with `u > 0`, `log(B^p) = p log(B)` when `B(0) > 0`;
+- substitution (Wilf, generatingfunctionology, 2.2): `G(x^q)` for q = 2, 3, 4 (coefficient of `y^(n/q)` when q
+  divides n, a `factorial` of a fractional index written `gamma`), and `G(sqrt(x))` for an even `G` (`cos(sqrt(x))`);
+  one level, after the direct forms;
+- piecewise coefficients flattened (`calc_sc_flat`: nested piecewise values with default 0 merged, zero pieces dropped);
+- several variables in turn (`series_coefficient(exp(x + y), [x, 0, n], [y, 0, m])`): a piecewise whose conditions
+  are free of the next variable is taken piece by piece.
+Checked against `series_coefficient` at integer orders 0..12 for ten functions (`round46_general.rs`). Left:
+products of two transcendental factors (`exp(x)/(1 - x)`, `sin(x)^2`), `sin(sqrt(x))` (no Taylor series), the
+expected arrangement `(1 + (-1)^n)/2` of even-only coefficients (ours is `mod(n, 2) == 0` in the condition).

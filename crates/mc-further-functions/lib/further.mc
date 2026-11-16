@@ -644,6 +644,135 @@ fn c30_sos_quadratic(p, vs) = {
 fn c30_total_degree(p, vs) = max(map(t => total(map(v => exponent(t, v), vs)), if not is_atom(expand(p)) and head(expand(p)) === add then apply(list, expand(p)) else [expand(p)]))
 fn polynomial_sum_of_squares_list(p, vs) when is_list(vs) and is_polynomial_expression(p, vs) and c30_total_degree(p, vs) <= 2 and c30_sos_quadratic(p, vs) !== none = c30_sos_quadratic(p, vs)
 
+# Higher degrees: the Gram matrix method (Choi, Lam and Reznick, Sums of squares of real polynomials, 1995; Parrilo,
+# Semidefinite programming relaxations for semialgebraic problems, 2003) with an exact certificate (Peyrl and Parrilo,
+# Computing sums of squares decompositions with rational coefficients, 2008). p = b^T Q b for the vector b of
+# monomials whose doubles lie in the degree box of p (pruned: a monomial whose double is no monomial of p and no sum of
+# two other basis monomials can only have a zero row); the symmetric Q satisfying the coefficient equations is an
+# affine family Q(t). The largest s with Q(t) - s I positive semidefinite is sought; for s > 0 a rational
+# point t near the optimum (rationalize with tolerances 10^-2 ... 10^-12) keeps Q(t) positive definite, which the
+# exact elimination Q = L D L^T proves (every pivot positive, decided exactly or at 40 digits for constants); then
+# p = sum d_i (L^T b)_i^2, and the answer is checked by expanding p - sum q_i^2 to 0. Without s > 0 (no strictly
+# feasible Gram matrix, or no sum of squares at all) the call stays unevaluated. The maximum of the smallest eigenvalue
+# (a concave function of t) is found by coordinate ascent with golden-section line searches, in place of a
+# semidefinite program: any point with a positive smallest eigenvalue will do, since the certificate is exact.
+fn gram_sos_exps(p, vs) = map(r => r[1], coefficient_rules(expand(p), vs))
+fn gram_sos_basis(p, vs) = {
+  let es = gram_sos_exps(p, vs)
+  let k = length(vs)
+  let degs = map(e => total(e), es)
+  let lo = map(i => ceiling(min(map(e => e[i], es))/2), range(k))
+  let hi = map(i => floor(max(map(e => e[i], es))/2), range(k))
+  let cand = select(tuples(map(i => range(lo[i], hi[i]), range(k))), a => 2*total(a) >= min(degs) and 2*total(a) <= max(degs))
+  var b = cand
+  var changed = true
+  while changed {
+    let keep = select(b, a => member_of(es, 2*a) or some(b, c => not (c === a) and member_of(b, 2*a - c)))
+    changed = length(keep) < length(b)
+    b = keep
+  }
+  b
+}
+fn gram_sos_value(p, vs) = {
+  let pe = expand(p)
+  if length(vs) == 0 or not is_polynomial_expression(pe, vs) then none else {
+    let cr = coefficient_rules(pe, vs)
+    if some(cr, r => is_inexact(r[2])) or mod(c30_total_degree(pe, vs), 2) == 1 then none else {
+      let b = gram_sos_basis(pe, vs)
+      let nb = length(b)
+      if nb == 0 or nb > 16 then none else gram_sos_gram(pe, vs, b, cr)
+    }
+  }
+}
+fn gram_sos_gram(pe, vs, b, cr) = {
+  let nb = length(b)
+  let gv = (i, j) => if i <= j then gram_g(i, j) else gram_g(j, i)
+  let unknowns = flatten(map(i => map(j => gram_g(i, j), range(i, nb)), range(nb)), 1)
+  let sums = union(flatten(map(i => map(j => b[i] + b[j], range(i, nb)), range(nb)), 1))
+  let coef = m => { let hit = select(cr, r => r[1] === m); if length(hit) == 0 then 0 else hit[1][2] }
+  # every monomial of p must be a product of two basis monomials
+  if some(cr, r => not member_of(sums, r[1])) then none else {
+    let eqs = map(m => total(flatten(map(i => map(j => if b[i] + b[j] === m then (if i == j then 1 else 2)*gram_g(i, j) else 0, range(i, nb)), range(nb)), 1)) == coef(m), sums)
+    let sol = solve(eqs, unknowns)
+    if not is_list(sol) or length(sol) == 0 then none else {
+      let q0 = map(i => map(j => rewrite(gv(i, j), sol[1]), range(nb)), range(nb))
+      let free = select(unknowns, u => not free_of(q0, u))
+      # the free entries as symbols (the semidefinite program takes symbols as its variables)
+      let ts = map(i => symbol(string_join(["gramt", to_string(i)])), range(length(free)))
+      gram_sos_certify(rewrite(q0, map(i => free[i] -> ts[i], range(length(free)))), ts, b, vs, pe)
+    }
+  }
+}
+# the exact L D L^T elimination of q: the list of q_i or none (a pivot that is not positive)
+fn gram_sos_ldl(q, b, vs, pe) = {
+  let k = length(q)
+  let ms = map(a => product(map(i => vs[i]^a[i], range(length(vs)))), b)
+  var m = q
+  var out = []
+  var ok = true
+  for i in range(k) {
+    if ok then {
+      let d = simplify(m[i][i])
+      if d === 0 then { ok = every(range(k), j => simplify(m[i][j]) === 0) }
+      else if is_numeric(d) and n(d, 40) > 0 then {
+        out = append(out, expand(total(map(j => m[i][j]*ms[j], range(i, k)))/sqrt(d)))
+        m = map(r => map(c => if r <= i or c <= i then m[r][c] else expand(m[r][c] - m[r][i]*m[i][c]/d), range(k)), range(k))
+      }
+      else { ok = false }
+    }
+  }
+  if ok and simplify(expand(pe - total(map(t => t^2, out)))) === 0 then out else none
+}
+# the smallest eigenvalue of the symmetric matrix q at the point tv of its parameters ts (machine numbers)
+fn gram_lmin(q, ts, tv) = min(map(re, eigenvalues(n(rewrite(q, map(i => ts[i] -> tv[i], range(length(ts))))))))
+# the soft minimum -tau log(sum exp(-lambda_i/tau)) of the eigenvalues: smooth and concave in the parameters (log of
+# the trace of the matrix exponential is convex), within tau log(n) of the smallest eigenvalue
+fn gram_soft(q, ts, tv, tau) = {
+  let ls = map(re, eigenvalues(n(rewrite(q, map(i => ts[i] -> tv[i], range(length(ts)))))))
+  let m = min(ls)
+  m - tau*log(total(map(l => exp(-(l - m)/tau), ls)))
+}
+# golden-section search for the maximum of the concave function t -> gram_soft(q, ts, tv with tv[i] = t) on [a, b]
+fn gram_golden(q, ts, tv, i, a, b, tau) = {
+  let g = (sqrt(5.) - 1)/2
+  var lo = a
+  var hi = b
+  for it in range(40) {
+    let m1 = hi - g*(hi - lo)
+    let m2 = lo + g*(hi - lo)
+    if gram_soft(q, ts, replace_part(tv, i -> m1), tau) < gram_soft(q, ts, replace_part(tv, i -> m2), tau) then { lo = m1 } else { hi = m2 }
+  }
+  (lo + hi)/2
+}
+# coordinate ascent of the soft minimum from 0 (the window and tau shrinking), until the smallest eigenvalue is
+# clearly positive or 24 rounds
+fn gram_ascent(q, ts) = {
+  let k = length(ts)
+  let w0 = 2*(1 + max(map(r => max(map(c => abs(n(rewrite(c, map(t => t -> 0, ts)))), r)), q)))
+  var tv = table(0., k)
+  var w = w0
+  var round = 0
+  while round < 24 and gram_lmin(q, ts, tv) < w0*10^-3 {
+    for i in range(k) {
+      tv = replace_part(tv, i -> gram_golden(q, ts, tv, i, tv[i] - w, tv[i] + w, w/20))
+    }
+    w = max(w*0.7, w0*10^-4)
+    round = round + 1
+  }
+  tv
+}
+fn gram_sos_certify(q0, free, b, vs, pe) =
+  if length(free) == 0 then gram_sos_ldl(q0, b, vs, pe) else if length(free) > 12 then none else {
+    let tv = gram_ascent(q0, free)
+    let s = gram_lmin(q0, free, tv)
+    if not is_numeric(s) or s <= 10^-9 then none else {
+      let tries = map(e => gram_sos_ldl(rewrite(q0, map(i => free[i] -> rationalize(tv[i], 10^-e), range(length(free)))), b, vs, pe), [2, 4, 6, 8])
+      let good = select(tries, t => t !== none)
+      if length(good) == 0 then none else good[1]
+    }
+  }
+fn polynomial_sum_of_squares_list(p, vs) when is_list(vs) and is_polynomial_expression(p, vs) and c30_total_degree(p, vs) > 2 and gram_sos_value(p, vs) !== none = gram_sos_value(p, vs)
+
 # --- inverse_radon_transform ---
 # inverse_radon_transform(g, [p, phi], [x, y]) for g = e^(-p^2) Q(p, cos phi, sin phi), Q a polynomial: the preimage
 # is e^(-x^2 - y^2) P(x, y) with deg P = deg Q, since in the rotated frame x = p c - t s, y = p s + t c the Radon

@@ -1457,6 +1457,39 @@ fn ds_sum(f, n) = {
   else ds_value(a, n, s)
 }
 rule sum(f_, it_) := ds_sum(f, it[1]) when ds_iter(it) and ds_sum(f, it[1]) !== null
+# --- sums of Bell and Stirling numbers and the alternating factorial ---
+# bs_sum(f, it, asm): the closed form of sum(f, it) or null, for
+#   sum(stirling_s2(n, k), [k, 0, n]) = bell_b(n) (the definition of the Bell numbers as row sums);
+#   sum(k^n/factorial(k), [k, 0, inf]) = e bell_b(n) for an integer n >= 0 (Dobinski's formula, 1877);
+#   sum(bell_b(n) x^n/factorial(n), [n, 0, inf]) = exp(exp(x) - 1) and sum(stirling_s2(n, m) x^n/factorial(n), [n, 0,
+#   inf]) = (exp(x) - 1)^m/factorial(m) for an integer m >= 0 (the exponential generating functions; the series are
+#   entire: Comtet, Advanced Combinatorics, 1974, sections 5.1 and 5.4);
+#   sum((-1)^(n - k) factorial(k), [k, 1, n]) = alternating_factorial(n) (its definition).
+fn bs_nonneg_int(n, asm) = if is_numeric(n) then is_integer(n) and n >= 0 else if asm === automatic then refine(element(n, integers) and n >= 0) === true else refine(element(n, integers) and n >= 0, asm) === true
+fn bs_sum(f, it, asm) =
+  if not (is_list(it) and (length(it) == 2 or length(it) == 3) and is_symbol(it[1])) then null else {
+    let k = it[1]
+    let lo = if length(it) == 2 then 1 else it[2]
+    let hi = it[length(it)]
+    if lo === 0 and not (hi === inf) and free_of(hi, k) and f === stirling_s2(hi, k) then bell_b(hi)
+    else if lo === 1 and not (hi === inf) and free_of(hi, k) and f === factorial(k)*(-1)^(hi - k) then alternating_factorial(hi)
+    else if lo === 0 and hi === inf then {
+      let p = simplify(f*factorial(k))
+      if not is_atom(p) and head(p) === pow and p[1] === k and free_of(p[2], k) and bs_nonneg_int(p[2], asm) then e*bell_b(p[2])
+      else if not is_atom(p) and head(p) === mul and length(p) == 2 then {
+        let b = select(apply(list, p), t => not is_atom(t) and (head(t) === bell_b or head(t) === stirling_s2))
+        let w = select(apply(list, p), t => not is_atom(t) and head(t) === pow and t[2] === k and free_of(t[1], k))
+        if length(b) == 1 and length(w) == 1 then {
+          let x = w[1][1]
+          if b[1] === bell_b(k) then exp(exp(x) - 1)
+          else if head(b[1]) === stirling_s2 and length(b[1]) == 2 and b[1][1] === k and free_of(b[1][2], k) and bs_nonneg_int(b[1][2], asm) then (exp(x) - 1)^b[1][2]/factorial(b[1][2])
+          else null
+        } else null
+      } else null
+    } else null
+  }
+rule sum(f_, it_) := bs_sum(f, it, automatic) when bs_sum(f, it, automatic) !== null
+rule sum(f_, it_, options(assumptions -> a_)) := bs_sum(f, it, a) when bs_sum(f, it, a) !== null
 # the Euler products: the factor 1 + c p^e with c = 1 or -1, or its reciprocal
 fn ep_prime_pow(t, n) = not is_atom(t) and head(t) === pow and t[1] === prime(n) and free_of(t[2], n)
 fn ep_value(f, n) = {
