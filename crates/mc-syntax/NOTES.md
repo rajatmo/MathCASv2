@@ -280,3 +280,19 @@ A slot function without slots (`&(x)`) lowers to `fn([&1], x)`: it takes one arg
 `x[2:3] = v` on a `var` local was lowered to `set(part(x, span(2, 3)), v)`, which rebinds only top-level symbols:
 the local kept its value. Every part assignment of a `var` local with a span among its indices now lowers to
 `assign_part(x, k1, ..., kn, v)`, which sets the parts as `set` does for a symbol (mc-eval NOTES, round 45).
+
+## Round 46: parsing on the calling thread
+
+`stack::on_big_stack` runs its job directly when the current thread has at least `STACK_BYTES / 2` (32 MB) of
+declared stack left (`mc_api::stack`), else on a new thread as before, which declares its own stack so nested calls
+run inline. The recursion bound `MAX_DEPTH` is unchanged; the margin is the same as before for a thread that starts
+the job near the top of its stack, and a job deep in an evaluation that has less than half left still gets a new
+thread. A small cell's time fell from about 0.5 ms to 0.05 ms (kernel, values each, numbered; idle machine).
+
+Packed arrays print without a term per element (`Run::packed_list`): a packed array of machine integers or finite
+machine reals in a plain context (no number form, no display, no `full_form`, no parentheses needed) is written
+straight into the text, each number as `Run::literal` writes it, with the limit checked before every bracket,
+separator and number exactly as before every task, so the text and any cut are the same. A 300 x 300 x 4 raster
+(a density plot's term, printed for the plot's memo and sidecars) took about 200 ms and now a few; a 3D surface's
+scene sidecar about 15-20 ms less. Checked against the general path element by element in
+`mc-engine/tests/round46_speed.rs`.

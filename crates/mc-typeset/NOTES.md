@@ -19,3 +19,9 @@ What stayed in `mc-boxes` because the tree needs it without a parser of outputs:
 
 Tests: the unit tests of both modules, `tests/fuzz.rs` (random printed outputs through typesetting and layout,
 moved from `mc-boxes`), `tests/latex.rs` (LaTeX of typeset outputs).
+
+## Round 46: typesetting on the calling thread
+
+`printed::on_big_stack` runs the conversion directly when the calling thread declared at least `STACK_BYTES` of
+stack left (`mc_api::stack`, now a normal dependency), else on its own thread as before (that thread declares its
+stack too).

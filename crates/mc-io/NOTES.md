@@ -168,3 +168,8 @@ import as a dataset 312 ms (as lists of rows: 935 ms), aggregate by a 20-value k
   1962). Every given value and derivative is taken at the nodes; polynomials of degree 3 in each variable are
   reproduced from values and gradients.
 - Compiled code does not take the Hermite form (no registered evaluation): such calls stay interpreted.
+
+## Round 46: plot files drawn when first read
+
+`twin` and `export_twin` call `mc_graphics::deferred::ensure(png)` first: a plot's PDF and print twins are drawn
+when an export first needs them (`mc-plot` NOTES, round 46). `mc-graphics` is a new dependency for that.

@@ -346,3 +346,9 @@ really run in scopes.
    panics rather than corrupting memory, but a stale view slice is unsound in principle.
 4. Nested natives (an integrand calling `n_integrate`) run inline in the outer scope.
 5. A scope making more than about 33 million terms in one evaluation panics.
+
+## Round 46: session workers declare their stack
+
+The start handler of a session's pool declares the workers' 64 MB stack (`mc_api::stack::declare`), so parsing,
+lowering and typesetting inside an evaluation run on the worker instead of a thread started per call
+(`mc-syntax` NOTES, round 46). Nothing else of the pool changed.

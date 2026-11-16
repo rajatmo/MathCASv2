@@ -259,6 +259,9 @@ pub enum Body {
         status: Status,
         /// wall-clock milliseconds the request took
         millis: u64,
+        /// the same time in microseconds (sent by the server; `millis` is this divided by 1000)
+        #[serde(default, skip_serializing_if = "none")]
+        micros: Option<u64>,
         /// numbered evaluations: the first number the request used (equal to `next` when it used none)
         #[serde(default, skip_serializing_if = "none")]
         first: Option<u64>,
@@ -343,7 +346,7 @@ mod tests {
 
     #[test]
     fn responses() {
-        let done = |status, millis| Body::Done { status, millis, first: None, next: None };
+        let done = |status, millis| Body::Done { status, millis, micros: None, first: None, next: None };
         let r = Response { id: json!(1), cell: None, body: done(Status::Ok, 3) };
         assert_eq!(r.to_line(), r#"{"id":1,"type":"done","status":"ok","millis":3}"#);
         let r = Response { id: json!("x"), cell: Some("c1".into()), body: Body::Output { text: "hi".into(), n: None } };
@@ -363,8 +366,12 @@ mod tests {
         let value = Body::Value { printed: "2".into(), n: Some(4) };
         assert_eq!(line(value), r#"{"id":1,"type":"value","printed":"2","n":4}"#);
         assert_eq!(
-            line(Body::Done { status: Status::Ok, millis: 0, first: Some(2), next: Some(4) }),
+            line(Body::Done { status: Status::Ok, millis: 0, micros: None, first: Some(2), next: Some(4) }),
             r#"{"id":1,"type":"done","status":"ok","millis":0,"first":2,"next":4}"#
+        );
+        assert_eq!(
+            line(Body::Done { status: Status::Ok, millis: 1, micros: Some(1250), first: None, next: None }),
+            r#"{"id":1,"type":"done","status":"ok","millis":1,"micros":1250}"#
         );
         let display = Body::Display {
             kind: DisplayKind::Image,

@@ -264,3 +264,12 @@ file with no `<name>.files/` folder and no path into the plots cache. Older file
 session's defined names); a value that still holds a call of a flagged name (`integrate(x(x - a)^(1/2), x)` back
 unevaluated) is followed by one `message` with tag `note`: "x is called as a function; did you mean x*(x - a)?".
 At most once per name and input. Tests: `tests/display.rs` (also the display printing of round 20).
+
+## Round 46: timing and the engine thread
+
+- `done` carries `micros` (optional, the request's wall-clock time in microseconds; `millis` is that divided by
+  1000), for clients that time short evaluations; clients that do not know it ignore it.
+- The binary serves the protocol on a thread with a 64 MB stack that declares it (`mc_api::stack`): the parses of
+  each request outside the session (the `;` check, the check of calls written as products) run on it instead of a
+  thread each. With the session workers declared too, a cell starts no thread at all; a small cell went from about
+  0.5 ms to 0.05 ms.

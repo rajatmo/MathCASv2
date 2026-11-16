@@ -122,9 +122,9 @@ impl Writer<'_> {
         start: Instant,
         numbers: Option<(u64, u64)>,
     ) -> io::Result<()> {
-        let millis = start.elapsed().as_millis().try_into().unwrap_or(u64::MAX);
+        let micros: u64 = start.elapsed().as_micros().try_into().unwrap_or(u64::MAX);
         let (first, next) = (numbers.map(|n| n.0), numbers.map(|n| n.1));
-        self.send(id, cell, Body::Done { status, millis, first, next })
+        self.send(id, cell, Body::Done { status, millis: micros / 1000, micros: Some(micros), first, next })
     }
 }
 

@@ -35,6 +35,7 @@
 #![warn(missing_docs)]
 
 pub mod color;
+pub mod deferred;
 pub mod gradient;
 pub mod label;
 pub mod memo;

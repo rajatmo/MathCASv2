@@ -83,7 +83,8 @@
 //! - `done.status`: `ok` (every statement ran, no failure), `failure` (every statement ran, some value was a
 //!   failure), `error` (a read, resolve or load error: nothing ran; or a bad request), `interrupted`, `limit`
 //!   (the evaluation depth or fuel limit; an `error` with the message `limit: ...` comes first). Requests other
-//!   than `eval` end with `ok`. `millis` is the wall-clock time of the request.
+//!   than `eval` end with `ok`. `millis` is the wall-clock time of the request; `micros` (an optional field,
+//!   sent by this kernel) is the same time in microseconds, for clients that time short evaluations.
 //!
 //! An example exchange (`>` client, `<` kernel):
 //!

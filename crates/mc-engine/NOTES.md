@@ -376,3 +376,12 @@ of this round in mc-poly, mc-sums, mc-numtheory, mc-calculus).
 calls of functions. Identical closed exact terms (a constant on its own included) are equal, and a constant on its
 own is compared exactly with a close value (`pi < pi + 10^-40`). Tests `tests/round46_decisions.rs`, and
 `tests/round46_boundaries.rs` (the boundary generator of the property answers: mc-calculus NOTES).
+## Round 46: the time of ordinary inputs
+
+`tests/round46_speed.rs`: evaluations run on a declared stack (no thread per parse), 400 small cells within a time
+bound, a plot's PDF and print twins drawn when an export reads them (with the exported bytes equal to the print twin),
+the size of a shown plot kept. The changes are in `mc-api`, `mc-syntax`, `mc-typeset`, `mc-core`, `mc-kernel`,
+`mc-graphics`, `mc-plot` and `mc-io` (their NOTES, round 46). Timing every documented example of the functions
+showed that most of the time of a small input went to starting threads (two or three per cell) and most of a plot's
+to files nobody reads at once; both are gone. A measured caution: this evaluator memoises normal forms, so a
+repeated identical input is answered from the memo; timings of an input repeated in one session do not measure it.

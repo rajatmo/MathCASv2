@@ -13,6 +13,7 @@ pub mod conformance;
 pub mod engine;
 pub mod packed;
 mod refstore;
+pub mod stack;
 pub mod walk;
 pub mod work;
 pub use engine::{Engine, EngineError, EngineFactory, Evaluated, RaiseHook, StopFlag};

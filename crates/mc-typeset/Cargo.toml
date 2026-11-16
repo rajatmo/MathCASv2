@@ -13,7 +13,8 @@ description = "MathCAS v2 output typesetting: printed output and linear input te
 mc-boxes = { path = "../mc-boxes" }
 # the parser the texts are read with
 mc-syntax = { path = "../mc-syntax" }
+# how much stack the calling thread has left (typesetting runs on it when it has enough); the tests also read
+# the converted texts to terms with it
+mc-api = { path = "../mc-api" }
 
 [dev-dependencies]
-# the converted input and output must read to the same terms as the text
-mc-api = { path = "../mc-api" }

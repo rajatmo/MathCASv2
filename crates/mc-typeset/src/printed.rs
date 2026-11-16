@@ -259,9 +259,18 @@ fn plain(s: &str) -> (Row, SourceMap) {
 /// unoptimised builds, so the walk runs on a thread whose stack is reserved, not committed.
 const STACK_BYTES: usize = 32 << 20;
 
+/// Runs `f` directly when the current thread has [`STACK_BYTES`] of stack left (it declared its stack,
+/// `mc_api::stack`), else on a new thread with that much.
 fn on_big_stack<R: Send, F: FnOnce() -> R + Send>(f: F) -> R {
+    if mc_api::stack::remaining() >= STACK_BYTES {
+        return f();
+    }
     std::thread::scope(|s| {
-        match std::thread::Builder::new().name("mc-boxes".into()).stack_size(STACK_BYTES).spawn_scoped(s, f) {
+        let run = || {
+            mc_api::stack::declare(STACK_BYTES);
+            f()
+        };
+        match std::thread::Builder::new().name("mc-boxes".into()).stack_size(STACK_BYTES).spawn_scoped(s, run) {
             Ok(h) => h.join().unwrap_or_else(|p| std::panic::resume_unwind(p)),
             Err(e) => panic!("cannot start the typesetting thread: {e}"),
         }

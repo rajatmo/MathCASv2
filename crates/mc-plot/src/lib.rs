@@ -471,8 +471,36 @@ pub fn image_of<'h>(h: &'h Heap, t: T<'h>) -> Option<(String, u32, u32)> {
     Some((path.to_string(), w, ht))
 }
 
-/// The width and height of the PNG file at `path`, from its signature and `IHDR` chunk.
+/// The sizes of the PNG files this process wrote last, by path: showing a plot needs its size, and opening a file
+/// just written waits on the system's scan of new files (milliseconds on Windows), so the size is taken from the
+/// bytes when they are written.
+static WRITTEN_SIZES: std::sync::Mutex<std::collections::VecDeque<(std::path::PathBuf, (u32, u32))>> =
+    std::sync::Mutex::new(std::collections::VecDeque::new());
+
+/// Remember the size of the PNG `bytes` written to `path`.
+fn remember_size(path: &std::path::Path, bytes: &[u8]) {
+    let Some(head) = bytes.get(..24).and_then(|b| <&[u8; 24]>::try_from(b).ok()) else { return };
+    let Some(size) = png_header_size(head) else { return };
+    let mut m = WRITTEN_SIZES.lock().unwrap_or_else(|e| e.into_inner());
+    m.retain(|(p, _)| p != path);
+    m.push_back((path.to_path_buf(), size));
+    if m.len() > 256 {
+        m.pop_front();
+    }
+}
+
+/// The width and height of the PNG file at `path`, from its signature and `IHDR` chunk (of a file this process
+/// wrote: as remembered when it was written).
 pub fn png_size(path: &std::path::Path) -> Option<(u32, u32)> {
+    let known = WRITTEN_SIZES.lock().unwrap_or_else(|e| e.into_inner()).iter().rev().find(|(p, _)| p == path).map(|e| e.1);
+    if known.is_some() && path.is_file() {
+        return known;
+    }
+    png_size_read(path)
+}
+
+/// [`png_size`] read from the file.
+fn png_size_read(path: &std::path::Path) -> Option<(u32, u32)> {
     use std::io::Read;
     let mut head = [0u8; 24];
     std::fs::File::open(path).ok()?.read_exact(&mut head).ok()?;
@@ -495,16 +523,23 @@ fn image<'h>(h: &'h Heap, path: &str) -> T<'h> {
     h.call(h.sym("image"), &[h.string(path)])
 }
 
-/// The formats written for every plot, in the order of [`EXTENSIONS`].
-const FORMATS: [Format; 3] = [Format::Png { scale: 1.0 }, Format::Svg, Format::Pdf];
+/// The formats written for every plot when it is made, in the order of [`EXTENSIONS`]: what front ends show.
+const FORMATS: [Format; 2] = [Format::Png { scale: 1.0 }, Format::Svg];
 /// The file extensions of [`FORMATS`].
-const EXTENSIONS: [&str; 3] = ["png", "svg", "pdf"];
+const EXTENSIONS: [&str; 2] = ["png", "svg"];
+/// The PDF sibling, drawn when an export first reads it ([`mc_graphics::deferred`]).
+const PDF_LATER: mc_graphics::deferred::Later = mc_graphics::deferred::Later { ext: "pdf", size: None, format: Format::Pdf };
 /// The page of a plot's print twins, in points: 5 by 3.125 inches, the default page's shape. The text keeps its
 /// size, so it is 1.8 times larger against the figure than on screen, and still readable at column width.
 const PRINT_SIZE: (f64, f64) = (360.0, 225.0);
-/// The formats of the print twins, and their extensions (after the plot's file name).
-const PRINT_FORMATS: [Format; 2] = [Format::Svg, Format::Pdf];
+/// The extensions of the print twins (after the plot's file name); `export_data` alone reads them, so they are
+/// drawn when it first does ([`mc_graphics::deferred`]).
 const PRINT_EXTENSIONS: [&str; 2] = ["print.svg", "print.pdf"];
+/// The print twins, drawn later.
+const PRINT_LATER: [mc_graphics::deferred::Later; 2] = [
+    mc_graphics::deferred::Later { ext: PRINT_EXTENSIONS[0], size: Some(PRINT_SIZE), format: Format::Svg },
+    mc_graphics::deferred::Later { ext: PRINT_EXTENSIONS[1], size: Some(PRINT_SIZE), format: Format::Pdf },
+];
 /// The page of a plot's column twin (round 37), in points: the plot laid out for the picture column of a notebook's
 /// PDF export (`mc-nbexport`: A4 with 2 cm margins, pictures 459.9 pt wide, code at 10.5 pt), where it is drawn
 /// scaled to the column's width. The window shows a plot's 13-point text at the size of the code (13 px); this
@@ -609,17 +644,16 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
     // twin
     let sized = look.size.is_some() || look.graphics.iter().any(|(k, _)| k == "image_size" || k == "aspect_ratio");
     let mut twins: Vec<(&str, Vec<u8>)> = vec![];
+    let mut later = vec![PDF_LATER];
     if !sized {
+        // the column twin now (a notebook's PDF export, in another process, reads it); the print twins later
         let screen = model.opts.image_size;
-        let mut on_page = |size: (f64, f64), formats: &[Format], exts: &[&'static str]| {
-            model.opts.image_size = (Some(size.0), Some(size.1));
-            if let Ok(made) = mc_graphics::render_model(&model, formats, &|| stop.load(Ordering::Relaxed)) {
-                twins.extend(exts.iter().copied().zip(made));
-            }
-        };
-        on_page(PRINT_SIZE, &PRINT_FORMATS, &PRINT_EXTENSIONS);
-        on_page(COLUMN_SIZE, &[Format::Svg], &[COLUMN_EXTENSION]);
+        model.opts.image_size = (Some(COLUMN_SIZE.0), Some(COLUMN_SIZE.1));
+        if let Ok(mut made) = mc_graphics::render_model(&model, &[Format::Svg], &|| stop.load(Ordering::Relaxed)) {
+            twins.push((COLUMN_EXTENSION, made.remove(0)));
+        }
         model.opts.image_size = screen;
+        later.extend(PRINT_LATER);
     }
     // an interrupt while the twins were drawn ends the evaluation
     cx.poll()?;
@@ -627,13 +661,19 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
     entries.extend(extra.entries);
     let json = sidecar::json(&layout, look.scale, &entries);
     cx.poll()?;
-    let text = mc_syntax::Printer::new(h).expr(g);
+    // for the memo only, which keeps no text past its limit: a term surely longer is not printed (a density plot's
+    // raster took longer to print than the whole plot to draw), and none is printed past the limit
+    let text = memo_text(h, g);
     cx.poll()?;
     Ok(Reply::Done(match write_files(&files, &json, None, &twins) {
         Ok(path) => {
             // remembered, so that show(...) and layouts can use the plot as a graphic
-            mc_graphics::memo::remember(&path, text);
-            mc_graphics::memo::remember_graphic(&path, model);
+            if let Some(text) = text {
+                mc_graphics::memo::remember(&path, text);
+            }
+            let model = std::sync::Arc::new(model);
+            mc_graphics::memo::remember_shared(&path, model.clone());
+            mc_graphics::deferred::defer(std::path::Path::new(&path), model, later);
             image(h, &path)
         }
         Err(e) => failure(h, "io", &[h.string(&e)]),
@@ -660,11 +700,12 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
     };
     cx.poll()?;
     let json = sidecar::json(&layout, Scale::default(), &[]);
-    let text = mc_syntax::Printer::new(h).expr(g);
-    cx.poll()?;
-    // a 3D graphic's term next to its picture: a front end turns it from there (mc_graphics::view3d)
+    // a 3D graphic's term next to its picture: a front end turns it from there (mc_graphics::view3d); else the text
+    // is for the memo only, which keeps none past its limit
     let three = mc_graphics::three::is_graphics3d(h, g);
-    let scene = three.then_some(text.as_str());
+    let text = if three { Some(mc_syntax::Printer::new(h).expr(g)) } else { memo_text(h, g) };
+    cx.poll()?;
+    let scene = if three { text.as_deref() } else { None };
     // a 3D picture of the default size also gets a column twin (round 38): the projection drawn on a page as wide as
     // a 2D plot's twin, its text and lines at their own sizes, so the PDF export draws it at the column's width with
     // its text in the proportion the window shows
@@ -680,12 +721,52 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
     }
     Ok(Reply::Done(match write_files(&files, &json, scene, &twins) {
         Ok(path) => {
-            mc_graphics::memo::remember(&path, text);
-            mc_graphics::memo::remember_graphic(&path, model);
+            if let Some(text) = text {
+                mc_graphics::memo::remember(&path, text);
+            }
+            let model = std::sync::Arc::new(model);
+            mc_graphics::memo::remember_shared(&path, model.clone());
+            mc_graphics::deferred::defer(std::path::Path::new(&path), model, vec![PDF_LATER]);
             image(h, &path)
         }
         Err(e) => failure(h, "io", &[h.string(&e)]),
     }))
+}
+
+/// The printed graphics term `g` for the memo (`mc_graphics::memo::remember`), or `None` when it is longer than the
+/// memo keeps: then it is not printed at all when that is sure beforehand ([`prints_longer_than`]), and never
+/// printed past the limit.
+fn memo_text<'h>(h: &'h Heap, g: T<'h>) -> Option<String> {
+    let limit = mc_graphics::memo::TEXT_LIMIT;
+    if prints_longer_than(h, g, limit) {
+        return None;
+    }
+    let p = mc_syntax::Printer::new(h).with_limit(limit + 1);
+    let text = p.expr(g);
+    (!p.was_cut() && text.len() <= limit).then_some(text)
+}
+
+/// Whether the printed text of `t` is surely longer than `limit` bytes: a leaf of a packed array prints at least
+/// one character and a separator `, ` (a list of n leaves, with its brackets, at least 3n), any other node at least
+/// one character. It stops as soon as that is known, so it visits at most `limit` nodes.
+fn prints_longer_than<'h>(h: &'h Heap, t: T<'h>, limit: usize) -> bool {
+    let mut at_least = 0usize;
+    let mut stack = vec![t];
+    while let Some(t) = stack.pop() {
+        if let Some(p) = h.packed(t) {
+            at_least += 3 * p.count();
+        } else {
+            at_least += 1;
+            if let View::App { head, args } = h.view(t) {
+                stack.push(head);
+                stack.extend_from_slice(args);
+            }
+        }
+        if at_least > limit {
+            return true;
+        }
+    }
+    false
 }
 
 /// Whether a `graphics3d` term gives its own size (`image_size`, `aspect_ratio`): its pictures keep that size, and no
@@ -765,8 +846,9 @@ fn named_solutions<'h>(h: &'h Heap, t: T<'h>, depth: usize) -> T<'h> {
     }
 }
 
-/// Write rendered PNG, SVG and PDF bytes (in `FORMATS` order) and the data sidecar `json` as a fresh
-/// `plot-<pid>-<n>.png` with its siblings (`.svg`, `.pdf`, `.json`) in the temporary folder; gives the PNG's path
+/// Write rendered PNG and SVG bytes (in `FORMATS` order) and the data sidecar `json` as a fresh
+/// `plot-<pid>-<n>.png` with its siblings (`.svg`, `.json`) in the temporary folder (the `.pdf` is drawn later,
+/// [`mc_graphics::deferred`]); gives the PNG's path
 /// with forward slashes (it prints without escapes on every system). For a 3D graphic also the scene sidecar (the
 /// printed `graphics3d` term, `.scene3d`); `twins` are the print and column twins by extension (`print.svg`, ...).
 fn write_files(files: &[Vec<u8>], json: &str, scene: Option<&str>, twins: &[(&str, Vec<u8>)]) -> Result<String, String> {
@@ -789,8 +871,9 @@ fn write_files(files: &[Vec<u8>], json: &str, scene: Option<&str>, twins: &[(&st
         // 2D plot look like a 3D one (R20-15)
         let _ = std::fs::remove_file(&sidecar);
     }
-    // the twins, and no twin an earlier process left under this name (a plot of its own size has none)
-    for ext in [PRINT_EXTENSIONS[0], PRINT_EXTENSIONS[1], COLUMN_EXTENSION] {
+    // the twins, and no twin an earlier process left under this name (a plot of its own size has none; the PDF
+    // and the print twins are drawn later)
+    for ext in ["pdf", PRINT_EXTENSIONS[0], PRINT_EXTENSIONS[1], COLUMN_EXTENSION] {
         match twins.iter().find(|(e, _)| *e == ext) {
             Some((_, bytes)) => std::fs::write(path.with_extension(ext), bytes).map_err(|e| e.to_string())?,
             None => {
@@ -800,6 +883,9 @@ fn write_files(files: &[Vec<u8>], json: &str, scene: Option<&str>, twins: &[(&st
     }
     for (bytes, ext) in files.iter().zip(EXTENSIONS).rev() {
         std::fs::write(path.with_extension(ext), bytes).map_err(|e| e.to_string())?;
+    }
+    if let Some(png) = files.first() {
+        remember_size(&path, png);
     }
     Ok(path.to_string_lossy().replace('\\', "/"))
 }
@@ -852,6 +938,7 @@ impl Drop for SessionGuard {
 fn remove_session_files() {
     let paths = std::mem::take(&mut *SESSION_FILES.lock().unwrap_or_else(|e| e.into_inner()));
     for p in paths {
+        mc_graphics::deferred::forget(&p);
         for ext in SIBLINGS {
             let _ = std::fs::remove_file(p.with_extension(ext));
         }
@@ -880,7 +967,8 @@ pub(crate) fn sweep(dir: &std::path::Path, age: std::time::Duration) {
     }
 }
 
-/// A `graphics(...)` value as files to show: rendered like a plot (PNG with SVG and PDF siblings); gives the PNG's
+/// A `graphics(...)` value as files to show: rendered like a plot (PNG with SVG and, drawn when first read, PDF
+/// siblings); gives the PNG's
 /// path and pixel size. `None` when `t` is not a graphics term or cannot be rendered (symbolic coordinates: it is
 /// shown as a term).
 pub fn render_to_files<'h>(h: &'h Heap, t: T<'h>, stop: &dyn Fn() -> bool) -> Option<(String, u32, u32)> {
@@ -889,9 +977,10 @@ pub fn render_to_files<'h>(h: &'h Heap, t: T<'h>, stop: &dyn Fn() -> bool) -> Op
     if !mc_graphics::is_graphics(h, t) {
         return None;
     }
-    let (files, layout) = mc_graphics::render_with_layout(h, t, &FORMATS, stop).ok()?;
+    let (files, layout, model) = mc_graphics::render_read(h, t, &FORMATS, stop).ok()?;
     let scene = mc_graphics::three::is_graphics3d(h, t).then(|| mc_syntax::Printer::new(h).expr(t));
     let path = write_files(&files, &sidecar::json(&layout, Scale::default(), &[]), scene.as_deref(), &[]).ok()?;
+    mc_graphics::deferred::defer(std::path::Path::new(&path), std::sync::Arc::new(model), vec![PDF_LATER]);
     let (w, ht) = png_size(std::path::Path::new(&path))?;
     Some((path, w, ht))
 }

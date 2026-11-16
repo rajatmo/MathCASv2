@@ -27,3 +27,7 @@ mc-numeric = { path = "../mc-numeric" }
 mc-plot = { path = "../mc-plot" }
 # series arithmetic
 mc-poly = { path = "../mc-poly" }
+
+[dev-dependencies]
+# the plot files drawn when first needed (the tests of their deferral)
+mc-graphics = { path = "../mc-graphics" }

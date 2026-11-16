@@ -23,6 +23,9 @@ pub fn on_session_thread() -> bool {
     SESSION_THREAD.with(Cell::get)
 }
 
+/// The stack of each worker of a session's pool.
+const SESSION_STACK: usize = 64 << 20;
+
 /// A heap, the session state that roots its terms, and the pool evaluations run on.
 pub struct Session<St: Trace + Send> {
     /// the heap (between steps, `&mut` access is a safe point's)
@@ -48,9 +51,13 @@ impl<St: Trace + Send> Session<St> {
     pub fn with_state(cfg: Config, threads: usize, state: impl FnOnce(&Heap) -> St) -> Session<St> {
         let pool = ThreadPoolBuilder::new()
             .num_threads(threads.max(1))
-            .stack_size(64 << 20)
+            .stack_size(SESSION_STACK)
             .thread_name(|i| format!("mc-session-{i}"))
-            .start_handler(|_| SESSION_THREAD.with(|c| c.set(true)))
+            .start_handler(|_| {
+                SESSION_THREAD.with(|c| c.set(true));
+                // parsing and lowering inside an evaluation run here instead of on a thread of their own
+                mc_api::stack::declare(SESSION_STACK);
+            })
             .build()
             // invariant: a pool of at most a few threads can be built unless the system is out of threads at start-up
             .expect("thread pool");

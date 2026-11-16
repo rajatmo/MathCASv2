@@ -119,3 +119,15 @@ of the algebra, calculus and solving crates (about 260 recursive functions over 
 term; the scan is `recursive functions whose body calls themselves and walks args`), stack walkers whose visits are
 capped (capped work, not exponential), collectors that keep multiplicity, and functions that do exponential work on
 purpose with a meter that does not reach the stop flag (layout of nested grids, Hyper on large recurrences).
+
+## Round 46: the stack of the calling thread
+
+`stack` (new): a thread started with a large reserved stack declares it (`stack::declare(bytes)` at its start), and
+`stack::remaining()` gives the bytes still free below the caller (0 on a thread that declared nothing; stacks grow
+downwards on every supported target, the position is the address of a local). The recursive phases that need a large
+stack (parsing and lowering in `mc-syntax`, typesetting in `mc-typeset`) run directly on a thread with enough left
+instead of starting one per call. Declared: the workers of every session (`mc-core`, 64 MB), the kernel's engine
+thread (`mc-kernel`, 64 MB), and the threads those phases start themselves (so nested calls run inline).
+Why: every cell parsed its text two or three times on a fresh 64 MB thread (the reader, the check of `;` after
+statements, the check of calls written as products): about 0.35 ms of a 0.5 ms small cell on an idle machine, and
+tens to hundreds of milliseconds on a loaded one, where a new thread waits for a time slice. Now about 0.05 ms.

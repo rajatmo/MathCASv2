@@ -26,6 +26,8 @@ fn image_path(printed: &str) -> &str {
 
 /// The text of the file next to the PNG at `path` with extension `ext`.
 fn sibling(path: &str, ext: &str) -> String {
+    // the PDF is drawn when first read
+    mc_graphics::deferred::ensure(std::path::Path::new(path));
     String::from_utf8_lossy(&std::fs::read(std::path::Path::new(path).with_extension(ext)).unwrap()).to_string()
 }
 
@@ -151,6 +153,7 @@ fn plots_have_svg_and_pdf_siblings_and_formatted_labels() {
     assert!(svg.starts_with("<svg ") && svg.contains(r#"width="640" height="400""#));
     // the label's math: E, an index gamma
     assert!(svg.contains(r#"aria-label="$E_\gamma$ (GeV)""#), "{svg}");
+    mc_graphics::deferred::ensure(std::path::Path::new(path));
     let pdf = std::fs::read(std::path::Path::new(path).with_extension("pdf")).unwrap();
     let pdf = String::from_utf8_lossy(&pdf);
     assert!(pdf.contains("/MediaBox [0 0 640 400]") && pdf.contains("/Subtype /Type3") && pdf.contains("/FlateDecode"));

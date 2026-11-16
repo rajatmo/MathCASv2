@@ -282,3 +282,23 @@ used. Tests: `tests/round20.rs`.
   that test conditions) gives `failure(unknown_option, evaluation_monitor)`, never accepting and ignoring it; a step
   monitor is unknown to every plot (a plot takes no steps). Tests `round44_language.rs`
   `plots_call_the_evaluation_monitor_at_every_sample`, `round43b_monitors.rs` `plots_take_function_monitors_only`.
+
+## Round 46: what a plot writes when it is made
+
+- `FORMATS` is PNG and SVG (what front ends show); the PDF (`PDF_LATER`) and the print twins (`PRINT_LATER`) go to
+  `mc_graphics::deferred` and are drawn when an export first reads them. The column twin stays: a notebook's PDF
+  export and the saved notebook (another process) read it. `write_files` still removes stale `.pdf` and twins of an
+  earlier process with the same name, so a reader never sees an old file; the session's cleanup forgets the waiting
+  files of the plots it removes.
+- The size of a written PNG is kept (`WRITTEN_SIZES`, the last 256): showing a value `image(path)` needs it, and
+  opening a file just written waits on the system's scan of new files (several milliseconds on Windows). `png_size`
+  answers from it while the file exists, else reads the file as before.
+- Measured (kernel, idle machine, minimum of 3): `plot(sin(x), [x, 0, 10])` 10.7 -> 5.0 ms,
+  `graphics([disk()])` 7.7 -> 2.1 ms, `grid([[a, b], [c, d]])` 4.5 -> 1.8 ms, `graphics3d([sphere()])` 14.8 -> 8.0 ms,
+  `plot3d(sin(x*y), ...)` 116 -> 70 ms. What is left of a small 2D plot: PNG rendering (about 2 ms) and the writes of
+  five small files (about 0.35 ms each); of a 3D one, the PNG and SVG (30-40 ms), the column twin's SVG (15 ms) and
+  the printed term of the scene sidecar (15-20 ms; `mc-syntax` printing of packed reals).
+- The memo's text of a 2D plot (`memo_text`) is not printed when it is surely longer than the memo keeps
+  (`prints_longer_than`: three bytes per packed leaf at least) and never printed past that limit; the 3D scene
+  sidecar is printed in full as before. With the printer's packed-array path (`mc-syntax` NOTES, round 46) a
+  `density_plot` went from about 270 ms to 60 ms (CPU time of the kernel, idle and loaded machine alike).

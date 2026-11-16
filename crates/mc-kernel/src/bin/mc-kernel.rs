@@ -29,13 +29,25 @@ fn main() -> ExitCode {
             other => return usage_error(&format!("unknown argument {other}")),
         }
     }
-    let input = BufReader::new(io::stdin());
-    match server::serve(input, &mut io::stdout().lock(), config) {
+    // the engine's thread has a large stack and says so: reading each request's text (parsing, the checks of
+    // calls) then runs on it instead of starting a thread per parse
+    let serve = move || {
+        mc_api::stack::declare(ENGINE_STACK);
+        server::serve(BufReader::new(io::stdin()), &mut io::stdout().lock(), config)
+    };
+    let served = match std::thread::Builder::new().name("mc-kernel-engine".into()).stack_size(ENGINE_STACK).spawn(serve) {
+        Ok(t) => t.join().unwrap_or_else(|p| std::panic::resume_unwind(p)),
+        Err(_) => server::serve(BufReader::new(io::stdin()), &mut io::stdout().lock(), config),
+    };
+    match served {
         Ok(()) => ExitCode::SUCCESS,
         // the client closed the output: nobody is left to tell
         Err(_) => ExitCode::FAILURE,
     }
 }
+
+/// The stack of the engine's thread.
+const ENGINE_STACK: usize = 64 << 20;
 
 fn usage_error(message: &str) -> ExitCode {
     eprintln!("mc-kernel: {message}\n{USAGE}");

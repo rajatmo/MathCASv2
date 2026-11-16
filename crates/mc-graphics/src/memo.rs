@@ -12,9 +12,13 @@ static MEMO: Mutex<VecDeque<(String, String)>> = Mutex::new(VecDeque::new());
 const MEMO_ENTRIES: usize = 256;
 const MEMO_BYTES: usize = 24 << 20;
 
+/// The longest printed term remembered: a plot prints its term with at most this many bytes plus one
+/// (`Printer::with_limit`), so a larger one is not printed in full only to be dropped here.
+pub const TEXT_LIMIT: usize = MEMO_BYTES / 4;
+
 /// Remember the graphics term (printed) a plot's PNG file at `path` was drawn from.
 pub fn remember(path: &str, text: String) {
-    if text.len() > MEMO_BYTES / 4 {
+    if text.len() > TEXT_LIMIT {
         return;
     }
     let Ok(mut m) = MEMO.lock() else { return };
@@ -45,6 +49,12 @@ const GRAPHICS_BYTES: usize = 48 << 20;
 
 /// Remember the graphic a plot's PNG file at `path` was drawn from.
 pub fn remember_graphic(path: &str, g: crate::model::Graphic) {
+    remember_shared(path, std::sync::Arc::new(g));
+}
+
+/// [`remember_graphic`] of a graphic that is also kept elsewhere (the files of the plot drawn later,
+/// [`crate::deferred`]).
+pub fn remember_shared(path: &str, g: std::sync::Arc<crate::model::Graphic>) {
     // a surface of a million triangles is not kept, and the kept ones are bounded in sum (ten surface plots in a
     // session were 700 MB)
     if weigh(&g) > GRAPHICS_BYTES / 4 {
@@ -52,7 +62,7 @@ pub fn remember_graphic(path: &str, g: crate::model::Graphic) {
     }
     let Ok(mut m) = GRAPHICS.lock() else { return };
     m.retain(|(p, _)| p != path);
-    m.push_back((path.to_string(), std::sync::Arc::new(g)));
+    m.push_back((path.to_string(), g));
     let mut total: usize = m.iter().map(|e| weigh(&e.1)).sum();
     while m.len() > GRAPHICS_ENTRIES || total > GRAPHICS_BYTES {
         match m.pop_front() {
@@ -63,7 +73,7 @@ pub fn remember_graphic(path: &str, g: crate::model::Graphic) {
 }
 
 /// The bytes of a graphic, about: its points and raster cells.
-fn weigh(g: &crate::model::Graphic) -> usize {
+pub(crate) fn weigh(g: &crate::model::Graphic) -> usize {
     use crate::model::Shape;
     const PT: usize = std::mem::size_of::<crate::model::Pt>();
     g.items

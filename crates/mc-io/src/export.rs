@@ -99,8 +99,10 @@ fn write(path: &str, s: impl AsRef<[u8]>) -> Result<(), String> {
     std::fs::write(path, s).map_err(|e| e.to_string())
 }
 
-/// The vector twin of an image file: the PDF next to it with the same name (plots and imported PDF pages have one).
+/// The vector twin of an image file: the PDF next to it with the same name (plots and imported PDF pages have one;
+/// a plot's is drawn when first needed, `mc_graphics::deferred`).
 fn twin(png: &str) -> Option<std::path::PathBuf> {
+    mc_graphics::deferred::ensure(Path::new(png));
     Some(Path::new(png).with_extension("pdf")).filter(|p| p.is_file())
 }
 
@@ -108,6 +110,7 @@ fn twin(png: &str) -> Option<std::path::PathBuf> {
 /// has one (`name.print.pdf`: a plot of the default size laid out on a page of publication size, so that its text
 /// is not small once the figure is placed in a document), else the twin drawn as on screen.
 fn export_twin(png: &str, ext: &str) -> Option<std::path::PathBuf> {
+    mc_graphics::deferred::ensure(Path::new(png));
     let print = Path::new(png).with_extension(format!("print.{ext}"));
     Some(print).filter(|p| p.is_file()).or_else(|| Some(Path::new(png).with_extension(ext)).filter(|p| p.is_file()))
 }

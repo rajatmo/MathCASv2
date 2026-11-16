@@ -25,6 +25,8 @@ png = "0.18"
 flate2 = "1"
 # PDF parsing, page rendering and text extraction (pure Rust)
 hayro = "0.8"
+# the files of a plot drawn when first needed (its PDF and print twins, which exports copy)
+mc-graphics = { path = "../mc-graphics" }
 
 [dev-dependencies]
 mc-engine = { path = "../mc-engine" }

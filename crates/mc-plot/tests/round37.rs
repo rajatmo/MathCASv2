@@ -36,7 +36,10 @@ fn default_plots_get_a_column_twin_and_sized_ones_none() {
         assert!(png.is_file(), "{src}: {}", png.display());
         let (w, h) = svg_size(&png.with_extension("column.svg"));
         assert_eq!((w, h), (569.4, 355.9), "{src}");
-        // the screen drawing and the print twin keep their sizes
+        // the screen drawing and the print twin keep their sizes; the print twins are drawn when first read
+        assert!(!png.with_extension("print.svg").exists() && !png.with_extension("pdf").exists(), "{src}");
+        mc_graphics::deferred::ensure(png);
+        assert!(png.with_extension("print.pdf").is_file() && png.with_extension("pdf").is_file(), "{src}");
         assert_eq!(svg_size(&png.with_extension("svg")), (640.0, 400.0), "{src}");
         assert_eq!(svg_size(&png.with_extension("print.svg")), (360.0, 225.0), "{src}");
     }
@@ -44,6 +47,7 @@ fn default_plots_get_a_column_twin_and_sized_ones_none() {
         let png = png_of(&eval(&mut e, src));
         let png = Path::new(&png);
         assert!(png.is_file(), "{src}");
+        mc_graphics::deferred::ensure(png);
         for twin in ["column.svg", "print.svg", "print.pdf"] {
             assert!(!png.with_extension(twin).exists(), "{src}: {twin}");
         }

@@ -303,3 +303,12 @@ through the same plan (plot range, area) the page is painted with; `rasterize(g,
   the points and faces made (`page::size`), `page::paint` counts the points painted and draws a set of more than
   4096 points in parts with a poll between them (the SVG and PDF then hold several point paths; the picture is the
   same), and the 3D draw polls around its depth sort. A poll comes at least every 4096 points or faces.
+
+## Round 46: files drawn when first needed
+
+`deferred` (new): the files of a plot that only an export reads (its PDF, the print twins `print.svg` and
+`print.pdf`) are left with the graphic (`Arc<model::Graphic>`, shared with the memo through `memo::remember_shared`)
+and drawn by `deferred::ensure(png)`, which `mc-io` calls before it looks for them. At most 64 plots wait, and at
+most about 64 MB of graphics; past that the oldest are written then (nothing is lost, the cost moves). A plot whose
+PNG is gone is not drawn; `forget` drops a removed plot. Measured on a 61 x 61 surface: PNG 15 ms, SVG 15-25 ms, PDF
+35-70 ms, so a 3D plot took about 115 ms and now 70 ms; a 2D plot about 1.5 ms of drawing and three file writes less.

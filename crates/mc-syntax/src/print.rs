@@ -240,6 +240,16 @@ enum Task<'h> {
     NumForm(Option<NumForm>),
 }
 
+/// What [`Run::packed_list`] did.
+enum Packed {
+    /// written
+    Written,
+    /// written past the limit, or stopped: the text ends here
+    Cut,
+    /// not a packed array it writes: the general path prints it
+    No,
+}
+
 struct Run<'p, 'h, S: Store + ?Sized> {
     p: &'p Printer<'h, S>,
     out: String,
@@ -394,6 +404,15 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
                 Task::PlainExit => self.plain -= 1,
                 Task::NumForm(f) => self.num_form = f,
                 Task::Expr(t, ctx) => {
+                    match self.packed_list(t, ctx) {
+                        Packed::Written => continue,
+                        Packed::Cut => {
+                            self.out.push('…');
+                            self.p.cut.set(true);
+                            return;
+                        }
+                        Packed::No => {}
+                    }
                     let mut v = Vec::new();
                     let (level, prefix) = self.expr_form(t, ctx, &mut v);
                     let paren = ctx.force
@@ -421,6 +440,90 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
                 }
             }
         }
+    }
+
+    /// A packed array of machine integers or finite machine reals, written straight into the text: the same text
+    /// as the general path (a list `[a, b, ...]` of number literals, each as [`Run::literal`] writes it) without a
+    /// term or a task per element, cut by the limit at the same place (the limit is checked before every bracket,
+    /// separator and number, as before every task). Only where the general path would do just this: no number
+    /// form, no display, no `full_form`, and no parentheses around the list.
+    fn packed_list(&mut self, t: T<'h>, ctx: Ctx) -> Packed {
+        if self.num_form.is_some() || self.p.display || self.plain > 0 || ctx.force || ctx.min > ATOM {
+            return Packed::No;
+        }
+        let Some(p) = self.store().packed(t) else { return Packed::No };
+        if self.classify(t).map(|(h, _)| h) != Some(Head::List) {
+            return Packed::No;
+        }
+        let dims = p.dims();
+        match p {
+            mc_api::Packed::Reals { data, .. } if data.iter().all(|x| x.is_finite()) => {}
+            mc_api::Packed::Ints { .. } => {}
+            _ => return Packed::No,
+        }
+        let limit = self.p.limit.unwrap_or(usize::MAX);
+        let mut num = String::new();
+        let row = *dims.last().unwrap_or(&1) as usize;
+        let rows: usize = dims[..dims.len() - 1].iter().map(|&d| d as usize).product();
+        let mut index = vec![0usize; dims.len() - 1];
+        macro_rules! piece {
+            ($s:expr) => {{
+                if self.out.len() > limit {
+                    return Packed::Cut;
+                }
+                self.out.push_str($s);
+            }};
+        }
+        for r in 0..rows {
+            // the brackets that open before this row: one for each dimension whose index restarts here
+            let opens = if r == 0 { dims.len() - 1 } else { index.iter().rev().take_while(|&&k| k == 0).count() };
+            if r > 0 {
+                piece!(", ");
+            }
+            for _ in 0..=opens {
+                piece!("[");
+            }
+            for k in 0..row {
+                if k > 0 {
+                    piece!(", ");
+                }
+                num.clear();
+                {
+                    use std::fmt::Write;
+                    match p {
+                        mc_api::Packed::Reals { data, .. } => {
+                            let x = data[r * row + k];
+                            if x.is_sign_negative() {
+                                num.push('-');
+                            }
+                            let _ = write!(num, "{:?}", x.abs());
+                        }
+                        mc_api::Packed::Ints { data, .. } => {
+                            let _ = write!(num, "{}", data[r * row + k]);
+                        }
+                        mc_api::Packed::Complexes { .. } => {}
+                    }
+                }
+                piece!(&num);
+            }
+            // close this row and the dimensions that end with it
+            let mut closes = 1;
+            for d in (0..index.len()).rev() {
+                index[d] += 1;
+                if index[d] < dims[d] as usize {
+                    break;
+                }
+                index[d] = 0;
+                closes += 1;
+            }
+            for _ in 0..closes {
+                piece!("]");
+            }
+            if r % 64 == 63 && self.p.stop.as_ref().is_some_and(|stop| stop()) {
+                return Packed::Cut;
+            }
+        }
+        Packed::Written
     }
 
     fn emit(&mut self, v: Vec<Task<'h>>, paren: bool) {
