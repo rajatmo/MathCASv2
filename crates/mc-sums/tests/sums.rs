@@ -47,7 +47,8 @@ fn infinite_sums() {
         ("sum(1/k^2, [k, 3, inf])", "-5/4 + (1/6)*pi^2"),
         ("sum(x^k/factorial(k), [k, 0, inf])", "exp(x)"),
         ("sum(1/factorial(k), [k, 0, inf])", "e"),
-        ("sum(a^k, [k, 0, inf])", "(1 - a)^-1"),
+        ("sum(a^k, [k, 0, inf])", "conditional_expression((1 - a)^-1, abs(a) < 1)"),
+        ("sum(a^k, [k, 0, inf], generate_conditions: false)", "(1 - a)^-1"),
         ("sum(k/2^k, [k, 1, inf])", "2"),
         // divergent: unevaluated
         ("sum(k*2^k, [k, 0, inf])", "sum(k*2^k, [k, 0, inf])"),

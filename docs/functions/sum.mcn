@@ -25,6 +25,9 @@
 # Every closed form of a sum with symbolic bounds or parameters is compared with the terms added one by one at several points before it is returned.
 
 #% item
+# An infinite sum with parameters is given with the condition under which it converges (`conditional_expression(value, condition)`), from the convergence tests of `sum_convergence` or the ratio test; for a bilateral sum the conditions of both halves. `generate_conditions: false` gives the value alone; conditions implied by `assumptions:` are left out.
+
+#% item
 # `sum(f, k)` is the indefinite sum: a function `S` with `S(k + 1) - S(k) = f(k)`.
 
 #% item
@@ -118,7 +121,7 @@ sum(1/(i + j)^2, [i, 1, n], [j, 1, 2])
 #% cell
 sum(x^k/k, [k, 1, inf])
 #% output
-#= -log(1 - x)
+#= conditional_expression(-log(1 - x), abs(x) < 1)
 
 #% cell
 sum(1/(k^2 + 1), [k, 1, inf])
@@ -289,12 +292,35 @@ sum(k, [k, 1, n, 2])
 #= sum(k, [k, 1, n, 2])
 
 #% text
-# The geometric series is given without its condition `abs(x) < 1`; an `assumptions:` option states it but does not change the result:
+# An infinite sum with parameters comes with the condition under which it converges, as one `conditional_expression`; `assumptions:` that imply the condition leave the value alone, and `generate_conditions: false` gives the value without it:
 
 #% cell
 sum(x^k, [k, 0, inf])
 #% output
+#= conditional_expression((1 - x)^-1, abs(x) < 1)
+
+#% cell
+sum(1/k^p, [k, 1, inf])
+#% output
+#= conditional_expression(zeta(p), re(p) > 1)
+
+#% cell
+sum(x^k, [k, 0, inf], assumptions: abs(x) < 1/2)
+#% output
 #= (1 - x)^-1
+
+#% cell
+sum(x^k/k, [k, 1, inf], generate_conditions: false)
+#% output
+#= -log(1 - x)
+
+#% text
+# A bilateral series whose halves converge for no common value of the parameter stays as it is:
+
+#% cell
+sum(x^k, [k, -inf, inf])
+#% output
+#= sum(x^k, [k, -inf, inf])
 
 #% text
 # A sum with an inexact bound or summand is numeric (as `n_sum`), and a very long exact range with no closed form stays a call:

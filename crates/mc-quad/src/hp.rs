@@ -270,10 +270,13 @@ pub(crate) fn integrate<'h>(
     // level 0 point by point: the range of j per piece and side
     let mut sum = zero.clone();
     let mut range = Vec::with_capacity(pcs.len());
+    // log2 of the integral between finite ends and the last nodes there (`end_mass`)
+    let mut trunc = f64::NEG_INFINITY;
     for pc in &pcs {
         let mut r = [0i64; 2];
         let mut largest = f64::NEG_INFINITY;
         for (k, side) in [1i64, -1].into_iter().enumerate() {
+            let mut last = f64::NEG_INFINITY;
             // at most MAX_STEPS steps per side: the nodes there are far beyond any precision's range, and an
             // integrand whose terms never decay (a divergent integral) otherwise walked on until memory ran out
             for j in 0..=MAX_STEPS {
@@ -281,9 +284,25 @@ pub(crate) fn integrate<'h>(
                 if j == 0 && side < 0 {
                     continue;
                 }
-                // a node at the end: the finer levels still have nodes before it
+                // a node at the end: the finer levels still have nodes before it. At a finite end other than 0 the
+                // nodes stop within a few units of the last place of the end; the integral beyond the last one is
+                // estimated (`end_mass`), so a singular end, as (3/2 - x)^(-1/2) at 3/2, cannot hide its mass there
                 let Some((x, w)) = node(pc, side * j, 0, &half_pi, p) else {
                     r[k] = j;
+                    if matches!(pc.kind, Kind2::Finite(..)) && j > 0 && last > largest - p as f64 - 10.0 {
+                        // the last node that exists, at a resolution of 2^-30 in t
+                        const L: u32 = 30;
+                        let (mut a, mut b) = ((j - 1) << L, j << L);
+                        while b - a > 1 {
+                            let m = (a + b) / 2;
+                            if node(pc, side * m, L, &half_pi, p).is_some() {
+                                a = m;
+                            } else {
+                                b = m;
+                            }
+                        }
+                        trunc = trunc.max(end_mass(cx, f, pc, side, a, L, &half_pi, p)?);
+                    }
                     break;
                 };
                 let mut y = [zero.clone()];
@@ -291,11 +310,16 @@ pub(crate) fn integrate<'h>(
                     if j < 2 {
                         return Ok(BallOutcome::NotNumeric(num(x, p)));
                     }
-                    // a tail that stops being numeric ends the range (decision N2.7)
+                    // a tail that stops being numeric ends the range (decision N2.7); at a finite end the integral
+                    // beyond the last numeric node is estimated as above
+                    if matches!(pc.kind, Kind2::Finite(..)) && last > largest - p as f64 - 10.0 {
+                        trunc = trunc.max(end_mass(cx, f, pc, side, (j - 1) << 30, 30, &half_pi, p)?);
+                    }
                     break;
                 }
                 let term = y[0].mul(&num(w, p));
                 let l = log2_abs(&term);
+                last = l;
                 largest = largest.max(l);
                 sum = sum.add(&term);
                 r[k] = j;
@@ -310,10 +334,13 @@ pub(crate) fn integrate<'h>(
     let mut level = 0u32;
     loop {
         let value = history[history.len() - 1].clone();
-        let err = estimate(&history, p);
+        let rule = estimate(&history, p);
+        let err = rule.max(trunc);
         let mag = log2_abs(&value);
-        let converged = level >= 3 && err <= goals.0.max(goals.1 + mag);
-        if converged || level >= max_level {
+        let goal = goals.0.max(goals.1 + mag);
+        let converged = level >= 3 && err <= goal;
+        // the rule has converged but the ends hold more than the goal allows: finer levels do not change that
+        if converged || level >= max_level || (level >= 3 && rule <= goal) {
             return Ok(BallOutcome::Done { value, err_log2: err, converged });
         }
         level += 1;
@@ -359,6 +386,70 @@ pub(crate) fn integrate<'h>(
         let h = num(Ball::from_ratio(1, 1i64 << level, p), p);
         history.push(sum.mul(&h));
     }
+}
+
+/// log2 |x| of a ball's midpoint, to machine accuracy (-inf for zero).
+fn log2_fine(b: &Ball) -> f64 {
+    if b.mid.is_zero() {
+        return f64::NEG_INFINITY;
+    }
+    let bits = b.mid.man.bits() as i64;
+    mc_arith::num::float::dyadic_to_f64(false, &b.mid.man, -bits).log2() + b.mid.top() as f64
+}
+
+/// log2 |v| of a number to machine accuracy (the larger part of a complex one).
+fn log2_num(v: &Num) -> f64 {
+    let part = |r: &Real| match r {
+        Real::Ball(b, _) => log2_fine(b),
+        other => other.to_f64().abs().log2(),
+    };
+    match v {
+        Num::Real(r) => part(r),
+        Num::Complex(a, b) => part(a).max(part(b)),
+    }
+}
+
+/// log2 of an estimate of the integral between the finite end of `pc` on `side` and the node at t = j/2^level
+/// (the last node there): the integrand is fitted by a power law c d^alpha in the distance d to the end from its
+/// values at t, t - 1/4 and t - 1/2 (toward the middle), and the integral to the end is c d^(alpha + 1)/(alpha + 1)
+/// with the smaller of the two fitted exponents. An exponent at or below -1 (a divergent end) or a value that is not
+/// numeric gives +inf (no estimate). As `de::end_mass`, at machine precision.
+#[allow(clippy::too_many_arguments)]
+fn end_mass<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    f: &mut dyn NumFn<'h, Num>,
+    pc: &BPiece,
+    side: i64,
+    j: i64,
+    level: u32,
+    half_pi: &Ball,
+    p: u64,
+) -> Res<f64> {
+    let Kind2::Finite(a, b) = &pc.kind else { return Ok(f64::INFINITY) };
+    let end = if side > 0 { b } else { a };
+    let mut pts = [(0.0f64, 0.0f64); 3];
+    for (k, slot) in pts.iter_mut().enumerate() {
+        // j counts from the middle on either side: smaller is farther from the end
+        let jj = j - k as i64 * (1i64 << (level - 2));
+        let Some((x, _)) = node(pc, side * jj, level, half_pi, p) else { return Ok(f64::INFINITY) };
+        let mut y = [Num::int(0)];
+        if !f.eval(cx, &[num(x.clone(), p)], &mut y)? {
+            return Ok(f64::INFINITY);
+        }
+        *slot = (log2_fine(&x.sub(end, p)), log2_num(&y[0]));
+    }
+    let [(d1, y1), (d2, y2), (d3, y3)] = pts;
+    if y1 == f64::NEG_INFINITY {
+        return Ok(y2 + d1);
+    }
+    if !(d1 < d2 && d2 < d3) || !y2.is_finite() || !y3.is_finite() || !y1.is_finite() {
+        return Ok(f64::INFINITY);
+    }
+    let alpha = ((y1 - y2) / (d1 - d2)).min((y2 - y3) / (d2 - d3));
+    if alpha.is_nan() || alpha <= -1.0 + 1e-6 {
+        return Ok(f64::INFINITY);
+    }
+    Ok(y1 + d1 - (alpha + 1.0).log2())
 }
 
 /// Bailey's estimate (log2 of the absolute error) of the last level sum: with d1, d2 the log2 relative

@@ -683,7 +683,7 @@ fn residue_series<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, s:
             }
         };
         let inf = h.sym_term(h.sym("inf"));
-        let sum = apply(cx, b, "sum", &[term, h.call(b.hd.list, &[k, k0, inf])])?;
+        let sum = apply(cx, b, "sum", &[term, h.call(b.hd.list, &[k, k0, inf]), h.call(h.sym("options"), &[h.call(h.sym(names::RULE), &[h.sym_term(h.sym("generate_conditions")), h.sym_term(h.sym("false"))])])])?;
         if !is_free(b, sum, h.sym_term(h.sym("sum"))) || is_failure(b, sum) {
             return Ok(None);
         }

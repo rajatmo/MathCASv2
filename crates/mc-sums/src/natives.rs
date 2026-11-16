@@ -142,76 +142,196 @@ impl mc_eval::Native for SumWrap {
             if let Some(r) = mc_poly::opts::assumptions_option(cx, name, args)? {
                 return Ok(Reply::Done(r));
             }
-            // generate_conditions: the generic answer; with `true` an infinite sum also gets the condition under
-            // which it converges: that of the convergence tests of `sum_convergence` (sum(1/n^a) needs re(a) > 1),
-            // else that of the ratio test, r < 1 for r = lim |f(k+1)/f(k)| when r depends on the parameters
-            // (sum(a^k) needs |a| < 1)
+            // generate_conditions: `false` gives the value alone, `true` (the default, see `conditioned`) the value
+            // with the condition under which an infinite sum or product with parameters converges
             if opts.len() == 1 && option(h, &opts, "generate_conditions").is_some() {
                 let wants = option(h, &opts, "generate_conditions") == Some(h.sym_term(h.sym("true")));
-                let inf = h.sym_term(h.sym("inf"));
-                // an infinite product in q-Pochhammer symbols converges for |q| < 1
-                if let (true, true, [_, spec]) = (wants, self.product, plain.as_slice()) {
-                    let to_inf = matches!(cx.as_list(*spec), Some(&[_, hi]) | Some(&[_, _, hi]) if hi == inf);
-                    if to_inf {
-                        let v = cx.eval(h.call(h.sym(name), &plain))?;
-                        if let Some(q) = q_base(h, v) {
-                            let cond = h.call(h.sym("less"), &[h.call(h.sym("abs"), &[q]), h.int(1)]);
-                            let implied = cx.eval(h.call(h.sym("refine"), &[cond]))?;
-                            if cx.is_true(implied) {
-                                return Ok(Reply::Done(v));
-                            }
-                            return Ok(Reply::Again(h.call(h.sym("conditional_expression"), &[v, cond])));
-                        }
-                        return Ok(Reply::Done(v));
-                    }
-                }
-                if let (true, false, [f, spec]) = (wants, self.product, plain.as_slice()) {
-                    // [k, inf] runs from k = 1
-                    let range = match cx.as_list(*spec) {
-                        Some(&[k, lo, hi]) => Some((k, lo, hi)),
-                        Some(&[k, hi]) => Some((k, h.int(1), hi)),
-                        _ => None,
+                let call = h.call(h.sym(name), &plain);
+                if !wants {
+                    let old = PLAIN.with(|p| p.replace(true));
+                    let r = match self.compute(cx, call, &plain) {
+                        Ok(Reply::Again(x)) => cx.eval(x).map(Reply::Done),
+                        other => other,
                     };
-                    if let Some((k, lo, hi)) = range {
-                        if hi == inf && matches!(h.view(k), View::Sym(_)) {
-                            let v = cx.eval(h.call(h.sym(name), &plain))?;
-                            let summed = !contains_head(h, v, h.sym_term(h.sym(name)));
-                            if !summed {
-                                return Ok(Reply::Done(v));
-                            }
-                            let conv_name = h.sym_term(h.sym("sum_convergence"));
-                            let conv = cx.eval(h.call(h.sym("sum_convergence"), &[*f, h.call(h.sym(names::LIST), &[k, lo, hi])]))?;
-                            if cx.is_true(conv) {
-                                return Ok(Reply::Done(v));
-                            }
-                            let decided = conv != h.sym_term(h.sym("false")) && !contains_head(h, conv, conv_name) && !contains_head(h, conv, k);
-                            let cond = if decided {
-                                Some(conv)
-                            } else {
-                                let next = h.call(h.sym("add"), &[k, h.int(1)]);
-                                let shifted = cx.eval(h.call(h.sym("rewrite"), &[*f, h.call(h.sym(names::RULE), &[k, next])]))?;
-                                let ratio = h.call(h.sym("simplify"), &[h.call(h.sym("abs"), &[h.call(h.sym("mul"), &[shifted, h.call(h.sym("pow"), &[*f, h.int(-1)])])])]);
-                                let r = cx.eval(h.call(h.sym("limit"), &[ratio, h.call(h.sym(names::RULE), &[k, inf])]))?;
-                                let number = matches!(h.view(r), View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. });
-                                let found = !contains_head(h, r, h.sym_term(h.sym("limit"))) && !contains_head(h, r, k) && !number && r != inf;
-                                found.then(|| h.call(h.sym("less"), &[r, h.int(1)]))
-                            };
-                            if let Some(cond) = cond {
-                                // a condition the assumptions in force imply is dropped
-                                let implied = cx.eval(h.call(h.sym("refine"), &[cond]))?;
-                                if cx.is_true(implied) {
-                                    return Ok(Reply::Done(v));
-                                }
-                                return Ok(Reply::Again(h.call(h.sym("conditional_expression"), &[v, cond])));
-                            }
-                            return Ok(Reply::Done(v));
-                        }
-                    }
+                    PLAIN.with(|p| p.set(old));
+                    return r;
                 }
-                return Ok(Reply::Again(h.call(h.sym(name), &plain)));
+                return Ok(Reply::Again(call));
             }
             return self.inner.call(cx, t, args);
         }
+        // the outermost sum or product of an evaluation: the value and its condition (nested calls, made by the
+        // methods and by the condition's own tests, give plain values)
+        if PLAIN.with(|p| p.get()) {
+            return self.compute(cx, t, args);
+        }
+        PLAIN.with(|p| p.set(true));
+        let r = self.compute(cx, t, args);
+        let r = match r {
+            Ok(Reply::Done(v)) => conditioned(cx, name, self.product, args, v),
+            // a rewritten call (zeta(p) of the list library's rule): its value, then the condition
+            Ok(Reply::Again(x)) => match cx.eval(x) {
+                Ok(v) => conditioned(cx, name, self.product, args, v),
+                Err(e) => Err(e),
+            },
+            other => other,
+        };
+        PLAIN.with(|p| p.set(false));
+        r
+    }
+    fn trace(&mut self, visit: &mut dyn FnMut(&mut Raw)) {
+        self.inner.trace(visit);
+    }
+    fn reads_term(&self) -> bool {
+        self.inner.reads_term()
+    }
+    fn curried(&self) -> bool {
+        self.inner.curried()
+    }
+}
+
+thread_local! {
+    /// Set while a sum or product is computed: the sums and products evaluated inside (by the methods, or to test a
+    /// condition) give their plain values, without conditions.
+    static PLAIN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `f` with the sums and products it evaluates giving plain values (no conditions): for the methods of other
+/// functions that sum a series formally (generating functions).
+pub(crate) fn plain<R>(f: impl FnOnce() -> R) -> R {
+    let old = PLAIN.with(|p| p.replace(true));
+    let r = f();
+    PLAIN.with(|p| p.set(old));
+    r
+}
+
+/// Is `t` free of every symbol but `k` and the constants (a sum or product without parameters)?
+fn no_parameters<'h>(h: &'h mc_core::Heap, t: T<'h>, k: T<'h>) -> bool {
+    let mut stack = vec![t];
+    let mut seen = std::collections::HashSet::new();
+    while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
+        match h.view(u) {
+            View::Sym(s) => {
+                if u != k && !matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio" | "im" | "inf" | "glaisher" | "khinchin") {
+                    return false;
+                }
+            }
+            View::App { args, .. } => stack.extend_from_slice(args),
+            _ => {}
+        }
+    }
+    true
+}
+
+/// The condition under which `sum(f, [k, lo, inf])` converges, when it depends on the parameters: that of the
+/// convergence tests of `sum_convergence` (sum(1/n^a) needs re(a) > 1), else that of the ratio test, r < 1 for
+/// r = lim |f(k + 1)/f(k)| when r depends on the parameters (sum(a^k) needs |a| < 1). `Ok(None)`: none found (the
+/// sum converges, or nothing can be said); `Err(())` inside: the sum is proved divergent.
+fn convergence<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>) -> Res<Result<Option<T<'h>>, ()>> {
+    let h = cx.heap();
+    let inf = h.sym_term(h.sym("inf"));
+    let conv_name = h.sym_term(h.sym("sum_convergence"));
+    let conv = cx.eval(h.call(h.sym("sum_convergence"), &[f, h.call(h.sym(names::LIST), &[k, lo, inf])]))?;
+    if cx.is_true(conv) {
+        return Ok(Ok(None));
+    }
+    if conv == h.sym_term(h.sym("false")) {
+        return Ok(Err(()));
+    }
+    if !contains_head(h, conv, conv_name) && !contains_head(h, conv, k) {
+        return Ok(Ok(Some(conv)));
+    }
+    let next = h.call(h.sym("add"), &[k, h.int(1)]);
+    let shifted = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[k, next])]))?;
+    let ratio = h.call(h.sym("simplify"), &[h.call(h.sym("abs"), &[h.call(h.sym("mul"), &[shifted, h.call(h.sym("pow"), &[f, h.int(-1)])])])]);
+    let r = cx.eval(h.call(h.sym("limit"), &[ratio, h.call(h.sym(names::RULE), &[k, inf])]))?;
+    let number = matches!(h.view(r), View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. });
+    let found = !contains_head(h, r, h.sym_term(h.sym("limit"))) && !contains_head(h, r, k) && !number && r != inf;
+    Ok(Ok(found.then(|| h.call(h.sym("less"), &[r, h.int(1)]))))
+}
+
+/// The value `v` of an infinite sum or product with parameters (`args` the arguments of the call) with the
+/// condition under which it converges, as `integrate` gives its conditions: `conditional_expression(v, c)`; the
+/// value alone when there is no condition or the assumptions in force imply it. A bilateral sum needs the
+/// conditions of both halves. A product converges with the sum of its factors less 1; a product in q-Pochhammer
+/// symbols for |q| < 1. A sum or product proved divergent stays unevaluated, with a message.
+fn conditioned<'h>(cx: &mut NativeCx<'_, '_, 'h>, name: &str, product: bool, args: &[T<'h>], v: T<'h>) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let inf = h.sym_term(h.sym("inf"));
+    let [f, spec] = args else { return Ok(Reply::Done(v)) };
+    let (k, lo, hi) = match cx.as_list(*spec) {
+        Some(&[k, lo, hi]) => (k, lo, hi),
+        Some(&[k, hi]) => (k, h.int(1), hi),
+        _ => return Ok(Reply::Done(v)),
+    };
+    let neg_inf = matches!(h.view(lo), View::App { head, args: &[c, i] } if head == h.sym_term(h.sym("mul")) && i == inf && c == h.int(-1));
+    // the parameters are read from the value (the summand may name variables that have values, as a matrix `a`);
+    // a list value (a sum of vectors or matrices) gets no condition
+    if !matches!(h.view(k), View::Sym(_)) || (hi != inf && !neg_inf) || no_parameters(h, v, k) || cx.as_list(v).is_some() {
+        return Ok(Reply::Done(v));
+    }
+    if contains_head(h, v, h.sym_term(h.sym(name))) || contains_head(h, v, h.sym_term(h.sym(names::FAILURE))) {
+        return Ok(Reply::Done(v));
+    }
+    let mut conds = vec![];
+    if product {
+        if let Some(q) = q_base(h, v) {
+            conds.push(h.call(h.sym("less"), &[h.call(h.sym("abs"), &[q]), h.int(1)]));
+        }
+    }
+    if conds.is_empty() {
+        let term = if product { cx.eval(h.call(h.sym("add"), &[*f, h.int(-1)]))? } else { *f };
+        // the halves: k from lo to inf; for a lower end -inf, f(-k) from -hi (or 1 when the other half runs from 0)
+        let mut halves = vec![];
+        let mk = h.call(h.sym("mul"), &[h.int(-1), k]);
+        let neg = cx.eval(h.call(h.sym("rewrite"), &[term, h.call(h.sym(names::RULE), &[k, mk])]))?;
+        match (neg_inf, hi == inf) {
+            (false, _) => halves.push((term, lo)),
+            (true, true) => {
+                halves.push((term, h.int(0)));
+                halves.push((neg, h.int(1)));
+            }
+            (true, false) => halves.push((neg, cx.eval(h.call(h.sym("mul"), &[h.int(-1), hi]))?)),
+        }
+        for (g, start) in halves {
+            match convergence(cx, g, k, start)? {
+                Ok(Some(c)) => conds.push(c),
+                Ok(None) => {}
+                Err(()) => {
+                    let what = if product { "product" } else { "sum" };
+                    message(cx, name, &format!("the {what} does not converge"))?;
+                    return Ok(Reply::Done(h.call(h.sym(name), args)));
+                }
+            }
+        }
+    }
+    // a test that did not give a condition on numbers (a failure, a list inside) says nothing
+    conds.retain(|&c| !contains_head(h, c, h.sym_term(h.sym(names::FAILURE))) && !contains_head(h, c, h.sym_term(h.sym(names::LIST))));
+    if conds.is_empty() {
+        return Ok(Reply::Done(v));
+    }
+    let cond = if conds.len() == 1 { conds[0] } else { h.call(h.sym("and"), &conds) };
+    // a condition the assumptions in force imply is dropped; one that cannot hold is a divergent sum
+    let implied = cx.eval(h.call(h.sym("refine"), &[cond]))?;
+    if cx.is_true(implied) {
+        return Ok(Reply::Done(v));
+    }
+    if implied == h.sym_term(h.sym("false")) {
+        let what = if product { "product" } else { "sum" };
+        message(cx, name, &format!("the {what} does not converge for any value of the parameters"))?;
+        return Ok(Reply::Done(h.call(h.sym(name), args)));
+    }
+    Ok(Reply::Again(h.call(h.sym("conditional_expression"), &[v, cond])))
+}
+
+impl SumWrap {
+    /// The value of `sum(args)` or `product(args)` without conditions.
+    fn compute<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let name = if self.product { "product" } else { "sum" };
         let [f, spec] = args else { return self.inner.call(cx, t, args) };
         let (f, spec) = (*f, *spec);
         let _scope = StopScope::enter(Some(&self.stop));
@@ -225,7 +345,10 @@ impl mc_eval::Native for SumWrap {
             }
             return self.inner.call(cx, t, args);
         }
-        let r = self.inner.call(cx, t, args)?;
+        // from -inf: this crate's methods (the list library's geometric sum read f(-inf) and gave x^-inf forms)
+        let from_neg_inf = matches!(cx.as_list(spec), Some(&[_, lo, _]) if matches!(h.view(lo),
+            View::App { head, args: &[c, i] } if head == h.sym_term(h.sym("mul")) && c == h.int(-1) && i == h.sym_term(h.sym("inf"))));
+        let r = if from_neg_inf && !self.product { Reply::Decline } else { self.inner.call(cx, t, args)? };
         if !matches!(r, Reply::Decline) {
             if self.product {
                 if let Reply::Done(v) = r {
@@ -290,15 +413,6 @@ impl mc_eval::Native for SumWrap {
             Some(v) => Reply::Done(v),
             None => Reply::Decline,
         })
-    }
-    fn trace(&mut self, visit: &mut dyn FnMut(&mut Raw)) {
-        self.inner.trace(visit);
-    }
-    fn reads_term(&self) -> bool {
-        self.inner.reads_term()
-    }
-    fn curried(&self) -> bool {
-        self.inner.curried()
     }
 }
 

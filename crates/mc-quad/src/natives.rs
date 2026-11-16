@@ -360,7 +360,18 @@ impl NIntegrate {
             if kind.is_some() {
                 return Ok(bad_argument(h, h.sym_term(h.sym("method"))));
             }
-            return ball_call(cx, ar, *f, &vars, &points, &opts);
+            let r = ball_call(cx, ar, *f, &vars, &points, &opts)?;
+            // not converged (a singular end that is not 0, whose points round at every precision): the halves in
+            // the distances to their ends, as at machine precision (`reflected`)
+            if let Reply::Done(v) = r {
+                if !opts.rigorous && is_tagged(h, v, "not_converged") {
+                    let opt_term = (args.len() < all.len()).then(|| all[all.len() - 1]);
+                    if let Some(w) = reflected_call(cx, ar, *f, &vars, &points, opt_term)? {
+                        return Ok(Reply::Done(w));
+                    }
+                }
+            }
+            return Ok(r);
         }
         // the method (decision quad-1.2): nested one-dimensional rules for one variable or when a one-dimensional
         // method is named; the multidimensional methods otherwise
@@ -565,21 +576,255 @@ fn machine_call<'h>(
     }
     let bounds = bounds(cx, vars, points, &nopts)?;
     let mut p = Problem { f: real, ranges: bounds, plan, calls: 0 };
-    let outcome = p.solve(cx)?;
+    let mut outcome = p.solve(cx)?;
     trace("nested", vars.len(), p.calls, &outcome);
-    if let Outcome::NotNumeric(pt) = &outcome {
-        // a complex value there: the whole integral in complex machine numbers
-        if pt.len() == vars.len() && complex_at(cx, f, &all, pt)? {
-            let mut ci = Interpreted::new(cx, f, &all, Prep::Machine)?;
-            ci.f.set_monitors(opts.monitors.clone());
-            let cf: Box<dyn NumFn<'h, C64> + 'h> = Box::new(ci);
-            let bounds = self::bounds(cx, vars, points, &nopts)?;
-            let mut p = Problem { f: cf, ranges: bounds, plan, calls: 0 };
-            let outcome = p.solve(cx)?;
-            return reply(cx, ar, f, vars, outcome, opts);
+    // an integrand that is not numeric at a finite end other than 0 (a singular end, whose points round), or an
+    // estimate that missed the goals: the integral in the distances to the ends as well, the better one kept
+    let mut singular_end = false;
+    if vars.len() == 1 {
+        for pt in &points[0] {
+            if let Point::Num(_, x) = *pt {
+                let mut y = [0.0];
+                singular_end |= x != 0.0 && !(p.f.eval(cx, &[x], &mut y)? && y[0].is_finite());
+            }
         }
     }
+    let complex_point = match &outcome {
+        Outcome::NotNumeric(pt) => pt.len() == vars.len() && complex_at(cx, f, &all, pt)?,
+        _ => false,
+    };
+    if !complex_point && (singular_end || matches!(outcome, Outcome::Done { converged: false, .. })) {
+        let mut make = |cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, uv: &[Var]| mc_numfn::compile_expr(cx, g, uv, &nopts);
+        if let Some(o) = reflected(cx, ar, f, vars, points, opts, &mut make)? {
+            if better(&o, &outcome) {
+                outcome = o;
+            }
+        }
+    }
+    if complex_point {
+        // a complex value there: the whole integral in complex machine numbers
+        let mut ci = Interpreted::new(cx, f, &all, Prep::Machine)?;
+        ci.f.set_monitors(opts.monitors.clone());
+        let cf: Box<dyn NumFn<'h, C64> + 'h> = Box::new(ci);
+        let bounds = self::bounds(cx, vars, points, &nopts)?;
+        let mut p = Problem { f: cf, ranges: bounds, plan, calls: 0 };
+        let mut outcome = p.solve(cx)?;
+        // a singular end of the complex integrand
+        let mut singular_end = false;
+        if vars.len() == 1 {
+            for pt in &points[0] {
+                if let Point::Num(_, x) = *pt {
+                    let mut y = [C64::real(0.0)];
+                    singular_end |= x != 0.0 && !(p.f.eval(cx, &[C64::real(x)], &mut y)? && y[0].is_finite());
+                }
+            }
+        }
+        if singular_end || matches!(outcome, Outcome::Done { converged: false, .. }) {
+            let mut make = |cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, uv: &[Var]| -> Res<Box<dyn NumFn<'h, C64> + 'h>> {
+                Ok(Box::new(Interpreted::new(cx, g, uv, Prep::Machine)?))
+            };
+            if let Some(o) = reflected(cx, ar, f, vars, points, opts, &mut make)? {
+                if better(&o, &outcome) {
+                    outcome = o;
+                }
+            }
+        }
+        return reply(cx, ar, f, vars, outcome, opts);
+    }
     reply(cx, ar, f, vars, outcome, opts)
+}
+
+/// Builds the machine integrand of a substituted expression in the given variables (real compiled, or complex
+/// interpreted).
+type Maker<'m, 'h, S> = dyn for<'a, 'b> FnMut(&mut NativeCx<'a, 'b, 'h>, T<'h>, &[Var]) -> Res<Box<dyn NumFn<'h, S> + 'h>> + 'm;
+
+/// Is `o` better than `before`: a converged estimate replaces only a converged one with a larger error estimate; an
+/// unconverged one is replaced by a converged one or one with a smaller error estimate.
+fn better<S>(o: &Outcome<S>, before: &Outcome<S>) -> bool {
+    match before {
+        Outcome::Done { converged: true, .. } => o.converged() && o.err() < before.err(),
+        Outcome::Done { .. } => o.converged() || o.err() < before.err(),
+        Outcome::NotNumeric(_) => o.converged(),
+    }
+}
+
+/// A one-dimensional integral over finite points by halves taken from their ends: each piece [p, q] is split at its
+/// midpoint m and the halves are integrated in the distance u to their end, as the integrals of f(p + u) over
+/// [0, m - p] and of f(q - u) over [0, q - m], the substituted integrand formed exactly. Near an end p that is not
+/// 0 the points p + u of the original variable round (1 - u is 1 for u below 1e-16), so a singularity there, as
+/// (1 - x)^(-2/3) at 1, loses its mass between the last points the rule can place; in u the end is at 0, where the
+/// points come as close as the machine range allows, and the substituted form often cancels exactly ((1 - (1 - u))
+/// is u). When it does not, the form after `expand_all` (1 - (1 - u)^2 becomes 2 u - u^2) is taken if it alone
+/// follows a power law near u = 0. `None` for several ranges, an infinite or symbolic point, or an evaluation
+/// monitor (which would see the points in u).
+fn reflected<'h, S: Scalar>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    ar: &Arith<'h, Heap>,
+    f: T<'h>,
+    vars: &[Sym],
+    points: &[Vec<Point<'h>>],
+    opts: &Options,
+    make: &mut Maker<'_, 'h, S>,
+) -> Res<Option<Outcome<S>>> {
+    let h = cx.heap();
+    if vars.len() != 1 || opts.monitors.any() {
+        return Ok(None);
+    }
+    let mut ends = Vec::with_capacity(points[0].len());
+    for p in &points[0] {
+        match *p {
+            Point::Num(t, _) => ends.push(t),
+            _ => return Ok(None),
+        }
+    }
+    let x = vars[0];
+    let u = h.sym("quad·u");
+    let uv = [Var::scalar(u)];
+    let nopts = mc_numfn::Options { policy: opts.policy(), ..mc_numfn::Options::default() };
+    let plan = nested_plan(opts);
+    let (mut value, mut err, mut converged) = (S::real(0.0), 0.0, true);
+    for w in ends.windows(2) {
+        let (p, q) = (w[0], w[1]);
+        let m = cx.eval(ar.div(ar.add(&[p, q]), h.int(2)))?;
+        for (end, sign, len) in [(p, 1, ar.sub(m, p)), (q, -1, ar.sub(q, m))] {
+            let len = cx.eval(h.call(h.sym("n"), &[len]))?;
+            let Some(Num::Real(len)) = ar.num(len) else { return Ok(None) };
+            let len = len.to_f64();
+            if !len.is_finite() {
+                return Ok(None);
+            }
+            if len == 0.0 {
+                continue;
+            }
+            let g = reflected_form(cx, ar, f, x, end, sign, u, len, &nopts)?;
+            let chosen = make(cx, g, &uv)?;
+            let ranges = vec![vec![Bound::Const(End::At(0.0)), Bound::Const(End::At(len))]];
+            let mut prob = Problem { f: chosen, ranges, plan, calls: 0 };
+            match prob.solve(cx)? {
+                Outcome::Done { value: v, err: e, converged: c } => {
+                    value = value + v;
+                    err += e;
+                    converged &= c;
+                }
+                Outcome::NotNumeric(_) => return Ok(None),
+            }
+        }
+    }
+    let converged = converged && err <= plan.goals.tol(value.abs()).max(crate::machine::ROUNDOFF * value.abs());
+    Ok(Some(Outcome::Done { value, err, converged }))
+}
+
+/// `f` with `x` replaced by `end + sign u`, evaluated; or that form after `expand_all` when only the expanded form
+/// follows a power law near u = 0 (see [`reflected`]).
+#[allow(clippy::too_many_arguments)]
+fn reflected_form<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    ar: &Arith<'h, Heap>,
+    f: T<'h>,
+    x: Sym,
+    end: T<'h>,
+    sign: i64,
+    u: Sym,
+    len: f64,
+    nopts: &mc_numfn::Options,
+) -> Res<T<'h>> {
+    let h = cx.heap();
+    let uv = [Var::scalar(u)];
+    let shifted = ar.add(&[end, ar.mul(&[h.int(sign), h.sym_term(u)])]);
+    let g = cx.eval(mc_numfn::replace(h, f, &mut |t| (t == h.sym_term(x)).then_some(shifted)))?;
+    let mut plain = mc_numfn::compile_expr(cx, g, &uv, nopts)?;
+    if power_law_near_zero(cx, &mut plain, len)? {
+        return Ok(g);
+    }
+    let expanded = cx.eval(h.call(h.sym("time_constrained"), &[h.call(h.sym("expand_all"), &[g]), h.int(2)]))?;
+    let mut alt = mc_numfn::compile_expr(cx, expanded, &uv, nopts)?;
+    Ok(if power_law_near_zero(cx, &mut alt, len)? { expanded } else { g })
+}
+
+/// Is `t` a failure with the tag `tag`?
+fn is_tagged(h: &Heap, t: T<'_>, tag: &str) -> bool {
+    matches!(h.view(t), View::App { head, args } if head == h.sym_term(h.sym(names::FAILURE))
+        && args.first() == Some(&h.sym_term(h.sym(tag))))
+}
+
+thread_local! {
+    /// Set while [`reflected_call`] integrates its halves (which are not reflected again).
+    static REFLECTING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The integral under `digits:` by the halves of [`reflected`], each a call of `n_integrate` with the same options;
+/// `None` when a half gives no number (or for the shapes `reflected` declines).
+fn reflected_call<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    ar: &Arith<'h, Heap>,
+    f: T<'h>,
+    vars: &[Sym],
+    points: &[Vec<Point<'h>>],
+    opt_term: Option<T<'h>>,
+) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    if vars.len() != 1 || REFLECTING.with(|r| r.get()) {
+        return Ok(None);
+    }
+    let mut ends = Vec::with_capacity(points[0].len());
+    for p in &points[0] {
+        match *p {
+            Point::Num(t, _) => ends.push(t),
+            _ => return Ok(None),
+        }
+    }
+    let u = h.sym("quad·u");
+    let nopts = mc_numfn::Options::default();
+    let mut parts = Vec::new();
+    for w in ends.windows(2) {
+        let (p, q) = (w[0], w[1]);
+        let m = cx.eval(ar.div(ar.add(&[p, q]), h.int(2)))?;
+        for (end, sign, len) in [(p, 1, ar.sub(m, p)), (q, -1, ar.sub(q, m))] {
+            let len = cx.eval(len)?;
+            let lf = cx.eval(h.call(h.sym("n"), &[len]))?;
+            let Some(Num::Real(lf)) = ar.num(lf) else { return Ok(None) };
+            let lf = lf.to_f64();
+            if !lf.is_finite() {
+                return Ok(None);
+            }
+            if lf == 0.0 {
+                continue;
+            }
+            let g = reflected_form(cx, ar, f, vars[0], end, sign, u, lf, &nopts)?;
+            let mut call = vec![g, cx.list(&[h.sym_term(u), h.int(0), len])];
+            call.extend(opt_term);
+            REFLECTING.with(|r| r.set(true));
+            let v = cx.eval(h.call(h.sym(NAME), &call));
+            REFLECTING.with(|r| r.set(false));
+            let v = v?;
+            if ar.num(v).is_none() {
+                return Ok(None);
+            }
+            parts.push(v);
+        }
+    }
+    Ok(Some(cx.eval(ar.add(&parts))?))
+}
+
+/// Is `g` numeric at u = len 10^-30, 10^-60, 10^-90 with values that follow one power law (or are all zero)?
+fn power_law_near_zero<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: &mut Box<dyn NumFn<'h, f64> + 'h>, len: f64) -> Res<bool> {
+    let mut ys = [0.0f64; 3];
+    for (k, y) in ys.iter_mut().enumerate() {
+        let mut out = [0.0];
+        if !g.eval(cx, &[len * 10f64.powi(-30 * (k as i32 + 1))], &mut out)? || !out[0].is_finite() {
+            return Ok(false);
+        }
+        *y = out[0];
+    }
+    if ys.iter().all(|&y| y == 0.0) {
+        return Ok(true);
+    }
+    if ys.contains(&0.0) {
+        return Ok(false);
+    }
+    let a12 = (ys[0].abs() / ys[1].abs()).ln();
+    let a23 = (ys[1].abs() / ys[2].abs()).ln();
+    Ok((a12 - a23).abs() <= 1e-2 * 30.0 * std::f64::consts::LN_10)
 }
 
 /// Estimates whose error estimate is below this fraction of their magnitude are returned with a warning when the

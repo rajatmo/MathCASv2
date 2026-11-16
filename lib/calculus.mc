@@ -1435,7 +1435,9 @@ fn truncate_sum(e, k; activate_result = true, working_precision = automatic) = {
 # convolve(f, g, x, y): the convolution integrate(f(x) g(y - x), [x, -inf, inf])
 # several variables: convolve(f, g, [x1, ...], [y1, ...]); options assumptions: and generate_conditions:
 # cv_convolve(f, g, x, y): the convolution of two piecewise polynomials with rational interval bounds: on each interval between the
-# sums of the bounds, the sum of the integrals over the overlaps of the pieces (null when f or g is not of that kind)
+# sums of the bounds, the sum of the integrals over the overlaps of the pieces (null when f or g is not of that kind).
+# The convolution of two bounded functions of bounded support is continuous, so each piece holds at its upper break
+# (lo < y <= hi) and the breaks keep their values (the default 0 at the lowest one is the value there)
 # bounds [lo, hi] of the interval a condition in x describes, or null
 fn cv_bound(c, x) = {
   if head(c) === head(cb_a and cb_b) then {
@@ -1490,7 +1492,7 @@ fn cv_convolve(f, g, x, y) = {
           tot = tot + inner
         }
       } }
-      [expand(tot), lo < y and y < hi]
+      [expand(tot), lo < y and y <= hi]
     }, range(length(bs) - 1))
     let kept = select(cases, c => not (c[1] === 0))
     piecewise(kept, 0)

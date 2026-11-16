@@ -1852,3 +1852,9 @@ closed form, for one) can prove monotonicity in a. Checked against central diffe
 (nu x w_nu - (nu + mu) w_(nu-1))/(x^2 - 1) (DLMF 14.10.5), the degree and order partials opaque. Checked against the
 Wronskian of P and Q (DLMF 14.2.4) at 30 digits in `mc-engine/tests/round45_special.rs`; it lets the enclosures of
 `mc-numeric` prove images of intervals of `legendre_q(nu, mu, x)`.
+## Round 45: convolutions keep their values at the breaks
+
+- `cv_convolve` (`lib/calculus.mc`): the pieces were open intervals lo < y < hi, so the value at every break fell to
+  the default 0 (`convolve` of two uniform densities was 0 at y = 1, where it is 1). The convolution of two bounded
+  functions of bounded support is continuous, so each piece now holds at its upper break, lo < y <= hi (the lowest
+  break keeps the default 0, which is its value).

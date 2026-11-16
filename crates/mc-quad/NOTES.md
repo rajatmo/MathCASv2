@@ -465,3 +465,34 @@ automatic, c = automatic; o = automatic) when is_list(d) = [a, b, c]` gives `g([
   rules real and complex, the multidimensional methods, which then run interpreted point by point instead of `Par`
   batches, the ball and rigorous rules); `f` gets one argument per variable. A failure it gives is the result. The
   adaptive rules have no sequence of steps: `step_monitor` is an unknown option.
+
+## Round 45: singular ends whose points round
+
+- `n_integrate((1 - x)^(-2/3), [x, 0, 1])` gave 2.9999879 as converged. The tanh-sinh nodes near an end b that is
+  not 0 are b - d rounded: below d = ulp(b) they coincide with b and are dropped, and above it the integrand sees
+  rounded points. The integral of c d^alpha over the last d = 1e-16 is 3 d^(1/3) = 1.4e-5, invisible to Bailey's
+  estimate (the levels agree). The same at every precision of the ball rule (`(3/2 - x)^(-1/2)` on [1, 3/2] at
+  20 digits was right to 14 and claimed 16.7).
+- `de::end_mass`, `hp::end_mass`: where a side of a finite piece ends (a node at the end, or the integrand stops
+  being numeric) with its last term not negligible, the integrand is fitted by a power law in the distance to the
+  end from three nodes (t, t - 1/4, t - 1/2) and the integral to the end, c d^(alpha + 1)/(alpha + 1), joins the
+  error estimate (machine: also added to the value, with the difference of the two fits and, at a rounding end,
+  the whole estimate once more as its error). An exponent at or below -1 (`1/(1 - x)`) or disagreeing signs give an
+  infinite error: a failure instead of a value.
+- `natives::reflected`, `reflected_call`: the halves of each finite piece integrated in the distance u to their end,
+  the integrand formed exactly (f(p + u), f(q - u)), so the singular end is at u = 0 where the nodes reach 1e-300;
+  `1 - (1 - u)` evaluates to u. When the substituted form does not follow a power law near u = 0 (the cancellation
+  in 1 - (1 - u)^2), the `expand_all` form is taken if it does. Machine precision: tried when the integrand is not
+  numeric at a finite end other than 0, or the estimate missed the goals; the better estimate is kept. Under
+  `digits:` (not `rigorous:`): when the ball rule does not converge, each half by `n_integrate` with the same options
+  (not reflected again). Results: (1 - x)^(-2/3) on [0, 1] is 3.0 (30 digits at `working_precision: 30`),
+  1/sqrt(1 - x^2) on [0, 1] pi/2 to the last digit (was 4.6e-9 off), log(1 - x)/sqrt(1 - x) -4.0 (was 1.6e-7 off and
+  converged), |x - 1/3|^(-1/2) with or without the point 1/3 stated right to 1e-16 (was 7e-9 off).
+- Generator test `mc-engine/tests/round45_numeric.rs` (integrals: algebraic and logarithmic singularities at either
+  end anywhere, interior points stated or not, slow algebraic tails, gamma integrals, oscillatory tails, the whole
+  line, (1 - x^2)^a on [-1, 1], rectangles, triangles, simplices; machine and 20 and 30 digits).
+- Left: `x^(-0.99)` on [0, 1] (100) and `(2 - x)^(-9/10)` on [1, 2] (10) are honest failures: the tanh-sinh terms
+  decay too slowly for the levels to agree. A substitution x = u^m for exponents near -1 would resolve them.
+- `fourier(n([1/3, 0, 1, 0], 30))` stayed an unevaluated `if`: the test for conjugate-even data (`nl_conj_even` in
+  `lib/numerics.mc`) took `max` of magnitudes that include balls around 0, which `max` cannot order against 0.; the
+  magnitudes are now compared as machine numbers. Found by the generator (Fourier transforms of 30-digit data).

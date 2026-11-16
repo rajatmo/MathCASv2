@@ -749,6 +749,29 @@ fn bilateral<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, fneg: T<'h>, k: T<'h>, m
     if hyper::rational_in(sx, f, k)? {
         return bilateral_rational(sx, f, k, m);
     }
+    // the halves converge where the ratio limits r+ of f(k) and r- of f(-k) are below 1; r+ r- = 1 (a^k: |a| and
+    // 1/|a|) leaves no parameter where both do, and their formal values must not be added (a^k gave 1/(1 - a) +
+    // 1/(a - 1) = 0)
+    let mut ratios = vec![];
+    for g in [f, fneg] {
+        let next = sx.plus(k, 1)?;
+        let shifted = sx.subst(g, k, next)?;
+        let inv = sx.pow(g, sx.int(-1))?;
+        ratios.push(sx.mul(&[shifted, inv])?);
+    }
+    let q = sx.mul(&ratios)?;
+    let q = sx.ev("simplify", &[q])?;
+    let q = sx.ev("abs", &[q])?;
+    let to = sx.rule(k, sx.sym("inf"));
+    let rr = sx.ev("limit", &[q, to])?;
+    if rr == sx.int(1) || sx.contains_any(rr, &["limit"]) {
+        return Ok(None);
+    }
+    // a number at least 1: one of the halves diverges whatever the parameters
+    let below = sx.ev("less", &[rr, sx.int(1)])?;
+    if below == sx.sym("false") {
+        return Ok(None);
+    }
     let a = some!(infinite(sx, f, k, sx.int(0), m)?);
     let b = some!(infinite(sx, fneg, k, sx.int(1), m)?);
     Ok(Some(sx.add(&[a, b])?))

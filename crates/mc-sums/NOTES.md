@@ -352,3 +352,22 @@ differences and ratios, generating functions and convergence, interruption.
   `2^(2^(1 + n))`) and c = -2 (`2 cos(C 2^n)`); every solution substituted back at four integers.
 - Left: `a(n + 2) + (2n + 1) a(n + 1) + n^2 a(n) = 0` (one hypergeometric solution; the second by reduction of order
   is not built), Möbius recurrences, systems, Casoratians with their normalisation.
+## Round 45: conditions of convergence by default
+
+- An infinite sum or product with parameters (a symbol other than the index and the constants) gives
+  `conditional_expression(value, condition)` by default, as `integrate` does: `sum(p^k/k, [k, 1, inf])` needs
+  abs(p) < 1, `sum(1/k^p, [k, 1, inf])` re(p) > 1 (`natives::conditioned`). The condition: `sum_convergence`, else the
+  ratio test (r < 1 for r = lim |f(k + 1)/f(k)| depending on the parameters); a bilateral sum needs both halves
+  (f(k) from 0, f(-k) from 1); a product the sum of its factors less 1, or |q| < 1 for q-Pochhammer symbols. Implied
+  by the assumptions: the value alone; proved false (`refine`) or `sum_convergence` false: the call stays, with a
+  message. `generate_conditions: false` gives the value alone. Only the outermost call of an evaluation adds a
+  condition (`PLAIN`): sums evaluated by the methods and by the tests themselves stay plain.
+- Bilateral sums (`sumfn::bilateral`): `sum(x^k, [k, -inf, inf])` gave 1/(1 - x) + 1/(x - 1) = 0, the formal values of
+  halves that converge for |x| < 1 and |x| > 1. Now the limit of |f(k + 1)/f(k) f(-k - 1)/f(-k)| is taken: 1 (no
+  common parameter, or inconclusive) or a number at least 1 leaves the sum unevaluated.
+- A sum from -inf skips the list library's geometric rule, which read f(-inf) (`sum(x^k, [k, -inf, 0])` gave
+  (-1 + x^inf) x^-inf/(-1 + x)); this crate gives x/(x - 1) with abs(x) > 1.
+- The parameters of a condition are read from the value (a summand may name variables with values, a matrix `a`
+  in `sum(dot(matrix_power(a, n), c, ...), [n, 0, inf])`), and a list value gets no condition. Series summed
+  formally inside other functions stay plain: generating functions (`natives::plain`), and the z and Mellin
+  transforms pass `generate_conditions: false` to their sums.

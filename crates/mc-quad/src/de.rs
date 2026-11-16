@@ -76,6 +76,8 @@ pub(crate) fn integrate<'h, S: Scalar>(
     let (mut abs, mut inner) = (0.0, 0.0);
     let mut ranges = Vec::with_capacity(pieces.len());
     let mut trunc = 0.0f64;
+    // the integrals between finite ends and their last nodes (`end_mass`), added to every level's value
+    let mut corr = S::real(0.0);
     let mut tail_piece: Option<usize> = None;
     for (pi, p) in pieces.iter().enumerate() {
         let mut terms: Vec<(i64, f64)> = Vec::new();
@@ -92,6 +94,27 @@ pub(crate) fn integrate<'h, S: Scalar>(
                 // a node at the end: the finer levels still have nodes before it
                 let Some((x, w)) = node(p, t) else {
                     range[k] = j;
+                    // a finite end: the nodes stop where they coincide with the end in machine arithmetic (about
+                    // 1e-16 from an end at 1); the integral between the end and the last node is estimated from the
+                    // power law of the integrand there (`end_mass`), so a singular end, as (1 - x)^(-2/3) at 1,
+                    // cannot hide its mass there
+                    if matches!(p.map, Map::Id) && !side_terms.is_empty() {
+                        let largest = terms.iter().fold(0.0f64, |m, v| m.max(v.1));
+                        if side_terms[side_terms.len() - 1] > TINY * largest {
+                            let (mut a, mut b) = (t - side as f64, t);
+                            for _ in 0..60 {
+                                let m = 0.5 * (a + b);
+                                if node(p, m).is_some() {
+                                    a = m;
+                                } else {
+                                    b = m;
+                                }
+                            }
+                            let (c, e) = end_mass(cx, f, p, side, a)?;
+                            corr = corr + c;
+                            trunc += e;
+                        }
+                    }
                     // the range of x ran out (1e308) with the terms still not negligible: the integral beyond is not in
                     // the sum. x^-1.01 on [16, inf) loses 0.09 of 97.27 that way. The last node that exists (found by
                     // bisection between the last valid j and this one) gives the term there, and the decay of the terms
@@ -135,7 +158,18 @@ pub(crate) fn integrate<'h, S: Scalar>(
                     Ok(()) => {}
                     // a tail that stops being numeric ends the range (decision N2.7); a failure in the bulk is one
                     Err(pt) if j < 2 => return Ok(Outcome::NotNumeric(pt)),
-                    Err(_) => break,
+                    Err(_) => {
+                        // at a finite end the integral beyond the last numeric node is estimated as above
+                        if matches!(p.map, Map::Id) && !side_terms.is_empty() {
+                            let largest = terms.iter().fold(0.0f64, |m, v| m.max(v.1));
+                            if side_terms[side_terms.len() - 1] > TINY * largest {
+                                let (c, e) = end_mass(cx, f, p, side, t - side as f64)?;
+                                corr = corr + c;
+                                trunc += e;
+                            }
+                        }
+                        break;
+                    }
                 }
                 let term = y[0] * S::real(w);
                 sum = sum + term;
@@ -163,10 +197,13 @@ pub(crate) fn integrate<'h, S: Scalar>(
     let mut h = 1.0;
     let mut level = 0;
     loop {
-        let est = estimate(&history, h, abs, inner).max(trunc);
-        let value = history[history.len() - 1];
-        let converged = level >= MIN_LEVEL && est <= goals.tol(value.abs());
-        if converged || level >= max_level {
+        let rule = estimate(&history, h, abs, inner);
+        let est = rule.max(trunc);
+        let value = history[history.len() - 1] + corr;
+        let tol = goals.tol(value.abs());
+        let converged = level >= MIN_LEVEL && est <= tol;
+        // the rule has converged but the ends hold more than the goals allow: finer levels do not change that
+        if converged || level >= max_level || (level >= MIN_LEVEL && rule <= tol) {
             return Ok(Outcome::Done { value, err: est, converged });
         }
         // the next level: the midpoints of the current one
@@ -199,6 +236,60 @@ pub(crate) fn integrate<'h, S: Scalar>(
         }
         history.push(sum * S::real(h));
     }
+}
+
+/// The integral between the finite end of the tanh-sinh piece `p` on `side` (1: the end t1, -1: t0) and the node at
+/// `t` (the last node the rule uses there), and the error of that estimate. The integrand is fitted by a power law
+/// `c d^alpha` in the distance d to the end from its values at t, t - 1/4 and t - 1/2 (toward the middle); the
+/// integral to the end is `c d^(alpha + 1)/(alpha + 1)`. Its error counts the difference between the two fits and,
+/// where the nodes are as close to the end as the machine numbers allow (an end that is not 0, where x = 1 - d
+/// rounds), the whole estimate once more: the values there belong to rounded points. An exponent at or below -1 (a
+/// divergent end), signs that disagree (an oscillating end) or values that are not numeric give an infinite error
+/// and no correction.
+fn end_mass<'h, S: Scalar>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    f: &mut dyn Integrand<'h, S>,
+    p: &Piece,
+    side: i64,
+    t: f64,
+) -> Res<(S, f64)> {
+    let end = if side > 0 { p.t1 } else { p.t0 };
+    let orient = if p.t1 >= p.t0 { 1.0 } else { -1.0 };
+    let mut pts = [(0.0f64, S::real(0.0)); 3];
+    for (k, slot) in pts.iter_mut().enumerate() {
+        let tt = t - 0.25 * k as f64 * side as f64;
+        let Some((x, _)) = node(p, tt) else { return Ok((S::real(0.0), f64::INFINITY)) };
+        let (mut y, mut e) = ([S::real(0.0)], [0.0]);
+        if f.eval(cx, &[x], &mut y, &mut e)?.is_err() || !y[0].is_finite() {
+            return Ok((S::real(0.0), f64::INFINITY));
+        }
+        *slot = ((x - end).abs(), y[0]);
+    }
+    let [(d1, y1), (d2, y2), (d3, y3)] = pts;
+    if y1.abs() == 0.0 {
+        // a zero at the last node: nothing measurable beyond it (a bounded integrand times d1)
+        return Ok((S::real(0.0), y2.abs() * d1));
+    }
+    if d1 == 0.0 || !(d1 < d2 && d2 < d3) || y2.abs() == 0.0 || y3.abs() == 0.0 {
+        return Ok((S::real(0.0), f64::INFINITY));
+    }
+    // the same direction (a complex phase, or a sign) at the three points
+    let unit = |y: S| y * S::real(1.0 / y.abs());
+    if (unit(y1) - unit(y2)).abs() > 0.1 || (unit(y2) - unit(y3)).abs() > 0.1 {
+        return Ok((S::real(0.0), f64::INFINITY));
+    }
+    let a12 = (y1.abs() / y2.abs()).ln() / (d1 / d2).ln();
+    let a23 = (y2.abs() / y3.abs()).ln() / (d2 / d3).ln();
+    if !(a12 > -1.0 + 1e-6 && a23 > -1.0 + 1e-6) || !a12.is_finite() || !a23.is_finite() {
+        return Ok((S::real(0.0), f64::INFINITY));
+    }
+    let m12 = d1 / (a12 + 1.0);
+    let m23 = d1 / (a23 + 1.0);
+    let mag = y1.abs() * m12;
+    // rounded nodes: the end is not 0 and the last node lies within a million units of the last place of it
+    let rounded = end != 0.0 && d1 < 1e6 * f64::EPSILON * end.abs();
+    let err = y1.abs() * (m12 - m23).abs() + if rounded { mag } else { 1e-12 * mag };
+    Ok((y1 * S::real(orient * m12), err))
 }
 
 /// The integrand in `y = ln(u)` where `x = a + sgn u`: the integral of f over `u >= 1` becomes an integral over `y >= 0`

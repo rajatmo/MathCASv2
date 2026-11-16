@@ -537,9 +537,11 @@ fn nl_flip(u) = if is_list(u) then { let r = map(nl_flip, u); join([r[1]], rever
 fn nl_conj_even(u) = {
   let f = flatten([u])
   let g = flatten([nl_flip(u)])
-  let s = max(join([1], abs(f)))
+  # machine magnitudes: a ball around 0 (the imaginary part of 30-digit data) is not ordered against 0. by max,
+  # which left the whole transform an unevaluated if
+  let s = max(join([1], n(abs(f))))
   # list arithmetic (native, elementwise) rather than a test per entry
-  max(abs(f - conjugate(g))) <= 10^-14*s
+  max(n(abs(f - conjugate(g)))) <= 10^-14*s
 }
 
 # --- parametric_nd_solve, parametric_nd_solve_value ---

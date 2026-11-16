@@ -245,3 +245,12 @@ are accepted but not called.
   constrained `find_minimum` take the evaluation monitor (objective and constraints are one function there); a
   step monitor is an unknown option (the multistart search has no single sequence of steps). The monitors are no
   longer in `nopt::IGNORED`.
+
+## Round 45: roots at 0 found from noise
+
+- `find_root(exp(x) - 1, [x, 1/2], working_precision: 30)` gave -2.8e-46 with accuracy 76 (its error is 2.8e-46). At
+  that point the ball residual is 0 +- 7e-46: the Newton correction is a ball with midpoint 0, and the step was
+  measured by its midpoint (log2 of 0 is -inf), which counted as a full-precision step. `refine::log2_step` measures
+  a step by the larger of its midpoint and its radius, so a step from noise stalls and the last step is the error.
+  Found by the generator test `mc-engine/tests/round45_numeric.rs` (roots: simple, double, two variables, n_solve,
+  minima, at machine precision and 20 and 30 digits).

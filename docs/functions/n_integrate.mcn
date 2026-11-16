@@ -261,7 +261,7 @@ n_integrate(1/sqrt(x + y + z), [x, 0, 1], [y, 0, 1], [z, 0, 1], method: cubature
 #% cell
 n_integrate(sin(x)/x, [x, 0, 1], method: double_exponential)
 #% output
-#= 0.9460830703671831
+#= 0.9460830703671832
 
 #% text
 # `working_precision:` is the same as `digits:`; a 60-digit value:
@@ -346,7 +346,7 @@ n_integrate(1/(x*y)^0.9, [x, 0, 1], [y, 0, 1], method: vegas, max_points: 10^6)
 #% cell
 n_integrate(sin(1/x), [x, 0, 1])
 #% output
-#! failure(not_converged, n_integrate, 0.5040670573734137, 1.6766555641862712e-6)
+#! failure(not_converged, n_integrate, 0.5040670573734146, 1.6761262102433485e-6)
 
 #% section
 # See also

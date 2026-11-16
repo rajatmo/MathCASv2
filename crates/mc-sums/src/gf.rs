@@ -159,7 +159,8 @@ pub fn gf<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, n: T<'h>, z: T<'h>) -> Res<
     let zn = sx.pow(z, n)?;
     let t = sx.mul(&[f, zn])?;
     let spec = sx.list(&[n, sx.int(0), sx.sym("inf")]);
-    let s = sx.ev("sum", &[t, spec])?;
+    // the formal series (its region of convergence is the business of generate_conditions: true)
+    let s = crate::natives::plain(|| sx.ev("sum", &[t, spec]))?;
     if sx.contains_any(s, &["sum"]) || sx.bad(s) {
         return Ok(None);
     }

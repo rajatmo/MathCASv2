@@ -94,6 +94,21 @@ pub(crate) fn log2_num(n: &Num) -> f64 {
     }
 }
 
+/// log2 of the largest value a step may take: the midpoint's magnitude, or the radius when that is larger (a step
+/// computed from a residual that is only noise, 0 +- 7e-46, is not a zero step).
+fn log2_step(v: &[Num]) -> f64 {
+    let real = |r: &Real| match r {
+        Real::Ball(b, _) => log2_real(r).max(if b.rad.is_zero() { f64::NEG_INFINITY } else { b.rad.log2() }),
+        _ => log2_real(r),
+    };
+    v.iter()
+        .map(|n| match n {
+            Num::Real(r) => real(r),
+            Num::Complex(a, b) => real(a).max(real(b)),
+        })
+        .fold(f64::NEG_INFINITY, f64::max)
+}
+
 /// The largest log2 magnitude of the entries.
 fn log2_max(v: &[Num]) -> f64 {
     v.iter().map(log2_num).fold(f64::NEG_INFINITY, f64::max)
@@ -263,7 +278,7 @@ pub(crate) fn refine<'h>(
             return Ok(Refine::NotNumeric(x));
         }
         let before = step;
-        step = log2_max(&d);
+        step = log2_step(&d);
         // linear convergence: the step shrinks by less than 2^4 (a quadratic one doubles the exponent)
         linear = before.is_finite() && before - step < 4.0;
         let xn = log2_max(&x).max(floor);

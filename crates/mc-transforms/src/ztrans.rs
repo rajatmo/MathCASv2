@@ -322,7 +322,7 @@ fn zt<'h>(
     // the sum
     let inf = h.sym_term(h.sym("inf"));
     let g = cx.eval(b.mul(&[f, b.pow(z, b.neg(n))]))?;
-    let r = apply(cx, b, "sum", &[g, h.call(b.hd.list, &[n, b.zero(), inf])])?;
+    let r = apply(cx, b, "sum", &[g, h.call(b.hd.list, &[n, b.zero(), inf]), h.call(h.sym("options"), &[h.call(h.sym("rule"), &[h.sym_term(h.sym("generate_conditions")), h.sym_term(h.sym("false"))])])])?;
     if !is_free(b, r, h.sym_term(h.sym("sum"))) || is_failure(b, r) {
         return Ok(None);
     }
