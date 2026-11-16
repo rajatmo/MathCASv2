@@ -1033,8 +1033,34 @@ impl<'a, 'h> Gruntz<'a, 'h> {
             if cx.eval(b.call("is_numeric", &[c]))? != h.sym_term(h.sym(mc_api::names::TRUE)) {
                 return Ok(Some(false));
             }
-            if let Some(s) = const_sign(cx, b, c)? {
-                return Ok(Some(s == 0));
+            // an enclosure at 30 digits that excludes 0 (in either part) decides at once; the sign by the decision
+            // service only for a real value (the sign of a complex constant such as elliptic_k(2) took 12 s and
+            // decides nothing a zero test needs)
+            let v = cx.eval(b.call("n", &[c, b.int(30)]))?;
+            let excludes = |r: &mc_arith::Real| match r {
+                mc_arith::Real::Exact(q) => !q.is_zero(),
+                mc_arith::Real::Ball(bl, _) => !bl.contains_zero(),
+                mc_arith::Real::Machine(_) => false,
+            };
+            let real = match b.ar.num(v) {
+                Some(mc_arith::Num::Real(r)) => {
+                    if excludes(&r) {
+                        return Ok(Some(false));
+                    }
+                    true
+                }
+                Some(mc_arith::Num::Complex(re, im)) => {
+                    if excludes(&re) || excludes(&im) {
+                        return Ok(Some(false));
+                    }
+                    false
+                }
+                None => false,
+            };
+            if real {
+                if let Some(s) = const_sign(cx, b, c)? {
+                    return Ok(Some(s == 0));
+                }
             }
             if leaves(b, c) <= 400 && apply(cx, b, "simplify", &[c])? == b.zero() {
                 return Ok(Some(true));

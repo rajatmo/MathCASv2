@@ -1355,6 +1355,23 @@ fn limits_whose_series_has_a_zero_constant_not_seen_as_zero() {
 }
 
 #[test]
+fn limits_onto_branch_cuts_stay_quick() {
+    let mut e = CoreEngine::new();
+    // the zero test of a leading coefficient decides a complex constant (elliptic_k(2) = 1.311 - 1.311 i) by its
+    // enclosure; the sign of a complex constant took 12 s and gave nothing
+    let t0 = Instant::now();
+    assert_eq!(ev(&mut e, "limit(elliptic_k(2 + t*im), t -> 0, direction: from_below)"), "elliptic_k(2)");
+    assert!(holds(&mut e, "abs(limit(log(-2 + t*im), t -> 0, direction: from_below) - (log(2) - im*pi)) < 10^-25"));
+    assert!(holds(&mut e, "abs(n(elliptic_k(2 - 10^-20*im), 20) - n(elliptic_k(2), 20)) < 10^-15"));
+    // variations: elliptic_e on its cut, and the zero constant of the sinh limit still seen
+    assert_eq!(ev(&mut e, "limit(elliptic_e(2 + t*im), t -> 0, direction: from_above)"), "elliptic_e(2)");
+    let l = ev(&mut e, "limit((fresnel_c(x) - fresnel_c(2))/(sinh(x) - sinh(2)), x -> 2)");
+    assert!(holds(&mut e, &format!("abs(({l}) - 1/cosh(2)) < 10^-25")), "{l}");
+    let limit = Duration::from_secs(4).mul_f64(std::env::var("MC_TEST_TIME_FACTOR").ok().and_then(|v| v.parse().ok()).unwrap_or(1.0));
+    assert!(t0.elapsed() < limit, "{:?}", t0.elapsed());
+}
+
+#[test]
 fn no_series_at_a_jump_of_a_periodic_function() {
     let mut e = CoreEngine::new();
     // sawtooth_wave(x) is x just right of 0 and 1 + x just left: there is no series at 0 (it was x for both sides)
