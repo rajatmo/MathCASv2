@@ -140,6 +140,9 @@ pub enum Lib {
     Cosh,
     /// hyperbolic tangent
     Tanh,
+    /// square root (declines for x < 0, where the interpreter gives a complex value): `sqrt` of a machine real is
+    /// the correctly rounded root, not the power `x^(1/2)` (`powf`), whose last bit can differ
+    Sqrt,
     /// log(1 + x)
     Log1p,
     /// e^x - 1
@@ -148,7 +151,7 @@ pub enum Lib {
 
 impl Lib {
     /// Every function, in the order of the back ends' tables.
-    pub const ALL: [Lib; 13] = [
+    pub const ALL: [Lib; 14] = [
         Lib::Exp,
         Lib::Log,
         Lib::Sin,
@@ -160,6 +163,7 @@ impl Lib {
         Lib::Sinh,
         Lib::Cosh,
         Lib::Tanh,
+        Lib::Sqrt,
         Lib::Log1p,
         Lib::Expm1,
     ];
@@ -178,6 +182,7 @@ impl Lib {
             Lib::Sinh => "sinh",
             Lib::Cosh => "cosh",
             Lib::Tanh => "tanh",
+            Lib::Sqrt => "sqrt",
             Lib::Log1p => "log1p",
             Lib::Expm1 => "expm1",
         }
@@ -1016,7 +1021,7 @@ impl Lower<'_> {
             E::Math(f, a) => {
                 let ra = self.ex(a);
                 match f {
-                    Lib::Log => {
+                    Lib::Log | Lib::Sqrt => {
                         let z = self.fconst(0.0);
                         let bad = self.fcmp(Cc::Lt, ra, z);
                         self.emit(Op::Bail(bad));

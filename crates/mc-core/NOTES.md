@@ -352,3 +352,13 @@ really run in scopes.
 The start handler of a session's pool declares the workers' 64 MB stack (`mc_api::stack::declare`), so parsing,
 lowering and typesetting inside an evaluation run on the worker instead of a thread started per call
 (`mc-syntax` NOTES, round 46). Nothing else of the pool changed.
+
+## Round 47: steps without a hand-off
+
+`Session::pool` gives the session's pool (now held in an `Arc`) and `Session::on_own_pool` says whether the calling
+thread is one of its workers. A step made on a worker of its own pool runs there directly (rayon's `install` from
+inside the pool), so a front end that runs its whole loop of requests on a worker (`CoreEngine::on_pool`) makes no
+hand-off per statement. Before, each step woke the worker and then the caller (two wake-ups); on an idle machine
+that was about 0.1 ms of a 0.15 ms small cell, with twelve kernels at once about 0.3 ms of 0.45 ms (each wake-up
+waits for a time slice). The worker blocks in the loop's channel between requests, not in rayon's idle loop, so it
+does not spin either.

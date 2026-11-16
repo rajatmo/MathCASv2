@@ -519,3 +519,11 @@ machine reals had called the arithmetic (about 2 us); now it is inline (25 times
 - Test switch: `jit::set_failure(Failure::Refuse | Failure::Panic)`, or the environment variable `MC_JIT_FAIL`
   (`refuse`, `panic`) for a whole process. `crates/mc-engine/tests/round39_compile_fallback.rs` runs integrals,
   roots, a minimum, a differential equation, a sum, a plot and `compile` in both modes.
+
+## Round 47: compiled `sqrt` of a machine real
+
+`sqrt(x)` of a machine real compiled to the power `x^(1/2)` (`powf(x, 0.5)`), while the interpreter's `sqrt` of a
+machine real is the correctly rounded root (`mc_numeric::machine::sqrt`): the last bit could differ (54 of 227,000
+values of `sqrt(x^2 + y^2 + z^2)` on a grid). It is now the library function `Lib::Sqrt` (declining for x < 0,
+where the interpreter's value is complex); `x^(1/2)` written as a power stays `powf`, as the interpreter computes it,
+and `sqrt` of a complex value stays the canonical power.

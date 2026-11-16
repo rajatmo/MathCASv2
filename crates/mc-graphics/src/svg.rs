@@ -37,9 +37,65 @@ fn class(role: Role, prop: char) -> String {
 
 /// A coordinate or length with at most two decimals, without trailing zeros.
 pub fn num(v: f32) -> String {
-    let r = (v * 100.0).round() / 100.0;
+    let mut s = String::new();
+    push_num(&mut s, v);
+    s
+}
+
+/// [`num`] appended to `out`. Below 2^16 in size the number of hundredths is an exact integer and the two-decimal
+/// text of `(v * 100).round() / 100` is that integer's digits with the point put in; larger and odd values take the
+/// general path.
+pub fn push_num(out: &mut String, v: f32) {
+    let k = (v * 100.0).round();
+    if k.abs() < 6_553_600.0 {
+        let k = k as i32;
+        if k == 0 {
+            out.push('0');
+            return;
+        }
+        if k < 0 {
+            out.push('-');
+        }
+        let k = k.unsigned_abs();
+        let (int, frac) = (k / 100, k % 100);
+        out.push_str(itoa_buf(int).as_str());
+        if frac != 0 {
+            out.push('.');
+            out.push((b'0' + (frac / 10) as u8) as char);
+            if frac % 10 != 0 {
+                out.push((b'0' + (frac % 10) as u8) as char);
+            }
+        }
+        return;
+    }
+    let r = k / 100.0;
     let s = format!("{:.2}", if r == 0.0 { 0.0 } else { r });
-    s.trim_end_matches('0').trim_end_matches('.').to_string()
+    out.push_str(s.trim_end_matches('0').trim_end_matches('.'));
+}
+
+/// The decimal digits of `n`, without allocating.
+struct Digits {
+    buf: [u8; 10],
+    start: usize,
+}
+
+impl Digits {
+    fn as_str(&self) -> &str {
+        // invariant: only ASCII digits are written into `buf[start..]`
+        std::str::from_utf8(&self.buf[self.start..]).unwrap_or("0")
+    }
+}
+
+fn itoa_buf(mut n: u32) -> Digits {
+    let mut d = Digits { buf: [0; 10], start: 10 };
+    loop {
+        d.start -= 1;
+        d.buf[d.start] = b'0' + (n % 10) as u8;
+        n /= 10;
+        if n == 0 {
+            return d;
+        }
+    }
 }
 
 /// Text escaped for an attribute value.
@@ -61,26 +117,69 @@ fn escape(s: &str) -> String {
 /// The `d` attribute of a path.
 fn data(path: &Path) -> String {
     let mut d = String::with_capacity(path.segs.len() * 12);
-    for s in &path.segs {
-        let _ = match *s {
-            Seg::Move(x, y) => write!(d, "M{} {}", num(x), num(y)),
-            Seg::Line(x, y) => write!(d, "L{} {}", num(x), num(y)),
-            Seg::Cubic(a, b, c, e, x, y) => {
-                write!(d, "C{} {} {} {} {} {}", num(a), num(b), num(c), num(e), num(x), num(y))
-            }
-            Seg::Close => write!(d, "Z"),
-        };
-    }
+    push_data(&mut d, path);
     d
+}
+
+/// Numbers separated by spaces after a command letter.
+fn push_cmd(d: &mut String, cmd: char, vs: &[f32]) {
+    d.push(cmd);
+    for (i, &v) in vs.iter().enumerate() {
+        if i > 0 {
+            d.push(' ');
+        }
+        push_num(d, v);
+    }
+}
+
+/// [`data`] appended to `d`.
+fn push_data(d: &mut String, path: &Path) {
+    d.reserve(path.segs.len() * 12);
+    for s in &path.segs {
+        match *s {
+            Seg::Move(x, y) => push_cmd(d, 'M', &[x, y]),
+            Seg::Line(x, y) => push_cmd(d, 'L', &[x, y]),
+            Seg::Cubic(a, b, c, e, x, y) => push_cmd(d, 'C', &[a, b, c, e, x, y]),
+            Seg::Close => d.push('Z'),
+        }
+    }
 }
 
 /// The fill or stroke colour attributes.
 fn colour(attr: &str, c: Rgba) -> String {
+    let mut s = String::new();
+    push_colour(&mut s, attr, c);
+    s
+}
+
+/// [`colour`] appended to `out`.
+fn push_colour(out: &mut String, attr: &str, c: Rgba) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
     let c = c.clamped();
+    out.push_str(attr);
+    out.push_str("=\"#");
+    for b in &c.bytes()[..3] {
+        out.push(HEX[(b >> 4) as usize] as char);
+        out.push(HEX[(b & 15) as usize] as char);
+    }
+    out.push('"');
     if c.a < 1.0 {
-        format!(r#"{attr}="{}" {attr}-opacity="{}""#, c.hex(), num(c.a as f32))
-    } else {
-        format!(r#"{attr}="{}""#, c.hex())
+        out.push(' ');
+        out.push_str(attr);
+        out.push_str("-opacity=\"");
+        push_num(out, c.a as f32);
+        out.push('"');
+    }
+}
+
+/// The class attribute of [`class`] appended to `out`.
+fn push_class(out: &mut String, role: Role, prop: char) {
+    if role != Role::Data {
+        out.push_str(" class=\"mc");
+        out.push(prop);
+        out.push('-');
+        out.push_str(role.word());
+        out.push('"');
     }
 }
 
@@ -138,7 +237,15 @@ impl Surface for Svg {
 
     fn fill(&mut self, path: &Path, color: Rgba) {
         if !path.is_empty() {
-            let _ = writeln!(self.body, r#"<path{} d="{}" {}/>"#, class(self.role, 'f'), data(path), colour("fill", color));
+            let b = &mut self.body;
+            b.push_str("<path");
+            push_class(b, self.role, 'f');
+            b.push_str(" d=\"");
+            push_data(b, path);
+            b.push_str("\" ");
+            push_colour(b, "fill", color);
+            b.push_str("/>
+");
         }
     }
 
@@ -146,16 +253,32 @@ impl Surface for Svg {
         if path.is_empty() {
             return;
         }
-        let mut a = format!(r#"fill="none" {} stroke-width="{}" stroke-linejoin="round""#, colour("stroke", pen.color), num(pen.width));
+        let b = &mut self.body;
+        b.push_str("<path");
+        push_class(b, self.role, 's');
+        b.push_str(" d=\"");
+        push_data(b, path);
+        b.push_str("\" fill=\"none\" ");
+        push_colour(b, "stroke", pen.color);
+        b.push_str(" stroke-width=\"");
+        push_num(b, pen.width);
+        b.push_str("\" stroke-linejoin=\"round\"");
         if pen.cap == Cap::Round {
-            a.push_str(r#" stroke-linecap="round""#);
+            b.push_str(r#" stroke-linecap="round""#);
         }
         let dash = even(&pen.dash);
         if !dash.is_empty() {
-            let d: Vec<String> = dash.iter().map(|v| num(*v)).collect();
-            let _ = write!(a, r#" stroke-dasharray="{}""#, d.join(" "));
+            b.push_str(" stroke-dasharray=\"");
+            for (i, v) in dash.iter().enumerate() {
+                if i > 0 {
+                    b.push(' ');
+                }
+                push_num(b, *v);
+            }
+            b.push('"');
         }
-        let _ = writeln!(self.body, r#"<path{} d="{}" {a}/>"#, class(self.role, 's'), data(path));
+        b.push_str("/>
+");
     }
 
     fn dots(&mut self, centres: &[(f32, f32)], d: f32, color: Rgba) {
@@ -256,6 +379,34 @@ mod tests {
         assert_eq!(base64(b"fo"), "Zm8=");
         assert_eq!(base64(b"foo"), "Zm9v");
         assert_eq!(base64(b"foobar"), "Zm9vYmFy");
+    }
+
+    /// The text of the general formula, which [`push_num`] gives without formatting.
+    fn num_general(v: f32) -> String {
+        let r = (v * 100.0).round() / 100.0;
+        let s = format!("{:.2}", if r == 0.0 { 0.0 } else { r });
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
+    }
+
+    #[test]
+    fn short_numbers_as_formatted() {
+        // every hundredth near the switch, a dense sweep, and scattered values of all sizes
+        let mut vs: Vec<f32> = (-7_000_000..=-6_500_000).step_by(7).chain(6_500_000..7_000_000).map(|k| k as f32 / 100.0).collect();
+        vs.extend((-200_000..200_000).map(|k| k as f32 * 0.00731));
+        let mut x: u32 = 12345;
+        for _ in 0..400_000 {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            let v = f32::from_bits(x);
+            if v.is_finite() && v.abs() < 1e9 {
+                vs.push(v);
+            }
+        }
+        vs.extend([0.0, -0.0, 0.004, -0.004, 0.005, -0.005, 0.015, 655.35, -655.355, 65535.99, 65536.0, 1e7]);
+        for v in vs {
+            assert_eq!(num(v), num_general(v), "{v:e}");
+        }
     }
 
     #[test]

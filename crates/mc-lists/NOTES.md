@@ -943,3 +943,17 @@ only; symbols go to the decision service (`mc-decide`, round 44).
   (the comparison is not decided). When every element is an exact or ball real and the machine-value route also
   declines, the result is now the ball from the largest lower end to the largest upper end (for `min` the smallest),
   which holds the extreme of every choice of points; decided comparisons keep returning the element itself.
+
+## Round 47: compiled tables
+
+`table(e, k1, r1, ..., kn, rn)` (not `parallel`) whose ranges are closed arithmetic (`closed_range`: numbers under
+`range`, `list`, `add`, `mul`, `pow`, `rational`, or a count; evaluated once, which is what evaluating them for each
+outer value gives) with values of one kind (all machine reals or all machine integers), at least 4,096 values in
+all, compiles its body once in the iterators (`mc_jit::compile_expr`, not numeric: the compiler gives the
+interpreter's value exactly or declines) and calls it for every tuple, the last iterator fastest. The result is
+the packed array of the values, which is the term the interpreter's nested lists of these numbers are (the heap
+packs canonically). Anything else (a body outside the compiled subset, a call that declines: an inexact integer
+quotient, an overflow, a complex value, a body that draws random numbers, a changed definition) leaves the table
+to the interpreter, which evaluates it as before (only the closed ranges were evaluated, without effects).
+`table(x^2 + y^2 + z^2, z, range(-1, 1, 0.02), y, ..., x, ...)` (a million values): 4.0 s -> 0.09 s. Tested
+against nested `map`s, which the interpreter evaluates element by element (`mc-engine/tests/round47_speed.rs`).

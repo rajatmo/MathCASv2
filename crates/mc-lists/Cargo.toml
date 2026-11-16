@@ -13,6 +13,7 @@ mc-api = { path = "../mc-api" }
 mc-arith = { path = "../mc-arith" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
+mc-jit = { path = "../mc-jit" }
 # structural replacement of the index in a held summand
 mc-numfn = { path = "../mc-numfn" }
 # the printer, for `to_string`

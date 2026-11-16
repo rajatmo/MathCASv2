@@ -528,7 +528,8 @@ fn prims(h: &Heap) -> HashMap<Sym, Prim> {
     for (n, p) in fixed {
         m.insert(h.sym(n), p);
     }
-    for f in Lib::ALL {
+    // (`sqrt` stays `Prim::Sqrt`: of a complex value it is the canonical power)
+    for f in Lib::ALL.into_iter().filter(|&f| f != Lib::Sqrt) {
         m.insert(h.sym(f.name()), Prim::Math(f));
     }
     m
@@ -966,11 +967,10 @@ impl<'h> Fe<'h, '_> {
                     }
                     Some(Prim::Sqrt) => {
                         self.arity(s, args, 1)?;
-                        // sqrt(x) is the canonical power x^(1/2)
+                        // of a machine real the correctly rounded root, as the interpreter's `sqrt` gives it (the power
+                        // x^(1/2) is `powf`, whose last bit can differ); of a complex value the canonical power
                         match self.value(args[0])? {
-                            Val::S(x, Ty::Real) => {
-                                Ok(Val::S(E::Num(NumOp::Pow, vec![Opd::Real(x), Opd::Ratio(E::Int(1), E::Int(2))]), Ty::Real))
-                            }
+                            Val::S(x, Ty::Real) => Ok(Val::S(E::Math(Lib::Sqrt, b(x)), Ty::Real)),
                             Val::C(a, b) => Ok(self.pair(Pair::Num(NumOp::Pow, vec![Opd::Complex(a, b), Opd::Ratio(E::Int(1), E::Int(2))]))),
                             _ => Err("`sqrt` of an exact or boolean value (the result stays exact)".into()),
                         }

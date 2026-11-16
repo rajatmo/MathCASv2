@@ -312,3 +312,19 @@ and drawn by `deferred::ensure(png)`, which `mc-io` calls before it looks for th
 most about 64 MB of graphics; past that the oldest are written then (nothing is lost, the cost moves). A plot whose
 PNG is gone is not drawn; `forget` drops a removed plot. Measured on a 61 x 61 surface: PNG 15 ms, SVG 15-25 ms, PDF
 35-70 ms, so a 3D plot took about 115 ms and now 70 ms; a 2D plot about 1.5 ms of drawing and three file writes less.
+
+## Round 47: large 3D pictures
+
+Measured on a `region_plot3d` of 34,000 faces (clipped by its plot range), each part about two to three times
+faster, the files byte for byte the same (checked on 1,035 documentation inputs with pictures, PNG, SVG, sidecars
+and column twins compared with the build before):
+- SVG: numbers, paths and colours are written straight into the text (`push_num`, `push_data`, `push_colour`)
+  instead of a string per number. `push_num` writes the hundredths below 2^16 from the integer (the same text as
+  formatting `(v * 100).round() / 100` with two decimals, tested on half a million values around and away from
+  the switch), larger values the general way. 85 -> 25 ms per SVG (two per 3D picture: the screen and the column
+  twin).
+- Reading: a packed `m x n x 3` array of polygons is read from its data (`runs3`); the check whether the last
+  argument of a primitive is `options(...)` no longer looks at the head of a packed array (which unpacked all of it:
+  25-35 ms). Clipping keeps a face inside the box as it is (`clip_polygon`, the same corners the six cuts give), and
+  a clipped scene works out no vertex normals (it draws none). Scene and preparation 105 -> 45 ms.
+- Left: painting the PNG (about 75 ms: a fill and a hairline per face) and the projection and sort (30 ms).

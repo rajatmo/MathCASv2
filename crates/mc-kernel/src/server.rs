@@ -99,7 +99,7 @@ fn read_requests(input: impl BufRead, tx: mpsc::Sender<Message>, shared: Shared,
 
 /// Writes response lines, flushing each so that the client sees output as it is produced.
 struct Writer<'w> {
-    out: &'w mut dyn Write,
+    out: &'w mut (dyn Write + Send),
 }
 
 impl Writer<'_> {
@@ -139,8 +139,8 @@ fn origin(origin: Option<&str>, cell: Option<&str>) -> Origin {
 
 /// Serve one session: write `hello`, then answer the requests read from `input` on `output`, until `shutdown`
 /// or the end of the input (the requests read before it are still answered). Returns an error only when
-/// `output` cannot be written.
-pub fn serve(input: impl BufRead + Send + 'static, output: &mut dyn Write, config: EngineConfig) -> io::Result<()> {
+/// `output` cannot be written. The requests are answered on a worker of the session's pool (`output` goes there).
+pub fn serve(input: impl BufRead + Send + 'static, output: &mut (dyn Write + Send), config: EngineConfig) -> io::Result<()> {
     let mut engine = crate::front_end::session(config);
     let mut w = Writer { out: output };
     let hello = Body::Hello {
@@ -159,7 +159,33 @@ pub fn serve(input: impl BufRead + Send + 'static, output: &mut dyn Write, confi
             .name("mc-kernel-reader".into())
             .spawn(move || read_requests(input, tx, shared, stop))?
     };
-    for message in rx {
+    let mut rx = rx;
+    // the requests are answered on a worker of the session's pool, so that an evaluation's statements run on this
+    // thread instead of each being handed to the pool and waited for; a reset makes a new session (and pool), and
+    // the loop goes on on a worker of that one
+    loop {
+        let served = engine.on_pool(|engine| answer(engine, &mut w, &mut rx, &shared, &stop, config));
+        match served? {
+            Flow::Next => continue,
+            Flow::Shutdown => break,
+        }
+    }
+    // after a shutdown the reader has stopped; at the end of the input it has too
+    let _ = reader.join();
+    Ok(())
+}
+
+/// Answer requests until a shutdown or the end of the input ([`Flow::Shutdown`]), or until the session was replaced
+/// by a new one ([`Flow::Next`]: the caller goes on on the new session's pool).
+fn answer(
+    engine: &mut CoreEngine,
+    w: &mut Writer<'_>,
+    rx: &mut mpsc::Receiver<Message>,
+    shared: &Shared,
+    stop: &StopFlag,
+    config: EngineConfig,
+) -> io::Result<Flow> {
+    while let Ok(message) = rx.recv() {
         let start = Instant::now();
         let request = match message {
             Message::Request(r) => r,
@@ -172,23 +198,25 @@ pub fn serve(input: impl BufRead + Send + 'static, output: &mut dyn Write, confi
         let id = request.id();
         // the last line of defence: a panic outside an evaluation's own guard (in the collector, completion,
         // printing a report) resets the session instead of ending the kernel
-        let handled = guard::catch(|| handle(&mut engine, &mut w, &shared, &stop, config, request, &id, start));
+        let handled = guard::catch(|| handle(engine, w, shared, stop, config, request, &id, start));
         match handled {
             Ok(Ok(Flow::Next)) => {}
-            Ok(Ok(Flow::Shutdown)) => break,
+            Ok(Ok(Flow::Shutdown)) => return Ok(Flow::Shutdown),
             Ok(Err(e)) => return Err(e),
             Err(note) => {
-                lock(&shared).running = None;
-                engine = crate::front_end::session(config);
+                lock(shared).running = None;
+                *engine = crate::front_end::session(config);
                 let why = format!("internal error: {}; the session was reset", note.text());
                 w.send(&id, &None, Body::Error(ErrorReport::plain(why)))?;
                 w.done(&id, &None, Status::Error, start)?;
             }
         }
+        // a reset made a new session: go on on its pool
+        if !engine.on_own_pool() {
+            return Ok(Flow::Next);
+        }
     }
-    // after a shutdown the reader has stopped; at the end of the input it has too
-    let _ = reader.join();
-    Ok(())
+    Ok(Flow::Shutdown)
 }
 
 /// What the loop does after a request.

@@ -2734,6 +2734,7 @@ dependencies = [
  "mc-core",
  "mc-engine",
  "mc-eval",
+ "mc-jit",
  "mc-numfn",
  "mc-syntax",
  "num-bigint",

@@ -481,6 +481,22 @@ impl CoreEngine {
         r
     }
 
+    /// Run `f` (a loop of requests, say) on a worker of the session's pool: the evaluations it makes then run on
+    /// that thread directly instead of being handed to it and waited for, once per statement. A front end that
+    /// replaces the engine inside `f` should return and call this again on the new one.
+    pub fn on_pool<R: Send>(&mut self, f: impl FnOnce(&mut CoreEngine) -> R + Send) -> R {
+        if self.session.on_own_pool() {
+            return f(self);
+        }
+        let pool = self.session.pool();
+        pool.install(|| f(self))
+    }
+
+    /// Whether the calling thread is a worker of the session's pool ([`CoreEngine::on_pool`]).
+    pub fn on_own_pool(&self) -> bool {
+        self.session.on_own_pool()
+    }
+
     /// Run `f` on the kernel between evaluations, for example to register more natives (a library's `install`).
     pub fn install(&mut self, f: impl for<'h> FnOnce(&mut Kernel, &'h mc_core::Heap) + Send) {
         self.session.step(|h, k| f(k, h));

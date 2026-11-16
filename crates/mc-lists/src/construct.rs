@@ -425,6 +425,11 @@ pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
             cx.emit(h.call(h.sym("message"), &[h.sym_term(h.sym("table")), h.string(text)]))?;
         }
     }
+    if !parallel {
+        if let Some(done) = compiled_table(cx, args)? {
+            return Ok(Reply::Done(done));
+        }
+    }
     let (e, k, r) = match *args {
         [e, n] => {
             let n = cx.eval(n)?;
@@ -471,6 +476,118 @@ pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
     let out = if parallel { cx.group_parallel_loop(vs.len(), &elem)? } else { cx.group_loop(vs.len(), cost, &elem)? };
     let out = cx.without_continues(out);
     Ok(Reply::Done(cx.list(&out)))
+}
+
+/// The fewest values for which [`compiled_table`] compiles the body: below this the interpreter is as fast as the
+/// compilation alone.
+const COMPILED_TABLE_MIN: usize = 4096;
+
+/// Whether a range term is closed arithmetic: numbers under `range`, `list`, `add`, `mul` and `pow` only, so that
+/// evaluating it once gives what evaluating it once per value of an outer iterator gives, with no effects.
+fn closed_range(h: &Heap, t: T<'_>, depth: usize) -> bool {
+    match h.view(t) {
+        View::Int(_) | View::Real(_) => true,
+        View::App { .. } if h.packed(t).is_some() => true,
+        View::App { head, args } if depth < 8 => {
+            matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "range" | "list" | "add" | "mul" | "pow" | "rational"))
+                && args.iter().all(|&a| closed_range(h, a, depth + 1))
+        }
+        _ => false,
+    }
+}
+
+/// `table(e, k1, r1, ..., kn, rn)` with closed ranges (`closed_range`) of machine numbers, each iterator's values
+/// of one kind, and a body the numeric compiler takes (`mc_jit::compile_expr`, which gives exactly the
+/// interpreter's value or declines): the values of the body compiled once in all the iterators, the result the
+/// packed array the interpreter's nested lists of these numbers are. `None` (nothing was evaluated but the ranges,
+/// which are closed) when any of this does not hold or a call declines: the interpreter then evaluates the table.
+fn compiled_table<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    if args.len() < 3 || args.len().is_multiple_of(2) {
+        return Ok(None);
+    }
+    let body = args[0];
+    let mut params = vec![];
+    for pair in args[1..].chunks(2) {
+        let (View::Sym(k), r) = (h.view(pair[0]), pair[1]) else { return Ok(None) };
+        if !closed_range(h, r, 0) || params.iter().any(|&(s, _)| s == k) {
+            return Ok(None);
+        }
+        params.push((k, r));
+    }
+    let mut values: Vec<(Vec<u64>, mc_jit::Arg)> = vec![];
+    let mut total: usize = 1;
+    for &(_, r) in &params {
+        let v = cx.eval(r)?;
+        let xs: Vec<T<'h>> = match (cx.as_list(v), h.view(v)) {
+            (Some(xs), _) => xs.to_vec(),
+            // a count n: the values 1, ..., n
+            (None, View::Int(n)) if n >= 1 && n as u128 <= MAX_CELLS => (1..=n).map(|i| h.int(i)).collect(),
+            _ => return Ok(None),
+        };
+        if xs.is_empty() {
+            return Ok(None);
+        }
+        let (words, arg) = match h.view(xs[0]) {
+            View::Real(_) => {
+                let w: Option<Vec<u64>> = xs.iter().map(|&x| if let View::Real(r) = h.view(x) { Some(r.to_bits()) } else { None }).collect();
+                (w, mc_jit::Arg::Real)
+            }
+            View::Int(_) => {
+                let w: Option<Vec<u64>> = xs.iter().map(|&x| if let View::Int(i) = h.view(x) { Some(i as u64) } else { None }).collect();
+                (w, mc_jit::Arg::Int)
+            }
+            _ => return Ok(None),
+        };
+        let Some(words) = words else { return Ok(None) };
+        total = match total.checked_mul(words.len()) {
+            Some(n) if n as u128 <= MAX_CELLS => n,
+            _ => return Ok(None),
+        };
+        values.push((words, arg));
+    }
+    if total < COMPILED_TABLE_MIN {
+        return Ok(None);
+    }
+    let typed: Vec<(mc_core::Sym, mc_jit::Arg)> = params.iter().zip(&values).map(|(&(k, _), (_, a))| (k, *a)).collect();
+    let Ok(code) = mc_jit::compile_expr(cx, &typed, body, false, mc_jit::Backend::Cranelift) else { return Ok(None) };
+    // (a body that draws random numbers draws them in its own order: left to the interpreter)
+    if code.outputs() != 1 || code.inputs() != typed.len() || code.draws() {
+        return Ok(None);
+    }
+    let dims: Vec<usize> = values.iter().map(|(w, _)| w.len()).collect();
+    let mut out: Vec<u64> = Vec::with_capacity(total);
+    let mut idx = vec![0usize; dims.len()];
+    let mut input: Vec<u64> = values.iter().map(|(w, _)| w[0]).collect();
+    let mut one = [0u64];
+    for _ in 0..total {
+        cx.tick(1)?;
+        if code.call_words(cx, &input, &mut one) != mc_jit::Call::Done {
+            return Ok(None);
+        }
+        out.push(one[0]);
+        // the next values, the last iterator fastest
+        for d in (0..dims.len()).rev() {
+            idx[d] += 1;
+            if idx[d] < dims[d] {
+                input[d] = values[d].0[idx[d]];
+                break;
+            }
+            idx[d] = 0;
+            input[d] = values[d].0[0];
+        }
+    }
+    Ok(match code.output_types() {
+        [mc_jit::ir::Ty::Real] => {
+            let reals: Vec<f64> = out.iter().map(|&w| f64::from_bits(w)).collect();
+            Some(h.real_array(&dims, &reals))
+        }
+        [mc_jit::ir::Ty::Int] => {
+            let ints: Vec<i64> = out.iter().map(|&w| w as i64).collect();
+            Some(h.int_array(&dims, &ints))
+        }
+        _ => None,
+    })
 }
 
 /// `map_indexed(f, xs)`: `[f(x1, 1), f(x2, 2), ...]`, each element with its position (an integer, decision

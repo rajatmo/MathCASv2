@@ -33,11 +33,11 @@ fn main() -> ExitCode {
     // calls) then runs on it instead of starting a thread per parse
     let serve = move || {
         mc_api::stack::declare(ENGINE_STACK);
-        server::serve(BufReader::new(io::stdin()), &mut io::stdout().lock(), config)
+        server::serve(BufReader::new(io::stdin()), &mut io::stdout(), config)
     };
     let served = match std::thread::Builder::new().name("mc-kernel-engine".into()).stack_size(ENGINE_STACK).spawn(serve) {
         Ok(t) => t.join().unwrap_or_else(|p| std::panic::resume_unwind(p)),
-        Err(_) => server::serve(BufReader::new(io::stdin()), &mut io::stdout().lock(), config),
+        Err(_) => server::serve(BufReader::new(io::stdin()), &mut io::stdout(), config),
     };
     match served {
         Ok(()) => ExitCode::SUCCESS,

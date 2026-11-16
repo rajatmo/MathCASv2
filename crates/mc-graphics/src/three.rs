@@ -139,6 +139,24 @@ fn pts3<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Vec<P3>> {
 
 /// One list of points or a list of such lists.
 fn runs3<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Vec<Vec<P3>>> {
+    // a packed `m x n x 3` array: the runs read from its data, without a term for each run
+    match h.packed(t) {
+        Some(Packed::Reals { dims, data }) if dims.len() == 3 && dims[2] == 3 => {
+            let n = dims[1] as usize * 3;
+            return Some(
+                (0..dims[0] as usize)
+                    .map(|i| data[i * n..(i + 1) * n].as_chunks::<3>().0.iter().map(|p| [p[0], p[1], p[2]]).filter(|p| p.iter().all(|v| v.is_finite())).collect())
+                    .collect(),
+            );
+        }
+        Some(Packed::Ints { dims, data }) if dims.len() == 3 && dims[2] == 3 => {
+            let n = dims[1] as usize * 3;
+            return Some(
+                (0..dims[0] as usize).map(|i| data[i * n..(i + 1) * n].as_chunks::<3>().0.iter().map(|p| [p[0] as f64, p[1] as f64, p[2] as f64]).collect()).collect(),
+            );
+        }
+        _ => {}
+    }
     if let Some(Packed::Reals { dims, .. } | Packed::Ints { dims, .. }) = h.packed(t) {
         if dims.len() == 3 {
             return list(h, t)?.iter().map(|&r| pts3(h, r)).collect();
@@ -305,7 +323,8 @@ fn face_colors<S: Store + ?Sized>(h: &S, o: T<'_>, faces: usize) -> Option<Vec<R
 /// not numbers).
 fn primitive<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Option<Vec<Prim>> {
     let (args, opts) = match args.split_last() {
-        Some((&o, rest)) if head_name(h, o).is_some_and(|(n, _)| n == "options") => (rest, Some(o)),
+        // (a packed array of coordinates is no options: looking at its head would unpack it)
+        Some((&o, rest)) if h.packed(o).is_none() && head_name(h, o).is_some_and(|(n, _)| n == "options") => (rest, Some(o)),
         _ => (args, None),
     };
     let mut out = vec![];
@@ -926,6 +945,10 @@ impl Camera {
 
 /// Cut a polygon to the box `lo..hi` (Sutherland-Hodgman, one plane at a time).
 fn clip_polygon(mut pts: Vec<P3>, lo: P3, hi: P3) -> Vec<P3> {
+    // inside the box: every cut below keeps the corners as they are
+    if pts.iter().all(|p| (0..3).all(|k| p[k] >= lo[k] && p[k] <= hi[k])) {
+        return pts;
+    }
     for k in 0..3 {
         for (bound, keep_above) in [(lo[k], true), (hi[k], false)] {
             if pts.is_empty() {
@@ -1489,7 +1512,8 @@ fn prepare(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Prepared, Fa
     let key = |p: P3| p.map(|v| (v * 1e9).round() as i64);
     let mut vnormals: std::collections::HashMap<[i64; 3], P3> = std::collections::HashMap::new();
     let mut n = 0usize;
-    for e in &sc.elems {
+    // (a clipped scene draws no vertex normals: none are worked out)
+    for e in sc.elems.iter().filter(|_| !clip) {
         if let Prim::Face { pts, smooth: true, .. } = &e.prim {
             n += 1;
             if n.is_multiple_of(POLL) && stop() {

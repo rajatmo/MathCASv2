@@ -273,3 +273,12 @@ At most once per name and input. Tests: `tests/display.rs` (also the display pri
   each request outside the session (the `;` check, the check of calls written as products) run on it instead of a
   thread each. With the session workers declared too, a cell starts no thread at all; a small cell went from about
   0.5 ms to 0.05 ms.
+
+## Round 47: requests answered on the session's worker
+
+`serve` answers requests on a worker of the session's pool (`CoreEngine::on_pool`): every statement of a cell then
+runs on that thread, with no hand-off from the engine thread and back. A reset (or a panic outside an evaluation)
+makes a new session with its own pool; the loop returns and goes on on a worker of the new one (the old pool is
+dropped outside it). `serve` takes `&mut (dyn Write + Send)` (the output is written from the worker). Measured with
+sixteen small inputs (string, list, matrix, number theory, statistics), median kernel time per input: alone 0.19
+-> 0.07 ms, twelve kernels at once 0.21-0.48 -> 0.08 ms.

@@ -10,6 +10,7 @@ use crate::roots::Trace;
 use crate::{Config, Heap};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::cell::Cell;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 thread_local! {
@@ -32,7 +33,7 @@ pub struct Session<St: Trace + Send> {
     pub heap: Heap,
     /// the root set: everything the session keeps across steps
     pub state: St,
-    pool: ThreadPool,
+    pool: Arc<ThreadPool>,
     /// time spent inside evaluations
     pub work_time: Duration,
     /// time spent in safe points
@@ -61,6 +62,7 @@ impl<St: Trace + Send> Session<St> {
             .build()
             // invariant: a pool of at most a few threads can be built unless the system is out of threads at start-up
             .expect("thread pool");
+        let pool = Arc::new(pool);
         let heap = Heap::new(cfg);
         let state = state(&heap);
         Session { heap, state, pool, work_time: Duration::ZERO, safe_time: Duration::ZERO, steps: 0 }
@@ -69,6 +71,18 @@ impl<St: Trace + Send> Session<St> {
     /// Worker threads of the session's pool.
     pub fn threads(&self) -> usize {
         self.pool.current_num_threads()
+    }
+
+    /// The session's pool, to run a whole loop of steps on one of its workers: a step made on a worker of its own
+    /// pool runs there directly, without handing the work to another thread and waiting for it (each hand-off is
+    /// two thread wake-ups, which on a busy machine wait for a time slice).
+    pub fn pool(&self) -> Arc<ThreadPool> {
+        self.pool.clone()
+    }
+
+    /// Whether the calling thread is a worker of this session's pool (its steps then run on it directly).
+    pub fn on_own_pool(&self) -> bool {
+        self.pool.current_thread_index().is_some()
     }
 
     /// One evaluation, then a safe point with the session state as the root set. Both run on the session's pool.

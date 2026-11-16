@@ -645,7 +645,8 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
     let origin = Pt { x: 0.0, y: 0.0, scaled: false };
     // options of a primitive (`vertex_colors`, `spline_closed`, ...) are accepted and not used
     let args = match args.split_last() {
-        Some((&o, rest)) if head_name(h, o).is_some_and(|(n, _)| n == "options") => rest,
+        // (a packed array of coordinates is no options: looking at its head would unpack it)
+        Some((&o, rest)) if h.packed(o).is_none() && head_name(h, o).is_some_and(|(n, _)| n == "options") => rest,
         _ => args,
     };
     let s = match (name, args) {
