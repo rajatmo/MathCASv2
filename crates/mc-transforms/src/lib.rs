@@ -31,7 +31,7 @@
 //!
 //! When no method gives a value the call stays unevaluated; a value the numeric check refutes is not returned.
 //!
-//! A crate of its own since round 34 (split out of `mc-calculus`); [`Kind`], the transforms by name, is
+//! A crate of its own (split out of `mc-calculus`); [`Kind`], the transforms by name, is
 //! `mc-calculus`'s, since the derivative operator needs the names.
 #![warn(missing_docs)]
 pub mod fourier;
@@ -58,7 +58,7 @@ pub struct Opts<'h> {
     /// `generate_conditions: true`: the value as `conditional_expression(value, conditions)` when it has conditions
     pub conditions: bool,
     /// the regions of convergence found by the tables and rules are kept as conditions even without `conditions` (the
-    /// check of a value at a point, D23-14); the definite integral is not asked for them
+    /// check of a value at a point); the definite integral is not asked for them
     pub strips: bool,
     /// `fourier_parameters: [a, b]` (default `[0, 1]`)
     pub fourier: Option<(T<'h>, T<'h>)>,
@@ -194,12 +194,12 @@ pub fn transform_one<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: K
         }
     }
     let f = normal(cx, b, f)?;
-    // a power x^(2^31): the rules and the integral behind them would expand it or loop over it (X23-10)
+    // a power x^(2^31): the rules and the integral behind them would expand it or loop over it
     if mc_integrals::has_huge_power(b, f) {
         return Ok(None);
     }
     // a product of undefined functions of the variable (f(n) g(n)): no rule gives its transform, and the rules
-    // that hold it back would evaluate it again without end (D23-20)
+    // that hold it back would evaluate it again without end
     {
         let fs = factors(b, f);
         if fs.len() > 1
@@ -220,7 +220,7 @@ pub fn transform_one<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: K
         }
         return Ok(Some(finish(cx, b, r, y, kind == Kind::Z)?));
     }
-    // the unilateral inverse Z transform of a rational function bounded at infinity is 0 for n < 0 (D23-13)
+    // the unilateral inverse Z transform of a rational function bounded at infinity is 0 for n < 0
     if kind == Kind::InverseZ {
         if let View::Int(k) = h.view(y) {
             if k < 0 && ztrans::causal_rational(cx, b, f, x)? {
@@ -229,7 +229,7 @@ pub fn transform_one<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: K
         }
     }
     // the sine and cosine transforms at a negative number: the closed forms are for w > 0; the cosine transform is
-    // even in w and the sine transform odd (B26-7)
+    // even in w and the sine transform odd
     if matches!(kind, Kind::FourierSin | Kind::FourierCos) && tc.opts.fourier.is_none() {
         let lt = cx.eval(h.call(h.sym("less"), &[y, b.zero()]))?;
         if cx.is_true(lt) && is_free(b, y, x) && only_symbol(b, y, x) {
@@ -243,7 +243,7 @@ pub fn transform_one<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: K
     // a value at a point: the transform at a symbol, then the point
     let ys =h.sym_term(h.sym("transform·point"));
     // the value must hold at the point: found with its conditions, which are checked there (outside the region of
-    // convergence the closed form is only the analytic continuation, D23-14)
+    // convergence the closed form is only the analytic continuation)
     let cond_cx = Cx { b, stop: tc.stop, opts: Opts { strips: true, ..tc.opts }, depth: tc.depth };
     if let Some(r) = dispatch(cx, &cond_cx, kind, f, x, ys)? {
         let (r, cond) = conditional(b, r);
@@ -306,7 +306,7 @@ fn numeric_point<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: Kind,
         return Ok(None);
     }
     let spec = h.call(b.hd.list, &[x, lo, inf]);
-    // at most 3 s: an integral over an infinite range that diverges or oscillates must not run on (B23-13)
+    // at most 3 s: an integral over an infinite range that diverges or oscillates must not run on
     let r = apply(cx, b, "time_constrained", &[b.call("n_integrate", &[g, spec]), b.int(3)])?;
     if matches!(h.view(r), View::Real(_)) || call_of(b, r).map(|(n, _)| n) == Some("complex".into()) {
         let nf = apply(cx, b, "n", &[factor])?;
@@ -392,7 +392,7 @@ fn split_exponentials<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>
     cx.eval(r)
 }
 
-/// The value of a transform written as the tables write it (decision n14e.4): `sqrt(pi) (1/pi)^(1/2)` combined,
+/// The value of a transform written as the tables write it (roadmap item 14E): `sqrt(pi) (1/pi)^(1/2)` combined,
 /// a common rational factor of an exponent taken out (`exp((1/4) (p^2 + s^2))`), linear factors of the variable
 /// `y` in denominators with odd powers given a positive leading coefficient (`z/(z - a)`, not `-z/(a - z)`), and
 /// bounds on `re(y)` as one chain (`-1 < re(s) and re(s) < 1`).
@@ -457,7 +457,7 @@ fn finish_walk<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, y: T<
             return Ok(h.call(h.sym("and"), &out));
         }
     }
-    // (pi^k)^q with k q an integer (D21-15: (pi^-2)^(1/2) is 1/pi)
+    // (pi^k)^q with k q an integer ((pi^-2)^(1/2) is 1/pi)
     if hs == Some(b.hd.pow) && new.len() == 2 {
         if let Some(&[c, k]) = args_of(b, new[0], b.hd.pow) {
             if c == pi {
@@ -469,7 +469,7 @@ fn finish_walk<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, y: T<
         }
     }
     if hs == Some(b.hd.mul) {
-        // abs(u) sign(u) is u (D21-15)
+        // abs(u) sign(u) is u
         for i in 0..new.len() {
             let Some((n1, [u])) = call_of(b, new[i]) else { continue };
             if n1 != "abs" {
@@ -742,8 +742,7 @@ impl Native for Delta {
                 return Ok(Reply::Done(h.int(1)));
             }
             // each argument against the first: equal (a zero difference, 1.0 == 1), provably unequal (a non-zero
-            // number, or a numeric constant whose value is not 0: pi and 3, x and x + 1), or undecided (ui B21-2,
-            // B21-5)
+            // number, or a numeric constant whose value is not 0: pi and 3, x and x + 1), or undecided
             let mut all_equal = true;
             for &a in &args[1..] {
                 let d = cx.eval(h.call(h.sym("add"), &[args[0], h.call(h.sym("mul"), &[h.int(-1), a])]))?;

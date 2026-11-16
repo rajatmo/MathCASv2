@@ -892,7 +892,7 @@ fn sncndn_b(u: &Real, m: &Real, wp: u64) -> Option<(Ball, Ball, Ball)> {
     let mc = one_minus(&ma, wp);
     if is_pos(&mc) {
         // sn(u + 2K) = -sn(u), cn(u + 2K) = -cn(u), dn(u + 2K) = dn(u) (DLMF 22.4.1-3): beyond a few periods the
-        // amplitude's Newton iteration cannot start from a double (D23-22, n(jacobi_sn(10^20, 1/2), 20) did not
+        // amplitude's Newton iteration cannot start from a double (n(jacobi_sn(10^20, 1/2), 20) did not
         // return), so u is reduced modulo 2K with K computed at the bits the reduction consumes
         let uf = f64_of(&ub.mid).abs();
         if uf > 8.0 && uf.is_finite() {

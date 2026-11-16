@@ -950,7 +950,7 @@ impl Native for Blend {
                 };
                 let x = t.clamp(0.0, 1.0) * (v.len() - 1) as f64;
                 let k = (x.floor() as usize).min(v.len().saturating_sub(2));
-                // colours that are all CIE L*a*b* values are mixed in that space and stay one (decision r36core.2)
+                // colours that are all CIE L*a*b* values are mixed in that space and stay one
                 let labs: Option<Vec<[f64; 3]>> = items
                     .iter()
                     .map(|&c| match model::head_name(h, c) {
@@ -1102,7 +1102,7 @@ impl Native for CirclePoints {
         }
         let call = |f: &str, a: &[T<'h>]| h.call(h.sym(f), a);
         let pi = h.sym_term(h.sym("pi"));
-        // a radius `[r, theta]`: the radius and the angle of the first point (R20-08)
+        // a radius `[r, theta]`: the radius and the angle of the first point
         let (r, start) = match cx.as_list(r) {
             Some(&[r, theta]) => (r, Some(theta)),
             _ => (r, None),

@@ -380,7 +380,7 @@ impl SumWrap {
         let mut b = Budget::new(&self.stop, sumfn::WORK);
         let mut m = Meter::new(&mut b);
         let mut sx = Sx::new(cx, &self.stop);
-        // an exact non-integer bound (3/2): no closed form of an integer-bounded sum applies (D23-18)
+        // an exact non-integer bound (3/2): no closed form of an integer-bounded sum applies
         if numsum::non_integer_bound(&mut sx, lo)? || numsum::non_integer_bound(&mut sx, hi)? {
             return Ok(Reply::Decline);
         }
@@ -717,7 +717,7 @@ impl Native {
                     explain(sx.cx, name, verdict)?;
                 }
                 // more than machine precision was asked and only a machine value could be had: none is given (a value with
-                // 16 correct digits printed as if it had the 30 asked for is a wrong answer, B23-24)
+                // 16 correct digits printed as if it had the 30 asked for is a wrong answer)
                 if let (Some(d), Some(_)) = (digits, r) {
                     if d > 16 {
                         let what = if self.f == Fun::NSum { "sum" } else { "product" };
@@ -895,7 +895,7 @@ fn shifted<'h>(sx: &mut Sx<'_, '_, '_, 'h>, g: T<'h>, k: T<'h>, s: T<'h>) -> Res
                 _ => sx.as_list(spec).and_then(|l| l.first().copied()),
             };
             if let Some(j) = var {
-                // k bound by a definite sum: the sum does not depend on it (Q19-12); an indefinite sum in k moves
+                // k bound by a definite sum: the sum does not depend on it; an indefinite sum in k moves
                 if j == k && spec != k {
                     return Ok(g);
                 }

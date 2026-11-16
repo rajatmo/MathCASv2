@@ -1,6 +1,6 @@
 //! The budget of parallel lifting (roadmap item 16A): [`crate::natives::metered`] makes an
 //! [`mc_eval::Budget`] for its work and offers it to the decompositions it runs on this thread; a decomposition
-//! that finds one lifts the cells of each stack in parallel ([`crate::cad`], decision n16a.3).
+//! that finds one lifts the cells of each stack in parallel ([`crate::cad`]).
 use mc_eval::Budget;
 use std::cell::RefCell;
 use std::sync::atomic::AtomicBool;

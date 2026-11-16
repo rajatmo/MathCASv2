@@ -56,7 +56,7 @@ pub(crate) struct EvalFrame<'h> {
     /// rewrites of this level so far ([`crate::EvalConfig::max_iterations`])
     iters: u32,
     /// the call a rule rewrote last on this level: a value `e when c` reached by the rule's right side is decided
-    /// against it (decision p6core.16)
+    /// against it
     call: Option<T<'h>>,
     stage: Stage,
 }
@@ -252,7 +252,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
     }
 
-    /// Count a rewrite of level `e`: past the iteration limit it fails (decision p6core.11).
+    /// Count a rewrite of level `e`: past the iteration limit it fails.
     #[inline]
     fn counted(&self, cx: &mut Cx<'h>, mut e: EvalFrame<'h>) -> Result<EvalFrame<'h>, Next<'h>> {
         e.iters += 1;
@@ -477,7 +477,7 @@ impl<'k, 'h> Eval<'k, 'h> {
                 return Go::Next(self.finish(cx, e, f));
             }
         }
-        // a stored option list next to other options: `f(x, opts, k: v)` is `f(x, options(...opts, k -> v))` (gap G65)
+        // a stored option list next to other options: `f(x, opts, k: v)` is `f(x, options(...opts, k -> v))`
         if let Some(u) = self.merge_options(head, vs) {
             attempt!(self, cx, e, self.tick(cx));
             e.t = u;
@@ -497,7 +497,7 @@ impl<'k, 'h> Eval<'k, 'h> {
                 return Go::Again(e);
             }
         } else if self.maps_associations(head, vs) {
-            // a function that maps over lists itself maps over the values of associations (decision io-core.1)
+            // a function that maps over lists itself maps over the values of associations
             if let Some(u) = self.thread_assoc(head, vs) {
                 attempt!(self, cx, e, self.tick(cx));
                 e.t = u;
@@ -848,7 +848,7 @@ impl<'k, 'h> Eval<'k, 'h> {
 
     /// A rule's right side ended in `body when cond` (inside a block, after the rule matched): the condition is
     /// evaluated now; true gives the body's value, anything else leaves the call as it was (the rule does not
-    /// apply), as a condition on the rule's left side would (decision p6core.16).
+    /// apply), as a condition on the rule's left side would.
     fn decide_conditional(&self, cx: &mut Cx<'h>, call: T<'h>, body: T<'h>, cond: T<'h>) -> Res<T<'h>> {
         let c = self.eval(cx, cond)?;
         Ok(match sym_of(self.heap, c) {
@@ -890,7 +890,7 @@ impl<'k, 'h> Eval<'k, 'h> {
 }
 
 impl<'k, 'h> Eval<'k, 'h> {
-    /// The call an operator form `f(a..)(x..)` stands for (decision p6core.2), unless `f`'s native takes curried
+    /// The call an operator form `f(a..)(x..)` stands for, unless `f`'s native takes curried
     /// calls itself.
     fn operator_form<'n>(&self, head: T<'h>, vals: &[T<'h>], native_of: impl Fn(Sym) -> Option<&'n Impl>) -> Option<T<'h>>
     where

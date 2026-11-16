@@ -66,7 +66,7 @@ fn failures() {
 
 #[test]
 fn a_bare_unknown_and_the_domain() {
-    // gap G70: the name of an unknown as the expression gives its interpolating function, and domain(f) is the
+    // The name of an unknown as the expression gives its interpolating function, and domain(f) is the
     // interval it has values on (cut short by a stopping event)
     let mut s = Sys::new();
     s.run("bs = parametric_n_dsolve_value([x''(z) == -x(z), x(0) == xc, x'(0) == 0], x, [z, 0, 10], [xc], events: [x(z) == 0])");

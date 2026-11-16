@@ -3,7 +3,7 @@
 //!
 //! - `mathieu_c(a, q, z)`: the even Floquet solution ce_nu(z) = sum c_k cos((nu + 2k) z), `mathieu_s(a, q, z)` the odd
 //!   one se_nu(z) = sum c_k sin((nu + 2k) z), with sum c_k^2 = 1 (DLMF 28.12); `mathieu_s_prime(a, q, z)`: the derivative
-//!   of `mathieu_s`, `mathieu_c_prime(a, q, z)` that of `mathieu_c` (round 37: y' of the same integration). They are ce(0) w_I(z) and se'(0) w_II(z) for the solutions w_I, w_II of DLMF 28.2(ii);
+//!   of `mathieu_s`, `mathieu_c_prime(a, q, z)` that of `mathieu_c` (y' of the same integration). They are ce(0) w_I(z) and se'(0) w_II(z) for the solutions w_I, w_II of DLMF 28.2(ii);
 //! - `mathieu_characteristic_a(r, q)`: the characteristic value a_r(q), for which the even solution is periodic (period
 //!   pi for even r, 2 pi for odd r) at integers r >= 0, and for other real r the value with characteristic exponent r:
 //!   cos(pi r) = w_I(pi; a, q) (DLMF 28.2.16), continuous in r with a_r(0) = r^2; a_(-r) = a_r.
@@ -520,16 +520,16 @@ fn on_imaginary_axis<'h>(fx: &mut Fx<'_, '_, '_, 'h>, v: T<'h>, which: Which) ->
 /// The numeric value of a Mathieu function at numeric arguments.
 fn mathieu_numeric<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Which) -> R<'h> {
     let z = a[2];
-    // machine arguments: the double-double kernel (round 29), the ball path when it declines
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
+    // machine arguments: the double-double kernel, the ball path when it declines
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
         let code = match which {
             Which::C => 0,
             Which::S => 1,
             Which::SPrime => 2,
             Which::CPrime => 3,
         };
-        if let Some(v) = crate::fast29::mathieu(ms[0], ms[1], ms[2], code) {
-            return Ok(crate::fast29::machine_out(fx, v, real));
+        if let Some(v) = crate::fast_dd::mathieu(ms[0], ms[1], ms[2], code) {
+            return Ok(crate::fast_dd::machine_out(fx, v, real));
         }
     }
     let Some(zf) = parts(fx, z) else { return Ok(None) };
@@ -821,7 +821,7 @@ fn char_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], odd: bool) -> R<'h> 
         let Some(v) = char_complex_f64(rf, qp, int_r, odd, 0) else { return Ok(None) };
         // machine arguments: the value of a larger matrix with twice the steps along the path must agree to 1e-12
         // (truncation and the path's branch checked by the second run)
-        if crate::fast29::machine_args(fx, a).is_some() {
+        if crate::fast_dd::machine_args(fx, a).is_some() {
             if let Some(w) = char_complex_f64(rf, qp, int_r, odd, 16) {
                 if (v.0 - w.0).hypot(v.1 - w.1) <= 1e-12 * (1.0 + v.0.hypot(v.1)) {
                     return Ok(Some(fx.ar.number(&Num::Complex(Real::Machine(w.0), Real::Machine(w.1)))));
@@ -839,7 +839,7 @@ fn char_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], odd: bool) -> R<'h> 
         // working precision grow with them): machine arguments take the large-parameter expansion at an integer
         // order, every other call stays unevaluated
         if qf.abs() > 1e5 {
-            let machine = crate::fast29::machine_args(fx, a).is_some();
+            let machine = crate::fast_dd::machine_args(fx, a).is_some();
             return Ok((machine && int_r).then(|| asym(rf, qf)).flatten().map(|v| fx.real(v)));
         }
         // the start
@@ -851,8 +851,8 @@ fn char_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], odd: bool) -> R<'h> 
             char_nonint_f64(rf, qf)
         };
         let near = |v: f64| (v - a0).abs() <= 1e-9 * (1.0 + a0.abs()) + 1e-12 * size;
-        if let Some((ms, _)) = crate::fast29::machine_args(fx, a) {
-            if let Some(v) = crate::fast29::mathieu_char_a(rf, ms[1].re, a0, odd) {
+        if let Some((ms, _)) = crate::fast_dd::machine_args(fx, a) {
+            if let Some(v) = crate::fast_dd::mathieu_char_a(rf, ms[1].re, a0, odd) {
                 if near(v) {
                     return Ok(Some(fx.real(v)));
                 }

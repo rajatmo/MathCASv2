@@ -1,4 +1,4 @@
-//! The numeric check of a transform found by rules or tables (decision n14e.3).
+//! The numeric check of a transform found by rules or tables (roadmap item 14E).
 //!
 //! A forward transform is compared with its defining integral (`n_integrate`, through the comparison of item
 //! 14D's check: refuted only on clear evidence, a difference far above the error estimate) at a sample point of

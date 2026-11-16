@@ -160,7 +160,7 @@ hidden:
 
 ### 2.5 Cell brackets
 
-Brackets are drawn in a column at the **left** edge of the cell area *(user decision, round 11)*. Every cell has its own bracket spanning the cell's height (with its top and bottom margins), drawn
+Brackets are drawn in a column at the **left** edge of the cell area *(user decision)*. Every cell has its own bracket spanning the cell's height (with its top and bottom margins), drawn
 nearest the content; every group has a bracket spanning all its visible cells, one column further left: nesting depth
 *d* is drawn at column *d*, so the outermost group is leftmost. Hooks point right, towards the content. At least two
 group columns are reserved so the content does not move sideways when the first group appears. Bracket geometry: line
@@ -169,9 +169,9 @@ magnification).
 
 The content is **left-justified** against that edge: the styles' left margins of the table in 2.1 are taken relative to
 the Input margin (66), so Title, Section, Text and Input start at the edge and items keep their indents. **Output
-alignment is a setting** *(user decision, round 13)*: View > Output alignment > Left / Right (`Ctrl+Shift+J` switches,
+alignment is a setting** *(user decision)*: View > Output alignment > Left / Right (`Ctrl+Shift+J` switches,
 applied at once, saved in the preferences as `output_alignment`); the default is **Left**, where outputs start at the
-content edge like every other cell. With **Right** *(user decision, round nb-ui)* every line of an output ends at the right edge of the content
+content edge like every other cell. With **Right** *(user decision)* every line of an output ends at the right edge of the content
 area (the text width left of the scroll bar, which follows the window width and the magnification): each line of a
 typeset output, each row of a wrapped linear output, a picture's right edge, a large output's title, sample lines and
 buttons. Print and Message cells stay left-justified: they are program output, read as a log, and keeping them on the
@@ -201,9 +201,8 @@ input's bracket after a read error), closed group. Section 8 gives the colours.
 - An evaluated input cell is labelled `in n` with the number of its **first** statement. Each value shown gets an
   Output cell labelled `out k` with its statement's number. Print and Message cells carry a hidden label naming the
   input they came from (shown in their tooltip as "during evaluation of in n").
-- Labels are **not drawn** *(user decision, round 11)*: the numbers stay in the model and the file (`in=`, `out=`), so
-  `out(n)` and the history work; an Output cell's bracket tooltip and the status bar name it as `out(n)`. (Before
-  round 11 they sat in the left margin, right-aligned against the content, on the first baseline.)
+- Labels are **not drawn** *(user decision)*: the numbers stay in the model and the file (`in=`, `out=`), so
+  `out(n)` and the history work; an Output cell's bracket tooltip and the status bar name it as `out(n)`.
 - Labels are written `in 3` and `out 3` *(user decision before 1.0, replacing a bracketed `In`/`Out` form)*: in
   the tooltips, the status bar and the screen reader's names (`output out 3`), and in the file as the attributes
   `in=3` (cell marker) and `out=3` (output block). The history function keeps its call form `out(3)`.
@@ -441,7 +440,7 @@ What is copied:
 The private flavours are registered Windows clipboard formats, "MathCAS.Cells" carrying UTF-8 `.mcn` text and
 "MathCAS.Boxes" carrying UTF-8 canonical box text (with `clipboard-win`); on other platforms the text flavour is used
 with a recognisable first line (`#% cells`), and paste recognises it; the box flavour is kept in-process there and
-pasted while the system clipboard still holds the text of that copy (round 13).
+pasted while the system clipboard still holds the text of that copy.
 
 Paste:
 
@@ -524,13 +523,13 @@ symbols or remain syntax errors with a clear message (work item P7).
 - Up/Down move, Enter or Tab accept, Esc closes. Accepting a function name from the library may insert a template
   with `Ctrl+Shift+K` (M6).
 - The popup shows the name's one-line usage (from the library documentation strings) beside the list.
-- *Round 12 (decisions NBDOCS.1-10):* the candidates are every documented function from the help index (`mc-help`,
+- *Candidates:* every documented function from the help index (`mc-help`,
   shared with the documentation window and the language server; no kernel needed), the session's names from a
   running kernel, locals and keywords; subsequence matches show only when nothing matches by prefix or word prefix;
   accepting a function also inserts its opening bracket (with automatic closing, both). Enter, Tab and Esc are taken
   only while the list is open.
 
-### 3.10a Help while writing code (round 12)
+### 3.10a Help while writing code
 
 - **Usage hint**: inside `f(...)` of a documented function, a popup above the caret's line shows the usage call
   fitting the arguments typed, the current parameter highlighted, and what the call gives; Esc hides it for that
@@ -577,7 +576,7 @@ running every global name is plain (no separate "no kernel" style).
 
 ## 4. Two-dimensional typesetting
 
-### 4.0 One kind of cell (decisions NBUI.5, NBUI.6; user decision, round nb-ui)
+### 4.0 One kind of cell (decisions NBUI.5, NBUI.6; user decision)
 
 *This section overrides the rest of section 4 where they differ; 4.1 to 4.9 describe the box machinery underneath.*
 
@@ -617,7 +616,7 @@ running every global name is plain (no separate "no kernel" style).
 - **Older notebooks.** A typeset cell of an older notebook keeps its roots, fractions and powers as boxes; every other
   box (a subscript, an n-th root, a grid, a big operator) becomes its linear text. Loading and saving then give the same
   text again.
-- **Rejected: live preview.** An earlier proposal of this round showed the construct under the caret as its linear
+- **Rejected: live preview.** An earlier proposal showed the construct under the caret as its linear
   text. The user chose one structured editor instead ("there should be only one"), which also keeps every character
   still while the caret moves.
 
@@ -718,7 +717,7 @@ every box tree. Linear text the user typed never changes on a round trip; the on
 canonical form like `((a)/(b))` by hand in a typeset cell, which then shows as a fraction on reload: same meaning, so
 benign, and documented.
 
-**Slots whose brackets do not match** (round 33). While a formula is typed, a slot can hold a bracket without its
+**Slots whose brackets do not match.** While a formula is typed, a slot can hold a bracket without its
 partner (`(` typed at the start of a numerator), an unterminated string, or a `#` without a line end. Written as it
 is, the box shapes around it would no longer read back: the bracket showed outside its fraction and the caret was
 somewhere else than the editor had it. Such a character is written after an **escape**, U+2060 (word joiner): the
@@ -758,11 +757,11 @@ printed text, re-typeset identically when a notebook is reopened):
 | anything unparsable (elisions, opaque objects) | linear text |
 
 Lists stay linear, except that a list of 2 to 64 lists of equal length (up to 64 elements, none of them a list) is
-drawn as a matrix: a grid between the list's own stretched brackets *(decision NB6.3, round 11: in a typeset notebook such
+drawn as a matrix: a grid between the list's own stretched brackets *(decision NB6.3: in a typeset notebook such
 a list is nearly always a matrix; a preference turns it off)*. A product with a rational coefficient, printed `(2/3)*sqrt(2)`, is one fraction with the
 coefficient's numerator in front (2√2 over 3), a negative coefficient a minus before it *(NB6.2)*.
 
-A typeset output takes a read-only caret between its items (round 11): arrows, Shift, `Ctrl+.`, clicks and drags
+A typeset output takes a read-only caret between its items: arrows, Shift, `Ctrl+.`, clicks and drags
 select a part, which copies as the printed text it stands for (each item keeps a map back to the printed text, which
 also lets Find highlight the matched part).
 
@@ -782,7 +781,7 @@ also lets Find highlight the matched part).
 ### 4.7 Layout
 
 Box layout follows TeX's math rules (TeXbook Appendix G), as v1's `texmath` does, measured with the **cell's own text
-font** (round nb-ui): the extents and advances of its glyphs, its line height and baseline (so a typeset line of plain
+font**: the extents and advances of its glyphs, its line height and baseline (so a typeset line of plain
 characters is exactly a line of the cell's plain text), the middle of its minus sign as the math axis; the OpenType MATH
 table of the math font gives what a text font has no data for: fraction rule thickness and shifts, superscript/subscript shifts and the script and script-script
 scale (70 %, 50 %), radical gap and rule, operator limits, stretchy delimiters from glyph variants and assemblies (`(`
@@ -826,7 +825,7 @@ The summary is a display state, not saved.
 Missing glyphs fall back along the list (egui font families with fallbacks); the math font comes last in every family
 so every math symbol has a glyph. All sizes scale with the window magnification (50 % - 300 %).
 
-**One font in cells** *(user decision, round nb-ui)*: typeset input and typeset output are drawn in the cell's own text
+**One font in cells** *(user decision)*: typeset input and typeset output are drawn in the cell's own text
 font (the bold code font of Input cells, the code font of outputs) at the cell's size and baseline; letters, digits,
 operators and every character that font's family has before the math font come from it, drawn exactly as the cell's
 plain text is (scripts and fraction parts in the same font at the script sizes, 70 % and 50 %). The math font draws only
@@ -936,7 +935,7 @@ demand.
   size in points (a PNG's pixels, divided by the pixel density its `pHYs` chunk marks, 7.5) times the magnification,
   at most the cell width (scaled down keeping the aspect ratio). Pictures are decoded on a worker thread and cached
   as GPU textures; the cache is limited (256 MB of pixels, least recently drawn evicted).
-- **Vector display** *(round nb-svg, user request: "plots should look consistent in both themes and sharp at any
+- **Vector display** *(user request: "plots should look consistent in both themes and sharp at any
   scale")*: plots and graphics are drawn from their SVG (the sibling `plot-N.svg` of the PNG a value names, or the
   embedded `.svg` of a saved notebook), rasterised with `resvg` at exactly the device pixels they cover (picture size
   x magnification x display scale) and drawn one texel per pixel on the pixel grid, so they are sharp at 100 %,
@@ -962,13 +961,13 @@ demand.
   Shift held (otherwise also keep the ratio) *(provisional)*. The size is stored on the output (`size=WxH`, 7.2) and
   kept across re-evaluation of the same input when the new value is also an image *(provisional)*. Double-click on a
   resized image restores its natural size.
-- **Interactive controls** *(round 13)*: an output `manipulate(expr, [a, lo, hi], [b, lo, hi, step], [[c, init], lo,
+- **Interactive controls**: an output `manipulate(expr, [a, lo, hi], [b, lo, hi, step], [[c, init], lo,
   hi], ...)` (the kernel keeps it unevaluated, its arguments held) shows a slider per parameter with its value; the
   result shows in an Output cell below it (marked `manipulated`). A press or drag on a slider evaluates
   `{ let a = v; ...; expr }` in the kernel (not numbered: no labels, no `out`): one evaluation at a time, positions
   reached meanwhile replace each other, letting go interrupts a stale evaluation. Positions are kept on the output
   (`controls=v1:v2`), the last result in the file, so a reopened notebook shows both without a kernel.
-- **3D pictures turn** *(round 13)*: a picture whose scene travels with it (`plot-N.scene3d`, written by every 3D
+- **3D pictures turn**: a picture whose scene travels with it (`plot-N.scene3d`, written by every 3D
   plot and shown `graphics3d` value) is drawn again from another view point on a worker thread, without evaluating:
   dragging it turns it (half a turn across its width), the wheel zooms it while it is selected (10 % a notch; the
   wheel scrolls the notebook otherwise), a double-click goes back to its own view. The view is kept on the output
@@ -1075,7 +1074,7 @@ fn helper(x) = x^2
 - **Hand editing:** an unknown kind or a malformed attribute is reported with its line and kept as a Text cell, so a
   typo never loses content.
 
-### 7.5 Images: one file per notebook (round 13, user decision)
+### 7.5 Images: one file per notebook (user decision)
 
 *Replaces the sidecar folder of earlier rounds ("I don't want this contamination ... keep everything in one file").*
 
@@ -1096,11 +1095,11 @@ block** under a content-hash name, with the files that make it interactive:
 
 - `#~ @name [deflate]` starts a file, the `#~` lines after it are its bytes in base64 (deflated first when marked).
   Names are plain file names (letters, digits, `.`, `_`, `-`); anything else is ignored when reading.
-- Embedded *(round nb-svg)*: a plot's or graphic's **SVG, deflated** (the drawing `mc-graphics` wrote, recognised by
+- Embedded: a plot's or graphic's **SVG, deflated** (the drawing `mc-graphics` wrote, recognised by
   the class `mc-graphic` on its root element; the value names the `.svg`), so a reopened notebook draws it sharp and
   in its theme (6); deflated too, the plot description `.json` (hover read-outs, 6) and the 3D scene `.scene3d`
   (rotation, 6). PDF siblings are never stored. Pictures of other programs (PNG, SVG) are embedded as they are.
-- **Column twin** *(round 37, decision u37.1)*: a 2D plot of the default size also embeds `plot-<hash>.column.svg`,
+- **Column twin**: a 2D plot of the default size also embeds `plot-<hash>.column.svg`,
   deflated: the same figure laid out by `mc-plot` on a page of 569.4 x 355.9 points with its text at its own size
   (13 pt). The PDF export draws it at the width of its picture column (459.9 pt, a scale of 0.808), so tick labels
   print at the code's 10.5 pt and exponents at 7.4 pt, the proportion the window shows (13 px plot text beside
@@ -1113,7 +1112,7 @@ block** under a content-hash name, with the files that make it interactive:
   with `image_size:`/`aspect_ratio:` (none is made: their size is the user's) and of dense plots embedded as PNG.
   Older notebooks without twins open and export as before (the screen drawing at the column's width); a picture
   resized in the window (`size=`) prints at its size from its screen drawing.
-- **3D column twin** *(round 38)*: a 3D picture of the default size (no `image_size:`/`aspect_ratio:`) also gets
+- **3D column twin**: a 3D picture of the default size (no `image_size:`/`aspect_ratio:`) also gets
   `plot-<hash>.column.svg`, stored and exported as a 2D plot's: its projection drawn by `mc-graphics` on a page
   569.4 points wide (the 2D twin's width; the height follows the picture's shape, 465 points for a default
   `plot3d`), its 10-point text and its lines at their own sizes. The PDF export draws it at the column's 459.9 pt,
@@ -1123,14 +1122,14 @@ block** under a content-hash name, with the files that make it interactive:
   a 3D picture's twin is about as large as its drawing (`plot3d(sin(x*y), [x, 0, 3], [y, 0, 3])`: 143 KB of base64
   more, the notebook 269 KB before, 412 KB after); a twin deflating to more than 256 KiB is not stored (the screen
   drawing prints, as before).
-- **Dense plots** *(round nb-svg, decision nb-svg.4)*: an SVG that deflates to more than **256 KiB** is embedded as a
+- **Dense plots**: an SVG that deflates to more than **256 KiB** is embedded as a
   PNG rendered from it at **twice** its size (light colours) with a `pHYs` chunk of 144 dots per inch; readers show a
   PNG whose `pHYs` says 72 k dpi (k = 2, 3, 4) at its pixels divided by k (`mc_nbfile::images::png_density`). Such a
   picture does not follow the theme (a light box in One Dark). Measured: `plot(sin(x), [x, 0, 6])` embeds in 6.9 KB
   (90 KB as PNG before); a 200 000-point `list_plot` would need 1.43 MB as SVG (3.1 MB raw, 853 KB deflated) and
   embeds as a 1280 x 800 PNG of 76 KB (the PNG of before: 157 KB); a default `plot3d` 134 KB (122 KB before); a
   `density_plot` 113 KB (287 KB before).
-- **One copy** *(round nb-svg)*: a picture several outputs show is stored once, in the first block that shows it; the
+- **One copy**: a picture several outputs show is stored once, in the first block that shows it; the
   later blocks only name it. Opening reads every block's files before pointing values at them.
 - Opening extracts the files into the cache (`mathcas-plots/embedded/`, written once per content hash, swept after 30
   days unused) and shows them from there; saving embeds them again (same names, same text: diffs show only changed
@@ -1141,11 +1140,11 @@ block** under a content-hash name, with the files that make it interactive:
   light look.
 - Older notebooks with a `<name>.files/` folder read as before; saving embeds their pictures and leaves the folder for
   the user to delete.
-- Every `#~` line is a comment, so the notebook still reads as a script; readers older than round 13 reject `#~`
+- Every `#~` line is a comment, so the notebook still reads as a script; older readers reject `#~`
   lines in output blocks.
 - Size: a 2D plot adds about 7-13 KB (deflated SVG in base64 plus a 2-3 KB description; it was about 90 KB with the
-  PNG), about 4-5 KB more with its column twin (round 37), a default `plot3d` about 210 KB (its scene deflates from
-  0.9 MB to 68 KB) and its column twin (round 38) about as much again.
+  PNG), about 4-5 KB more with its column twin, a default `plot3d` about 210 KB (its scene deflates from
+  0.9 MB to 68 KB) and its column twin about as much again.
 - Older notebooks that carry PNGs read and show as before; saving them again keeps the PNG unless the session's SVG
   sibling is still there.
 
@@ -1379,8 +1378,8 @@ Every key, menu item and mouse action becomes a `Command`; the UI never mutates 
 
 - Every visible cell is an AccessKit node: role `heading` with level for Title ... Subsubsection, `paragraph` for Text,
   `text input` (multi-line) for Input/Code named by its style, `status`-like read-only text for outputs (name
-  `Output out(3)`, value = printed linear text), `log` for Print and Message, `image` for pictures (built in round 11;
-  the labels are no longer drawn, see 2.6). Brackets and the insertion point are reached from the keyboard through
+  `Output out(3)`, value = printed linear text), `log` for Print and Message, `image` for pictures (
+  the labels are not drawn, see 2.6). Brackets and the insertion point are reached from the keyboard through
   commands (no mouse needed for any action); the menus open with F10 and Alt+letter.
 - Typeset content exposes its linear input text (4.6) as value, so screen readers read `(a + b)/(2c)`.
 - Live region: "Evaluation finished" / "Kernel stopped" announcements.

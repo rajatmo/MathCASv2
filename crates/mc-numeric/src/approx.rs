@@ -120,7 +120,7 @@ pub(crate) fn set_precision<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, t: T<'
     let ar = env.arith(h);
     let digits = match h.view(d) {
         View::Int(d @ 1..) => Some(d as u64),
-        // a real number of digits is rounded up, as in `n` (decision r37.1: `set_precision(x, machine_precision)`)
+        // a real number of digits is rounded up, as in `n` (`set_precision(x, machine_precision)`)
         View::Real(r) if r.is_finite() && r > 0.0 && r < 1e15 => Some(r.ceil() as u64),
         View::Sym(s) if s == env.s.inf => None,
         View::Sym(_) | View::App { .. } => return Ok(Reply::Decline),

@@ -1,11 +1,11 @@
-//! Attributes as values (decision p6core.26): `attributes(f)`, `set_attributes(f, a)`, `clear_attributes(f, a)`.
+//! Attributes as values: `attributes(f)`, `set_attributes(f, a)`, `clear_attributes(f, a)`.
 //!
 //! The names: `listable` (map over list arguments), `hold_all`, `hold_first`, `hold_rest` (arguments held),
 //! `orderless` (an associative and commutative head: arguments flattened and sorted, matching modulo AC) and `flat`
 //! (associative only: nested calls spliced in, order kept, an argument pattern matching a run of arguments wrapped in
 //! the head: `ff(x_)` matches `ff(1, 2)` with `x = ff(1, 2)`), `effect` (calls perform effects: never evaluated ahead of their turn), `handles_failures` (failures
 //! arrive as arguments), `protected` (definitions may not change: assignments, rules, `unset` and other attribute
-//! changes give `failure(protected, f)`; decision r17fix.4). `locked`, `read_protected`, `numeric_function`,
+//! changes give `failure(protected, f)`; decision 13.9 of design 01). `locked`, `read_protected`, `numeric_function`,
 //! `one_identity` and `constant` are accepted and change nothing.
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Attributes, Hold, Kernel, Native, NativeCx, Reply, Res};
@@ -83,7 +83,7 @@ impl Native for AttributesOf {
         let h = cx.heap();
         let [f] = args else { return Ok(Reply::Decline) };
         let View::Sym(s) = h.view(*f) else { return Ok(Reply::Decline) };
-        // a function that maps over lists itself is listable to the user (decision io-core.1)
+        // a function that maps over lists itself is listable to the user
         let a = Attributes { listable: cx.maps_lists(s), ..cx.attributes(s) };
         let v: Vec<T<'h>> = names_of(a).iter().map(|n| h.sym_term(h.sym(n))).collect();
         Ok(Reply::Done(cx.list(&v)))
@@ -111,7 +111,7 @@ impl Native for SetAttributes {
         let Some(ns) = syms(h, cx, *a) else { return Ok(failure(cx, 2)) };
         for s in fs {
             let mut at = cx.attributes(s);
-            // a protected symbol's attributes change only by giving up `protected` (decision r17fix.4)
+            // a protected symbol's attributes change only by giving up `protected` (decision 13.9 of design 01)
             let unprotects = !self.set && ns.iter().any(|&n| h.sym_name(n) == "protected");
             if at.protected && !unprotects {
                 cx.effect()?;

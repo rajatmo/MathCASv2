@@ -1,5 +1,5 @@
 //! Level specifications and the walks over the parts of a term at given levels: `apply(f, x, levels)`,
-//! `map_indexed(f, x, levels)`, `count(x, p, levels)` and `map(f, x, levels)` (decision p6core.9).
+//! `map_indexed(f, x, levels)`, `count(x, p, levels)` and `map(f, x, levels)`.
 //!
 //! A part at position `[i1, ..., ik]` is at level `k` (the term itself at level 0); its negative level is minus its
 //! depth (atoms -1). A specification is `n` (levels 1 to n), `inf` (1 and below), `[n]` (level n only), `[m, n]`
@@ -213,7 +213,7 @@ fn walk_at<'a, 'b, 'h>(
         return Ok(None);
     }
     cx.tick(1)?;
-    // an association's parts are its values: the keys are not walked (decision io-core.4)
+    // an association's parts are its values: the keys are not walked
     if let Some(es) = entries_of(h, t, heads) {
         let mut out = Vec::with_capacity(es.len());
         let mut depth = 0;
@@ -366,7 +366,7 @@ fn map_with_heads<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: T<'h>, levels:
 }
 
 /// `map_indexed(f, x, levels, heads: true)`: each part `p` at `levels`, the heads of compound parts included (a
-/// head is at position 0 of its call, one level below it), replaced by `f(p, position)` (round 37).
+/// head is at position 0 of its call, one level below it), replaced by `f(p, position)`.
 pub(crate) fn map_indexed_with_heads<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: T<'h>, levels: Levels) -> Res<Reply<'h>> {
     fn go<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, t: T<'h>, levels: Levels, pos: &mut Vec<i64>) -> Res<Option<(T<'h>, usize)>> {
         let h = cx.heap();
@@ -440,7 +440,7 @@ pub(crate) fn apply_with_heads<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: T
     })
 }
 
-/// `map` beyond lists (decision p6core.9): `map(f, x, levels)`; `map(f, assoc(k -> v, ...))` maps the values;
+/// `map` beyond lists: `map(f, x, levels)`; `map(f, assoc(k -> v, ...))` maps the values;
 /// `map(f, g(a, b))` is `g(f(a), f(b))` for any compound term. Lists go to the evaluator's own `map`.
 pub(crate) struct MapMore {
     pub inner: Box<dyn Native>,
@@ -454,7 +454,7 @@ impl Native for MapMore {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
-        // `map(f, xs, parallel: true)` (decision sp-core.4)
+        // `map(f, xs, parallel: true)`
         if let Some((rest, parallel)) = crate::parallel::option(cx, args)? {
             return match (rest, parallel) {
                 (&[f, x], true) => crate::parallel::map_parallel(cx, f, x),
@@ -481,7 +481,7 @@ impl Native for MapMore {
                 Some(levels) => map_at_levels(cx, f, x, levels),
                 None => Ok(Reply::Decline),
             },
-            // a dataset maps over its rows (decision io-core.17)
+            // a dataset maps over its rows
             [f, x] if self.lib.is_dataset(h, x) => {
                 let rows = h.app(h.sym_term(h.sym("rows")), &[x]);
                 Ok(Reply::Again(h.app(h.sym_term(h.sym("map")), &[f, rows])))

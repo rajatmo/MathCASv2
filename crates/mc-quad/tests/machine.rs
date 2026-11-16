@@ -127,7 +127,7 @@ fn failures() {
         ("n_integrate(x, [2, 0, 1])", "failure(argument, n_integrate, 2)"),
         ("n_integrate(x, [x, 0, a])", "failure(argument, n_integrate, 2)"),
         ("n_integrate(x, [x, 0, inf, 1])", "failure(argument, n_integrate, 2)"),
-        // a complex end: the straight path (decision quad-2.1); a list integrand: each element
+        // a complex end: the straight path; a list integrand: each element
         ("im_part(n_integrate(2*x, [x, 0, 1 + im]))", "2.0000000000000004"),
         ("n_integrate(x, [x, 0, y])", "failure(argument, n_integrate, 2)"),
         ("n_integrate(x*y, [x, 0, 1], [x, 0, 1])", "failure(argument, n_integrate, 3)"),
@@ -161,7 +161,7 @@ fn stable_forms() {
     assert_eq!(s.run("expm1(1.0e-20)"), "1e-20");
 }
 
-/// G50: the reciprocal and inverse hyperbolic functions in an integrand are compiled, not interpreted at every point
+/// The reciprocal and inverse hyperbolic functions in an integrand are compiled, not interpreted at every point
 /// (an oscillatory integrand with `atanh` took seconds).
 #[test]
 fn inverse_hyperbolic_integrands_compile() {

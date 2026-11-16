@@ -1,5 +1,5 @@
 //! Signs of an expression over a whole interval of the line, also an unbounded one or one whose ends the expression
-//! does not reach (round 43b). The sign, monotonicity and convexity of a function of one variable are the signs of
+//! does not reach. The sign, monotonicity and convexity of a function of one variable are the signs of
 //! f, f' and f'' over its domain; these methods prove them where `refine` alone does not:
 //!
 //! - **Facts**: `refine` of g > 0 (g >= 0) under a < x < b.

@@ -8,7 +8,7 @@
 //! - [`apart`]: partial fractions (item 2C); [`props`]: properties of functions; [`optimize`]: global extrema;
 //! - [`common`]: helpers of every calculus crate; [`transform_kind`]: the integral transforms by name.
 //!
-//! The other areas of calculus are crates of their own above this one (round 34): `mc-limit` (limits and
+//! The other areas of calculus are crates of their own above this one: `mc-limit` (limits and
 //! asymptotics), `mc-integrals` (`integrate`, definite and indefinite), `mc-transforms` (integral transforms) and
 //! `mc-dsolve` (differential and recurrence equations).
 //!
@@ -43,8 +43,8 @@ use mc_eval::{Attributes, Kernel};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-/// The calculus library written in MathCAS itself (`lib/calculus.mc`: the calculus libraries of rounds 28, 29
-/// and 31, merged in round 34 in their load order): evaluated by the engine after the language library, so
+/// The calculus library written in MathCAS itself (`lib/calculus.mc`):
+/// evaluated by the engine after the language library, so
 /// its functions are defined in every session. They are listed in [`FUNCTIONS`].
 pub const LIB_SOURCE: &str = include_str!("../../../lib/calculus.mc");
 
@@ -126,7 +126,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("inverse_z_transform", "inverse_z_transform(F, z, n): the inverse Z transform of a rational function of z (residues and delta functions)"),
     ("discrete_delta", "discrete_delta(n1, ..., nk): 1 when every argument is 0, 0 when one is a nonzero number"),
     ("kronecker_delta", "kronecker_delta(n1, ..., nk): 1 when the arguments are equal, 0 when they are different numbers"),
-    // round 28, written in MathCAS (lib/calculus.mc)
+    // written in MathCAS (lib/calculus.mc)
     ("triangle_wave", "triangle_wave(x), triangle_wave([a, b], x): the triangle wave of period 1 between -1 and 1 (a and b), 0 at x = 0"),
     ("square_wave", "square_wave(x), square_wave([a, b], x): the square wave of period 1, 1 (b) on the first half of each period, -1 (a) on the second"),
     ("sawtooth_wave", "sawtooth_wave(x), sawtooth_wave([a, b], x): the sawtooth wave x - floor(x) of period 1 (scaled to run from a to b)"),
@@ -159,9 +159,9 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("dt", "dt(e, x): the total derivative, other symbols functions of x (dt(s, x)); dt(e): the total differential; dt(e, [x, k])"),
     ("inverse_function", "inverse_function(f): the inverse of a named elementary function or of a function solve can invert"),
     ("implicit_d", "implicit_d(f, eqs, ys, x), (..., [x, k]), (..., x1, x2): the derivative of f with ys defined implicitly by eqs; implicit_d(eq, y, x) dy/dx"),
-    // round 31 (lib/calculus.mc)
+    // written in MathCAS (lib/calculus.mc)
     ("spheroidal_s1_prime", "spheroidal_s1_prime(n, m, gamma, z): the z-derivative of spheroidal_s1 (the row of d)"),
-    // round 29 (lib/calculus.mc)
+    // written in MathCAS (lib/calculus.mc)
     ("between", "between(x, [a, b]): a <= x <= b; ranges as lists of pairs, intervals or centered intervals; between([a, b]) the operator form"),
     ("booleans", "the domain of the truth values true and false (element(x, booleans))"),
     ("o", "o(x), o(x, x0): the order term O(x - x0); o(x)^k + f truncates the series of f at order k"),

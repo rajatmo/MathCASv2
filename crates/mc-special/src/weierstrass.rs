@@ -418,16 +418,16 @@ fn weierstrass<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Wf) -> R<'h>
     if !numeric_terms(fx, &args) {
         return Ok(None);
     }
-    // machine arguments: the double-double kernel (round 29), the ball path when it declines
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, &args) {
+    // machine arguments: the double-double kernel, the ball path when it declines
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, &args) {
         let code = match which {
             Wf::P => 0,
             Wf::PPrime => 1,
             Wf::Zeta => 2,
             Wf::Sigma => 3,
         };
-        if let Some(v) = crate::fast29::weierstrass(ms[0], ms[1], ms[2], real, code) {
-            return Ok(crate::fast29::machine_out(fx, v, real));
+        if let Some(v) = crate::fast_dd::weierstrass(ms[0], ms[1], ms[2], real, code) {
+            return Ok(crate::fast_dd::machine_out(fx, v, real));
         }
     }
     let Some((wk, xs)) = work(fx, &args, 48) else { return Ok(None) };
@@ -437,7 +437,7 @@ fn weierstrass<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Wf) -> R<'h>
     Ok(wk.out(fx, v, real))
 }
 
-/// The lattice degenerate to a strip (round 37): exact invariants with g2 != 0 and discriminant g2^3 - 27 g3^2 = 0,
+/// The lattice degenerate to a strip: exact invariants with g2 != 0 and discriminant g2^3 - 27 g3^2 = 0,
 /// that is g2 = 12 c^2, g3 = -8 c^3 with c = -3 g3/(2 g2) (a double root e = c of 4t^3 - g2 t - g3). With
 /// k = sqrt(3c) (the case Delta = 0 of Abramowitz and Stegun 18.12; checked by p'^2 = 4p^3 - g2 p - g3): p = c + k^2 csch(k u)^2, p' = -2 k^3 csch(k u)^2
 /// coth(k u), zeta = -c u + k coth(k u), sigma = sinh(k u)/k exp(-c u^2/2) (zeta' = -p and sigma'/sigma = zeta,
@@ -503,10 +503,10 @@ fn inverse_weierstrass_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> 
     if !numeric_terms(fx, &args) {
         return Ok(None);
     }
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, &args) {
-        if let Some(v) = crate::fast29::inverse_p(ms[0], ms[1], ms[2], ms.get(3).copied(), real) {
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, &args) {
+        if let Some(v) = crate::fast_dd::inverse_p(ms[0], ms[1], ms[2], ms.get(3).copied(), real) {
             let r = real && v.im == 0.0;
-            return Ok(crate::fast29::machine_out(fx, v, r));
+            return Ok(crate::fast_dd::machine_out(fx, v, r));
         }
     }
     let extra = 32 + (mag(fx, p).max(1.0).log2() as u64);
@@ -518,7 +518,7 @@ fn inverse_weierstrass_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> 
     for (o, t) in ds.iter_mut().zip(d) {
         *o = fx.eval(t)?;
     }
-    let Some(mut u) = crate::cover28::carlson_rf_at(fx, ds[0], ds[1], ds[2], wk.w)? else { return Ok(None) };
+    let Some(mut u) = crate::scorer_lommel_coulomb::carlson_rf_at(fx, ds[0], ds[1], ds[2], wk.w)? else { return Ok(None) };
     if all_real(fx, &args) {
         u = chop(fx, u, wk.w);
     }
@@ -552,7 +552,7 @@ fn inverse_weierstrass_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> 
                     let others: Vec<T<'h>> = (0..3).filter(|&j| j != k).map(|j| fx.sub(e[k], e[j])).collect();
                     let o0 = fx.eval(others[0])?;
                     let o1 = fx.eval(others[1])?;
-                    if let Some(wr) = crate::cover28::carlson_rf_at(fx, fx.int(0), o0, o1, wk.w)? {
+                    if let Some(wr) = crate::scorer_lommel_coulomb::carlson_rf_at(fx, fx.int(0), o0, o1, wk.w)? {
                         u = fx.eval(fx.add(&[u, fx.mul(&[fx.int(2), wr])]))?;
                     }
                 }
@@ -632,7 +632,7 @@ fn elliptic_exp<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>]) -> R<'h> {
     Ok(Some(fx.list(&[x, y])))
 }
 
-// ---------------------------------------------------------------- lattice data (round 29)
+// ---------------------------------------------------------------- lattice data
 
 /// A lattice quantity of the invariants: the half-periods [omega1, omega3], one half-period omega_k, a root e_k =
 /// p(omega_k) or a quasi-period eta_k = zeta(omega_k) (k = 1, 2, 3; omega2 = -omega1 - omega3).
@@ -857,16 +857,16 @@ fn lattice_quantity<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], q: Lq) -> R<'h
     Ok(out(fx, v))
 }
 
-/// [`lattice_quantity`] at machine invariants (round 37): the lattice of the double-double kernel of `fast29`
+/// [`lattice_quantity`] at machine invariants: the lattice of the double-double kernel of `fast_dd`
 /// (the same labelling and AGM as [`lattice`]), its half-periods reduced by [`reduce_basis`] on machine numbers, e_k
 /// and eta_k by that kernel's p and zeta at the reduced half-periods. The plots of e1, eta1 and the half-periods over
 /// real invariants took 4 ms a point on the ball path and timed out. `None` (the ball path) when the kernel declines.
 fn lattice_quantity_machine<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>; 2], q: Lq) -> R<'h> {
-    let Some((ms, real)) = crate::fast29::machine_args(fx, args) else { return Ok(None) };
+    let Some((ms, real)) = crate::fast_dd::machine_args(fx, args) else { return Ok(None) };
     let (g2, g3) = (ms[0], ms[1]);
     let neg = real && g3.re.hi < 0.0;
     let g3b = if neg { -g3 } else { g3 };
-    let Some(latb) = crate::fast29::w_lattice(g2, g3b, real) else { return Ok(None) };
+    let Some(latb) = crate::fast_dd::w_lattice(g2, g3b, real) else { return Ok(None) };
     let term = |fx: &Fx<'_, '_, '_, 'h>, z: mc_numeric::machine::C64| fx.ar.number(&Num::Complex(Real::Machine(z.re), Real::Machine(z.im)));
     let (w1, w3) = (term(fx, latb.w1.to_c64()), term(fx, latb.w3.to_c64()));
     let Some((mut o1, mut o3)) = reduce_basis(fx, w1, w3)? else { return Ok(None) };
@@ -901,13 +901,13 @@ fn lattice_quantity_machine<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>; 2], 
         Lq::W(k) => om[k - 1].to_c64(),
         Lq::E(k) | Lq::Eta(k) => {
             let lat = if neg {
-                let Some(l) = crate::fast29::w_lattice(g2, g3, real) else { return Ok(None) };
+                let Some(l) = crate::fast_dd::w_lattice(g2, g3, real) else { return Ok(None) };
                 l
             } else {
                 latb
             };
             let which = if matches!(q, Lq::E(_)) { 0 } else { 2 };
-            let Some(v) = crate::fast29::w_eval(&lat, om[k - 1], which) else { return Ok(None) };
+            let Some(v) = crate::fast_dd::w_eval(&lat, om[k - 1], which) else { return Ok(None) };
             // a root that vanishes (e2 of [g2, 0]) is zero to the machine precision relative to the others
             let scale = (std::f64::consts::PI / (2.0 * lat.w1.to_c64().re.hypot(lat.w1.to_c64().im))).powi(2);
             if which == 0 && v.re.hypot(v.im) <= 1e-13 * scale {

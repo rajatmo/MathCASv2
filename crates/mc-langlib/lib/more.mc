@@ -179,7 +179,7 @@ fn interval_intersection_boxes(as, bs) = {
 # interval_intersection(i1, i2, ...): the intersection of intervals and centered intervals: an interval of the real
 # pieces common to all; the centered interval of the common box when a complex centered interval leaves one
 fn interval_intersection(parts...) when length(parts) >= 1 and every(parts, t => head(t) === interval or head(t) === centered_interval) = {
-  let bs = fold((acc, p) => interval_intersection_boxes(acc, b29_boxes(p)), b29_boxes(parts[1]), rest(parts))
+  let bs = fold((acc, p) => interval_intersection_boxes(acc, ls_boxes(p)), ls_boxes(parts[1]), rest(parts))
   if every(bs, b => b[3] == 0 and b[4] == 0) then apply(interval, map(b => [b[1], b[2]], bs))
   else if length(bs) == 1 then {
     let b = bs[1]

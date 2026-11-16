@@ -2,8 +2,8 @@
 //! `ordering`, `max_by`, `min_by` (the kernel's canonical order through [`NativeCx::cmp`]).
 //!
 //! The canonical order is `mc-arith`'s [`Order`] (semantics 8), the order the engine installs as the kernel's order
-//! hook, with one difference: strings sort alphabetically (case folded first, then lower case first; decision
-//! r17fix.7), as people read sorted words; `NativeCx` offers no access to the hook itself (decision I.12). Integers, strings, symbols and compound
+//! hook, with one difference: strings sort alphabetically (case folded first, then lower case first), as people
+//! read sorted words; `NativeCx` offers no access to the hook itself (decision I.12). Integers, strings, symbols and compound
 //! structure are compared directly (`Canonical`: the same answer, without building number values). Both sorts are
 //! one stable merge sort that only asks "must `b` come before `a`?", so an inconsistent predicate gives some
 //! permutation, never a panic, and every comparison charges fuel and polls the interrupt.
@@ -32,7 +32,7 @@ impl From<Abort> for Halt<'_> {
 /// The canonical order, walked like [`Order`] (heads, then argument counts, then arguments, stopping at the first
 /// difference) but deciding machine integers, strings, symbols and kinds directly; a pair of other numbers, or a
 /// possible complex number, is passed to [`Order`]. The answer is the same, without building number values or
-/// allocating per comparison, except for strings, which sort alphabetically ([`alphabetic`], decision r17fix.7)
+/// allocating per comparison, except for strings, which sort alphabetically ([`alphabetic`])
 /// where the canonical order compares code points.
 struct Canonical<'h> {
     h: &'h Heap,
@@ -107,7 +107,7 @@ impl<'h> Canonical<'h> {
             let (va, vb) = (self.h.view(a), self.h.view(b));
             let o = match (&va, &vb) {
                 (View::Int(x), View::Int(y)) => x.cmp(y),
-                // strings alphabetically (decision r17fix.7)
+                // strings alphabetically
                 (View::Str(x), View::Str(y)) => alphabetic(x, y),
                 (View::Sym(x), View::Sym(y)) => {
                     let (i, j) = (self.name(*x), self.name(*y));
@@ -139,7 +139,7 @@ impl<'h> Canonical<'h> {
     }
 }
 
-/// The alphabetic order of strings (decision r17fix.7): compared with letter case folded first (`"cat"` before
+/// The alphabetic order of strings: compared with letter case folded first (`"cat"` before
 /// `"catfish"` before `"fish"`, whatever their case), then, between strings equal up to case, lower case before upper
 /// case at the first difference (`"cat"` before `"Cat"`), then code points. This is the primary and tertiary level
 /// of a collation (the Unicode collation algorithm, UTS #10, without its tables): letters of other alphabets and
@@ -209,7 +209,7 @@ fn merge_sort<'h, E: Copy>(
 }
 
 /// The positions of `xs` ordered by value when some element is a number-like value with its own comparisons
-/// (`quantity`, `around`, `interval`: `cx.is_value`) and the others are values or numbers (G55): `less(a, b)` as
+/// (`quantity`, `around`, `interval`: `cx.is_value`) and the others are values or numbers: `less(a, b)` as
 /// the evaluator decides it (quantities in a common unit). `None` when no element is a value, an element is
 /// neither, or a comparison is not decided (the canonical order then applies).
 pub(crate) fn value_order<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: &[T<'h>]) -> Res<Option<Vec<usize>>> {
@@ -283,7 +283,7 @@ pub(crate) fn sort<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
             })
         }
         // `b` (later) goes before `a` when `by(a, b)` is `false`: elements for which neither holds trade places;
-        // an undecided `by(a, b)` keeps them (decision cov-core.7)
+        // an undecided `by(a, b)` keeps them
         Some(by) => merge_sort(&mut v, &mut |b, a| {
             cx.tick(1)?;
             let v = apply(cx, by, &[a, b])?;
@@ -337,7 +337,7 @@ pub(crate) fn ordered<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
 
 /// The positions `0..n` sorted stably by the canonical order of `key[i]`, charging fuel per comparison.
 /// The positions of `key` ordered so that `by(key[i], key[j])` true puts `i` first (stable): `Err` holds a failure
-/// of `by` (decision io-core.13).
+/// of `by`.
 fn order_by_pred<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>], by: T<'h>) -> Res<Result<Vec<usize>, T<'h>>> {
     let mut ix: Vec<usize> = (0..key.len()).collect();
     match merge_sort(&mut ix, &mut |b, a| {
@@ -365,13 +365,13 @@ fn order_by_keys<'h>(cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>]) -> Res<Vec<us
 }
 
 /// `sort_by(xs, f)`: the elements ordered by the canonical order of `f(x)` (equal keys: the elements in canonical
-/// order, decision cov-core.7; with a predicate, equal keys keep their order).
+/// order; with a predicate, equal keys keep their order).
 /// Each `f(x)` is evaluated once, as a group.
 pub(crate) fn sort_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let (xs, f, by) = match *args {
         [xs, f] => (xs, f, None),
-        // `sort_by(xs, f, p)`: the keys ordered by the predicate p (decision io-core.13)
+        // `sort_by(xs, f, p)`: the keys ordered by the predicate p
         [xs, f, p] => (xs, f, Some(p)),
         _ => return Ok(Reply::Decline),
     };
@@ -381,7 +381,7 @@ pub(crate) fn sort_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
         Err(e) => return Ok(Reply::Done(e)),
     };
     let ix = match by {
-        // equal keys: the elements in canonical order (decision cov-core.7)
+        // equal keys: the elements in canonical order
         None => {
             let ix = order_by_keys(cx, xs)?;
             let k2: Vec<T<'h>> = ix.iter().map(|&i| key[i]).collect();
@@ -405,7 +405,7 @@ pub(crate) fn ordering<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
         [xs] => (xs, None, None),
         [xs, n] if all(n) => (xs, None, None),
         [xs, n] => (xs, Some(n), None),
-        // `ordering(xs, n, p)`: ordered by the predicate p (decision io-core.13)
+        // `ordering(xs, n, p)`: ordered by the predicate p
         [xs, n, p] if all(n) => (xs, None, Some(p)),
         [xs, n, p] => (xs, Some(n), Some(p)),
         _ => return Ok(Reply::Decline),
@@ -459,7 +459,7 @@ pub(crate) fn ordering<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
 /// keys. An empty `xs` is `failure(index, 1, 0)`, as for `first`.
 fn extreme_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], max: bool) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // `max_by(xs, f, n)`: the n elements with the largest keys, largest first (equal keys in order; decision io-core.13)
+    // `max_by(xs, f, n)`: the n elements with the largest keys, largest first (equal keys in order)
     if let [xs, f, n] = *args {
         let View::Int(n @ 0..) = h.view(n) else { return Ok(Reply::Decline) };
         let (head, xs) = take!(lib.operand(h, t, xs, 1));

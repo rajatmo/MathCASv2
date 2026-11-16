@@ -105,7 +105,7 @@ mod tests {
     use super::*;
     use mc_boxes::tree::notation;
 
-    /// Gap queue G89: minor ticks as frames show them by default.
+    /// Minor ticks as frames show them by default.
     #[test]
     fn minor_ticks_divide_the_steps() {
         let close = |a: &[f64], b: &[f64]| a.len() == b.len() && a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-12);

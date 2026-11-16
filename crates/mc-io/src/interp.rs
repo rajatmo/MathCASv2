@@ -1,7 +1,7 @@
 //! `interpolation(data)`: a not-a-knot cubic spline (or a piecewise-linear interpolant) through tabulated data, as a
 //! callable value `interpolated(xs, ys, ms)` (ms: the second derivatives at the nodes; all zero for linear);
 //! `interpolation(data, interpolation_order: k)`: the local polynomial of degree k through the k + 1 nearest nodes,
-//! `interpolated(xs, ys, k)` (decision io-num.13). A fourth argument is a derivative order: `interpolated(xs, ys, ms,
+//! `interpolated(xs, ys, k)`. A fourth argument is a derivative order: `interpolated(xs, ys, ms,
 //! d)` is the d-th derivative (mc-calculus turns `derivative(d)(interpolated(...))` into it). Data with derivatives
 //! (`[x, f, f', ...]`, `[[x, y], f, gradient(, hessian)]`) give Hermite interpolants, `interpolated(xs, ys,
 //! hermite(ds))` (see `hermite_data`).
@@ -151,7 +151,7 @@ fn one<'h>(h: &'h mc_core::Heap, mut pts: Vec<(f64, f64)>, scheme: Scheme) -> Op
 }
 
 /// Data with vector values (`[x, [v1, ..., vk]]`) or with points of one or two coordinates (`[[x], v]`,
-/// `[[x, y], v]`), round 36: a function of the coordinates (`fn([&1], ...)`, `fn([&1, &2], ...)`). Vector values
+/// `[[x, y], v]`), or a function of the coordinates (`fn([&1], ...)`, `fn([&1, &2], ...)`). Vector values
 /// interpolate component by component (a list of the components). Two coordinates must form a full grid xs x ys:
 /// the value at (x, y) is the interpolant in y through the values at x of the interpolants in x along each grid line
 /// y = y_j, the tensor product of the one-variable scheme (de Boor, "A Practical Guide to Splines", chapter 17).

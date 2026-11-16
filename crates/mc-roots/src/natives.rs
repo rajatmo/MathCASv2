@@ -351,7 +351,7 @@ impl FindRoot {
                 (Some(a), Some(b)) if a != b => RootMethod::Bracket(a.min(b), a.max(b)),
                 _ => return Ok(bad_argument(h, NAME, h.int(2))),
             },
-            // a bracketing method with two values [x, a, b]: the bracket [a, b] (gap G71)
+            // a bracketing method with two values [x, a, b]: the bracket [a, b]
             (Some(Method::Brent), 1) if !sp.system => match (real(&starts[0]), real(&more[0])) {
                 (Some(a), Some(b)) if a != b => RootMethod::Bracket(a.min(b), a.max(b)),
                 _ => return Ok(bad_argument(h, NAME, h.int(2))),

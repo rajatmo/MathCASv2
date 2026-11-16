@@ -157,7 +157,7 @@ impl<'h> NativeCx<'_, '_, 'h> {
 
     /// Evaluate `t` with the assumption context *replaced* by `facts` (the surrounding context is not used; `true`
     /// or no facts give the empty context), restored afterwards: the `assumptions:` option of the functions that
-    /// read the context (decision r17fix.5). Without [`install`], `failure(not_installed, assuming)`.
+    /// read the context (decision 13.10 of design 01). Without [`install`], `failure(not_installed, assuming)`.
     pub fn eval_replacing(&mut self, facts: &[T<'h>], t: T<'h>) -> Res<T<'h>> {
         if self.ev.k.assume.is_none() {
             return Ok(self.ev.failure(&["not_installed", ASSUMING]));

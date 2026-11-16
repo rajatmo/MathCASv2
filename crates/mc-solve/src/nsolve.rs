@@ -287,7 +287,7 @@ fn substitute_gen<'h>(cx: &mut NativeCx<'_, '_, 'h>, v: T<'h>, gen: T<'h>, c: i6
 }
 
 /// The roots of `f(x) == 0` beyond the ones found (`n_solve(eq, x, max_roots: k)` when the exact path gives fewer
-/// than k, round 19 Q19-32): Newton's iteration in machine complex arithmetic (with a halved step while the residual
+/// than k): Newton's iteration in machine complex arithmetic (with a halved step while the residual
 /// grows) from starting points on rings of radius 1/2 to 8 around the origin; a root is accepted when its residual
 /// is below 10^-10 of the scale of f there and it differs from every root known. At most `want` new roots, in
 /// increasing modulus (for a conjugate pair the one of positive imaginary part first). The derivative is `d(f, x)`.

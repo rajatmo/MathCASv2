@@ -1,4 +1,4 @@
-//! The symmetric eigenproblem at arbitrary precision (round 36): eigenvalues and eigenvectors of a real symmetric
+//! The symmetric eigenproblem at arbitrary precision: eigenvalues and eigenvectors of a real symmetric
 //! matrix of balls, computed on the midpoints with binary floats of `w` bits. Householder reduction to tridiagonal
 //! form (Golub and Van Loan, "Matrix Computations", 4th ed., algorithm 8.3.1), then implicit symmetric QR steps with
 //! the Wilkinson shift and deflation (algorithm 8.3.3), the rotations accumulated for the eigenvectors. The

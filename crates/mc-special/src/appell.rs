@@ -132,21 +132,21 @@ fn appell<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Which) -> R<'h> {
     if !numeric(fx, a) {
         return Ok(None);
     }
-    // machine arguments: the double-double kernel (round 29), the ball path when it declines
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
+    // machine arguments: the double-double kernel, the ball path when it declines
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
         let code = match which {
             Which::F1 => 0,
             Which::F2 => 1,
             Which::F3 => 2,
             Which::F4 => 3,
         };
-        if let Some(v) = crate::fast29::appell(code, &ms[..n - 2], ms[n - 2], ms[n - 1]) {
-            return Ok(crate::fast29::machine_out(fx, v, real));
+        if let Some(v) = crate::fast_dd::appell(code, &ms[..n - 2], ms[n - 2], ms[n - 1]) {
+            return Ok(crate::fast_dd::machine_out(fx, v, real));
         }
     }
     // machine arguments (no balls): the value at their exact (dyadic) values to 17 digits, rounded to machine. The
     // ball loop below would retry at growing precision until it has 16 digits, and high-precision Gauss functions
-    // are slow (2 s for appell_f1(2, 1, 1, 3, 0.7, 0.3), round 28)
+    // are slow (2 s for appell_f1(2, 1, 1, 3, 0.7, 0.3))
     let kinds: Vec<Option<mc_arith::Kind>> = a.iter().map(|&t| fx.num(t).map(|v| v.kind())).collect();
     if kinds.contains(&Some(mc_arith::Kind::Machine)) && !kinds.contains(&Some(mc_arith::Kind::Ball)) {
         let name = match which {
@@ -190,7 +190,7 @@ fn appell<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Which) -> R<'h> {
         let goal = if wk.machine { 16 } else { ((wk.p as f64 * std::f64::consts::LOG10_2) as u32).saturating_sub(2) };
         // the digits of the sum itself decide a retry: the widening below does not depend on the working precision,
         // and tested after it the loop retried up to 818 bits whenever 2^-(p - 8) fell below the goal (6 s for
-        // n(appell_f1(1, 1, 3/5, 3, 2/3, 2/5), 22), round 29)
+        // n(appell_f1(1, 1, 3/5, 3, 2/3, 2/5), 22))
         let ok = crate::cover::accurate(fx, v, goal);
         // the Gauss functions were taken at the midpoint of y: the radius 2^-(p - 8) |v| for the error of the
         // arguments at the target precision and of the real part of the ball Gauss function

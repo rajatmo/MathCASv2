@@ -158,7 +158,7 @@ impl Lib {
         }
     }
 
-    /// Argument `k` of the call `t` as a sequence of elements under any head (decision r37.4: `partition`,
+    /// Argument `k` of the call `t` as a sequence of elements under any head (`partition`,
     /// `tuples`, `permutations`, `fold`, `fold_list`, `symmetric_difference` on other heads). A call whose last
     /// argument is an `options(...)` term is a function given settings (`time_series(ts, temporal_regularity:
     /// true)`), not a container: its settings are no element, and the argument is an error, as any other non-list.
@@ -420,7 +420,7 @@ pub(crate) fn heads_flag<'a, 'h>(h: &'h Heap, args: &'a [T<'h>], positional: usi
 
 /// The arguments before a final `options(name -> value, ...)` argument, and the value of option `name` in it.
 /// `positional` is the number of arguments the function always takes: a final `options(...)` term among them is an
-/// operand, not the call's options (`apply(list, o)` with `o = options(a: 1)` is `[a: 1]`; round 37 integration:
+/// operand, not the call's options (`apply(list, o)` with `o = options(a: 1)` is `[a: 1]`;
 /// library functions read their own options this way).
 pub(crate) fn option<'a, 'h>(h: &'h Heap, args: &'a [T<'h>], positional: usize, name: &str) -> (&'a [T<'h>], Option<T<'h>>) {
     let Some((&last, before)) = args.split_last() else { return (args, None) };

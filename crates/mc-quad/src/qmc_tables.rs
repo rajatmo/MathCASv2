@@ -1,5 +1,5 @@
 //! The generating vector of the lattice sequence and the Sobol parameters, computed by this crate's own searches
-//! (decision quad-1.6) and checked in as tables. The searches are the `#[ignore]` tests below; run
+//! and checked in as tables. The searches are the `#[ignore]` tests below; run
 //!
 //! ```text
 //! cargo test -p mc-quad --release --lib qmc_tables::search::lattice -- --ignored --nocapture

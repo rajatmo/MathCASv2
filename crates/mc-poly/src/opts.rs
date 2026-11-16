@@ -1,6 +1,6 @@
 //! The `assumptions:` option of the symbolic functions (decision IOSYM.4): `f(..., assumptions: a)`
-//! is `f(...)` evaluated with the assumption context replaced by the facts `a` (round 17, decision r17fix.5 in
-//! `mc-simplify`'s notes: the surrounding `assuming` context is not used; before, the facts were added to it), for
+//! is `f(...)` evaluated with the assumption context replaced by the facts `a` (decision 13.10 of design 01:
+//! the surrounding `assuming` context is not used, the facts are not added to it), for
 //! every function wrapped by [`WithAssumptions`] (`integrate`, `limit`, `series`, `solve`, `d_solve`, the function
 //! properties, ...), so the option behaves the same everywhere; `reduce` takes the facts as further conditions.
 //! `assumptions: true` gives the empty context; `assumptions: false` is left to the function (`mc-solve` marks its
@@ -44,7 +44,7 @@ pub fn assumptions_option<'h>(cx: &mut NativeCx<'_, '_, 'h>, name: &str, args: &
         new_args.push(h.call(h.sym("options"), &others));
     }
     let call = h.call(h.sym(name), &new_args);
-    // the option replaces the surrounding context (decision r17fix.5 of mc-simplify): `true` is the empty one
+    // the option replaces the surrounding context (decision 13.10 of design 01): `true` is the empty one
     Ok(Some(cx.eval_replacing(&[a], call)?))
 }
 

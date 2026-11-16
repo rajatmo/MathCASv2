@@ -37,7 +37,7 @@ pub enum Loc {
     Search(String),
     /// the index: every function by area and topic
     Index,
-    /// a topic guide, by its slug (round 21)
+    /// a topic guide, by its slug
     Topic(String),
 }
 
@@ -354,7 +354,7 @@ pub struct Draw<'a> {
     pub link_rects: Vec<(egui::Rect, String)>,
     /// the link under the pointer this frame
     pub hovered: Option<String>,
-    /// an example input whose copy button was clicked (round 19)
+    /// an example input whose copy button was clicked
     pub copy: Option<String>,
     /// the example input copied last, whose button shows a check mark for a moment
     pub copied: Option<String>,
@@ -362,7 +362,7 @@ pub struct Draw<'a> {
     pub copy_rects: Vec<(egui::Rect, String)>,
     /// values drawn as the notebook draws outputs
     pub outputs: &'a mut mc_notebook::outputs::OutputPainter,
-    /// the part of the page a place points at (round 20), and whether to open its group and scroll to it
+    /// the part of the page a place points at, and whether to open its group and scroll to it
     pub target: Option<crate::page::Target>,
     pub reveal_target: bool,
     /// the typeset values drawn this frame (screen rectangles and their text), for the self-test
@@ -930,7 +930,7 @@ impl Draw<'_> {
         ui.add_space(8.0);
         for (k, (name, rank)) in results.iter().enumerate() {
             if k == exact && rank.is_near() {
-                // near misses (round 19): under their own heading, after every exact match
+                // near misses: under their own heading, after every exact match
                 ui.add_space(if k == 0 { 2.0 } else { 10.0 });
                 ui.label(RichText::new("Similar").font(Face::ProseBold.font(14.0)).color(self.p.weak));
                 ui.add_space(2.0);
@@ -1137,7 +1137,7 @@ impl Draw<'_> {
         }
     }
 
-    /// An example input with a copy button at the right of its first line (round 19): the input goes onto the
+    /// An example input with a copy button at the right of its first line: the input goes onto the
     /// clipboard as text, which pastes into a notebook cell as it reads here (at an insertion point it makes an
     /// Input cell). The button is faint until the pointer is over the input, and shows a check mark once it copied.
     fn example_input(&mut self, ui: &mut egui::Ui, source: &str) {
@@ -1193,7 +1193,7 @@ impl Draw<'_> {
                         continue;
                     }
                 }
-                // values with roots, fractions or powers are drawn as the notebook draws outputs (round 19), the
+                // values with roots, fractions or powers are drawn as the notebook draws outputs, the
                 // rest as text with links
                 if kind == OutputKind::Value && run.iter().any(|l| self.outputs.typesets(&l.text)) {
                     for l in run {
@@ -1251,7 +1251,7 @@ impl Draw<'_> {
                 }
             }
         }
-        // selectable and copyable (round 20): a click selects the value (Ctrl+C or the context menu copies its
+        // selectable and copyable: a click selects the value (Ctrl+C or the context menu copies its
         // text, which reads back as the value), its copy button copies it too
         let id = ui.scope_id().with(("typeset value", self.value_rects.len()));
         let r = ui.interact(r.rect, id, Sense::click());

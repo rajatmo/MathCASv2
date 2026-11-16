@@ -1,4 +1,4 @@
-//! Machine fast paths added in round 30, in double-double arithmetic rounded once.
+//! Machine fast paths for the Coulomb wave functions, in double-double arithmetic rounded once.
 //!
 //! Coulomb wave functions F_l(eta, rho), G_l(eta, rho) for real l >= 0, real eta and rho > 0 by Steed's method
 //! (Barnett, Feng, Steed and Goldfarb, Comput. Phys. Commun. 8 (1974) 377; Barnett, CPC 27 (1982) 147; DLMF 33.8):
@@ -118,7 +118,7 @@ pub(crate) fn coulomb_fg(l: f64, eta: f64, rho: f64) -> Option<(f64, f64)> {
     (fo.is_finite() && go.is_finite() && go.abs() < 1e6).then_some((fo, go))
 }
 
-/// F_l(eta, rho) at real l >= 0 and eta and a complex machine rho of modulus at most 12 (round 32): the Maclaurin form
+/// F_l(eta, rho) at real l >= 0 and eta and a complex machine rho of modulus at most 12: the Maclaurin form
 /// F = C_l(eta) rho^(l+1) sum_j a_j rho^j with a_0 = 1 and j (j + 2l + 1) a_j = 2 eta a_(j-1) - a_(j-2) (substitute the series into
 /// u'' + (1 - 2 eta/rho - l(l+1)/rho^2) u = 0; DLMF 33.6.5), summed in complex double-double numbers, with
 /// C_l = 2^l e^(-pi eta/2) |Gamma(l + 1 + i eta)|/Gamma(2l + 2) (DLMF 33.2.5) from the machine log-gamma, which limits

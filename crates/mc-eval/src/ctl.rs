@@ -55,10 +55,9 @@ pub enum Status {
     DivZero = 4,
     /// The evaluation nested deeper than the configured depth: `failure(limit, depth)` (decision F.11).
     Depth = 5,
-    /// The young region outgrew the evaluation's memory budget: `failure(limit, memory)` (decision p6core.11).
+    /// The young region outgrew the evaluation's memory budget: `failure(limit, memory)`.
     Memory = 6,
-    /// One evaluation level was rewritten more times than the iteration limit: `failure(limit, iterations)`
-    /// (decision p6core.11).
+    /// One evaluation level was rewritten more times than the iteration limit: `failure(limit, iterations)`.
     Iterations = 7,
 }
 

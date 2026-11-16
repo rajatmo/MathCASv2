@@ -1,4 +1,4 @@
-//! Moves of the search added in round 19 (phase 12A). Each is an identity for every value of the variables (or,
+//! Moves of the search (roadmap item 12A). Each is an identity for every value of the variables (or,
 //! for [`sqrt_parity`], proved by the substitution itself), and each is kept by the search only when the
 //! complexity drops.
 //!

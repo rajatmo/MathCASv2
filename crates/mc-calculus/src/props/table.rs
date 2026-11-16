@@ -1,4 +1,4 @@
-//! What each special function is (round 37): the knowledge the function properties read, kept once as data.
+//! What each special function is: the knowledge the function properties read, kept once as data.
 //!
 //! An [`Entry`] describes one function of one argument (the *variable argument*; the others are parameters, fixed
 //! unless the entry holds jointly in all its arguments): where it is defined and real on the real line, where it is

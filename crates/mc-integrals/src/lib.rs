@@ -14,7 +14,7 @@
 //! Results are built with [`Build`] (canonical sums, products and powers; plain calls) and handed back to the
 //! evaluator, which evaluates the calls in them. No constant of integration is added.
 //!
-//! A crate of its own since round 34 (split out of `mc-calculus`, with the native of `integrate`); limits come
+//! A crate of its own (split out of `mc-calculus`, with the native of `integrate`); limits come
 //! from `mc-limit`, derivatives and the shared helpers from `mc-calculus`.
 #![warn(missing_docs)]
 pub mod definite;
@@ -115,7 +115,7 @@ fn base<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> Option<T<'h>> {
 
 /// Does `t` hold a power with an exponent whose numerator is far beyond any polynomial the methods could
 /// expand (`x^(2^31)`)? Such integrands only reach the table: the other methods would build a dense
-/// polynomial of that degree (a 240 GB allocation, X23-9) or loop over it (X23-10).
+/// polynomial of that degree (a 240 GB allocation) or loop over it (60 s).
 pub fn has_huge_power<'h>(b: &Build<'h>, t: T<'h>) -> bool {
     const LIMIT: i64 = 100_000;
     let h = b.heap();

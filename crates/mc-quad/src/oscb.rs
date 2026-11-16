@@ -1,4 +1,4 @@
-//! Oscillatory integrals over half-lines at arbitrary precision (round 20, the precision contract: `working_precision:`
+//! Oscillatory integrals over half-lines at arbitrary precision (the precision contract: `working_precision:`
 //! and `digits:` reach the oscillatory stage). The method of [`crate::osc`] carried to balls: the integral is the sum of
 //! the integrals between consecutive zeros of the oscillating part (Longman 1956), each computed by the tanh-sinh rule
 //! on balls ([`crate::hp`]), and the partial sums are extrapolated by Wynn's epsilon algorithm (Wynn 1956) in

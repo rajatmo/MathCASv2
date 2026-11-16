@@ -1,4 +1,4 @@
-//! The notebook's one look (round nb-ui, decision NBUI.5): linear text in the cell's font with exactly three
+//! The notebook's one look (decision NBUI.5): linear text in the cell's font with exactly three
 //! two-dimensional boxes, the square root, the fraction and the power. [`math_text`] reads a text (an output's printed
 //! form) and keeps every character as it is, except that `sqrt(x)`, `a/b` and `x^n` become the three boxes, grouped
 //! as the text parses (`a/b*c` is (a/b)·c, `2^3^4` is 2^(3^4), `-x^2` is −(x²)) and without the parentheses that only
@@ -11,7 +11,7 @@
 //! or a box: `3*x^2` is 3x²), kept between numbers (`2*3`) and before a parenthesis. Every item still maps back to
 //! the bytes it stands for ([`SourceMap`]), so carets, selections, copying and Find work on the printed text.
 //!
-//! A value shown with a label (round 13, gap G80): an output that is a `labeled(x, l)` or `legended(x, l)` call, or
+//! A value shown with a label: an output that is a `labeled(x, l)` or `legended(x, l)` call, or
 //! a list of such calls among other elements, draws each call as a [`Node::Labeled`]: `x` typeset as above, the
 //! label as its characters (a string without its quotes) below it or at the side the call names, a legend at the
 //! right with a coloured swatch before each entry of `line_legend` / `swatch_legend` / `point_legend`. The box
@@ -1037,7 +1037,7 @@ mod tests {
         assert_eq!(boxes(t), "y = (a+b/2) + (√(x)^3)");
     }
 
-    /// Round 13 (G80): labeled and legended values draw their labels.
+    /// Labeled and legended values draw their labels.
     #[test]
     fn labeled_values_draw_their_labels() {
         assert_eq!(boxes(r#"labeled(x^2 + 1, "energy")"#), "((x^2) + 1 label below energy)");

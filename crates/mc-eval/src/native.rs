@@ -61,7 +61,7 @@ pub trait Native: Send + Sync {
 
     /// The value of the call on the one argument `x`, a packed array (semantics 11), computed on its payload; `None`
     /// to take the ordinary path. A listable function is asked before its call is threaded over the elements, so a
-    /// function that knows packed arrays is not called once per element (decision sp-core.3). The value must be
+    /// function that knows packed arrays is not called once per element. The value must be
     /// what threading gives.
     fn packed<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>) -> Res<Option<T<'h>>> {
         let _ = (cx, x);
@@ -240,7 +240,7 @@ impl<'h> NativeCx<'_, '_, 'h> {
         self.ev.k.is_defined(s)
     }
 
-    /// Is `s` protected (its definitions may not change, decision r17fix.4)?
+    /// Is `s` protected (its definitions may not change, decision 13.9 of design 01)?
     pub fn protected(&self, s: Sym) -> bool {
         self.attributes(s).protected
     }
@@ -249,12 +249,11 @@ impl<'h> NativeCx<'_, '_, 'h> {
     pub fn attributes(&self, s: Sym) -> crate::Attributes {
         self.ev.k.defs.attrs(s)
     }
-    /// Whether `s` is listable or maps over lists itself (`Kernel::set_maps_lists`, decision io-core.1).
+    /// Whether `s` is listable or maps over lists itself (`Kernel::set_maps_lists`).
     pub fn maps_lists(&self, s: Sym) -> bool {
         self.ev.k.maps_lists(s)
     }
-    /// Whether `t` is a call of a number-like value head with its own arithmetic (`Kernel::set_value_head`,
-    /// decision io-core.5).
+    /// Whether `t` is a call of a number-like value head with its own arithmetic (`Kernel::set_value_head`).
     pub fn is_value(&self, t: T<'h>) -> bool {
         let k = &self.ev.k;
         if k.value_heads.is_empty() {
@@ -393,7 +392,7 @@ impl<'h> NativeCx<'_, '_, 'h> {
     }
 
     /// The elements `f(0) ... f(n-1)`, split over the session's worker threads at once (`parallel_table` and its
-    /// kin, decision sp-core.4): the values, effects and failures are those of evaluating them in order.
+    /// kin): the values, effects and failures are those of evaluating them in order.
     pub fn group_parallel(&mut self, n: usize, f: &ElemFn<'_, 'h>) -> Res<Vec<T<'h>>> {
         self.ev.group_parallel(self.cx, n, &|ev: &Eval<'_, 'h>, cx: &mut Cx<'h>, i| f(&mut NativeCx { ev, cx }, i), None)
     }

@@ -25,6 +25,6 @@ winresource = "0.1"
 [dev-dependencies]
 # the stub engine of the benchmark runner, for the shell's own tests
 mc-bench = { path = "../mc-bench" }
-# a test native (G93)
+# a test native
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }

@@ -238,7 +238,7 @@ fn pairs<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Vec<(C, f64)
     Ok(Some(out))
 }
 
-/// `c30_fox_machine(an, ap, bm, bq, z)`: H(z) in machine numbers, or unevaluated.
+/// `ff_fox_machine(an, ap, bm, bq, z)`: H(z) in machine numbers, or unevaluated.
 pub(crate) struct FoxMachine;
 
 impl Native for FoxMachine {

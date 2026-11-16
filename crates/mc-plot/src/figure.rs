@@ -707,7 +707,7 @@ pub(crate) fn axis_marks<'h>(h: &'h Heap, lo: f64, hi: f64, ax: Axis, origin_axe
                 .chain(minor.iter().map(|&u| b.list(&[h.real(u), none, h.real(0.5)])));
             let ticks = b.list(&marks.collect::<Vec<_>>());
             // grid lines without a colour of their own (the graphic's grid colour, 0.9 gray; the minor ones at
-            // half opacity, 0.95 on white), so a front end draws them in its theme (round nb-svg)
+            // half opacity, 0.95 on white), so a front end draws them in its theme
             let half = b.call("opacity", &[h.real(0.5)]);
             let lines: Vec<T<'h>> = minor
                 .iter()

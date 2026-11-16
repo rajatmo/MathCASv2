@@ -102,7 +102,7 @@ pub fn free_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, m
 }
 
 /// The arguments `u` of the calls `F(u)` of `t` in which `F` is a transcendental function (entire, or with poles)
-/// and `u` depends on a variable: a pole of `u` is an essential singularity of `F(u)` (decision F27.2).
+/// and `u` depends on a variable: a pole of `u` is an essential singularity of `F(u)`.
 fn transcendental_calls<'h>(b: &Build<'h>, t: T<'h>, vars: &[T<'h>], out: &mut Vec<T<'h>>) {
     // each distinct subterm visited once
     transcendental_calls_in(b, t, vars, out, &mut mc_api::walk::seen());

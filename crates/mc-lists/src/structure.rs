@@ -1,5 +1,5 @@
 #![allow(clippy::needless_borrow, clippy::redundant_guards)]
-//! Parts by position and by pattern (decision p6core.15): `is_match`, `head`, `dimensions`, `array_depth`,
+//! Parts by position and by pattern: `is_match`, `head`, `dimensions`, `array_depth`,
 //! `extract`, `replace_part`, `delete`, `map_at`, `level`, `replace`, `delete_cases`, `first_case`,
 //! `reverse_sort`, `take_largest`, `take_smallest`, and the display wrappers `full_form` and `input_form`.
 //!
@@ -47,7 +47,7 @@ fn positions<'h>(h: &'h Heap, cx: &NativeCx<'_, '_, 'h>, spec: T<'h>) -> Option<
     one(spec).map(|p| vec![p])
 }
 
-/// The positions of `spec` in an association with entries `es` (decision io-core.4): a key (any atom other than an
+/// The positions of `spec` in an association with entries `es`: a key (any atom other than an
 /// integer, or a term) stands for the position of its entry; integers are positions. Also whether `spec` names
 /// several positions.
 fn assoc_positions<'h>(
@@ -271,7 +271,7 @@ fn dims_with<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, only: Option<T<'h>>) -
     dims_by(cx, x, only, false)
 }
 
-/// The dimensions of `x`; `full`: the parts of a level may have different heads (`allowed_heads: full`, round 37),
+/// The dimensions of `x`; `full`: the parts of a level may have different heads (`allowed_heads: full`),
 /// otherwise one head per level (`only` when given).
 fn dims_by<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, only: Option<T<'h>>, full: bool) -> Res<Vec<usize>> {
     let h = cx.heap();
@@ -435,7 +435,7 @@ fn extract_parts<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: 
         });
     }
     let [x, spec] = *args else { return Ok(Reply::Decline) };
-    // an association: keys or positions of its values (decision io-core.4)
+    // an association: keys or positions of its values
     if let Some(es) = crate::assocs::entries(lib, h, x) {
         if let Some((ps, several)) = assoc_positions(h, cx, &es, spec) {
             let vs = cx.list(&es.iter().map(|&(_, v)| v).collect::<Vec<_>>());
@@ -447,7 +447,7 @@ fn extract_parts<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: 
         // positions in the term itself (as `position` gives them): the structural parts below
     }
     let Some(ps) = positions(h, cx, spec) else {
-        // positions with `all` or lists of indices: `part` of each (decision cov-core.10)
+        // positions with `all` or lists of indices: `part` of each
         let part = h.sym_term(h.sym("part"));
         let one = |p: T<'h>| -> Option<T<'h>> {
             let mut a = vec![x];
@@ -577,7 +577,7 @@ fn replace_keys<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, r: T<'h>
     Ok(Some(h.app(h.sym_term(lib.s.assoc), &out)))
 }
 
-/// `replace_part(x, p -> v)` where the position `p` is a pattern (decision cov-core.5): a list pattern is matched
+/// `replace_part(x, p -> v)` where the position `p` is a pattern: a list pattern is matched
 /// against the position of every part at every level (`[i_, i_]` is the diagonal of a matrix; a negative index in
 /// the pattern counts from the end at the last level), any other pattern against the index of each element
 /// (`1 | 3 | 5`, `_`). A part whose position matches is replaced by the rule's right side with the pattern's
@@ -680,7 +680,7 @@ fn replace_walk<'l, 'h>(
     let n = args.len() as i64;
     let mut out = Vec::with_capacity(args.len());
     let mut changed = false;
-    // the head is the part at index 0, visited by a list pattern that names 0 (`[___, 0] -> list`, round 36)
+    // the head is the part at index 0, visited by a list pattern that names 0 (`[___, 0] -> list`)
     pos.push(h.int(0));
     for (r, &hd) in rules.iter_mut().zip(heads) {
         if hd && position_hit(cx, r, pos, None)? {
@@ -950,7 +950,7 @@ pub(crate) fn replace<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
         },
         _ => return Ok(Reply::Decline),
     };
-    // a list of rule lists (`solve`'s solutions): one result per list, as `rewrite` (decision io-core.2)
+    // a list of rule lists (`solve`'s solutions): one result per list, as `rewrite`
     if let Some(sets) = cx.as_list(r).filter(|rs| !rs.is_empty() && rs.iter().all(|&s| cx.as_list(s).is_some())) {
         let calls: Vec<T<'h>> = sets
             .iter()
@@ -1040,7 +1040,7 @@ pub(crate) fn first_case<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
     let (xs, p, default) = match *args {
         [xs, p] => (xs, p, None),
         [xs, p, d] => (xs, p, Some(d)),
-        // `first_case(x, p, d, levels)`: the first match at the levels (decision io-core.11)
+        // `first_case(x, p, d, levels)`: the first match at the levels
         [x, p, d, spec] => {
             let Some(levels) = crate::levels::level_spec(h, spec) else { return Ok(Reply::Decline) };
             return Ok(match crate::select::cases_at(lib, cx, t, x, p, levels, 1)? {
@@ -1075,7 +1075,7 @@ pub(crate) fn first_case<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
 /// `reverse_sort(xs)`: the elements in reverse canonical order.
 pub(crate) fn reverse_sort<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // `reverse_sort(xs, p)`: `sort(xs, p)` reversed (decision io-core.13)
+    // `reverse_sort(xs, p)`: `sort(xs, p)` reversed
     let sorted = match *args {
         [xs] => h.app(h.sym_term(h.sym("sort")), &[xs]),
         [xs, p] => h.app(h.sym_term(h.sym("sort")), &[xs, p]),
@@ -1119,7 +1119,7 @@ fn take_extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], largest: bool
         }
     }
     // `excluded_forms: [...]`: elements left out before ordering; by default `none`, `indeterminate` and
-    // `missing(...)` (round 17)
+    // `missing(...)`
     let (args, excluded) = crate::ctx::option(h, args, 2, "excluded_forms");
     let [xs, n] = *args else { return Ok(Reply::Decline) };
     let excluded: Option<Vec<T<'h>>> = match excluded {
@@ -1213,7 +1213,7 @@ fn take_extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], largest: bool
 }
 
 /// The positions of `xs` in increasing order of value (stable), when every element is a real number or a closed
-/// numeric expression with a machine value (`exp(pi)`, `7*pi`: numerical order, decision cov-core.6) or a
+/// numeric expression with a machine value (`exp(pi)`, `7*pi`: numerical order) or a
 /// number-like value such as a quantity (`crate::sort::value_order`). `None` otherwise.
 fn by_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: &[T<'h>], largest: bool) -> Res<Option<Vec<usize>>> {
     let h = cx.heap();
@@ -1349,7 +1349,7 @@ pub(crate) fn display_wrapper<'h>(_lib: &Lib, _cx: &mut NativeCx<'_, '_, 'h>, _t
 /// A run `start..end` of a list and the rule's right side for it.
 type Run<'h> = (usize, usize, Option<T<'h>>);
 
-/// Which runs a sequence function reports (option `overlaps`, C9B.8).
+/// Which runs a sequence function reports (option `overlaps`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Overlaps {
     /// runs that do not overlap, scanning from the left (each the longest at its start)

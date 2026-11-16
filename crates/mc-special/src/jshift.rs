@@ -1,4 +1,4 @@
-//! Jacobi functions at shifts by the quarter periods (round 33): `jacobi_pq(x + a K(m) + b i
+//! Jacobi functions at shifts by the quarter periods: `jacobi_pq(x + a K(m) + b i
 //! K(1 - m), m)` for integers a, b (and a half-integer a at x = 0) is a constant times another Jacobi function of x
 //! (DLMF 22.4.3, Table 22.4.3; DLMF 22.4.1-2 for the periods), so the exact value or the reduction to x is returned
 //! instead of a call that no rule matched (`jacobi_cd(x + 4 K(m), m)` is `jacobi_cd(x, m)`, `jacobi_ns(K(m), m)` is 1).

@@ -252,7 +252,7 @@ impl Page {
         (page, problems)
     }
 
-    /// The part of the page a place `name#anchor` points at (F1 on an option in the notebook, round 20): the group
+    /// The part of the page a place `name#anchor` points at (F1 on an option in the notebook): the group
     /// titled `anchor` (any case); else, for an option name, the first input that gives it (`anchor:`; in the
     /// Options group first), else the first Details item naming it, else the Options group.
     pub fn target(&self, anchor: &str) -> Option<Target> {

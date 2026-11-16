@@ -92,7 +92,7 @@ pub(crate) fn read<'h>(h: &'h Heap, t: T<'h>) -> Option<G<'h>> {
         }
     };
     let mut vertices: Vec<T<'h>> = vec![];
-    // vertex -> index by hashing (a linear search per edge took seconds for 30,000 vertices; X26-15)
+    // vertex -> index by hashing (a linear search per edge took seconds for 30,000 vertices)
     let mut seen: std::collections::HashMap<T<'h>, usize> = std::collections::HashMap::new();
     let mut index = |v: T<'h>, vertices: &mut Vec<T<'h>>| -> usize {
         *seen.entry(v).or_insert_with(|| {
@@ -151,7 +151,7 @@ pub(crate) fn layout(n: usize, edges: &[(usize, usize, bool)], kind: Layout, sto
             let mut temp = 0.3;
             let cool = 0.985f64;
             // the pair loop is quadratic: the iterations shrink as the graph grows (about 2e8 pair terms in all), so
-            // thousands of vertices take about a second (X26-15)
+            // thousands of vertices take about a second
             let iters = ((2.5e8 / (n as f64 * n as f64)) as usize).clamp(30, 400);
             let cool = cool.powf(400.0 / iters as f64);
             for _ in 0..iters {

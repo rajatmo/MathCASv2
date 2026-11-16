@@ -1,4 +1,4 @@
-//! Numerical values of the Meijer G-function at any precision (round 22), on complex balls.
+//! Numerical values of the Meijer G-function at any precision, on complex balls.
 //!
 //! With the convention of DLMF 16.17.1 (Luke, *The Special Functions and Their Approximations* I, 1969, section
 //! 5.2; Prudnikov, Brychkov and Marichev, *Integrals and Series* 3, 1990, section 8.2),

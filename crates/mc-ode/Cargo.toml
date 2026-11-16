@@ -13,13 +13,13 @@ mc-api = { path = "../mc-api" }
 mc-arith = { path = "../mc-arith" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
-# compiled code calls solutions through a library-call resolver (round 13)
+# compiled code calls solutions through a library-call resolver
 mc-jit = { path = "../mc-jit" }
 # the NumFn trait and its compiled and interpreted backends (package N0)
 mc-numfn = { path = "../mc-numfn" }
 # elementary functions on balls (the Taylor method)
 mc-numeric = { path = "../mc-numeric" }
-# the ball Bessel K of the Taylor method (G13)
+# the ball Bessel K of the Taylor method
 mc-special = { path = "../mc-special" }
 parking_lot = "0.12"
 rustc-hash = "2"

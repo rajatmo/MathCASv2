@@ -1,5 +1,5 @@
-//! Helpers every calculus crate uses (round 34: moved here from the integration and differentiation modules when
-//! `mc-calculus` was split into `mc-calculus`, `mc-limit`, `mc-integrals`, `mc-transforms` and `mc-dsolve`): free
+//! Helpers every calculus crate uses (shared by `mc-calculus`,
+//! `mc-limit`, `mc-integrals`, `mc-transforms` and `mc-dsolve`): free
 //! occurrence, calls by name, evaluation through the kernel, failures, the variable of `d`, and the wrapper that
 //! gives a native the `assumptions:` option.
 use crate::term::Build;

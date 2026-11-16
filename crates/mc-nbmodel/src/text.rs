@@ -1,6 +1,6 @@
 //! Positions in a cell's text (byte offsets on character boundaries): character and word steps, lines. Every
 //! function takes any position: one past the text or inside a character is first moved back to a boundary, so a
-//! stale position never panics (round 11 robustness).
+//! stale position never panics.
 
 /// `pos` moved back onto a character boundary of `s` (and to at most its length).
 pub fn floor(s: &str, pos: usize) -> usize {

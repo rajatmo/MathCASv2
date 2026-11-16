@@ -1,4 +1,4 @@
-//! MathCAS v2 further functions: the round 30 coverage library, `mc-cover30` until round 34.
+//! MathCAS v2 further functions.
 //!
 //! Functions whose natural home is another crate, written here so that no other crate changes beyond
 //! one-line registrations: most are MathCAS source (`lib/further.mc`, [`SOURCE`]) that calls the other libraries
@@ -35,6 +35,6 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
 
 /// Register the natives with `k`.
 pub fn install(k: &mut Kernel, h: &Heap) {
-    k.register(h.sym("c30_julia_counts"), Attributes::default(), Box::new(julia::JuliaCounts));
-    k.register(h.sym("c30_fox_machine"), Attributes::default(), Box::new(foxh::FoxMachine));
+    k.register(h.sym("ff_julia_counts"), Attributes::default(), Box::new(julia::JuliaCounts));
+    k.register(h.sym("ff_fox_machine"), Attributes::default(), Box::new(foxh::FoxMachine));
 }

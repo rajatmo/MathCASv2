@@ -1,5 +1,5 @@
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
-//! Machine fast paths for the functions of round 28: when every argument is a machine number
+//! Machine fast paths for the further special functions: when every argument is a machine number
 //! or an exact number and one is a machine number (no balls), the value is computed natively in complex
 //! double-double arithmetic ([`crate::cdd`], about 32 digits) and rounded once, instead of through the ball loop of
 //! the evaluator (0.05-0.5 s per value, so plots timed out). Each kernel estimates its own rounding error from the
@@ -261,7 +261,7 @@ pub(crate) fn scorer(zc: CD, real: bool, which: Scorer) -> Option<C64> {
             (bi.is_finite() && (v.abs() >= 0.25 * bi.abs())).then_some(C64::real(v))
         }
         // Hi(x) = Bi(x) - Gi(x) (DLMF 9.12.12), Gi by its asymptotic series: Gi(x) ~ 1/(pi x) is far below Bi(x), so
-        // the difference keeps the digits of Bi; an overflow of Bi is the overflow of Hi (round 37: scorer_hi(1e6) went
+        // the difference keeps the digits of Bi; an overflow of Bi is the overflow of Hi (scorer_hi(1e6) went
         // to the ball series of 2 10^9 terms and never returned)
         (true, true) => {
             let bi = if deriv { crate::machine::bessel_j::airy_bi_prime(x) } else { crate::machine::bessel_j::airy_bi(x) };
@@ -1201,7 +1201,7 @@ pub(crate) fn heun(kind: u8, p: &[CD], z: CD) -> Option<(C64, bool)> {
 
 // ---------------------------------------------------------------- modified Lommel function t
 
-/// t_(mu,nu)(z) = sum_k z^(mu + 1 + 2k)/prod_(j<=k) ((mu + 2j + 1)^2 - nu^2) (the series of [`crate::cover28`]),
+/// t_(mu,nu)(z) = sum_k z^(mu + 1 + 2k)/prod_(j<=k) ((mu + 2j + 1)^2 - nu^2) (the series of [`crate::scorer_lommel_coulomb`]),
 /// in double-double numbers; `None` at a zero denominator.
 pub(crate) fn lommel_t1(mu: CD, nu: CD, z: CD) -> Option<C64> {
     lommel_t1_cd(mu, nu, z).map(CD::to_c64)
@@ -1243,7 +1243,7 @@ pub(crate) fn lommel_t1_cd(mu: CD, nu: CD, z: CD) -> Option<CD> {
     (v.finite() && big * U * 1e2 <= TOL * s.abs()).then_some(v)
 }
 
-/// The Jacobi theta function theta_a(u, q) or its u-derivative in double-double numbers (round 37): the series of
+/// The Jacobi theta function theta_a(u, q) or its u-derivative in double-double numbers: the series of
 /// DLMF 20.2.1-20.2.4 with the principal q^(1/4) (the ball path's terms), e^(+-i m u) by products. `None` for |q| >=
 /// 0.99 or when the largest term leaves fewer than the machine digits of the value.
 pub(crate) fn theta(a: u8, u: CD, q: CD, deriv: bool) -> Option<C64> {
@@ -1312,7 +1312,7 @@ pub(crate) fn theta(a: u8, u: CD, q: CD, deriv: bool) -> Option<C64> {
     (v.finite() && big * U * 1e2 <= TOL * size).then(|| v.to_c64())
 }
 
-/// The q-Pochhammer product (x; q)_inf = prod_(k >= 0) (1 - x q^k) in double-double numbers, |q| < 0.99 (round 37).
+/// The q-Pochhammer product (x; q)_inf = prod_(k >= 0) (1 - x q^k) in double-double numbers, |q| < 0.99.
 /// The rounding error of a factor 1 - x q^k is |x q^k| U, so sum |x q^k|/|1 - x q^k| bounds the relative error in
 /// units of U; `None` when that leaves fewer than the machine digits, or after 100000 factors.
 pub(crate) fn q_product(x: CD, q: CD) -> Option<C64> {
@@ -1338,7 +1338,7 @@ pub(crate) fn q_product(x: CD, q: CD) -> Option<C64> {
 }
 
 /// The basic hypergeometric series r phi s (DLMF 17.4.1) in double-double numbers by the term ratio prod (1 - a_i
-/// q^n)/prod (1 - b_j q^n)/(1 - q^(n+1)) ((-1) q^n)^(1 + s - r) z (round 37), |q| < 1. `None` after 20000 terms, at
+/// q^n)/prod (1 - b_j q^n)/(1 - q^(n+1)) ((-1) q^n)^(1 + s - r) z, |q| < 1. `None` after 20000 terms, at
 /// a zero denominator, or when the largest term leaves fewer than the machine digits of the sum.
 pub(crate) fn q_hyper(a: &[CD], b: &[CD], q: CD, z: CD) -> Option<C64> {
     if q.abs() >= 1.0 {
@@ -1394,7 +1394,7 @@ pub(crate) fn q_hyper(a: &[CD], b: &[CD], q: CD, z: CD) -> Option<C64> {
     (big * U * 1e2 <= TOL * s.abs()).then(|| s.to_c64())
 }
 
-/// Lommel's s_(mu,nu)(z) at machine arguments (round 37): the series of [`crate::cover`] in double-double numbers,
+/// Lommel's s_(mu,nu)(z) at machine arguments: the series of [`crate::cover`] in double-double numbers,
 /// z^(mu+1) sum_k (-z^2)^k / prod_(j<=k) ((mu + 2j + 1)^2 - nu^2), with the cancellation bound of `lommel_t1`.
 pub(crate) fn lommel_s1(mu: CD, nu: CD, z: CD) -> Option<C64> {
     lommel_s1_cd(mu, nu, z).map(CD::to_c64)

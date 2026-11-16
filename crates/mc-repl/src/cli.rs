@@ -114,7 +114,7 @@ pub fn run(engine: &mut CoreEngine, items: &[Item], stop: &StopFlag, out: &mut d
 
 /// [`run_with`] on the process's standard output and error, through unlocked handles: each write takes the lock
 /// for itself only, so a native that writes to either stream from a worker thread (a parallel map, a trace hook)
-/// does not wait forever for a lock the evaluating thread holds for the whole run (G93).
+/// does not wait forever for a lock the evaluating thread holds for the whole run.
 pub fn run_std(engine: &mut CoreEngine, items: &[Item], update: bool, stop: &StopFlag) -> u8 {
     run_with(engine, items, update, stop, &mut std::io::stdout(), &mut std::io::stderr())
 }

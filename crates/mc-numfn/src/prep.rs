@@ -109,7 +109,7 @@ pub fn stable_forms<'h>(h: &'h Heap, t: T<'h>) -> T<'h> {
 
 /// `t` with the reciprocal and inverse trigonometric and hyperbolic functions (defined by formulas, which the
 /// compiler does not know) written with `sin`, `cos`, `sinh`, `cosh`, `atan`, `log`, `log1p` and `sqrt`, which it
-/// compiles (G50: `atanh` in an integrand was interpreted at every point). Exact identities on the reals where the
+/// compiles (`atanh` in an integrand was interpreted at every point). Exact identities on the reals where the
 /// functions are real; elsewhere the compiled backend declines and the interpreter evaluates the original.
 pub fn elementary_forms<'h>(h: &'h Heap, t: T<'h>) -> T<'h> {
     let sym = |n: &str| h.sym_term(h.sym(n));

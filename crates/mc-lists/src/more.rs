@@ -1,5 +1,5 @@
 #![allow(clippy::needless_borrow, clippy::redundant_guards)]
-//! Further list and functional operations (round 14): `map_apply`, `comap`, `comap_apply`,
+//! Further list and functional operations: `map_apply`, `comap`, `comap_apply`,
 //! `map_all`, `is_array`, `fold_pair_list`, `fold_pair`, `subsequences`, the `contains_*` tests, `nearest`, `pick`,
 //! `min_max`, `take_drop`, `power_range`, `first_position`, `count_distinct`, `delete_elements`,
 //! `position_largest`, `position_smallest`, `symmetric_difference`, `xor`, `implies`, `is_true`, `construct`,
@@ -345,7 +345,7 @@ pub(crate) fn subsequences<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h
         }
     }
     // subsequences(xs, spec, m): the first m of them, up_to(m) at most m, [k] the k-th, [a, b] the a-th to the
-    // b-th, [a, b, s] every s-th from a to b (s may be negative) (round 37); a position past the end declines
+    // b-th, [a, b, s] every s-th from a to b (s may be negative); a position past the end declines
     if let Some(p) = pick {
         let len = out.len() as i64;
         let int = |k: T<'h>| if let View::Int(v) = h.view(k) { Some(v) } else { None };
@@ -909,7 +909,7 @@ pub(crate) fn delete_elements<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T
     let [x, es] = *args else { return Ok(Reply::Decline) };
     let (head, xs) = take!(lib.operand(h, t, x, 1));
     // delete_elements(xs, n -> es): at most n occurrences of each element of es, the first ones; n -> es with a
-    // list n: at most n_k of es_k (counts of a repeated element add up); n may be inf (decision r37.3)
+    // list n: at most n_k of es_k (counts of a repeated element add up); n may be inf
     if let View::App { head: r, args: &[n, es] } = h.view(es) {
         if r == h.sym_term(h.sym("rule")) {
             let es = take!(lib.list_operand(h, t, es, 2));
@@ -1111,7 +1111,7 @@ pub(crate) fn symmetric_difference<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>,
         return Ok(Reply::Again(h.call(h.sym("sort"), &[cx.list(&kept)])));
     }
     let mut count: rustc_hash::FxHashMap<T<'h>, usize> = Default::default();
-    // the operands may share any head, which the result keeps (decision r37.4)
+    // the operands may share any head, which the result keeps
     let mut head = None;
     for (k, &a) in args.iter().enumerate() {
         let (g, xs) = take!(lib.elements_operand(h, t, a, k + 1));

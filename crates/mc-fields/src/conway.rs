@@ -194,7 +194,7 @@ pub fn search(f: Fp, n: usize, last: Option<u64>, test: &Test, b: &mut dyn Budge
         }
         tried += 1;
         // every candidate is charged: one test of a high-degree candidate takes milliseconds, so charging only every
-        // 64th let finite_field(5, 300) run 5 s past a 2 s limit (X26-14)
+        // 64th let finite_field(5, 300) run 5 s past a 2 s limit
         b.charge((n * n) as u64 / 32 + 1)?;
         if tried > 10_000_000 {
             return Ok(None);

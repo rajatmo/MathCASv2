@@ -73,7 +73,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "count_roots",
         "count_roots(p, x): the number of real roots of the polynomial p with multiplicity; count_roots(p, [x, a, b]) in the closed interval [a, b], or in the closed rectangle with corners a and b when one is complex",
     ),
-    // round 28, written in MathCAS (lib/calculus.mc)
+    // written in MathCAS (lib/calculus.mc)
     ("algebraics", "algebraics: the domain of the algebraic numbers for element(x, algebraics), decided by the Lindemann-Weierstrass and Gelfond-Schneider theorems"),
     ("add_sides", "add_sides(rel, c): c added to every side of an equation or inequality; add_sides(a == b, rel) side by side"),
     ("subtract_sides", "subtract_sides(rel, c): c subtracted from every side; subtract_sides(rel): rel(lhs - rhs, 0)"),

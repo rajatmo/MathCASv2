@@ -414,13 +414,13 @@ fn fit(data, funs, xv; fit_regularization = none) when is_list(data) and is_list
   let c = if ridge then {
     let m = length(funs)
     linear_solve(dot(transpose(a), a) + n(fit_regularization[2])*identity_matrix(m), dot(transpose(a), y))
-  } else if lasso then b36_lasso(a, y, n(fit_regularization[2])) else dot(pseudo_inverse(a), y)
+  } else if lasso then pr_lasso(a, y, n(fit_regularization[2])) else dot(pseudo_inverse(a), y)
   sum(map(j => c[j]*funs[j], range(length(funs))))
 }
 
-# b36_lasso(a, y, lambda): the coefficients c minimising |y - a c|^2 + lambda |c|_1 by cyclic coordinate descent with
+# pr_lasso(a, y, lambda): the coefficients c minimising |y - a c|^2 + lambda |c|_1 by cyclic coordinate descent with
 # soft thresholding (Friedman, Hastie and Tibshirani, Regularization paths for generalized linear models, 2010)
-fn b36_lasso(a, y, lam) = {
+fn pr_lasso(a, y, lam) = {
   let cols = transpose(a)
   let m = length(cols)
   let z = map(c => dot(c, c), cols)
@@ -627,7 +627,7 @@ fn minimal_by(xs, f, n) when is_list(xs) = {
 fn maximal_by(f) = xs => maximal_by(xs, f)
 fn minimal_by(f) = xs => minimal_by(xs, f)
 
-# --- round 18 phase 9B: orders, operator forms, subsets, truth tables ---
+# --- orders, operator forms, subsets, truth tables ---
 
 # subtract(x, y): x - y
 fn subtract(x, y) = x - y
@@ -688,7 +688,7 @@ fn lexicographic_sort(xs, p) = sort(xs, (a, b) => lexicographic_order(a, b, p))
 # lower case before upper case); alphabetic_order() and alphabetic_order("English") are the ordering function
 # a ligature or a letter with a diacritic sorts as its base letters (æ as ae, é as e, ß as ss, as the root collation of
 # UTS #10 does at its first level); strings that differ only in that fall back to the code-point-aware order
-fn l36_alpha_fold(s) = if any_true(to_character_code(s), c => c > 127) then string_replace(s, [
+fn pr_alpha_fold(s) = if any_true(to_character_code(s), c => c > 127) then string_replace(s, [
   "æ" -> "ae", "Æ" -> "AE", "œ" -> "oe", "Œ" -> "OE", "ß" -> "ss",
   "à" -> "a", "á" -> "a", "â" -> "a", "ã" -> "a", "ä" -> "a", "å" -> "a", "ā" -> "a", "ă" -> "a", "ą" -> "a",
   "À" -> "A", "Á" -> "A", "Â" -> "A", "Ã" -> "A", "Ä" -> "A", "Å" -> "A", "Ā" -> "A", "Ă" -> "A", "Ą" -> "A",
@@ -704,24 +704,24 @@ fn l36_alpha_fold(s) = if any_true(to_character_code(s), c => c > 127) then stri
   "Ù" -> "U", "Ú" -> "U", "Û" -> "U", "Ü" -> "U", "Ū" -> "U", "Ů" -> "U", "Ű" -> "U",
   "ý" -> "y", "ÿ" -> "y", "Ý" -> "Y", "ź" -> "z", "ż" -> "z", "ž" -> "z", "Ź" -> "Z", "Ż" -> "Z", "Ž" -> "Z"]) else s
 fn alphabetic_order(a: Str, b: Str) = {
-  let o = order(l36_alpha_fold(a), l36_alpha_fold(b))
+  let o = order(pr_alpha_fold(a), pr_alpha_fold(b))
   if o == 0 then order(a, b) else o
 }
 fn alphabetic_order() = alphabetic_order
 fn alphabetic_order(lang: Str) when lang == "English" = alphabetic_order
-# languages whose alphabets order some letters as letters of their own (round 37, the tailorings of the Unicode
+# languages whose alphabets order some letters as letters of their own (the tailorings of the Unicode
 # Common Locale Data Repository, CLDR, for the Latin script): a unit (a letter or a digraph) -> [the letter it
 # follows, its rank after it]; rank 0 is the letter itself at the first level (Swedish ü is y). Serbian tailors
 # only the Cyrillic script: Latin text has the root order.
-fn r37_tailoring(lang) =
+fn pr_tailoring(lang) =
   if lang == "Slovak" then assoc("ä" -> ["a", 1], "č" -> ["c", 1], "ch" -> ["h", 1], "ô" -> ["o", 1], "š" -> ["s", 1], "ž" -> ["z", 1])
   else if lang == "Spanish" then assoc("ñ" -> ["n", 1])
   else if lang == "Swedish" then assoc("å" -> ["z", 1], "ä" -> ["z", 2], "æ" -> ["z", 2], "ö" -> ["z", 3], "ø" -> ["z", 3], "ü" -> ["y", 0])
   else if lang == "Serbian" then assoc()
   else null
 # the first-level weights of a string under a tailoring: the units of the tailoring (two-letter ones first) weigh
-# just after their letter, every other character as its root letters (l36_alpha_fold)
-fn r37_weights(s, tab) = {
+# just after their letter, every other character as its root letters (pr_alpha_fold)
+fn pr_weights(s, tab) = {
   let cs = characters(to_lower(s))
   let w = c => 4*to_character_code(c)[1]
   var out = []
@@ -735,16 +735,16 @@ fn r37_weights(s, tab) = {
       out = append(out, w(tab[cs[i]][1]) + tab[cs[i]][2])
       i = i + 1
     } else {
-      out = join(out, map(w, characters(l36_alpha_fold(cs[i]))))
+      out = join(out, map(w, characters(pr_alpha_fold(cs[i]))))
       i = i + 1
     }
   }
   out
 }
-fn alphabetic_order(lang: Str) when r37_tailoring(lang) !== null = {
-  let tab = r37_tailoring(lang)
+fn alphabetic_order(lang: Str) when pr_tailoring(lang) !== null = {
+  let tab = pr_tailoring(lang)
   (a, b) => {
-    let o = lexicographic_order(r37_weights(a, tab), r37_weights(b, tab))
+    let o = lexicographic_order(pr_weights(a, tab), pr_weights(b, tab))
     if o == 0 then alphabetic_order(a, b) else o
   }
 }
@@ -752,7 +752,7 @@ fn alphabetic_order(lang: Str) when r37_tailoring(lang) !== null = {
 # alphabetic_sort(xs), alphabetic_sort(xs, "English"): the strings of xs in alphabetic order
 fn alphabetic_sort(xs) when is_list(xs) = sort(xs, alphabetic_order)
 fn alphabetic_sort(xs, lang: Str) when is_list(xs) and lang == "English" = sort(xs, alphabetic_order)
-fn alphabetic_sort(xs, lang: Str) when is_list(xs) and r37_tailoring(lang) !== null = sort(xs, alphabetic_order(lang))
+fn alphabetic_sort(xs, lang: Str) when is_list(xs) and pr_tailoring(lang) !== null = sort(xs, alphabetic_order(lang))
 # case_ordering: lower_first (the default order); upper_first is not defined here and the call stays
 rule alphabetic_sort(xs_, lang_, case_ordering: c_) := sort(xs, alphabetic_order) when is_list(xs) and lang === "English" and c === lower_first
 
@@ -788,8 +788,8 @@ fn delete_adjacent_duplicates(xs, test) when not is_atom(xs) and not is_assoc(xs
 # key_sort_by(f)(a)
 fn key_sort_by(a, f) when is_assoc(a) = { let ks = sort_by(keys(a), f); association_thread(ks, map(k => a[k], ks)) }
 fn key_sort_by(rs, f) when is_list(rs) = key_sort_by(apply(assoc, rs), f)
-# r37_key_sort(a, p): the entries of a with its keys in the order of the ordering function p (`key_sort(a, p)`, round 37)
-fn r37_key_sort(a, p) when is_assoc(a) = { let ks = sort(keys(a), p); association_thread(ks, map(k => a[k], ks)) }
+# pr_key_sort(a, p): the entries of a with its keys in the order of the ordering function p (`key_sort(a, p)`)
+fn pr_key_sort(a, p) when is_assoc(a) = { let ks = sort(keys(a), p); association_thread(ks, map(k => a[k], ks)) }
 fn key_sort_by(f) = a => key_sort_by(a, f)
 
 # unique_elements([xs1, xs2, ...]): for each list, its distinct elements that are in none of the other lists
@@ -900,7 +900,7 @@ fn enclose(held e) = catch(e, enclose)
 fn enclose(held e, f) = catch(e, enclose, (v, t) => f(v))
 fn enclose(held e, f, tag) = catch(e, tag, (v, t) => f(v))
 
-# ---- lists: matrix builders, triangular parts, partitions, cellular automata (round 28) ----
+# ---- lists: matrix builders, triangular parts, partitions, cellular automata ----
 
 # array_pad(a, m), (a, m, pad), (a, m, fixed | periodic | reversed | reflected): the array a with m entries
 # added on every side of every level (m = [l, r]: l before, r after; m = [[l1, r1], [l2, r2], ...] per level;
@@ -973,13 +973,13 @@ fn pad_source(mode, k, len) = {
   else { let j = mod(k - 1, 2*len - 2); if j < len then j + 1 else 2*len - 1 - j }
 }
 
-# a28_rows(rows, cols, row): the matrix of the rows row(1), ..., row(rows) of length cols. A matrix that would not
+# pr_rows(rows, cols, row): the matrix of the rows row(1), ..., row(rows) of length cols. A matrix that would not
 # fit in the memory the evaluation may still use (memory_available(): the session's limit, or that of an enclosing
 # memory_constrained) is failure(limit, memory, [rows, cols]) before it is built: first when its slots alone (8
 # bytes each) do not fit, then when the first row, built and measured, times the number of rows does not. The
 # measure counts everything a row costs (the evaluation of its entries too), so a builder never runs into the limit
 # halfway (hankel_matrix(10000) took 98 s to reach it, and could take the process down with it).
-fn a28_rows(rows, cols, row) =
+fn pr_rows(rows, cols, row) =
   if rows == 0 then []
   else if 8*rows*cols > memory_available() then failure(limit, memory, [rows, cols])
   else {
@@ -988,9 +988,9 @@ fn a28_rows(rows, cols, row) =
     if (before - memory_available())*(rows - 1) > memory_available() then failure(limit, memory, [rows, cols])
     else join([first], map(row, range(2, rows)))
   }
-# a28_matrix(rows, cols, f): the matrix of f(i, j) (lexical index names: entries may contain any symbol), built by
-# a28_rows
-fn a28_matrix(rows, cols, f) = a28_rows(rows, cols, i => map(j => f(i, j), range(cols)))
+# pr_matrix(rows, cols, f): the matrix of f(i, j) (lexical index names: entries may contain any symbol), built by
+# pr_rows
+fn pr_matrix(rows, cols, f) = pr_rows(rows, cols, i => map(j => f(i, j), range(cols)))
 
 # hankel_matrix(n): the n x n matrix of entries i + j - 1 (0 past n); hankel_matrix(c): the matrix with first column
 # c and zeros below the antidiagonal; hankel_matrix(c, r): first column c, last row r. Row i is the slice i, ...,
@@ -1002,7 +1002,7 @@ fn hankel_matrix(c, r) when is_list(c) and is_list(r) =
   if length(r) == 0 then map(i => [], c) else {
     let k = length(r)
     let s = join(c, rest(r))
-    a28_rows(length(c), k, i => take(s, [i, i + k - 1]))
+    pr_rows(length(c), k, i => take(s, [i, i + k - 1]))
   }
 
 # toeplitz_matrix(n): the n x n matrix of entries |i - j| + 1; toeplitz_matrix(c): first column c, first row its
@@ -1012,7 +1012,7 @@ fn toeplitz_matrix(c: Int) when c >= 0 = toeplitz_matrix(range(c))
 fn toeplitz_matrix(c) when is_list(c) = toeplitz_matrix(c, map(x => if is_number(x) then conjugate(x) else x, c))
 fn toeplitz_matrix(c, r) when is_list(c) and is_list(r) = if length(r) == 0 then map(i => [], c) else {
   let k = length(r)
-  a28_rows(length(c), k, i => join(reverse(take(c, [i - min(i, k) + 1, i])), if k > i then take(r, [2, k - i + 1]) else []))
+  pr_rows(length(c), k, i => join(reverse(take(c, [i - min(i, k) + 1, i])), if k > i then take(r, [2, k - i + 1]) else []))
 }
 
 # center_array(n): a 1 in the middle of n zeros; center_array(a, n), (a, n, x), (a, [n1, n2, ...], x): the array a
@@ -1040,23 +1040,23 @@ fn diagonal(m, k: Int) when is_matrix(m) =
 fn upper_triangularize(m) when is_matrix(m) = upper_triangularize(m, 0)
 fn upper_triangularize(m, k: Int) when is_matrix(m) = {
   let z = if every(flatten(m), x => is_machine_number(x)) then 0.0 else 0
-  a28_matrix(length(m), length(m[1]), (i, j) => if j - i >= k then m[i][j] else z)
+  pr_matrix(length(m), length(m[1]), (i, j) => if j - i >= k then m[i][j] else z)
 }
 # target_structure: dense, sparse or automatic give the dense list form, as for the matrix constructors of
-# mc-linalg (round 37); other structures are not done and the call stays
-fn r37_dense_structure(s) = s === dense or s === sparse or s === automatic
-rule hankel_matrix(c_, target_structure: s_) := hankel_matrix(c) when r37_dense_structure(s)
-rule hankel_matrix(c_, r_, target_structure: s_) := hankel_matrix(c, r) when r37_dense_structure(s)
-rule toeplitz_matrix(c_, target_structure: s_) := toeplitz_matrix(c) when r37_dense_structure(s)
-rule toeplitz_matrix(c_, r_, target_structure: s_) := toeplitz_matrix(c, r) when r37_dense_structure(s)
-rule upper_triangularize(m_, target_structure: s_) := upper_triangularize(m) when r37_dense_structure(s) and is_matrix(m)
-rule upper_triangularize(m_, k_, target_structure: s_) := upper_triangularize(m, k) when r37_dense_structure(s) and is_matrix(m)
-rule lower_triangularize(m_, target_structure: s_) := lower_triangularize(m) when r37_dense_structure(s) and is_matrix(m)
-rule lower_triangularize(m_, k_, target_structure: s_) := lower_triangularize(m, k) when r37_dense_structure(s) and is_matrix(m)
+# mc-linalg; other structures are not done and the call stays
+fn pr_dense_structure(s) = s === dense or s === sparse or s === automatic
+rule hankel_matrix(c_, target_structure: s_) := hankel_matrix(c) when pr_dense_structure(s)
+rule hankel_matrix(c_, r_, target_structure: s_) := hankel_matrix(c, r) when pr_dense_structure(s)
+rule toeplitz_matrix(c_, target_structure: s_) := toeplitz_matrix(c) when pr_dense_structure(s)
+rule toeplitz_matrix(c_, r_, target_structure: s_) := toeplitz_matrix(c, r) when pr_dense_structure(s)
+rule upper_triangularize(m_, target_structure: s_) := upper_triangularize(m) when pr_dense_structure(s) and is_matrix(m)
+rule upper_triangularize(m_, k_, target_structure: s_) := upper_triangularize(m, k) when pr_dense_structure(s) and is_matrix(m)
+rule lower_triangularize(m_, target_structure: s_) := lower_triangularize(m) when pr_dense_structure(s) and is_matrix(m)
+rule lower_triangularize(m_, k_, target_structure: s_) := lower_triangularize(m, k) when pr_dense_structure(s) and is_matrix(m)
 fn lower_triangularize(m) when is_matrix(m) = lower_triangularize(m, 0)
 fn lower_triangularize(m, k: Int) when is_matrix(m) = {
   let z = if every(flatten(m), x => is_machine_number(x)) then 0.0 else 0
-  a28_matrix(length(m), length(m[1]), (i, j) => if j - i <= k then m[i][j] else z)
+  pr_matrix(length(m), length(m[1]), (i, j) => if j - i <= k then m[i][j] else z)
 }
 
 # is_upper_triangular_matrix(m), (m, k): whether every entry of m below the k-th diagonal is zero;
@@ -1082,7 +1082,7 @@ fn minors(m, k: Int, f) when is_matrix(m) and k >= 0 and k <= min(length(m), len
 # adjugate(m): the transpose of the matrix of cofactors of the square matrix m, so that m . adjugate(m) = det(m) I
 fn adjugate(m) when is_matrix(m) and length(m) == length(m[1]) = {
   let k = length(m)
-  if k == 1 then [[1]] else a28_matrix(k, k, (i, j) => (-1)^(i + j)*det(map(r => drop_at(r, i), drop_at(m, j))))
+  if k == 1 then [[1]] else pr_matrix(k, k, (i, j) => (-1)^(i + j)*det(map(r => drop_at(r, i), drop_at(m, j))))
 }
 fn drop_at(xs, i) = join(take(xs, i - 1), drop(xs, i))
 
@@ -1108,7 +1108,7 @@ fn projection(u, v, f) = f(u, v)/f(v, v)*v
 
 # orthogonalize(vs), orthogonalize(vs, f): an orthonormal basis of the span of the vectors vs by the Gram-Schmidt
 # process (vectors dependent on earlier ones dropped), with <a, b> = a . conjugate(b) or f(a, b)
-# symbols for the vectors (abstract vectors, round 36): Gram-Schmidt with the inner products left as dot(e, w)
+# symbols for the vectors (abstract vectors): Gram-Schmidt with the inner products left as dot(e, w)
 # (every remainder taken as nonzero)
 fn orthogonalize(vs) when is_list(vs) and length(vs) > 0 and every(vs, v => is_symbol(v)) = {
   var basis = []
@@ -1452,9 +1452,9 @@ fn seq_poly_fit(seq, x) = {
 # dot(a, x) + b >= 0 (and dot(aeq, x) + beq == 0)
 rule linear_optimization(c_, ab_) := lo_matrix(c, ab, [[], []]) when is_vector(c) and lo_pair(ab)
 rule linear_optimization(c_, ab_, eq_) := lo_matrix(c, ab, eq) when is_vector(c) and lo_pair(ab) and lo_pair(eq)
-rule linear_optimization(f_, cons_, vars_) := c30_opt(f, cons, vars) when not is_vector(f) and lo_dim_known(f, cons, vars)
-rule linear_fractional_optimization(f_, cons_, vars_) := c30_opt(f, cons, vars) when lo_dim_known(f, cons, vars)
-rule convex_optimization(f_, cons_, vars_) := c30_opt(f, cons, vars) when lo_dim_known(f, cons, vars)
+rule linear_optimization(f_, cons_, vars_) := ls_opt(f, cons, vars) when not is_vector(f) and lo_dim_known(f, cons, vars)
+rule linear_fractional_optimization(f_, cons_, vars_) := ls_opt(f, cons, vars) when lo_dim_known(f, cons, vars)
+rule convex_optimization(f_, cons_, vars_) := ls_opt(f, cons, vars) when lo_dim_known(f, cons, vars)
 fn lo_pair(ab) = is_list(ab) and length(ab) == 2 and is_list(ab[1]) and is_list(ab[2]) and (length(ab[1]) == 0 or is_matrix(ab[1]))
 fn lo_matrix(c, ab, eq) = {
   let nvar = length(c)

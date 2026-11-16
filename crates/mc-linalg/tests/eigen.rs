@@ -22,7 +22,7 @@ fn exact_eigenvalues() {
         ("eigenvectors([[2, 1], [1, 2]])", "[[1, 1], [-1, 1]]"),
         ("eigenvalues([[2, 0, 0], [0, 3, 4], [0, 4, 9]])", "[11, 2, 1]"),
         ("eigenvalues([[4, 1], [2, 3]])", "[5, 2]"),
-        // rational eigenvectors as coprime integers (decision la-9d.1)
+        // rational eigenvectors as coprime integers
         ("eigenvectors([[-3, 2], [-15, 8]])", "[[1, 3], [2, 5]]"),
         ("identity_matrix([2, 3])", "[[1, 0, 0], [0, 1, 0]]"),
         ("diagonal_matrix([1, 2, 3], 0, [3, 4])", "[[1, 0, 0, 0], [0, 2, 0, 0], [0, 0, 3, 0]]"),

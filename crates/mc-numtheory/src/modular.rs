@@ -148,7 +148,7 @@ fn is_primitive(g: &Nat, p: &Nat, k: u64, qs: &[Nat], b: &mut dyn Budget) -> Res
 
 /// The smallest primitive root modulo n >= 1, or `None` when there is none (n not 1, 2, 4, p^k or 2 p^k).
 pub fn primitive_root(n: &Nat, b: &mut dyn Budget) -> Res<Option<Nat>> {
-    // modulo 2 p^k: the root g of p^k when it is odd, else g + p^k (the usual construction; decision P6N.4)
+    // modulo 2 p^k: the root g of p^k when it is odd, else g + p^k (the usual construction)
     if !n.bit(0) && n.bit(1) && to_u64(n).is_none_or(|v| v > 4) {
         let odd = n.shr(1);
         let Some(g) = primitive_root_from(&odd, 2, b)? else { return Ok(None) };
@@ -341,7 +341,7 @@ mod tests {
         assert_eq!(pr(7), Some(3));
         assert_eq!(pr(8), None);
         assert_eq!(pr(15), None);
-        // modulo 2 p^k: the root g of p^k, plus p^k when g is even (decision P6N.4)
+        // modulo 2 p^k: the root g of p^k, plus p^k when g is even
         assert_eq!(pr(18), Some(11));
         assert_eq!(pr(10), Some(7));
         assert_eq!(pr(25), Some(2));

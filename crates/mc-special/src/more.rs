@@ -5,7 +5,7 @@
 //! the remaining Jacobi elliptic functions, the regularized hypergeometric functions, the elliptic nome and the
 //! exponentially scaled Bessel K and I.
 //!
-//! Conventions (decision P6N.6): a polynomial family at a non-negative integer degree is the expanded polynomial in
+//! Conventions: a polynomial family at a non-negative integer degree is the expanded polynomial in
 //! its argument (exact for exact arguments, evaluated for numbers); at other numeric degrees the hypergeometric
 //! representation (DLMF 18.5.7, 18.5.12, 14.3.1, 18.5.13 and 13.2.42 for Hermite) evaluates it; symbolic degrees
 //! stay. Machine-only algorithms (Lambert W by Halley's iteration; the scaled Bessel functions) leave balls to the
@@ -30,8 +30,8 @@ fn small_nat<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<u64> {
 }
 
 /// A degree that is a natural number, exact or inexact (`3.` or 3 at 30 digits): the families with parameters are
-/// polynomials there, evaluated by their recurrences (round 44: `laguerre_l(3., -2, 1/3)` went through
-/// binomial(n + a, n) 1F1(-n; a + 1; x), 0 times a pole at a = -2, and gave 0 or indeterminate for 4/81).
+/// polynomials there, evaluated by their recurrences (`laguerre_l(3., -2, 1/3)` going through
+/// binomial(n + a, n) 1F1(-n; a + 1; x), 0 times a pole at a = -2, would give 0 or indeterminate for 4/81).
 fn integral_degree<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<u64> {
     small_nat(fx, t).or_else(|| {
         let v = fx.f64_of(t)?;
@@ -162,7 +162,7 @@ fn derivative(c: &[Rat], m: u64) -> Vec<Rat> {
     c
 }
 
-// ---------------------------------------------------------------- machine recurrences (round 24, X23-1..3)
+// ---------------------------------------------------------------- machine recurrences
 //
 // The explicit polynomial (Horner on exact coefficients) in double precision loses every digit from degree about 25
 // (the coefficients are huge and alternate). At a machine argument the classical three-term recurrences are used
@@ -271,8 +271,8 @@ fn legendre_derivative_machine<'h>(fx: &mut Fx<'_, '_, '_, 'h>, l: u64, m: u64, 
     Ok(machine_term(fx, cur, real))
 }
 
-/// A three-term recurrence run at machine precision with the pair rescaled when it nears the range limit (round 27,
-/// B26-14, B26-15, X26-7): `step(k, prev, cur)` is the value of degree k + 1, or `None` when a recurrence
+/// A three-term recurrence run at machine precision with the pair rescaled when it nears the range limit:
+/// `step(k, prev, cur)` is the value of degree k + 1, or `None` when a recurrence
 /// coefficient is not finite. A result beyond the machine range is a signed infinity for a real argument.
 fn machine_recurrence<'h>(
     fx: &mut Fx<'_, '_, '_, 'h>,
@@ -430,7 +430,7 @@ fn family<'h>(fx: &mut Fx<'_, '_, '_, 'h>, f: Family, a: &[T<'h>]) -> R<'h> {
         }
     }
     // an arbitrary-precision degree with an integer value: the polynomial too, times an inexact 1 of the degree's
-    // precision (round 44: hermite_h at 40-digit 1 and 3/4 stayed a form with 1/gamma(0.))
+    // precision (hermite_h at 40-digit 1 and 3/4 would stay a form with 1/gamma(0.))
     if let Some(k) = integral_degree(fx, n).filter(|k| *k <= 10_000) {
         let v = poly_at(fx, &coefficients(f, k), x);
         let unit = fx.div(fx.add(&[n, fx.int(1)]), fx.int(k as i64 + 1));
@@ -439,7 +439,7 @@ fn family<'h>(fx: &mut Fx<'_, '_, '_, 'h>, f: Family, a: &[T<'h>]) -> R<'h> {
     let half_1mx = fx.mul(&[fx.rat(1, 2), fx.sub(fx.int(1), x)]);
     Ok(Some(match f {
         // a real x > 1: cosh(n acosh x) and sinh((n + 1) acosh x)/sqrt(x^2 - 1) are real (cos(n acos x) is a complex ball
-        // with an imaginary part 0 +- 2^-p, B26-26)
+        // with an imaginary part 0 +- 2^-p)
         Family::ChebyshevT if fx.f64_of(x).is_some_and(|v| v > 1.0) => fx.call("cosh", &[fx.mul(&[n, fx.call("acosh", &[x])])]),
         Family::ChebyshevU if fx.f64_of(x).is_some_and(|v| v > 1.0) => {
             let t = fx.call("acosh", &[x]);
@@ -592,7 +592,7 @@ fn legendre_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         }
         // any degree and order:((1 + x)/(1 - x))^(m/2) 2F1~(-l, l + 1; 1 - m; (1 - x)/2) (type 2); for an integer
         // order the factor is taken as (1 + x)^(m/2) (1 - x)^(-m/2), so that with the (1 - x)^m inside 2F1~ it is
-        // the (1 - x^2)^(m/2) of the definition by derivatives used for integer degrees (round 44: at x = 3,
+        // the (1 - x^2)^(m/2) of the definition by derivatives used for integer degrees (at x = 3,
         // legendre_p(2, 1, x) was -18 sqrt(2) i exactly and at machine precision, +18 sqrt(2) i at 30 digits)
         let half_m = fx.mul(&[m, fx.rat(1, 2)]);
         let integral = fx.f64_of(m).is_some_and(|v| v.fract() == 0.0 && v.abs() < 1e6);
@@ -610,8 +610,8 @@ fn legendre_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let am = m.unsigned_abs();
     if am > l && m < 0 {
         // P_l^-m with m > l is not 0 (only P_l^m is, the m-th derivative of a polynomial of degree l): the
-        // hypergeometric form (1 + x)^(-m/2) (1 - x)^(m/2) 2F1~(-l, l + 1; 1 + m; (1 - x)/2) (round 44:
-        // legendre_p(0, -1, 1/3) was 0; it is ((1 - x)/(1 + x))^(1/2) = 2^(-1/2), as at machine precision)
+        // hypergeometric form (1 + x)^(-m/2) (1 - x)^(m/2) 2F1~(-l, l + 1; 1 + m; (1 - x)/2)
+        // (legendre_p(0, -1, 1/3) is not 0; it is ((1 - x)/(1 + x))^(1/2) = 2^(-1/2), as at machine precision)
         let half_m = fx.rat(m, 2);
         let w = fx.mul(&[fx.pow(fx.add(&[fx.int(1), x]), half_m), fx.pow(fx.sub(fx.int(1), x), fx.neg(half_m))]);
         let f = fx.call(
@@ -713,8 +713,8 @@ const EXACT_RECURRENCE_MAX: u64 = 3000;
 
 /// The exact rational value of the degree-n Laguerre (`which` 0, `p = [a, x]`), Gegenbauer (1, `[l, x]`) or Jacobi (2,
 /// `[a, b, x]`) polynomial for rational parameters, by the three-term recurrence in rational arithmetic (DLMF
-/// 18.9.13, 18.9.7, 18.9.2): no cancellation, so `n` of the result is correctly rounded at any degree (round 27,
-/// B26-14 to B26-16, X26-7). `None` when a recurrence coefficient is zero (the generic formulas do not apply).
+/// 18.9.13, 18.9.7, 18.9.2): no cancellation, so `n` of the result is correctly rounded at any degree.
+/// `None` when a recurrence coefficient is zero (the generic formulas do not apply).
 fn exact_recurrence<'h>(fx: &mut Fx<'_, '_, '_, 'h>, which: u8, n: u64, p: &[Rat]) -> Res<Option<Rat>> {
     let r = Rat::from_i64;
     let ratio = |a: &Rat, b: &Rat| -> Option<Rat> { b.recip().map(|i| a.mul(&i)) };
@@ -876,8 +876,8 @@ fn gegenbauer_c<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     }
     // gamma(n + 2a)/(gamma(n + 1) gamma(2a)) 2F1(-n, n + 2a; a + 1/2; (1 - x)/2)
     let two_a = fx.mul(&[fx.int(2), al]);
-    // a = -1/2 - m: gamma(2a) and the 2F1 lower parameter a + 1/2 = -m are both poles; the product is finite (round 27,
-    // B26-19): gamma(a + 1/2)/gamma(2a) -> -2 (-1)^m (2m + 1)!/m! and 2F1/gamma(c) is the regularized function
+    // a = -1/2 - m: gamma(2a) and the 2F1 lower parameter a + 1/2 = -m are both poles; the product is finite:
+    // gamma(a + 1/2)/gamma(2a) -> -2 (-1)^m (2m + 1)!/m! and 2F1/gamma(c) is the regularized function
     if let Some(m) = fx.rat_of(al).and_then(|q| {
         let m2 = q.neg().sub(&qi(1, 2));
         (m2.is_int() && !m2.num.neg).then(|| m2.num.mag.to_u128().unwrap_or(u128::MAX))
@@ -1437,7 +1437,7 @@ impl PowInt for Int {
 
 fn hyperfactorial<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     // a negative integer -n: H(-n) = K(1 - n) = (-1)^(n (n - 1)/2) H(n - 1), the terms (-m) log(-m) = -m (log m + pi i)
-    // of the sum below (round 37: hyperfactorial(-2) stayed unevaluated, the value is -1)
+    // of the sum below (hyperfactorial(-2) is -1)
     if let Some(n) = fx.int_of(a[0]).filter(|n| (-2001..0).contains(n)) {
         let m = -n;
         let h = fx.call("hyperfactorial", &[fx.int(m - 1)]);
@@ -1463,7 +1463,7 @@ fn hyperfactorial<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 /// log K(a) = (a - 1) log Gamma(a) - log G(a) (both sides analytic there and equal on a > 0); elsewhere the defining
 /// sum zeta(s, a) = sum_j (a + j)^(-s) gives zeta'(-1, a) = -sum_(j<N) (a + j) log(a + j) + zeta'(-1, a + N) with
 /// principal logarithms, N the first shift with Re(a + N) > 0. On the cut (a real < 0) the logarithms of the negative
-/// terms carry pi i: H(z) = |H(z)| e^(pi i P), P = the sum of |a + j| over the negative terms (round 37: Gamma(z + 1)^z/G(z
+/// terms carry pi i: H(z) = |H(z)| e^(pi i P), P = the sum of |a + j| over the negative terms (Gamma(z + 1)^z/G(z
 /// + 1) gave the real -0.98686 at z = -2.2, the definition gives 0.98686 e^(1.4 pi i)).
 fn hyperfactorial_numeric<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>]) -> R<'h> {
     let Some((re, im)) = crate::cover::parts(fx, args[0]) else { return Ok(None) };
@@ -1597,7 +1597,7 @@ fn product_log_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 }
 
 /// The branch index of `product_log(k, z)`: an exact integer, or an inexact number with an integer value (`n`
-/// turns the exact index into a float; B23-14).
+/// turns the exact index into a float).
 fn branch_index<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<i64> {
     fx.int_of(t).or_else(|| fx.f64_of(t).filter(|v| v.fract() == 0.0 && v.abs() < 1e9).map(|v| v as i64))
 }
@@ -1894,7 +1894,7 @@ fn jacobi_ratio<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], p: char, q: char) 
             _ => fx.int(1),
         }
     };
-    // ball arguments: the quotient at a precision where it has its digits (the theta sums cancel, B23-23)
+    // ball arguments: the quotient at a precision where it has its digits (the theta sums cancel)
     let name = |c: char| match c {
         's' => Some("jacobi_sn"),
         'c' => Some("jacobi_cn"),
@@ -1938,17 +1938,17 @@ fn jacobi_ratio<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], p: char, q: char) 
             return Ok(Some(fx.int(1)));
         }
     }
-    // x + a K(m) + b i K(1 - m): a constant times another Jacobi function of x (round 33)
+    // x + a K(m) + b i K(1 - m): a constant times another Jacobi function of x
     if a.len() == 2 && fx.num(a[0]).is_none() {
         if let Some(v) = crate::jshift::reduce(fx.h, &fx.ar, p, q, a[0], a[1]) {
             return Ok(Some(v));
         }
     }
-    // machine arguments at a complex u: the complex double-double theta kernel (round 33)
+    // machine arguments at a complex u: the complex double-double theta kernel
     if a.len() == 2 {
-        if let Some((ms, false)) = crate::fast29::machine_args(fx, a) {
-            if let Some(v) = crate::fast33::ratio(p, q, ms[0], ms[1]) {
-                return Ok(crate::fast29::machine_out(fx, v, false));
+        if let Some((ms, false)) = crate::fast_dd::machine_args(fx, a) {
+            if let Some(v) = crate::fast_elliptic::ratio(p, q, ms[0], ms[1]) {
+                return Ok(crate::fast_dd::machine_out(fx, v, false));
             }
         }
     }
@@ -2150,7 +2150,7 @@ pub static DEFS: &[Def] = &[
     def!("bessel_i_scaled", &[2], Some(bessel_i_scaled), None, "bessel_i_scaled(nu, x): e^-x I_nu(x), without overflow at large x"),
 ];
 
-/// The scaled Bessel functions as library functions of numerical evaluation (gap queue G42: `n_dsolve` and `n`
+/// The scaled Bessel functions as library functions of numerical evaluation (`n_dsolve` and `n`
 /// evaluate them inside numeric islands without forming K or I).
 pub struct Scaled {
     k: bool,

@@ -367,8 +367,8 @@ impl<'h, S: Store + ?Sized> Lowerer<'h, S> {
 
     /// Call arguments: positional ones (with `p = d` for a pattern `p` as `optional(p, d)`), then the named ones as
     /// one trailing `options(name -> v, ...)`. A positional argument after named ones (a stored option list among
-    /// the options, gap G82) ends their group: `f(a, k: 1, opts, j: 2)` is `f(a, options(k -> 1), opts,
-    /// options(j -> 2))`, which the evaluator merges into one option list when `opts` is one (gap G65). `hole`
+    /// the options) ends their group: `f(a, k: 1, opts, j: 2)` is `f(a, options(k -> 1), opts,
+    /// options(j -> 2))`, which the evaluator merges into one option list when `opts` is one. `hole`
     /// replaces the one `_` argument of a pipe's right side.
     fn args(&mut self, args: &[Arg], mut hole: Option<T<'h>>) -> LResult<Vec<T<'h>>> {
         let mut out = Vec::new();

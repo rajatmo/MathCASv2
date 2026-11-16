@@ -383,7 +383,7 @@ pub fn norm<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<
             return Ok(Out::Again(env.call("abs", &[*x])));
         }
     }
-    // the p-norm of a vector for any real p >= 1 or a symbolic p: (sum |x_k|^p)^(1/p) (round 37)
+    // the p-norm of a vector for any real p >= 1 or a symbolic p: (sum |x_k|^p)^(1/p)
     if let [_, p] = args {
         let general = match env.h().view(*p) {
             View::Real(x) => x.is_finite() && x >= 1.0,
@@ -565,7 +565,7 @@ pub fn curl<'h>(env: &Env<'h>, args: &[T<'h>]) -> WorkResult<Out<'h>> {
     Ok(Out::Again(t))
 }
 
-/// The curl of an array `a` of rank k < n in n variables (round 36): the array of rank n - k - 1 with entries
+/// The curl of an array `a` of rank k < n in n variables: the array of rank n - k - 1 with entries
 /// (1/k!) sum eps(i1, ..., in) d(a[i2, ..., i(k+1)], x(i1)) over the free indices i(k+2), ..., in (the Hodge dual
 /// of the exterior derivative of a as a k-form; for k = 1, n = 3 the usual curl, for k = n - 1 a scalar).
 fn tensor_curl<'h>(env: &Env<'h>, a: T<'h>, vars: &[T<'h>], k: usize) -> T<'h> {

@@ -192,7 +192,7 @@ enum Quantifier {
 
 /// The test of every element in order, stopping as soon as the answer is known; a failure is the result (decision
 /// I.11). Values neither `true` nor `false` are kept: when nothing decides, the result is the conjunction (`all_true`,
-/// `none_true` of the negations) or disjunction (`any_true`) of them (decision p6core.4).
+/// `none_true` of the negations) or disjunction (`any_true`) of them.
 /// The distinct values of `sparse_array(rules, dims[, background])`: the values of the rules and the background
 /// (0 by default) when the rules give fewer positions than the array has; `None` for any other term.
 fn sparse_elements<'h>(cx: &NativeCx<'_, '_, 'h>, x: T<'h>) -> Option<Vec<T<'h>>> {
@@ -244,7 +244,7 @@ fn quantify<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h
     let h = cx.heap();
     let (xs, f, depth) = match *args {
         [xs, f] => (xs, f, None),
-        // `all_true(xs, f, n)`: the parts down to level n, the atoms above it included (decision io-core.6)
+        // `all_true(xs, f, n)`: the parts down to level n, the atoms above it included
         [xs, f, n] => match h.view(n) {
             View::Int(n @ 0..) => (xs, f, Some(n as usize)),
             View::Sym(s) if h.sym_name(s) == "inf" => (xs, f, Some(usize::MAX)),
@@ -264,7 +264,7 @@ fn quantify<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h
             parts = parts_to_level(cx, xs, n)?;
             &parts
         }
-        // an atom other than a symbol has no elements: the test is vacuous (decision io-core.6)
+        // an atom other than a symbol has no elements: the test is vacuous
         None if h.packed(xs).is_none() && !matches!(h.view(xs), View::App { .. } | View::Sym(_)) => &[],
         None => take!(lib.operand(h, t, xs, 1)).1,
     };

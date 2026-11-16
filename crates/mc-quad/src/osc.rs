@@ -1,4 +1,4 @@
-//! Oscillatory integrals over half-lines (decision quad-2.3): Longman's method (Longman 1956) with Wynn's
+//! Oscillatory integrals over half-lines: Longman's method (Longman 1956) with Wynn's
 //! ε-algorithm (Wynn 1956) as QUADPACK's QAWF does it (Piessens et al. 1983), but with the half-periods found from
 //! the integrand itself rather than from a given sin(ωx) or cos(ωx) weight, so chirps such as `exp(im x^2)` and
 //! integrands such as `sin(x)/x` work alike.

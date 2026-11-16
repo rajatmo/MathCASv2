@@ -236,7 +236,7 @@ fn packing_rule<S: Store>(st: &S) {
     }
     assert_eq!(st.packed(t).map(|p| p.rank()), Some(MAX_RANK));
     assert!(st.packed(st.call(list, &[t])).is_none(), "rank above the limit");
-    // machine complex leaves pack (decision sp-core.1); a list mixing them with reals does not
+    // machine complex leaves pack; a list mixing them with reals does not
     let complex = st.sym(names::COMPLEX);
     let z = |i: usize| st.call(complex, &[st.real(i as f64), st.real(-0.5 * i as f64)]);
     let parts: Vec<f64> = (0..PACK_MIN).flat_map(|i| [i as f64, -0.5 * i as f64]).collect();

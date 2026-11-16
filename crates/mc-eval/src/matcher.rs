@@ -433,7 +433,7 @@ impl<'a, 'k, 'h> Matcher<'a, 'k, 'h> {
         let Some((p, rest)) = ps.split_first() else { return ts.is_empty() && k(b) };
         if let Pat::Opt { p: q, var, default } = p {
             if q.is_seq() {
-                // an optional run: the run first (at least its minimum length), then absent (r18c14.1)
+                // an optional run: the run first (at least its minimum length), then absent (decision 13.11 of design 01)
                 let mut present: Vec<Pat> = Vec::with_capacity(ps.len());
                 present.push((**q).clone());
                 present.extend(rest.iter().cloned());
@@ -443,7 +443,7 @@ impl<'a, 'k, 'h> Matcher<'a, 'k, 'h> {
                 if self.stop.get().is_some() {
                     return true;
                 }
-                // absent: the run of the one default term, as for a definition's optional run (C9B2.1)
+                // absent: the run of the one default term, as for a definition's optional run
                 let d = default.get(self.ev.heap);
                 return self.bind_seq(Some(*var), &mut std::iter::once(d), b, &mut |b| self.m_seq(rest, ts, b, k));
             }
@@ -503,7 +503,7 @@ impl<'a, 'k, 'h> Matcher<'a, 'k, 'h> {
         }
     }
 
-    /// Arguments with marked runs (`longest(xs__)`, `shortest(xs__)`, decision r30.4): the run lengths are chosen
+    /// Arguments with marked runs (`longest(xs__)`, `shortest(xs__)`): the run lengths are chosen
     /// in decision order (`order`: the marked runs by priority, higher first and ties left to right, each trying
     /// its preferred lengths first; then the other patterns left to right, runs shortest first as in `m_seq`), and
     /// the arguments are matched on the slices those lengths give. The first complete match in that order is the
@@ -579,7 +579,7 @@ impl<'a, 'k, 'h> Matcher<'a, 'k, 'h> {
     /// every optional argument may be absent because its default is the unit of `hd` at its place (`add`: 0,
     /// `mul`: 1, a declared identity element, the exponent of `pow`: 1) and one single pattern `q` is left,
     /// `hd(q, unit, ...)` is the value of `q` itself, so `q` is matched against `t` with the optional variables
-    /// bound to their defaults: `n_. * x_` matches `x` with `n = 1` (C9B2.2). A default that is not the unit
+    /// bound to their defaults: `n_. * x_` matches `x` with `n = 1`. A default that is not the unit
     /// does not match this way (`x + optional(c_, 5)` does not match `x`: `x + 5` is not `x`).
     fn m_unit(&self, hd: T<'h>, ps: &[Pat], t: T<'h>, b: &mut Binds<'h>, k: K<'_, 'h>) -> bool {
         let h = self.ev.heap;
@@ -615,7 +615,7 @@ impl<'a, 'k, 'h> Matcher<'a, 'k, 'h> {
     }
 
     /// `call$(hp, ps...)` against `t`: the evaluator's view `call$(head, args...)` argument by argument, or a call
-    /// `head(args...)` with `hp` matched against its head and `ps` against its arguments (C9B2.4).
+    /// `head(args...)` with `hp` matched against its head and `ps` against its arguments.
     fn m_curried(&self, ps: &[Pat], info: &AppInfo, t: T<'h>, b: &mut Binds<'h>, k: K<'_, 'h>) -> bool {
         let h = self.ev.heap;
         let View::App { head: th, args: ts } = h.view(t) else { return false };
@@ -647,7 +647,7 @@ impl<'a, 'k, 'h> Matcher<'a, 'k, 'h> {
     /// Arguments of an AC head with optional arguments: the first one present (its pattern takes an argument
     /// like any single pattern), then absent (its variable bound to the default), each case matched with the
     /// remaining optional arguments decided the same way; the plain AC matcher runs on each resulting pattern list,
-    /// put back in class order (C9B2.2).
+    /// put back in class order.
     fn m_ac_opt(&self, ps: &[Pat], ts: &[T<'h>], b: &mut Binds<'h>, k: K<'_, 'h>) -> bool {
         let Some(i) = ps.iter().position(|p| matches!(p, Pat::Opt { .. })) else {
             let info = AppInfo {

@@ -1,4 +1,4 @@
-//! String patterns (round 30, decisions S.6 to S.10): the pattern terms of the language read as patterns over the
+//! String patterns: the pattern terms of the language read as patterns over the
 //! characters of a string, and a backtracking matcher for them.
 //!
 //! | term | matches |

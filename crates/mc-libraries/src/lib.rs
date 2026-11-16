@@ -1,5 +1,5 @@
 //! The library registry: one crate that depends on every library crate, so that the engine, the language server
-//! and the documentation do not each list them (round 34).
+//! and the documentation do not each list them.
 //!
 //! - [`install`]: registers every library's natives in a kernel, in the order the engine always used;
 //! - [`SOURCES`]: the libraries written in MathCAS, in load order (the engine evaluates them after the prelude);
@@ -105,20 +105,20 @@ pub struct Source {
     pub text: &'static str,
 }
 
-/// The core-language library (round 30), written in MathCAS; its functions are listed in
+/// The core-language library, written in MathCAS; its functions are listed in
 /// the engine's `FUNCTIONS`.
 const LANGUAGE_SOURCE: &str = include_str!("../../../lib/language.mc");
 
 /// The libraries written in MathCAS, in the order the engine evaluates them after the prelude: a later library may
-/// use (and replace) the definitions of an earlier one, so the order is part of their meaning. Round 34 named the
-/// files by area and merged the calculus ones (`lib/calculus.mc`: the libraries of rounds 28, 29 and 31, in this order;
-/// the round 31 definitions call the further functions' helpers only when they run).
+/// use (and replace) the definitions of an earlier one, so the order is part of their meaning. The files are named by area
+/// (`lib/calculus.mc` is the calculus library);
+/// some of its definitions call the further functions' helpers only when they run.
 pub const SOURCES: &[Source] = &[
     // the language library
     Source { name: "language", origin: mc_langlib::ORIGIN, text: mc_langlib::SOURCE },
     // the number-sequence library
     Source { name: "number-sequence", origin: mc_combinat::ORIGIN, text: mc_combinat::SOURCE },
-    // the calculus library (rounds 28, 29 and 31)
+    // the calculus library
     Source { name: "calculus", origin: mc_calculus::LIB_ORIGIN, text: mc_calculus::LIB_SOURCE },
     // the numerics library
     Source { name: "numerics", origin: mc_quad::LIBRARY_ORIGIN, text: mc_quad::LIBRARY_SOURCE },
@@ -175,9 +175,9 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) -> mc_jit::Jit 
     mc_io::register_exporter("legended", &["png", "svg", "pdf"], mc_plot::export);
     // a list of graphics or plots as an animated GIF
     mc_io::register_exporter("list", &["gif"], mc_plot::export);
-    // pictures written by export_data read back as their terms (gap G61)
+    // pictures written by export_data read back as their terms
     mc_io::register_importer(&["svg", "png"], mc_plot::import_graphics);
-    // functions of truncated power series compose through the series algebra (gap G59)
+    // functions of truncated power series compose through the series algebra
     mc_numeric::series_hook::register(mc_poly::series_arith);
     mc_simplify::install(k, h, stop);
     mc_special::install(k, h, stop);

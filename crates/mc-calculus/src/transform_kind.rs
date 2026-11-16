@@ -1,4 +1,4 @@
-//! The integral transforms by name (round 34: moved here from the transforms module, now `mc-transforms`, because
+//! The integral transforms by name (kept here, not in `mc-transforms`, because
 //! the derivative operator needs their names to tell a transform from an unknown function).
 
 /// The integral transforms.

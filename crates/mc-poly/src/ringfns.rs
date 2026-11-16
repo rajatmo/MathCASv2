@@ -225,7 +225,7 @@ pub(crate) fn decompose_fn<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> 
         return Ok(Out::Done(env.list(&[*p])));
     }
     // the decomposition works on dense coefficient lists: x^(2^31) + ... would ask for a 16 GB list, and the
-    // allocation failure aborts the process (found by the round 22 fuzz campaign; the same cap as MAX_TRIG_UNITS in
+    // allocation failure aborts the process (the same cap as MAX_TRIG_UNITS in
     // the trigonometric rewrites of mc-simplify)
     if f.num.degree(v).unwrap_or(0) > MAX_DECOMPOSE_DEGREE {
         return Ok(Out::Decline);

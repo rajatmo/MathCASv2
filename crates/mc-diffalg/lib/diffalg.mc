@@ -1,7 +1,6 @@
 #! mathcas 2
 # Differential equations and differential algebra, evaluated after the other
 # libraries, defined in every session. Helper functions are prefixed `dg_` and are not part of the interface.
-# Decisions are numbered g31.N in the comments where they apply.
 
 # --- small list helpers ---
 
@@ -9,7 +8,7 @@
 fn dg_ok(x) = if x === none then false else is_list(x) and length(x) > 0
 
 # a failure as none (a failure bound by let would end the block); the conditions of solutions dropped (the
-# principal branch is taken, g31.5)
+# principal branch is taken)
 @handles_failures
 fn dg_try(x) = if is_failure(x) then none else rewrite(x, conditional_expression(dg_ca_, dg_cb_) -> dg_ca)
 
@@ -155,7 +154,7 @@ fn dg_determining(eqs, us, xs) = {
 }
 
 # --- the solver of linear homogeneous systems of partial differential equations ---
-# State: [eqs, unknowns [F, args], constants, exprs, counter]. The steps (g31.2) are tried in order on every
+# State: [eqs, unknowns [F, args], constants, exprs, counter]. The steps are tried in order on every
 # equation: constants only, a single derivative term (integrated at once), splitting by powers of a variable no
 # unknown depends on, an unknown solved algebraically, a first derivative integrated, ordinary differential
 # equations through d_solve.
@@ -376,7 +375,7 @@ fn dg_step_ode(st, e) = {
 }
 
 # step 7: e = P + Q with Q free of z and containing unknowns, P depending on z: the consequence d(e, z) == 0
-# (separation of variables, g31.2); the variable whose derivative has the fewest terms
+# (separation of variables); the variable whose derivative has the fewest terms
 fn dg_step_diff(st, e) = {
   let ts = dg_terms(e)
   var best = none
@@ -474,7 +473,7 @@ fn dg_rest(st, back) = {
 fn symmetry_commutator(v, w, vars) =
   table(expand(sum(v[j]*d(w[i], vars[j]) - w[j]*d(v[i], vars[j]), [j, 1, length(vars)])), [i, 1, length(vars)])
 
-# the coordinates of the field w in the basis gs, or none (g31.3): rational fields by exact equations at
+# the coordinates of the field w in the basis gs, or none: rational fields by exact equations at
 # rational points; others by least squares at machine points, rationalised and checked with is_possible_zero
 fn dg_coords(w, gs, vars) = {
   let r = length(gs)
@@ -511,7 +510,7 @@ fn lie_commutator_table(gs, vars) =
 
 # --- symmetries from a polynomial ansatz ---
 
-# the generators of degree <= deg in all variables (g31.4): the infinitesimals are polynomials with unknown
+# the generators of degree <= deg in all variables: the infinitesimals are polynomials with unknown
 # coefficients, the determining equations are cleared of denominators and split by the monomials
 fn dg_ansatz(eqs, us, xs, deg) = {
   let dt = dg_determining(eqs, us, xs)
@@ -683,7 +682,7 @@ fn dg_check_solution(eq, y, x, sol) = {
 
 # --- similarity reductions of partial differential equations ---
 
-# the invariants of the generator [xi, tau, phi] over [x, t, u] with xi, tau free of u and phi linear in u (g31.6):
+# the invariants of the generator [xi, tau, phi] over [x, t, u] with xi, tau free of u and phi linear in u:
 # [z(x, t), u in terms of x, t and f(z)], or none
 fn dg_invariants(g, x, t, u, f) =
   if not (free_of(g[1], u) and free_of(g[2], u) and free_of(d(g[3], u, u), u) and d(g[3], u, u) === 0) then none
@@ -747,7 +746,7 @@ fn similarity_reduction(eq, u0, xs, g, f, z0) = {
   }
 }
 
-# --- conservation laws by multipliers (g31.7) ---
+# --- conservation laws by multipliers ---
 
 # the jets a multiplier may depend on: for one independent variable y, y', ..., y^(q); for several, the
 # derivatives in the first variable only, u, u_x, ..., u_(x^q) (on the solutions of an evolution equation the
@@ -890,7 +889,7 @@ fn conservation_laws(eq, u0, x0; order = 0, degree = none) = {
   }
 }
 
-# --- differential polynomials and rankings (g31.8) ---
+# --- differential polynomials and rankings ---
 # A context is [us, xs, jets, kind]: the dependent variables (the first ranks highest in an elimination ranking),
 # the independent ones, the jet records up to the order bound, and the ranking `orderly` (total order, then the
 # dependent variable, then the multi-index lexicographically) or `elimination` (the dependent variable first).
@@ -1046,7 +1045,7 @@ fn delta_polynomial(p, q, u0, x0; ranking = orderly) = {
   if r === none then none else dg_out(r, cx)
 }
 
-# --- Rosenfeld-Groebner (g31.9) ---
+# --- Rosenfeld-Groebner ---
 # A branch is [P, A, H]: equations still to process, the chain (autoreduced, increasing leaders), the inequations.
 # Each step takes the lowest equation of P, reduces it by A; a nonzero remainder p with leader v splits the branch
 # into p = 0 with initial and separant nonzero (the elements of A with leaders derivatives of v go back to P, the
@@ -1116,7 +1115,7 @@ fn rosenfeld_groebner(eqs, u0, x0; ranking = orderly, inequations = []) = {
   map(b => [map(a => dg_out(a, cx) == 0, b[1]), map(h => dg_out(h, cx) != 0, b[2])], bs)
 }
 
-# --- Thomas decomposition for one independent variable (g31.10) ---
+# --- Thomas decomposition for one independent variable ---
 # A branch is [P, A, N] as in Rosenfeld-Groebner. A remainder r with leader v and degree k splits disjointly:
 # initial = 0 (r without its leading term goes back), or initial != 0 and then the discriminant
 # resultant(r, r_v, v) = 0 (r is replaced by its square-free part, the discriminant joins P) or != 0, in which case
@@ -1194,7 +1193,7 @@ fn thomas_decomposition(eqs, u0, x0; ranking = orderly, inequations = []) =
     map(b => [map(a => dg_out(a, cx) == 0, b[1]), map(h => dg_out(h, cx) != 0, b[2])], bs)
   }
 
-# --- the Painleve test (g31.11) ---
+# --- the Painleve test ---
 # Ablowitz, Ramani and Segur (J. Math. Phys. 21, 1980): leading orders y ~ a tau^p, tau = x - x0, from the
 # balances of two or more terms; resonances, the roots of Q(r) from the linearisation of the dominant terms at
 # a tau^p + b tau^(p + r); compatibility conditions at the positive integer resonances from the Laurent series

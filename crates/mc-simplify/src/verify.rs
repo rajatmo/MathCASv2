@@ -193,9 +193,9 @@ fn compare_at<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, a: T<'h>, c: T<'h>, 
     let (va, vc) = (at(cx, a)?, at(cx, c)?);
     // each side to 30 digits on its own, then the gap of the two numbers: `n(abs(a - c) - ..., 30)` of two sides
     // that agree exactly asks for 30 digits of a difference that is zero, and the working precision climbs to its
-    // cap (minutes for special functions at complex points, round 22)
+    // cap (minutes for special functions at complex points)
     // and each under a time budget: a side that is an exact zero of special functions climbs the precision too
-    // (a d(F) - f of 2F1 terms took minutes, round 28); a side that does not settle makes the point silent
+    // (a d(F) - f of 2F1 terms took minutes); a side that does not settle makes the point silent
     let digits = |cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>| {
         cx.eval(b.call_named("time_constrained", &[b.call_named("n", &[t, b.int(30)]), b.int(2)]))
     };

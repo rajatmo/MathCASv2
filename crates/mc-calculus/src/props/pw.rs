@@ -16,7 +16,7 @@
 //!   integer, or the primes for `prime_pi`) cut the interval; on each piece the step function is the constant
 //!   it takes at the piece's midpoint (exact arithmetic), and the side a jump point belongs to is found by
 //!   evaluating at it.
-//! - The other step and piecewise-linear functions of a real variable (round 44): `ramp(u)` is `u` where `u >= 0`;
+//! - The other step and piecewise-linear functions of a real variable: `ramp(u)` is `u` where `u >= 0`;
 //!   `real_abs(u)` as `abs`; `real_sign(u)` and `sign(u)` of a polynomial are `-1`, `0`, `1` by the sign of `u`;
 //!   `unit_box(u)` is `1` on `-1/2 <= u <= 1/2`; `unit_triangle(u)` is `1 + u` on `[-1, 0)` and `1 - u` on
 //!   `[0, 1]`; the forms of several arguments are the products of the one-argument forms. `floor(u, a)`,
@@ -142,7 +142,7 @@ pub fn expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) 
         return Ok(Some(cx.eval(b.call("or", &ors))?));
     }
     if cases.len() <= 1 && !contains_piecewise(b, f) {
-        // nothing to expand: the expression itself (B26-24)
+        // nothing to expand: the expression itself
         return Ok(Some(f));
     }
     // simplify each condition; drop the empty ones

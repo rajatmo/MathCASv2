@@ -1,4 +1,4 @@
-//! MathCAS v2 number sequences and number representations (round 28).
+//! MathCAS v2 number sequences and number representations.
 //!
 //! Natives of this crate: `bernoulli_b`, `euler_e` and `bell_b` for integer arguments (exact, integer-only
 //! recurrences, see [`seq`]). The rest of the functions are written in MathCAS itself (`lib/combinat.mc`, [`SOURCE`]),

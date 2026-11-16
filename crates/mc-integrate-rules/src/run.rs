@@ -24,7 +24,7 @@ const ENGINE_NORMAN: u64 = 80_000;
 pub type Fallback<'f, 'h> = dyn FnMut(&mut NativeCx<'_, '_, 'h>, T<'h>, T<'h>) -> Res<Option<T<'h>>> + 'f;
 
 /// Whether the product logarithm substitution runs (it was off until `mc-special`'s `product_log` balls stopped
-/// aborting above about 1000 bits, round 18).
+/// aborting above about 1000 bits).
 const PRODUCT_LOG: bool = true;
 
 /// The size (nodes) up to which the substitutions and expansions after the rules are tried.

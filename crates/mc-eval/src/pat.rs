@@ -49,9 +49,9 @@ pub enum Ty {
     String,
     /// a symbol
     Symbol,
-    /// an inexact real: a machine real or a ball (decision p6core.20)
+    /// an inexact real: a machine real or a ball
     Float,
-    /// a complex number `complex(re, im)` (decision p6core.20)
+    /// a complex number `complex(re, im)`
     Complex,
     /// a compound term with this head
     Head(Sym),
@@ -95,7 +95,7 @@ pub struct AppInfo {
     /// Some argument is an optional argument (`Pat::Opt`).
     pub has_opt: bool,
     /// The head is [`CALL`]: the pattern of a call whose head is itself a pattern or a compound term
-    /// (`f(x_)(y_)` is `call$(f(x_), y_)`, C9B2.4).
+    /// (`f(x_)(y_)` is `call$(f(x_), y_)`).
     pub curried: bool,
 }
 
@@ -104,7 +104,7 @@ pub struct AppInfo {
 pub const CALL: &str = "call$";
 
 /// `p` as a pattern whose head may be compound: a literal call with a compound head becomes `call$(head, args...)`
-/// of literals (C9B2.4), anything else stays.
+/// of literals, anything else stays.
 pub(crate) fn curry_lit(h: &Heap, p: Pat) -> Pat {
     if let Pat::Lit(t) = &p {
         if let View::App { head, args } = h.view(t.get(h)) {
@@ -119,7 +119,7 @@ pub(crate) fn curry_lit(h: &Heap, p: Pat) -> Pat {
 }
 
 /// The mark `longest(p, k)` / `shortest(p, k)` puts on a run pattern: which lengths are tried first, and its priority
-/// among the marked runs of one argument list (higher first; ties left to right). Decision r30.4.
+/// among the marked runs of one argument list (higher first; ties left to right).
 pub type Mark = (bool, i64);
 
 /// A pattern.
@@ -139,9 +139,9 @@ pub enum Pat {
         var: Option<u16>,
         /// the least number of arguments taken
         min: u8,
-        /// the type of every argument of the run, if any (C9B2.3)
+        /// the type of every argument of the run, if any
         ty: Option<Ty>,
-        /// `longest(xs__, k)` (true), `shortest(xs__, k)` (false) with priority k (decision r30.4)
+        /// `longest(xs__, k)` (true), `shortest(xs__, k)` (false) with priority k
         mark: Option<Mark>,
     },
     /// Exactly this term.
@@ -162,7 +162,7 @@ pub enum Pat {
     /// `p /; c`
     Cond(Box<Pat>, Cond),
     /// `optional(x_, d)` among the arguments of a call (not a definition's own arguments, which define a rule
-    /// per case): the argument matching `p` if there is one, else nothing, with `var` bound to `d` (C9B.13)
+    /// per case): the argument matching `p` if there is one, else nothing, with `var` bound to `d`
     Opt {
         /// the pattern of the argument when present (a named blank, possibly typed)
         p: Box<Pat>,
@@ -172,11 +172,10 @@ pub enum Pat {
         default: Raw,
     },
     /// `key_value_pattern([p1, ..., pk])`: an association (or a list of rules) with k distinct entries matching
-    /// `p1`, ..., `pk`, in any order (C9B.11)
+    /// `p1`, ..., `pk`, in any order
     KeyValue(Vec<Pat>),
     /// `repeated(p, ...)`: a run of `min` to `max` consecutive arguments, each matching `p` (variables in `p`
-    /// bind the same term in every repetition); only as an argument of a head that is not associative-commutative
-    /// (C9B.4).
+    /// bind the same term in every repetition); only as an argument of a head that is not associative-commutative.
     Repeat {
         /// the pattern of each argument
         p: Box<Pat>,
@@ -184,7 +183,7 @@ pub enum Pat {
         min: u32,
         /// the most (`u32::MAX`: no limit)
         max: u32,
-        /// `longest(repeated(p), k)`, `shortest(...)` (decision r30.4)
+        /// `longest(repeated(p), k)`, `shortest(...)`
         mark: Option<Mark>,
     },
 }
@@ -259,7 +258,7 @@ pub enum DefError {
     Unsupported(&'static str),
     /// A type expression that is not one of the supported atomic types.
     UnknownType,
-    /// The symbol is protected (decision r17fix.4).
+    /// The symbol is protected (decision 13.9 of design 01).
     Protected(Sym),
 }
 
@@ -327,7 +326,7 @@ impl Pat {
     }
     /// The class of an argument under an AC head (semantics 6.2).
     /// An optional argument has the class of its pattern: it stands where it was written among them, which the
-    /// case with the argument present keeps (C9B2.2).
+    /// case with the argument present keeps.
     pub(crate) fn ac_class(&self) -> u8 {
         match self.shape() {
             Pat::Opt { p, .. } => p.ac_class(),
@@ -341,7 +340,7 @@ impl Pat {
     /// The head of every compound term this pattern matches, if it is fixed.
     pub(crate) fn fixed_head<'h>(&self, h: &'h Heap) -> Option<T<'h>> {
         match self.shape() {
-            // with an optional argument it also matches a term that is not a call of the head (C9B2.2)
+            // with an optional argument it also matches a term that is not a call of the head
             Pat::App { info, .. } if info.has_opt => None,
             Pat::App { head, .. } => Some(head.get(h)),
             Pat::Lit(t) => match h.view(t.get(h)) {
@@ -509,7 +508,7 @@ fn bound_vars(p: &Pat) -> Vec<u16> {
 }
 
 /// The definition-time checks alone (variable kinds, alternatives, condition scope, sequence positions, size), for
-/// callers that compile a pattern later (`mc-lists`' matching, C9B.10).
+/// callers that compile a pattern later (`mc-lists`' matching).
 pub fn check(p: &Pat) -> Result<(), DefError> {
     validate(p).map(|_| ())
 }
@@ -525,7 +524,7 @@ pub(crate) fn compile(h: &Heap, p: Pat, cn: &dyn Canon) -> Result<Pat, DefError>
 }
 
 /// Does a `repeated` pattern stand as an argument of an AC call (which the AC matcher does not take)? Optional
-/// arguments are taken there (C9B2.2).
+/// arguments are taken there.
 fn repeat_under_ac(p: &Pat) -> bool {
     let mut stack = vec![p];
     while let Some(q) = stack.pop() {

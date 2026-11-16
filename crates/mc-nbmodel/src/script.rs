@@ -106,7 +106,7 @@ pub fn parse_marked(text: &str) -> Result<Notebook, String> {
         clean.push(out);
     }
     // blank lines ending the text (the separator of a script's sections) are not part of the last cell: the file
-    // format reads them as line breaks ending it (ui B21-12)
+    // format reads them as line breaks ending it
     let marked = |i: usize| [caret, open, close].iter().any(|m| m.is_some_and(|m| m.0 == i)) || cell_marks.contains(&i);
     while clean.last().is_some_and(|l| l.trim().is_empty()) && !marked(clean.len() - 1) && gap_line != Some(clean.len()) {
         clean.pop();
@@ -590,7 +590,7 @@ pub fn run_script(s: &Script) -> Result<(), String> {
         }
     }
     if let Some(b) = &s.boxes {
-        // a code cell holding a box: its tree (a cell without boxes is `none`, as with the editor of rounds 9 to 33)
+        // a code cell holding a box: its tree (a cell without boxes is `none`)
         let got = match nb.code_editor() {
             Some((_, e)) if mc_boxes::has_boxes(e.root()) => e.notation(),
             _ => "none".to_string(),

@@ -107,12 +107,12 @@ pub struct Colouring {
     /// The same pairs keyed both ways (`(a, b)` and `(b, a)`), sorted by the first offset.
     partners: Vec<(usize, usize)>,
     /// The white space between two operands that multiplies them (`m c^2`; [`crate::Parsed::products`]), sorted;
-    /// the editor draws a faint `×` there (round 35). None for texts coloured lexically only.
+    /// the editor draws a faint `×` there. None for texts coloured lexically only.
     pub products: Vec<Range<usize>>,
 }
 
 impl Colouring {
-    /// This colouring moved over an edit of its text (round 20, long cells): bytes `start..start + removed` were
+    /// This colouring moved over an edit of its text (long cells): bytes `start..start + removed` were
     /// replaced by `inserted` bytes. Everything before the edit stays, everything after it moves; tokens, pairs,
     /// errors and warnings touching the edit are dropped (a token the edit lies inside grows or shrinks with it).
     /// An editor shows this while typing and colours the text again when typing pauses: a keystroke in a long cell
@@ -238,7 +238,7 @@ pub fn colour(src: &str, defined: Option<&(dyn Fn(&str) -> bool + Sync)>) -> Col
 }
 
 /// [`colour`] with its [`Colouring::warnings`] ([`crate::lint_calls_with`] with `known` and `function`), from the
-/// same parse (round 20: one parse a keystroke instead of two).
+/// same parse (one parse a keystroke instead of two).
 pub fn colour_lint(
     src: &str,
     defined: Option<&(dyn Fn(&str) -> bool + Sync)>,

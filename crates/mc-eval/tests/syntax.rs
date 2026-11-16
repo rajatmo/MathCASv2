@@ -60,7 +60,7 @@ fn definition_terms_install_rules() {
                 // c = iadd(1, 2)
                 b.c("set", &[b.s("c"), b.c("iadd", &[b.i(1), b.i(2)])]),
                 // a malformed definition: a failure value, nothing installed (an optional argument whose pattern has
-                // no variable naming it; an optional run `optional(xs___, d)` is accepted since r18c14.1)
+                // no variable naming it; an optional run `optional(xs___, d)` is accepted)
                 b.c("set_delayed", &[b.c("bad", &[b.c("g", &[b.c("optional", &[b.c("h", &[any(x)]), b.i(0)])])]), x]),
             ];
             let list = b.c("list", &defs);

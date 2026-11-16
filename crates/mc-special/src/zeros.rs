@@ -194,7 +194,7 @@ fn airy_ai_zero<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     airy_zero(fx, a, false)
 }
 
-/// airy_bi_zero(k) (round 29): the k-th (negative) zero of Bi, as for Ai.
+/// airy_bi_zero(k): the k-th (negative) zero of Bi, as for Ai.
 fn airy_bi_zero<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     airy_zero(fx, a, true)
 }

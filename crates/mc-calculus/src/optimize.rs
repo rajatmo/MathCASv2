@@ -159,7 +159,7 @@ impl Native for OptNative {
             });
         }
         let rules: Vec<T<'h>> = vars.iter().zip(&point).map(|(&x, &p)| c.rule(x, p)).collect();
-        // machine numbers in the problem (`x >= 2.`, which reduce reads as 2): a machine answer (round 36)
+        // machine numbers in the problem (`x >= 2.`, which reduce reads as 2): a machine answer
         let machine = has_machine(h, *fc);
         let done = |t: T<'h>| if machine { Reply::Again(h.call(h.sym("n"), &[t])) } else { Reply::Done(t) };
         Ok(done(match self.kind {
@@ -271,7 +271,7 @@ fn minimize1<'h>(
     }
     if let Some(items) = c.cx.as_list(s).map(|v| v.to_vec()) {
         // a family of critical points (periodic functions: `x -> pi*c(1)` under `element(c(1), integers)`) is not a
-        // finite set of candidates: decline rather than read one member as the only point (round 18)
+        // finite set of candidates: decline rather than read one member as the only point
         let generated = b.heap().sym("c");
         for it in items {
             if let Some(&[r]) = c.cx.as_list(it) {
@@ -691,7 +691,7 @@ fn minimize_n<'h>(c: &mut C<'_, '_, '_, '_, 'h>, g: T<'h>, cond: Option<T<'h>>, 
     let h = b.heap();
     let n = vars.len();
     // a kink (`abs`, `max`, `min`, `sign`, ...) can hold the minimum where the gradient does not vanish: the
-    // critical points alone would give a wrong value (round 33), so the case is left to the decomposition
+    // critical points alone would give a wrong value, so the case is left to the decomposition
     for name in ["abs", "max", "min", "sign", "floor", "ceiling", "round", "clip", "piecewise", "unit_step"] {
         if find_call_of(h, g, h.sym(name)).is_some() {
             return Ok(None);

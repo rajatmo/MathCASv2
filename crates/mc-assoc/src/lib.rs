@@ -71,12 +71,12 @@ struct Fun {
     body: Body,
     /// a list of associations (or of lists) as the first argument maps (one of [`LISTWISE`])
     listwise: bool,
-    /// `assoc` only: also called for `assoc(...)(k)`, an association applied to a key (C9B.12)
+    /// `assoc` only: also called for `assoc(...)(k)`, an association applied to a key
     curried: bool,
 }
 
 /// The functions that map over a list of associations given as the first argument, and read a list of rules as an
-/// association (decision io-core.12): `key_drop([a1, a2], ks)` is `[key_drop(a1, ks), key_drop(a2, ks)]`.
+/// association: `key_drop([a1, a2], ks)` is `[key_drop(a1, ks), key_drop(a2, ks)]`.
 const LISTWISE: &[&str] = &["keys", "values", "key_drop", "key_take"];
 
 impl Native for Fun {
@@ -86,7 +86,7 @@ impl Native for Fun {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         if self.curried {
-            // an association applied to a key is the key's value, as `lookup` gives it (C9B.12)
+            // an association applied to a key is the key's value, as `lookup` gives it
             let h = cx.heap();
             if let View::App { head, .. } = h.view(t) {
                 if matches!(h.view(head), View::App { .. }) {
@@ -262,7 +262,7 @@ pub fn install(k: &mut Kernel, h: &Heap) {
         k.register(h.sym(name), a, Box::new(Fun { lib: lib.clone(), body, listwise, curried: name == "assoc" }));
     }
     let (part, assoc, lookup) = (h.sym("part"), lib.s.assoc, h.sym("lookup"));
-    // listable functions thread over the values of associations (decision io-core.1)
+    // listable functions thread over the values of associations
     k.set_association_heads(assoc, lib.s.rule);
     let whole = || pat::named(0, pat::call(h, assoc, vec![Pat::Seq { var: None, min: 0, ty: None, mark: None }]));
     let one: Rhs = Arc::new(move |b, h| h.call(lookup, &[b.one(0), b.one(1)]));
@@ -284,7 +284,7 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     install_values(k, h, &lib);
 }
 
-/// The statistics of other libraries that see an association's values (decision io-core.4): with an association
+/// The statistics of other libraries that see an association's values: with an association
 /// as the first argument, `f(a @ assoc(___), args___) := f(values(a), args...)`, a rule attached to `assoc` that
 /// applies when `f`'s own native leaves the call.
 pub const VALUE_FUNCTIONS: &[&str] =
@@ -353,7 +353,7 @@ pub fn is_missing_value(h: &Heap, t: T<'_>) -> bool {
     table::DataSyms::new(h).is_missing(h, t)
 }
 
-/// `key(k)`: the operator form of a lookup (decision b29.1): `key(k)(a)` is `lookup(a, k)`, and `a(key(k))` is the
+/// `key(k)`: the operator form of a lookup:`key(k)(a)` is `lookup(a, k)`, and `a(key(k))` is the
 /// same (the key is `k` itself, not the term `key(k)`). Alone it stays as it is.
 struct KeyOp {
     assoc: Sym,

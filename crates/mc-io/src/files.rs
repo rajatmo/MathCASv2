@@ -1,4 +1,4 @@
-//! `file_exists(path)` and `file_names(pattern)`, `file_names(pattern, dir)` (gap queue G52): testing for optional
+//! `file_exists(path)` and `file_names(pattern)`, `file_names(pattern, dir)`: testing for optional
 //! data files before importing them. Patterns use `*` (any run of characters) and `?` (one character) in the file
 //! name; a directory part is taken literally. Paths are relative to the working directory.
 use mc_api::{Store, View, T};

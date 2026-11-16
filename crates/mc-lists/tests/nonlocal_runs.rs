@@ -156,11 +156,11 @@ fn library_patterns_match_modulo_ac() {
     check(
         &mut Env::new(),
         &[
-            // the library functions use the evaluator's matcher (C9B.10)
+            // the library functions use the evaluator's matcher
             ("cases([a + b, a + b + c, x], u_ + v_)", "[a + b]"),
             ("cases([a + b + c], u_ + vs__ -> [u, vs])", "[[a, b + c]]"),
             ("count([2*x, 3, x*y], (n_: Int)*w_)", "1"),
-            // a head test as a type (C9B.14)
+            // a head test as a type
             ("count([abs(x), y, abs(2*y)], _: Head[abs])", "2"),
             ("count(abs(x) + abs(y)^2, _: Head[abs], [0, inf])", "2"),
         ],
@@ -172,7 +172,7 @@ fn optional_arguments_inside_patterns() {
     check(
         &mut Env::new(),
         &[
-            // C9B.13: optional(x_, d) among a call's arguments, not only a definition's own
+            // Optional(x_, d) among a call's arguments, not only a definition's own
             ("is_match([x], [x, optional(y_, 2)])", "true"),
             ("rewrite([x], [optional(a_, 0), optional(b_, 2)] :> [a + b])", "[2 + x]"),
             ("cases([[x], [y, z], [p, q, r]], [a_, optional(b_, 2)] :> a + b)", "[2 + x, y + z]"),

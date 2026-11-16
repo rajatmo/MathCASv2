@@ -43,7 +43,7 @@ pub struct EngineConfig {
     /// evaluate the prelude when the engine starts (decision F.7)
     pub prelude: bool,
     /// print values for reading: differences and divisions instead of `+ -c*x` and negative powers (the front
-    /// ends' setting; the default prints text that reads back as the same unevaluated term, decision p6core.19)
+    /// ends' setting; the default prints text that reads back as the same unevaluated term)
     pub display: bool,
 }
 
@@ -146,7 +146,7 @@ enum Input<'a> {
 
 /// The functions without the `listable` attribute that map over list arguments themselves, elementwise (the
 /// elementary, special and number-theory functions keep their own list fast paths): they also thread over the values
-/// of associations, `sin(assoc(a -> x))` is `assoc(a -> sin(x))` (decision io-core.1). A test checks each one maps
+/// of associations, `sin(assoc(a -> x))` is `assoc(a -> sin(x))`. A test checks each one maps
 /// lists elementwise.
 pub const MAPS_LISTS: &[&str] = &[
         "abs", "abs_arg", "acos", "acosh", "acot", "acoth", "acsc", "acsch", "airy_ai", "airy_ai_prime", "airy_bi",
@@ -170,7 +170,7 @@ pub const MAPS_LISTS: &[&str] = &[
         "subfactorial", "tan", "tanh", "unit_box", "unit_step", "unit_triangle", "zeta",
 ];
 
-/// The functions with an operator form `f(a..)(x..)` and where its outer arguments go (decision p6core.2).
+/// The functions with an operator form `f(a..)(x..)` and where its outer arguments go.
 pub const OPERATOR_FORMS: &[(&str, OperatorForm)] = {
     use OperatorForm::{DataFirst as F, DataLast as L};
     &[
@@ -218,22 +218,22 @@ impl CoreEngine {
             let list = h.sym(names::LIST);
             let a = k.attributes(list);
             k.set_attributes(list, mc_eval::Attributes { handles_failures: true, ..a });
-            // attributes as values (decision p6core.26)
+            // attributes as values
             crate::attrs::install(&mut k, h);
             crate::compose::install(&mut k, h);
-            // `exp(x)` is `e^x` (decision p6core.5)
+            // `exp(x)` is `e^x`
             arith::canonical_exp(&mut k, h);
-            // functions of one argument on packed arrays work on the payload (gap G48, decision sp-core.3)
+            // functions of one argument on packed arrays work on the payload
             crate::packed::install(&mut k, h);
-            // operator forms: `select(f)(xs)` is `select(xs, f)`, `map(f)(xs)` is `map(f, xs)` (decision p6core.2)
+            // operator forms: `select(f)(xs)` is `select(xs, f)`, `map(f)(xs)` is `map(f, xs)`
             for &(name, form) in OPERATOR_FORMS {
                 k.set_operator_form(h.sym(name), form);
             }
-            // elementwise functions thread over associations (decision io-core.1)
+            // elementwise functions thread over associations
             for &name in MAPS_LISTS {
                 k.set_maps_lists(h.sym(name));
             }
-            // quantities and uncertain numbers keep their arithmetic in list reductions (decision io-core.5)
+            // quantities and uncertain numbers keep their arithmetic in list reductions
             for name in mc_numeric::uncertain::HEADS {
                 k.set_value_head(h.sym(name));
             }
@@ -300,7 +300,7 @@ impl CoreEngine {
     }
 
     /// [`CoreEngine::eval_streaming`] with the statements numbered as in [`CoreEngine::eval_each`] (with
-    /// `options.numbered`): `out(n)`, `%` and `%%` see the values of earlier statements and cells (gap G77).
+    /// `options.numbered`): `out(n)`, `%` and `%%` see the values of earlier statements and cells.
     pub fn eval_streaming_with(
         &mut self,
         src: &str,
@@ -564,7 +564,7 @@ impl CoreEngine {
                     let failure = is_failure(h, e.value);
                     let is_null = is_sym(h, e.value, names::NULL);
                     // the history: the value of every numbered statement but `null`, shown or not; an assignment
-                    // `x = v` (whose value is `null`) records the value assigned (gap G86)
+                    // `x = v` (whose value is `null`) records the value assigned
                     let recorded = if is_null { assigned.and_then(|s| k.value_of(h, s)) } else { Some(e.value) };
                     if let (Some(nr), Some(_), Some(v)) = (term.number, term.ends, recorded) {
                         k.set_own(h.sym(&history::entry(nr)), v);

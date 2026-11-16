@@ -479,7 +479,7 @@ impl<'h> Decider<'h> {
         Ok(all.then_some(true))
     }
 
-    /// `element(x, d)` for the primes, the algebraic and the complex numbers (round 44). A prime: stated, or an
+    /// `element(x, d)` for the primes, the algebraic and the complex numbers. A prime: stated, or an
     /// integer number that is prime; not a prime: an integer below 2, or an even integer above 2 (the parity from
     /// the facts: a prime above 2 is odd, so `p + 1` is even). Algebraic: rational, stated, or built from algebraic
     /// numbers by sums, products and rational powers. Complex: real, algebraic, stated, or built by sums, products,

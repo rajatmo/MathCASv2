@@ -129,7 +129,7 @@ fn integrands_refined_under_assumptions() {
         (
             "assuming(a > 0 and b > 0 and m > 0, integrate((m/(2*pi*f))^(3/2), [f, a, b]))",
             // the engine answers without the assumptions (item 14A): a power of the quotient stays one kernel
-            // the value F(b) - F(a) simplified under the facts (decision n14e.I2)
+            // the value F(b) - F(a) simplified under the facts (roadmap item 14E)
             "(1/2)*(-b^(-1/2) + a^(-1/2))*2^(1/2)*m^(3/2)*pi^(-3/2)",
         ),
         ("assuming(m > 0 and f > 0, integrate((m/(2*pi*f))^(3/2), f))", "(-1/2)*m*2^(1/2)/pi*(m/f/pi)^(1/2)"),

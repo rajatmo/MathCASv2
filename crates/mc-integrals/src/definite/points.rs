@@ -150,7 +150,7 @@ pub(super) fn critical<'h>(
         }
         if !rational(b, z, x) {
             // a transcendental expression (`log(x)`, `1 + log(x)^2`): its real zeros by `solve` over the reals,
-            // when they are a finite list of real constants (round 19, Q19-34); the result is checked numerically
+            // when they are a finite list of real constants; the result is checked numerically
             let Some(rs) = solved_zeros(cx, b, z, x)? else { return Ok(None) };
             for r in rs {
                 let p = Pt::Fin(r);

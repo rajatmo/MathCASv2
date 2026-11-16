@@ -18,7 +18,7 @@
 //!
 //! Gamma ratios whose arguments differ by an integer are then written as rising factorials (`powers::gamma_ratio`).
 //!
-//! Since round 19 the identities of [`crate::identities`] marked for `function_expand` (trigonometric constants in
+//! The identities of [`crate::identities`] marked for `function_expand` (trigonometric constants in
 //! radicals, trig of inverse trig, Bessel functions at `-x`, Airy rotations, the Jacobi functions by `sn`, `cn`,
 //! `dn`, the zeta reflection, hypergeometric reductions, index shifts of Fibonacci and Lucas numbers under
 //! integrality, ...) and the families of sums (gamma and polygamma arguments differing by integers, the dilogarithm
@@ -38,7 +38,7 @@ pub fn function_expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Fac
     let t = degrees(cx, b, t)?;
     let t = heaviside_shapes(cx, b, t)?;
     let t = multiple_angles(cx, b, f, t)?;
-    // the forms of round 7 first (the reciprocal functions only here, so that an identity's csc stays)
+    // the basic forms first (the reciprocal functions only here, so that an identity's csc stays)
     let t = fixed(cx, b, t, 8, &mut |_cx, b, n| Ok(rule(b, n, true)))?;
     let t = crate::powers::gamma_ratio(cx, b, t)?;
     let r = fixed(cx, b, t, 8, &mut |cx, b, n| {
@@ -59,7 +59,7 @@ pub fn function_expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Fac
     crate::moves::sqrt_parity(cx, b, r)
 }
 
-/// Functions of number theory by their definitions (round 44): `quotient(m, n)` is `floor(m/n)`; `euler_phi(p)` is
+/// Functions of number theory by their definitions: `quotient(m, n)` is `floor(m/n)`; `euler_phi(p)` is
 /// `p - 1` for a prime `p` the facts state.
 fn arithmetic<'h>(b: &B<'h>, f: &Facts<'_, 'h>, n: T<'h>) -> Option<T<'h>> {
     let (s, args) = b.call_of(n)?;
@@ -283,7 +283,7 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
                 hi
             }
         }
-        // round 17: the closed forms of DLMF 18.5.1 (Chebyshev), 26.5.1 with 5.5.5 (Catalan numbers),
+        // the closed forms of DLMF 18.5.1 (Chebyshev), 26.5.1 with 5.5.5 (Catalan numbers),
         // 5.2.5 (falling factorials), 1.17.12 (the product form of a multivariate delta), 22.2.1 (the nome)
         ("chebyshev_t", [n, x]) if !is_integer(b, *n) => b.call_named("cos", &[b.mul(&[*n, b.call_named("acos", &[*x])])]),
         ("chebyshev_u", [n, x]) if !is_integer(b, *n) => {
@@ -324,7 +324,7 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
     })
 }
 
-/// More special functions by their definitions in other functions (round 44): the Whittaker functions by the
+/// More special functions by their definitions in other functions: the Whittaker functions by the
 /// confluent ones, M = e^(-z/2) z^(mu + 1/2) 1F1(1/2 + mu - kappa; 1 + 2 mu; z) and W the same with U (DLMF 13.14.2-3);
 /// the Hankel functions J +- i Y (DLMF 10.4.3-4); the spherical Bessel functions of an order that is not an integer
 /// by sqrt(pi/(2 z)) times the Bessel function of order n + 1/2 (DLMF 10.47.3-4); the subfactorial

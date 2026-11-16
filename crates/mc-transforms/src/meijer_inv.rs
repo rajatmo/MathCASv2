@@ -1,4 +1,4 @@
-//! The inverse Mellin transform of gamma ratios as a Meijer G-function (round 22).
+//! The inverse Mellin transform of gamma ratios as a Meijer G-function.
 //!
 //! `F(s) = C w^s prod gamma(alpha_j s + beta_j)^(e_j)` with rational alpha_j (and rational factors `(a s + c)^-1`,
 //! written `gamma(s + c/a)/gamma(s + c/a + 1)/a` with the pole on the side of the strip it lies on) is brought to

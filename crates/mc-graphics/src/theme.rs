@@ -1,4 +1,4 @@
-//! Chrome colours (round nb-svg): a front end shows a graphic's chrome (background, frame, axes, ticks, labels,
+//! Chrome colours: a front end shows a graphic's chrome (background, frame, axes, ticks, labels,
 //! legend box, grid lines, and primitives drawn without a colour) in its own theme while the data keeps its
 //! colours. The renderers mark chrome by [`Role`]: the SVG surface writes a class on every chrome element
 //! (`mcf-<role>` when its fill is chrome, `mcs-<role>` when its stroke is), keeping the light colours as its

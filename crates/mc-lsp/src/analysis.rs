@@ -226,9 +226,9 @@ impl Workspace {
         let Some(an) = self.analyse(uri) else { return vec![] };
         let lines = Lines::new(&an.code);
         let mut out: Vec<Value> = an.errors.iter().map(|d| error(lines.range(d.span), &d.message)).collect();
-        // warnings (round 20): a call of a name that is also used as a variable, `x(x - a)`; the fix in `data`
+        // warnings: a call of a name that is also used as a variable, `x(x - a)`; the fix in `data`
         let lib = &self.library;
-        // round 35: also a function juxtaposed with an operand (`sin x`) and a parenthesised expression called
+        // also a function juxtaposed with an operand (`sin x`) and a parenthesised expression called
         for w in mc_syntax::lint_calls_with(&an.code, &|n: &str| lib.knows(n), &|n: &str| lib.is_function(n)) {
             let span = Span::new(w.range.start, w.range.end);
             let edits: Vec<Value> = w

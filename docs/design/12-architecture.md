@@ -1,4 +1,4 @@
-# MathCAS v2: architecture of the workspace (round 34)
+# MathCAS v2: architecture of the workspace
 
 The crates, measured: how they depend on one another, how large they are, and the rules the structure keeps.
 `tools/depcheck.ps1` prints the table from `cargo metadata` and checks the rules in `tools/depcheck-rules.txt`
@@ -7,7 +7,7 @@ none (0 = a leaf); **lines** are lines of Rust in the crate's folder; **direct**
 crates it depends on (normal and build dependencies, directly and transitively; dev-dependencies do not count);
 **fan-in** counts the workspace crates that depend on it directly.
 
-Round 34 restructured the workspace without changing behaviour: crate splits, moves and renames
+A restructuring of the workspace, without changing behaviour: crate splits, moves and renames
 only. Section 1 is the state before, section 2 the state after, section 3 what depends on what and why.
 
 ## 1. Start state
@@ -73,11 +73,11 @@ only. Section 1 is the state before, section 2 the state after, section 3 what d
 
 56 crates, 378140 lines, 12 layers (0 to 11)
 
-Two rules the round sets out to make true did not hold: `mc-notebook` reached `mc-eval` and `mc-core` through
+Two rules the restructuring set out to make true did not hold: `mc-notebook` reached `mc-eval` and `mc-core` through
 `mc-graphics` (colours, themes and the viewer live beside the graphics term), and `mc-engine`, `mc-kernel`, `mc-repl`
 and `mc-docs` depended on the benchmark runner `mc-bench` for the `Engine` trait.
 
-## 2. End state (round 34)
+## 2. End state
 
 | crate | layer | lines | direct | trans | fan-in |
 |---|---:|---:|---:|---:|---:|
@@ -156,8 +156,8 @@ The rules of `tools/depcheck-rules.txt` that hold: nothing but dev-dependencies 
 `mc-eval` nor `mc-core`; `mc-calculus` depends on none of the calculus crates above it, and neither `mc-limit` nor `mc-dsolve` on
 `mc-integrals`.
 
-Step 8 of the round (output typesetting out of `mc-boxes` into a crate of its own) was not done in this round:
-`mc-boxes` was being changed by other work of the round at the same time; round 38 did it (section 4).
+Step 8 (output typesetting out of `mc-boxes` into a crate of its own) came later:
+`mc-boxes` was being changed by other work at the same time; section 4 describes it.
 
 ### The calculus crates (step 5)
 
@@ -195,7 +195,7 @@ only through the evaluator (by name), so they need no crate dependency.
   the store contract, colours, themes, renderers, the 3D viewer), `mc-syntax` and `mc-boxes`. The natives of the
   graphics term are `mc-graphics-kernel`'s, which the libraries install.
 
-## 4. Step 8: output typesetting in a crate of its own (round 38)
+## 4. Step 8: output typesetting in a crate of its own
 
 `mc-boxes` read texts through the parser into box trees (printed output, linear input) beside the box tree and its
 layout. Those readers are now the crate `mc-typeset`, so `mc-boxes` is the box tree, its canonical and linear text,

@@ -1,10 +1,10 @@
-//! MathCAS v2 differential equations and differential algebra (round 31).
+//! MathCAS v2 differential equations and differential algebra.
 //!
 //! The library is MathCAS source (`lib/diffalg.mc`, [`SOURCE`]) that calls `d`, `solve`, `d_solve`, `integrate` and
 //! the polynomial functions through the evaluator: Lie point symmetries of ordinary and partial differential
 //! equations (determining equations and their solution), the symmetry algebra, reduction and integration by a
 //! symmetry, conservation laws by multipliers, differential polynomials under rankings, the Rosenfeld-Groebner and
-//! Thomas decompositions and the Painleve test. Decisions are numbered g31.1, g31.2, ... where they apply.
+//! Thomas decompositions and the Painleve test.
 #![warn(missing_docs)]
 
 /// The library's source text.

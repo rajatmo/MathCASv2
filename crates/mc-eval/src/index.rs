@@ -403,7 +403,7 @@ fn pat_path<'h>(h: &'h Heap, p: &Pat, d: usize, out: &mut Vec<(QKey<'h>, usize)>
         Pat::Lit(t) if huge_literal(h, t.get(h)) => out.push((QKey::Star, d)),
         Pat::Lit(t) => term_flat(h, t.get(h), d, usize::MAX, &mut vec![], Some(out)),
         // below the top, a call pattern with an optional argument also matches terms of other heads (the unit of
-        // the head, C9B2.2): any term
+        // the head): any term
         Pat::App { info, .. } if info.has_opt && d > 0 => out.push((QKey::Star, d)),
         // below the top, a curried call pattern matches a call with a compound head, which the index does not key
         Pat::App { info, .. } if info.curried && d > 0 => out.push((QKey::Star, d)),

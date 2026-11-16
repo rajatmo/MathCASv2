@@ -24,7 +24,7 @@ pub struct DocsApp {
     lib: Library,
     cat: Catalogue,
     pages: HashMap<String, Page>,
-    /// the topic guides (round 21)
+    /// the topic guides
     guides: Vec<crate::guide::Guide>,
     searcher: Searcher,
     /// how long the last search took (milliseconds), for the self-test log
@@ -645,7 +645,7 @@ impl DocsApp {
         }
     }
 
-    /// Put an example input on the clipboard (the copy button of an input, round 19).
+    /// Put an example input on the clipboard (the copy button of an input).
     pub fn copy_example(&mut self, ctx: &egui::Context, source: &str) {
         let clip = self.clipboard.get_or_insert_with(|| mc_ui::clipboard::Clipboard::for_window(ctx));
         clip.set(mc_ui::clipboard::Contents { text: Some(source.to_string()), ..Default::default() });

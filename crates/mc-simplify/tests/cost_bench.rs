@@ -1,4 +1,4 @@
-//! Timing of simplify-heavy inputs (decision s-cost.4): `cargo test --release -p mc-simplify --test cost_bench --
+//! Timing of simplify-heavy inputs: `cargo test --release -p mc-simplify --test cost_bench --
 //! --ignored --nocapture`. Each input runs in a fresh session (no memo hits), best of [`REPS`]; prints
 //! `[k/N pct%] ms  result-size  input`.
 mod common;
@@ -56,7 +56,7 @@ fn simplify_timings() {
     println!("total {:.1} ms", total);
 }
 
-/// The measure alone (decision s-cost.2): pricing 42 candidates of a 1,771-term polynomial (the size of
+/// The measure alone: pricing 42 candidates of a 1,771-term polynomial (the size of
 /// `expand((1 + x + y + z)^20)`, 14 moves times 3 levels) with a fresh memo per candidate, as the leaf count of
 /// rounds before 15 did, against one cache for the whole call; each candidate shares all terms but a few with the
 /// input.

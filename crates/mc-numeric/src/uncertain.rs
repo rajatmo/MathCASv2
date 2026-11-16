@@ -1,4 +1,4 @@
-//! Numbers with uncertainty (decision P6N.10): `around(x, dx)`, `interval([a, b], ...)` and
+//! Numbers with uncertainty: `around(x, dx)`, `interval([a, b], ...)` and
 //! `centered_interval(c, r)`, carried through arithmetic and through the functions of this crate and of the
 //! special-function crates.
 //!
@@ -11,13 +11,13 @@
 //!   41: the grid of 128 derivative samples it replaces missed poles and extrema); sums, products, powers and
 //!   quotients by interval arithmetic (a quotient by an interval containing 0 splits).
 //! - `centered_interval(c, r)`: a midpoint and a radius: f(c +- r) of one spread is the hull of the proved image of
-//!   [c - r, c + r]; where that is not proved (a pole inside) the call stays, a radius 0 takes the point ball (round
-//!   41: the slope estimate f(c) +- r max |f'| at three points was not an enclosure); functions of several spreads
+//!   [c - r, c + r]; where that is not proved (a pole inside) the call stays, a radius 0 takes the point ball (the
+//!   slope estimate f(c) +- r max |f'| at three points is not an enclosure); functions of several spreads
 //!   (and of several `interval`s) other than sums and products are enclosed over the box: the hull of two corners
 //!   when every partial derivative's sign is proved by its enclosure over the box, else the function of the balls
-//!   met with the mean value form (round 43: the grid of 5 or 3 points a side that decided the signs is gone), or
+//!   met with the mean value form (no grid of sample points decides the signs), or
 //!   stay unevaluated when no enclosure is found; the elementary functions of a complex spread go through the box arithmetic of
-//!   `uncertain_boxes` (round 41); sums, products and
+//!   `uncertain_boxes`; sums, products and
 //!   powers with a complex part, an `interval` mixed in or an uncertain exponent go through the rigorous box
 //!   arithmetic of `uncertain_boxes` (a complex radius rx + i ry is the box of the two parts);
 //!   `centered_interval([[m, e, rm, re], p])` reads the mantissa/exponent form m 2^e +- rm 2^re.
@@ -111,7 +111,7 @@ fn apply_in<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Op
     if let Some(r) = crate::uncertain_boxes::part(fx, t, args)? {
         return Ok(Some(r));
     }
-    // the elementary functions of a centered interval with a complex part: box arithmetic on the parts (round 41)
+    // the elementary functions of a centered interval with a complex part: box arithmetic on the parts
     if let Some(r) = crate::uncertain_boxes::function(fx, t, args)? {
         return Ok(Some(r));
     }
@@ -294,14 +294,14 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
         // other functions of several centered intervals: the corners of the box where the function is monotone in
         // each argument, else the function of the balls (the special-function natives evaluate ball arguments with
         // rigorous error bounds), else unevaluated; the slope estimate below is not an enclosure when the slopes vary
-        // over the spreads (round 36)
+        // over the spreads
         if let Some(r) = centered_corners(fx, head, &centers, &unc)? {
             return Ok(Some(r));
         }
         return centered_by_balls(fx, head, &centers, &unc);
     }
     // one spread whose image is not proved: a point (radius 0) is the function of the point ball; a spread stays (the
-    // slope estimate at three points is not an enclosure, and the function of a wide ball is a loose one; round 41)
+    // slope estimate at three points is not an enclosure, and the function of a wide ball is a loose one)
     if centered {
         let point = match unc.iter().flatten().next() {
             Some(&d) => machine(fx, d)? == Some(0.0),
@@ -412,7 +412,7 @@ fn known_partial<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], j
 }
 
 /// An enclosure of `head` over the box of several real spreads c_i +- r_i (2 to 4; the other arguments numbers),
-/// as outward-rounded machine bounds (round 43: proved, never sampled). Each sub-box (made by halving) is enclosed
+/// as outward-rounded machine bounds (proved, never sampled). Each sub-box (made by halving) is enclosed
 /// by the monotonicity test of interval analysis: a spread in which the partial derivative (in closed form, or a
 /// known series form, [`known_partial`]) has one proved sign over the sub-box is fixed at the end that gives the
 /// least (largest) value; the least value over the sub-box is then the least over that face, enclosed exactly at a
@@ -943,7 +943,7 @@ fn neg_inf<'h>(fx: &Fx<'_, '_, '_, 'h>) -> T<'h> {
     fx.neg(fx.inf())
 }
 
-/// The machine ends of computed pieces moved outwards by one unit in the last place (round 36): a machine result is
+/// The machine ends of computed pieces moved outwards by one unit in the last place: a machine result is
 /// rounded to nearest, so the computed end can fall inside the true range (pi^3. gave 31.006276680299816 below
 /// pi^3 = 31.00627668029982...); exact ends stay as they are.
 fn outward<'h>(fx: &Fx<'_, '_, '_, 'h>, ps: Vec<(T<'h>, T<'h>)>) -> Vec<(T<'h>, T<'h>)> {
@@ -1432,7 +1432,7 @@ pub fn extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, max: bool, args: &[T<'h>]) -> 
 }
 
 /// The comparisons of an interval (or an `around`, a `centered_interval`, as the interval of its spread) with a
-/// number or another interval (decision P6N.12): `(hi(a) vs lo(b),
+/// number or another interval: `(hi(a) vs lo(b),
 /// lo(a) vs hi(b))`, from which every relation is decided where the sets do not overlap (`None` without intervals).
 pub fn compare_intervals<'h>(
     h: &'h Heap,

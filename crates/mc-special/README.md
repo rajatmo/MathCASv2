@@ -13,7 +13,7 @@ hypergeometric functions, Bessel and Airy functions, elliptic and Jacobi functio
   natives with list threading and argument kinds.
 - `appell`, `heun`, `mathieu`, `meijer`, `meijer_num`, `qhyper`, `weierstrass`, `jshift`, `modular`, `zeros`: families
   of functions of several variables, parameters or zeros.
-- `cover`, `more`, `fast29`, `fast30`, `fast33`, `series30`: further functions defined by formulas, machine fast paths and
+- `cover`, `more`, `fast_dd`, `fast_coulomb`, `fast_elliptic`, `series_fallback`: further functions defined by formulas, machine fast paths and
   series of special functions.
 
 ## Design

@@ -106,11 +106,11 @@ pub struct EvalConfig {
     /// the evaluator) before `failure(limit, depth)`: the one nesting that still uses the Rust stack (decision 1a.2)
     pub max_nest: u32,
     /// most rewrites of one evaluation level (a rule whose result is rewritten again, `f(x_) := f(x + 1)`) before
-    /// `failure(limit, iterations)` (decision p6core.11)
+    /// `failure(limit, iterations)`
     pub max_iterations: u32,
     /// most bytes the young region may hold during one evaluation before `failure(limit, memory)`: nothing is
     /// collected until the evaluation ends, so a runaway loop would otherwise exhaust memory; 0 (the default):
-    /// [`default_max_young`], read again at the start of every top-level evaluation (decision p6core.11)
+    /// [`default_max_young`], read again at the start of every top-level evaluation
     pub max_young: usize,
 }
 
@@ -238,7 +238,7 @@ pub(crate) fn bit(s: Sym) -> u64 {
 }
 
 /// The read-set bit of mutable cells: the mask bit of `local_cell`, which no other symbol shares, so a term is
-/// treated as referring to a cell only when it does (decision p6core.32).
+/// treated as referring to a cell only when it does.
 pub(crate) const CELL_BIT: u64 = 1 << 63;
 
 // The placeholder for an element a speculative task could not complete (a handle `mc-core` never hands out).
@@ -274,7 +274,7 @@ pub struct Kernel {
     /// the cells of mutable locals
     pub(crate) cells: Cells,
     pub(crate) names: Names,
-    /// `call$`, under which the rules for calls with compound heads are kept (C9B2.4)
+    /// `call$`, under which the rules for calls with compound heads are kept
     call_sym: Option<Sym>,
     /// the symbols of assumption contexts, once [`crate::assume::install`] ran
     pub(crate) assume: Option<crate::assume::Syms>,
@@ -288,7 +288,7 @@ pub struct Kernel {
     /// operator forms: `f(a..)(x..)` of these symbols is `f(x, a..)` or `f(a.., x..)` ([`Kernel::set_operator_form`])
     pub(crate) op_forms: rustc_hash::FxHashMap<Sym, OperatorForm>,
     /// the heads of associations and their entries, once a library declared them ([`Kernel::set_association_heads`]):
-    /// listable functions thread over associations' values (decision io-core.1)
+    /// listable functions thread over associations' values
     pub(crate) assoc_heads: Option<(Sym, Sym)>,
     /// functions without the `listable` attribute that map over list arguments themselves: they thread over the
     /// values of associations as listable functions do ([`Kernel::set_maps_lists`])
@@ -303,11 +303,11 @@ pub struct Kernel {
     /// the young-generation size at which `memory_constrained` stops the evaluation ([`crate::constrained`])
     pub(crate) mem_cap: std::sync::atomic::AtomicUsize,
     /// Extra flags a limit's watchdog raises with the interrupt (the engine registers the number kernels' stop flag,
-    /// so one huge exact multiplication or gcd stops at `time_constrained`'s limit, engine B21-29).
+    /// so one huge exact multiplication or gcd stops at `time_constrained`'s limit).
     pub(crate) watch_flags: std::sync::Mutex<Vec<std::sync::Arc<std::sync::atomic::AtomicBool>>>,
 }
 
-/// Where the arguments of the outer call of an operator form `f(a..)(x..)` go (decision p6core.2).
+/// Where the arguments of the outer call of an operator form `f(a..)(x..)` go.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OperatorForm {
     /// `f(a..)(x)` is `f(x, a..)`: one argument, the data, first (`select(is_even)(xs)`, `append(x)(xs)`)
@@ -434,7 +434,7 @@ impl Kernel {
     }
 
     /// Declare the head of associations (`assoc(k -> v, ...)`) and of their entries (`rule`): a listable function
-    /// then threads over the values of association arguments, as over the elements of lists (decision io-core.1).
+    /// then threads over the values of association arguments, as over the elements of lists.
     /// The library that implements associations calls it; the evaluator does not intern these names itself.
     pub fn set_association_heads(&mut self, assoc: Sym, rule: Sym) {
         self.assoc_heads = Some((assoc, rule));
@@ -442,14 +442,14 @@ impl Kernel {
 
     /// Declare that the native of `s` maps over list arguments itself (elementwise) without the `listable` attribute
     /// (which would thread lists before the native's own fast paths): association arguments are then threaded by
-    /// the evaluator, the values of each key in turn (decision io-core.1).
+    /// the evaluator, the values of each key in turn.
     pub fn set_maps_lists(&mut self, s: Sym) {
         self.maps_lists.insert(s);
     }
 
     /// Declare `s` the head of number-like values whose arithmetic the evaluator's `add`, `mul` and `pow` carry out
     /// (a library's own hook, such as quantities and uncertain numbers): list reductions that build sums and products
-    /// directly hand terms with these heads to the evaluator (decision io-core.5).
+    /// directly hand terms with these heads to the evaluator.
     pub fn set_value_head(&mut self, s: Sym) {
         self.value_heads.insert(s);
     }
@@ -465,7 +465,7 @@ impl Kernel {
     }
 
     /// Register a flag that a limit's watchdog (`time_constrained`) raises together with the interrupt and lowers
-    /// when it withdraws it: the number kernels' stop flag (engine B21-29).
+    /// when it withdraws it: the number kernels' stop flag.
     pub fn watch_flag(&self, f: Arc<AtomicBool>) {
         self.watch_flags.lock().unwrap().push(f);
     }
@@ -589,7 +589,7 @@ impl Kernel {
 
     /// Compile and insert a rule at epoch `from + 1`; returns the new epoch. Called by the session or the frontier.
     fn define_rule(&self, h: &Heap, from: u32, lhs: Pat, rhs: RuleRhs, attach: Option<Sym>) -> Result<u32, DefError> {
-        // a left side with a compound head is stored as a rule of `call$` (C9B2.4)
+        // a left side with a compound head is stored as a rule of `call$`
         let lhs = compile(h, crate::pat::curry_lit(h, lhs), &CanonOf(self))?;
         let (top_head, top_args): (T, Vec<T>) = match lhs.strip() {
             Pat::App { head, args, .. } => (head.get(h), args.iter().filter_map(|a| a.fixed_head(h).or_else(|| lit_sym(h, a))).collect()),
@@ -608,7 +608,7 @@ impl Kernel {
         let ac_top = self.defs.attrs(top).ac;
         // a rule for calls with a compound head is kept with the innermost head symbol of its head pattern, under
         // `call$` (`f(x_)(y_)` with `f`), so `f` is defined, `unset(f)` removes it and only calls rooted at `f`
-        // read it; a head pattern without such a symbol (`g_(x_)`) keeps it in `call$`'s own rules (C9B2.4)
+        // read it; a head pattern without such a symbol (`g_(x_)`) keeps it in `call$`'s own rules
         if attach.is_none() && h.sym_name(top) == crate::pat::CALL {
             if let Some(root) = curried_root(h, &lhs) {
                 let ((), e) = self.defined(from, bit(root), || {
@@ -679,7 +679,7 @@ impl Kernel {
     /// Number of rules `s` holds for itself.
     pub fn rule_count(&self, s: Sym) -> usize {
         let own = self.defs.get(s).and_then(SymDefs::rules).map_or(0, |r| r.len());
-        // with the rules for calls whose head is a call of `s` (`s(x_)(y_) := ...`, C9B2.4)
+        // with the rules for calls whose head is a call of `s` (`s(x_)(y_) := ...`)
         let curried = self.call_sym.and_then(|c| self.defs.get(s).filter(|d| d.has_arg_rules()).and_then(|d| d.arg_rules(c))).map_or(0, |r| r.len());
         own + curried
     }
@@ -830,7 +830,7 @@ fn is_slot_params(h: &Heap, params: &[T<'_>]) -> bool {
 }
 
 /// The symbol an argument-head rule for argument `t` is stored with: the head of a compound argument, or a symbol
-/// argument itself (`area(square) := ...` stored with `square`; semantics 6.5 extended to symbols, C9B.5).
+/// argument itself (`area(square) := ...` stored with `square`; semantics 6.5 extended to symbols).
 /// The innermost head symbol of a curried left side `call$(head pattern, ...)`, if its head patterns end in a
 /// symbol (`f(x_)(y_)`: `f`; `g_(x_)`: none).
 fn curried_root(h: &Heap, p: &Pat) -> Option<Sym> {
@@ -1091,7 +1091,7 @@ impl<'k, 'h> Eval<'k, 'h> {
             return Err(Abort::Limit);
         }
         crate::native::slow_down();
-        // the memory budget, polled with the fuel (decision p6core.11)
+        // the memory budget, polled with the fuel
         if self.heap.young_bytes() > self.k.young_cap.min(self.k.mem_cap.load(Relaxed)) {
             ctl.fail(Status::Memory);
             return Err(Abort::Limit);
@@ -1390,7 +1390,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         let h = self.heap;
         let sc = &self.k.names.scopes;
         // a held parameter receives its argument as written, so a `failure(...)` term there is data, not a failed
-        // argument (C9B.1)
+        // argument
         let hold = self.closure_hold(params).unwrap_or_default();
         if let Some(fail) = self.first_failure_strict(vals, hold) {
             return Ok(Step::Done(fail));
@@ -1420,7 +1420,7 @@ impl<'k, 'h> Eval<'k, 'h> {
             pairs.push((info.name, v));
         }
         // a slot function `&(...)` (parameters `&1`, ..., `&n`) ignores arguments past `&n`: the shorthand is
-        // passed to functions that hand over more than it uses, an index or a tag (C9B.9)
+        // passed to functions that hand over more than it uses, an index or a tag
         if j < vals.len() && !is_slot_params(h, params) {
             return Ok(Step::Done(self.no_match(f, vals)));
         }
@@ -1556,7 +1556,7 @@ impl<'k, 'h> Eval<'k, 'h> {
             };
             let vd = shape(a[0]);
             if vd.is_empty() {
-                // a scalar acts at every level: it is broadcast like a plain argument (X26-12)
+                // a scalar acts at every level: it is broadcast like a plain argument
                 out.push(a[0]);
                 continue;
             }
@@ -1630,7 +1630,7 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// Whether a call of `head` on `vals` threads over associations although `head` is not listable: some argument
     /// is an association and `head` maps over lists itself ([`Kernel::set_maps_lists`]).
     /// A call whose last arguments are two or more `options(...)` terms: the call with them merged into one, in
-    /// order (a later value of the same name wins where options are read; gap G65). `None` otherwise.
+    /// order (a later value of the same name wins where options are read). `None` otherwise.
     pub(crate) fn merge_options(&self, head: T<'h>, vals: &[T<'h>]) -> Option<T<'h>> {
         let h = self.heap;
         let opts = self.sym(self.k.names.scopes.options);
@@ -1677,7 +1677,7 @@ impl<'k, 'h> Eval<'k, 'h> {
     }
 
     /// A listable call with association arguments and no list arguments: the association of the calls on the
-    /// values of each key, the other arguments broadcast (decision io-core.1). The associations must have the same
+    /// values of each key, the other arguments broadcast. The associations must have the same
     /// keys (in any order; the first one's order is kept), else `failure(shape_mismatch)`. `None` without
     /// association arguments.
     pub(crate) fn thread_assoc(&self, head: T<'h>, vals: &[T<'h>]) -> Option<T<'h>> {
@@ -1824,7 +1824,7 @@ impl<'k, 'h> Eval<'k, 'h> {
 
     /// The first argument in a strict position (not held by `hold`) that is a failure (semantics 10): a held
     /// argument is passed unevaluated, so a failure term in it is not a failed argument (`if c then failure(...)
-    /// else x` must not fail when `c` is false; C9B.1).
+    /// else x` must not fail when `c` is false).
     #[inline]
     pub(crate) fn first_failure_strict(&self, vals: &[T<'h>], hold: Hold) -> Option<T<'h>> {
         if hold == Hold::None {
@@ -1862,7 +1862,7 @@ impl<'k, 'h> Eval<'k, 'h> {
     }
 
     /// A call `head(args...)` whose head is compound: the rules of `call$` (the definitions `f(x_)(y_) := ...`)
-    /// tried on the view `call$(head, args...)` (C9B2.4).
+    /// tried on the view `call$(head, args...)`.
     fn dispatch_curried(&self, cx: &mut Cx<'h>, head: T<'h>, args: &[T<'h>]) -> Res<Option<T<'h>>> {
         let h = self.heap;
         let call = h.sym(crate::pat::CALL);
@@ -2115,7 +2115,7 @@ impl<'k, 'h> Eval<'k, 'h> {
     }
 
     /// `n` elements `f(0..n)` split at once into runs of about `n / (4 threads)` elements, whatever their
-    /// estimated cost (`parallel_table`, `parallel_map`, `parallel: true`; decision sp-core.4). The runs are
+    /// estimated cost (`parallel_table`, `parallel_map`, `parallel: true`). The runs are
     /// speculative tasks of the evaluator's ordinary splitting, so the result is the serial one: the frontier keeps
     /// a run's values in order, and evaluates again what a definition since the split may have changed or what
     /// could not run speculatively (an effect, a cell). Serial on one thread and inside a scratch scope.

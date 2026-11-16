@@ -193,7 +193,7 @@ fn round_real(x: &Real, mode: Rounding) -> Option<Int> {
 }
 
 /// The rounded value of a closed numeric term that is not a number (`floor(pi)`, `round(e^100)`): `n` at
-/// increasing precision until the rounding of the ball is decided (decision P6N.3); `None` for terms without a
+/// increasing precision until the rounding of the ball is decided; `None` for terms without a
 /// real value, or undecided by 2^13 digits (an integer-valued term such as `floor(sqrt(2)^2 - 2 + 3)` is exact
 /// and never gets here).
 fn round_closed<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, mode: Rounding) -> Res<Option<Int>> {
@@ -763,7 +763,7 @@ fn binomial<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<
         };
         return Ok(Reply::Again(v));
     }
-    // symbolic indices (round 17): C(n, 0) = C(n, n) = 1, C(n, 1) = C(n, n - 1) = n, identities of the
+    // symbolic indices: C(n, 0) = C(n, n) = 1, C(n, 1) = C(n, n - 1) = n, identities of the
     // polynomial C(n, k) = n (n - 1) ... (n - k + 1)/k! in n for k = 0, 1, and of the symmetry for k = n, n - 1
     // (taken for every n)
     if rat_of(h, *a).is_none() {

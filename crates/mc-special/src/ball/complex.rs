@@ -1,4 +1,4 @@
-//! Complex-ball enclosures (decision P6N.13) for log gamma, gamma, the error functions and the
+//! Complex-ball enclosures for log gamma, gamma, the error functions and the
 //! Riemann zeta function, so that `n(gamma(2 + im), 20)` and `n(zeta(1/2 + 14 im), 30)` reach their precision.
 //!
 //! - log gamma: Stirling's series at w = z + N with Re w >= p/2 + 10, truncated after M terms with the remainder
@@ -333,7 +333,7 @@ pub fn zeta(s: &CBall, p: u64) -> Option<CBall> {
         let v = two_s.mul(&pi_s1, w).mul(&sn, w).mul(&gamma(&one_s, w)?, w).mul(&zeta(&one_s, w)?, w);
         return Some(v.round(p));
     }
-    // the phase tau log k of k^-s needs log2(tau log k) extra bits, not a multiple of tau (B26-21: tau = 1e5 worked at
+    // the phase tau log k of k^-s needs log2(tau log k) extra bits, not a multiple of tau (tau = 1e5 worked at
     // 150000 bits); the ball arithmetic carries whatever is lost
     let w = p + 40 + 2 * (tau + 2.0).log2().ceil() as u64;
     let n = (20.0 + p as f64 / 4.0 + tau).ceil() as u64;

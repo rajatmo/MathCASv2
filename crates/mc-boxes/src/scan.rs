@@ -4,7 +4,7 @@
 
 /// The escape of the canonical text: the character after it is an ordinary character, not a bracket, a quote or a
 /// comment sign. The writer puts it before a slot's unmatched brackets, an unterminated string's quote and a `#`
-/// without a line end, so that the box shapes around the slot still read back (round 33); the reader drops it, and
+/// without a line end, so that the box shapes around the slot still read back; the reader drops it, and
 /// [`source_text`] gives the text without it. U+2060 (word joiner): invisible, never typed.
 pub const ESCAPE: char = '\u{2060}';
 

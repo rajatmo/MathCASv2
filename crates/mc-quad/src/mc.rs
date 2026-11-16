@@ -1,7 +1,7 @@
 //! Monte Carlo (plan 10, section 2.3): plain sampling, and VEGAS (Lepage 1978) with the adaptive stratification
 //! of VEGAS+ (Lepage 2021).
 //!
-//! **Random numbers** (decision quad-1.8): counter-based Philox streams (Salmon et al. 2011, `mc-random`). The
+//! **Random numbers**: counter-based Philox streams (Salmon et al. 2011, `mc-random`). The
 //! points of a run are cut into blocks of [`BLOCK`] by position, and block b of pass (or iteration) i draws from
 //! `Stream::from_key(seed).split(i).split(b)`. Blocks are generated in parallel, values are evaluated through the
 //! sampler, and every sum is added in point order on the calling thread, so results depend on `seed` only, never

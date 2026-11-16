@@ -208,13 +208,13 @@ impl Palette {
         }
     }
 
-    /// The labels and legends drawn around typeset values (`labeled`, `legended`; round 13): weak text, so that
+    /// The labels and legends drawn around typeset values (`labeled`, `legended`): weak text, so that
     /// the value reads first and the label as its caption.
     pub fn label(&self) -> Color32 {
         self.weak
     }
 
-    /// The colours of a picture's chrome (round nb-svg): no background of its own (the page shows through), text
+    /// The colours of a picture's chrome: no background of its own (the page shows through), text
     /// and primitives without a colour in the text colour, frame, axes and ticks in weak text, grid lines faint
     /// (12 % of the text over the page), the legend's box in the page colour. Data keeps its colours.
     pub fn plot_theme(&self) -> mc_graphics::theme::Theme {
@@ -505,7 +505,7 @@ mod contrast {
         }
     }
 
-    /// A picture's chrome in both themes (round nb-svg): tick and axis labels at 4.5:1 or more on the page (and on
+    /// A picture's chrome in both themes: tick and axis labels at 4.5:1 or more on the page (and on
     /// the cell's current-line tint), the frame at 3:1 or more (non-text contrast), grid lines visible but faint,
     /// the legend's box the page itself.
     #[test]

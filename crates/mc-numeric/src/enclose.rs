@@ -1,4 +1,4 @@
-//! Proved images of a real interval under a function of one real argument (round 41), for `interval` and
+//! Proved images of a real interval under a function of one real argument, for `interval` and
 //! `centered_interval` arguments: the result is a promise that every value lies inside, so it rests on enclosures,
 //! never on samples.
 //!
@@ -21,7 +21,7 @@
 //! and at the algebraic and logarithmic branch points of the library. Complex values, or more cells than the budget,
 //! give no image (the call stays).
 //!
-//! Round 42: a cell without an enclosure inside the interval at an exact pole q (a rational with a small denominator
+//! A cell without an enclosure inside the interval at an exact pole q (a rational with a small denominator
 //! or such a multiple of pi, where f is infinite, or stays unevaluated with |f| tending to infinity by `limit`)
 //! splits the interval at q, and the image is the union of the images of the two sides (two rays for a simple
 //! pole: acsch over [-4, csch 2] is (-inf, -acsch 4] and [2, inf)). A function whose derivative has no closed form
@@ -396,7 +396,7 @@ pub(crate) fn image<'h>(
     Ok(Some(vec![(lo_t, hi_t)]))
 }
 
-/// Does the function jump inside [a, b] (round 44)? acot, fractional_part and mod (in its first argument) have a
+/// Does the function jump inside [a, b]? acot, fractional_part and mod (in its first argument) have a
 /// derivative that stays continuous and bounded across their jumps (acot' = -1/(1 + x^2) across 0, where acot goes
 /// from -pi/2 to pi/2; fractional_part' = 1 across the integers other than 0), so the monotonicity test of the cells
 /// would join the two sides: acot over [-5, 5] gave [-acot 5, acot 5], fractional_part over [1/2, 3/2] the point

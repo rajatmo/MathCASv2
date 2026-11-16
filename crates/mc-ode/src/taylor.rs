@@ -48,7 +48,7 @@ enum Op {
     /// atan(a), with the node of 1 + a^2
     Atan(usize, usize),
     /// `bessel_k(n, a)` for an integer n >= 0; the next node is `bessel_k(n + 1, a)` ([`Op::BesselKNext`]), from
-    /// y' = (n y/a - z) a', z' = (-y - (n + 1) z/a) a' (G13)
+    /// y' = (n y/a - z) a', z' = (-y - (n + 1) z/a) a'
     BesselK(i64, usize),
     /// `bessel_k(n + 1, a)`: its coefficients are computed with the preceding [`Op::BesselK`]
     BesselKNext,

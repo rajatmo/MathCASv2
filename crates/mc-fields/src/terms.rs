@@ -264,7 +264,7 @@ pub fn data_elem(h: &Heap, s: &Syms, f: &Field, data: T<'_>) -> Option<El> {
         let v: Option<Vec<u64>> = cs.iter().map(|&c| residue(h, c, f.fp)).collect();
         return Some(f.reduce(&v?));
     }
-    // a negative integer or a rational is a number of the prime field (-1 is p - 1, 1/2 the inverse of 2; D26-06, 21)
+    // a negative integer or a rational is a number of the prime field (-1 is p - 1, 1/2 the inverse of 2)
     if nat_of(h, data).is_none() {
         let c = residue(h, data, f.fp)?;
         return Some(f.constant(c));

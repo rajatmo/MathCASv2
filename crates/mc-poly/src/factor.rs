@@ -798,8 +798,8 @@ mod tests {
         f
     }
 
-    /// `x^n - 1` and `x^n + 1` factor into cyclotomic polynomials without a search (round 24: degree 1000 took a
-    /// minute); the factors multiply back and have the degrees phi(d).
+    /// `x^n - 1` and `x^n + 1` factor into cyclotomic polynomials without a search (a search at degree 1000 takes
+    /// a minute); the factors multiply back and have the degrees phi(d).
     #[test]
     fn cyclotomic_binomials() {
         let mut w = Unlimited;

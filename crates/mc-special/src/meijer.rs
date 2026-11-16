@@ -1,5 +1,5 @@
 //! The Meijer G-function `meijer_g([[a_1, ..., a_n], [a_(n+1), ..., a_p]], [[b_1, ..., b_m], [b_(m+1), ..., b_q]],
-//! z)` and the generalized `meijer_g(as, bs, z, r)` = G(z^(1/r)) (round 22).
+//! z)` and the generalized `meijer_g(as, bs, z, r)` = G(z^(1/r)).
 //!
 //! Numerical values at any precision and across the complex plane come from [`crate::meijer_num`] (Slater's
 //! theorem on the side of |z| = 1 where it converges, perturbation of coincident poles). This module gives the
@@ -181,7 +181,7 @@ fn numeric<'h>(fx: &mut Fx<'_, '_, '_, 'h>, g: &G<'h>, z: T<'h>, r: Option<T<'h>
     let nq = g.bq.len();
     // exact parameters become balls at a working precision above the cancellation of the Slater series (the terms
     // near e^(3 z^(1/3)) of G^{3,0}_{0,3} at z = 1e4 are 1e28 times the value: a parameter ball of radius 2^-117 gave
-    // garbage, X26-6); the first pass measures that cancellation
+    // garbage); the first pass measures that cancellation
     let build = |w: u64| -> (Vec<CBall>, crate::meijer_num::Params) {
         let ball = |r: &Real| match r {
             Real::Machine(v) => mc_arith::num::Ball::exact(crate::ball::float_of(*v)),
@@ -300,7 +300,7 @@ fn coefficient<'h>(fx: &Fx<'_, '_, '_, 'h>, g: &G<'h>, k: usize) -> T<'h> {
     for &al in &g.ap {
         den_args.push(fx.sub(al, bk));
     }
-    // 1/Gamma is 0 at a pole of an exact argument, so the term of the series vanishes (B23-19: a_3 - b_2 = -2 in
+    // 1/Gamma is 0 at a pole of an exact argument, so the term of the series vanishes (a_3 - b_2 = -2 in
     // G^{3,0}_{3,3} failed with `pole`); with a numerator Gamma at a pole too the quotient is a limit and stays as it is
     let pole = |t: T<'h>| rat(fx, t).is_some_and(|q| q.is_int() && (q.num.neg || q.is_zero()));
     if den_args.iter().any(|&a| pole(a)) && !num_args.iter().any(|&a| pole(a)) {
@@ -556,7 +556,7 @@ fn even_sqrt<'h>(fx: &Fx<'_, '_, '_, 'h>, y: T<'h>) -> T<'h> {
 /// pFq(upper; lower; w) with equal parameters cancelled, as a named function where one is known (module comment).
 fn named_pfq<'h>(fx: &mut Fx<'_, '_, '_, 'h>, mut upper: Vec<T<'h>>, mut lower: Vec<T<'h>>, w: T<'h>) -> R<'h> {
     // a non-positive integer upper parameter ends the series; it is not cancelled against an equal lower one
-    // (round 44: pFq([-2], [-2], z) is 1 + z + z^2/2, as its numerical value, not e^z)
+    // (pFq([-2], [-2], z) is 1 + z + z^2/2, as its numerical value, not e^z)
     let ends_series = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| rat(fx, t).is_some_and(|q| q.is_int() && !q.cmp_value(&Rat::from_i64(0)).is_gt());
     'outer: loop {
         for i in 0..upper.len() {

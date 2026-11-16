@@ -145,7 +145,7 @@ fn lines() {
     assert_eq!(pixel(&pm, px(5.0), py(1.0)), BLUE);
     assert_eq!(pixel(&pm, px(2.0), py(5.0) - 4), WHITE);
     assert_eq!(pixel(&pm, px(5.0), py(3.0)), WHITE);
-    // one data path for both runs; the background is chrome (round nb-svg)
+    // one data path for both runs; the background is chrome
     assert_eq!(o.svg.matches("<path d=\"M").count(), 1, "{}", o.svg);
     assert_eq!(o.svg.matches("<path class=\"mcf-bg\" d=\"M").count(), 1, "{}", o.svg);
     // dashes in each renderer

@@ -159,8 +159,8 @@ fn bounded_and_interruptible() {
     assert!(took < Duration::from_secs(20), "{r:?} after {took:?}");
 }
 
-/// Bounds whose order depends on the sign of a parameter: both cases joined, for real parameters (decision n14e.I1);
-/// values with parameters simplified under the facts (decision n14e.I2).
+/// Bounds whose order depends on the sign of a parameter: both cases joined, for real parameters (roadmap item 14E);
+/// values with parameters simplified under the facts (roadmap item 14E).
 #[test]
 fn sign_of_bounds_and_facts() {
     check(&[

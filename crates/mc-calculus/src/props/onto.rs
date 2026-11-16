@@ -335,7 +335,7 @@ fn surjective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps
     Ok(r)
 }
 
-/// One real variable, when the limits do not decide (F27.9): the range of `f` ([`super::range`]) against the
+/// One real variable, when the limits do not decide: the range of `f` ([`super::range`]) against the
 /// codomain condition (`for_all(y, ycond implies range)`); nothing else (values growing along samples, as for
 /// `x sin(x)`, prove nothing).
 fn surjective_by_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, y: T<'h>) -> Res<Option<Ans<'h>>> {
@@ -840,7 +840,7 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps:
         }
         let poly_comps = s.comps.iter().all(|&f| sets::poly_degree(b, f, &s.vars).is_some());
         // four real variables and a degree of 4 or more: the decomposition of the pairs does not finish within an evaluation's
-        // time budget (round 33: it also ignored an interrupt that arrived inside its arithmetic), so the question stays open
+        // time budget (it also ignored an interrupt that arrived inside its arithmetic), so the question stays open
         let heavy = s.vars.len() >= 2 || s.comps.iter().any(|&f| sets::poly_degree(b, f, &s.vars).is_some_and(|d| d >= 4));
         if let Some(c) = dcond.filter(|_| poly_comps && ps.is_empty() && !heavy) {
             // pairs over the real and imaginary parts

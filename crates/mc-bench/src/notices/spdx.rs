@@ -15,8 +15,8 @@ pub enum Expr {
     Or(Vec<Expr>),
 }
 
-/// The licences a shipped dependency may use, in order of preference when a crate offers a choice (round 11,
-/// release item 1). An exception (`WITH`) only adds permissions, so `X WITH e` is allowed when `X` is.
+/// The licences a shipped dependency may use, in order of preference when a crate offers a choice
+/// (release item 1). An exception (`WITH`) only adds permissions, so `X WITH e` is allowed when `X` is.
 pub const ALLOWED: &[&str] = &[
     "MIT",
     "Apache-2.0",

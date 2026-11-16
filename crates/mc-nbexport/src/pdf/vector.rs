@@ -1,4 +1,4 @@
-//! SVG drawings as PDF vector graphics (round nb-svg): a plot's SVG is parsed with `usvg` (which resolves `<use>`,
+//! SVG drawings as PDF vector graphics: a plot's SVG is parsed with `usvg` (which resolves `<use>`,
 //! styles and transforms into a tree of paths, groups and images) and written as the content stream of a form
 //! `XObject`, so plots in an exported PDF stay sharp at any zoom and print size. Filled and stroked paths with
 //! flat colours, linear and radial gradients (PDF shadings padded at their ends; a varying stop opacity becomes a

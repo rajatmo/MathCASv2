@@ -1,4 +1,4 @@
-//! Functions of truncated power series (gap G59): `sin(s)`, `sqrt(1 + s)`, `bessel_j(0, s)` with `s` a
+//! Functions of truncated power series: `sin(s)`, `sqrt(1 + s)`, `bessel_j(0, s)` with `s` a
 //! `series_data` term give the series of the composition, to the precision the input determines.
 //!
 //! The series algebra lives in a crate above this one, so it is registered here as a hook ([`register`], once at

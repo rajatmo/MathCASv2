@@ -674,7 +674,7 @@ impl Lifter<'_> {
         Ok(Ok((cells, info, agg)))
     }
 
-    /// [`Lifter::stack`]'s cells under a budget (decision n16a.3): every cell of the stack (its signs, its truth,
+    /// [`Lifter::stack`]'s cells under a budget (roadmap item 16A): every cell of the stack (its signs, its truth,
     /// its lifting) is an element of a parallel run on its own lifter and meter, ending at the first cell that
     /// decides a quantified stack or fails; this lifter then takes the cells in order, charging their fuel and
     /// counting their cells as the sequential loop does, and computes again itself a cell whose task was stopped.

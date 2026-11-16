@@ -1,5 +1,4 @@
-//! Symbolic preparation of two kinds of integrands before the numeric rules (round 19, bugs Q19-01, Q19-16,
-//! Q19-17):
+//! Symbolic preparation of two kinds of integrands before the numeric rules:
 //!
 //! - **Indicator functions** `boole(cond) g` of semialgebraic regions. Adaptive rules see a discontinuous
 //!   integrand that is zero at most of their nodes: a small region can be missed entirely (an estimate of 0 with

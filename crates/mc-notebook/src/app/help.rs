@@ -1,4 +1,4 @@
-//! Help while writing code (round 12): the usage hint inside a call, hover over a function name, and the name F1
+//! Help while writing code: the usage hint inside a call, hover over a function name, and the name F1
 //! looks up. The usage lines come from the help index (`mc_help`), the one source shared with the documentation
 //! window and the language server. Completion is in `keyboard.rs`.
 use super::*;
@@ -31,7 +31,7 @@ pub(crate) struct HelpState {
     hover_shown: Option<String>,
     /// the pages F1, Help > Look up and Ctrl+click asked for
     pub(crate) docs_opened: Vec<String>,
-    /// the warning under the pointer (round 20: `x(x - a)`), and the one the context menu was opened on
+    /// the warning under the pointer (`x(x - a)`), and the one the context menu was opened on
     pub(crate) warning: Option<(mc_nbmodel::CellId, mc_syntax::Lint)>,
     pub(crate) menu_warning: Option<(mc_nbmodel::CellId, mc_syntax::Lint)>,
 }
@@ -60,7 +60,7 @@ impl App {
             self.help.hint_hidden = None;
             return;
         };
-        // not while writing a comment or a string (round 19): the hint would cover the text above for nothing
+        // not while writing a comment or a string: the hint would cover the text above for nothing
         if mc_nbmodel::text::lexical_at(&cc.text, cc.pos) != mc_nbmodel::text::Lexical::Code {
             return;
         }
@@ -302,7 +302,7 @@ impl App {
         format!("{} [{}]", ws.len(), ws.join("; "))
     }
 
-    /// The faint multiplication signs of the cell with the caret (self-test, round 35): the gaps of the canonical
+    /// The faint multiplication signs of the cell with the caret (self-test): the gaps of the canonical
     /// text and where each `×` is drawn (layout coordinates).
     pub fn products_state(&mut self, ctx: &egui::Context) -> String {
         let id = match *self.doc.nb.selection() {

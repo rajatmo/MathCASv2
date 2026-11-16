@@ -1,7 +1,7 @@
 //! `mc-repl notebook.mcn` and `mc-repl --update notebook.mcn`: the headless notebook runner on `mc-kernel`'s
 //! format and runner (the format is specified in the `mc_kernel` crate documentation).
 //!
-//! The cells print like a script: `print` output and the value of every shown statement (gap G91) to standard
+//! The cells print like a script: `print` output and the value of every shown statement to standard
 //! output, failures (as `notebook.mcn: failure(...)`) and errors (with their positions in the notebook) to standard
 //! error.
 use crate::cli::{FAILED, INTERRUPTED, OK, READ_ERROR};

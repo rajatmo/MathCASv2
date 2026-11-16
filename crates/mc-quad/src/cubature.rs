@@ -16,7 +16,7 @@
 //! two along the axis i with the largest |f(+λ2) + f(-λ2) - 2 f0 - (λ2/λ3)^2 (f(+λ3) + f(-λ3) - 2 f0)| (ties:
 //! the widest axis). Every point lies inside its region, so singularities on faces are never sampled.
 //!
-//! **Blocks** (decision quad-1.3): each round takes the regions of largest error from the heap until their errors
+//! **Blocks**: each round takes the regions of largest error from the heap until their errors
 //! add up to what must be removed to meet the goal (at least one, at most [`ROUND_POINTS`] points of children),
 //! and evaluates all their children with one call of the integrand, which then runs in parallel. The rounds depend
 //! on the values only, so results do not depend on the number of threads.
@@ -189,7 +189,7 @@ fn evaluate<'h>(
                 split = i;
             }
         }
-        // |I7 - I5| unscaled (decision quad-1.5): scaling it down where the degree-3, -5 and -7 values converge
+        // |I7 - I5| unscaled: scaling it down where the degree-3, -5 and -7 values converge
         // (as null-rule estimates do) halved the work on smooth integrands but let kinks and jumps converge
         // falsely (continuous and discontinuous Genz families, achieved errors 10^3 above the estimates)
         let err = (vol * (i7 - i5).abs()).max(50.0 * f64::EPSILON * vol * abs);

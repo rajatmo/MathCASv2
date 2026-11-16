@@ -10,7 +10,7 @@ pub struct Clip {
     pub text: Option<String>,
     /// the private flavour of cells: cells as written by `mc_nbfile::print_cells`
     pub cells: Option<String>,
-    /// the private flavour of boxes (round 13): the canonical box text (4.4) of a copied range holding a square
+    /// the private flavour of boxes: the canonical box text (4.4) of a copied range holding a square
     /// root, fraction or power box; `text` then holds its linear text
     pub boxes: Option<String>,
 }

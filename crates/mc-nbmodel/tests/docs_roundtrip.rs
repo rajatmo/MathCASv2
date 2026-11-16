@@ -32,7 +32,7 @@ fn every_docs_notebook_reads_and_writes_byte_for_byte() {
             continue;
         }
         // 19 pages of `docs/functions` have one blank line more or less between two cells than the writer puts
-        // (the file reader's normal form, before this round too): blank lines between cells are not compared
+        // (the file reader's normal form): blank lines between cells are not compared
         let lines = |t: &str| t.lines().filter(|l| !l.is_empty()).map(str::to_string).collect::<Vec<_>>();
         if lines(&saved) != lines(&text) && !text.contains("form=") {
             let d = text.lines().zip(saved.lines()).find(|(a, b)| a != b);

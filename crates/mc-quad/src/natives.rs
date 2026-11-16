@@ -166,7 +166,7 @@ enum CPoint<'h> {
     Toward(T<'h>),
 }
 
-/// The integral along a path through complex points (decision quad-2.1): `[z, a, b, c, ...]` with some point
+/// The integral along a path through complex points: `[z, a, b, c, ...]` with some point
 /// complex is the sum over the straight segments, segment p to q being the integral of f(p + t (q - p)) (q - p)
 /// for t from 0 to 1, and a last point `d * inf` the ray p + t d/|d| for t from 0 to inf. `None` when every point
 /// is real (the ordinary path).
@@ -373,7 +373,7 @@ impl NIntegrate {
             }
             return Ok(r);
         }
-        // the method (decision quad-1.2): nested one-dimensional rules for one variable or when a one-dimensional
+        // the method: nested one-dimensional rules for one variable or when a one-dimensional
         // method is named; the multidimensional methods otherwise
         let (kind, auto) = match (opts.method, kind) {
             (Some(_), Some(k)) => (Some(k), false),
@@ -1063,9 +1063,9 @@ fn ball_call<'h>(
 pub(crate) const TAIL_EXP: &str = "quad$tail_exp";
 
 /// `quad$tail_exp(u)`: `exp(u)`, except that a real ball `u` below -2^40 gives the ball `0 +- 2^-(2^40)` (which
-/// contains `exp(u)`, as `exp(u) < 2^(-1.44 * 2^40)`) instead of no value. The generic `exp` stays as it is (round 20
-/// tried an enclosure of that kind there and reverted it, because a radius that small in a sum such as
-/// `100 - exp(-exp(100))` claims millions of digits that the sum does not have); here only the integrand of the
+/// contains `exp(u)`, as `exp(u) < 2^(-1.44 * 2^40)`) instead of no value. The generic `exp` stays as it is (an enclosure of
+/// that kind there has a radius so small that in a sum such as
+/// `100 - exp(-exp(100))` it claims millions of digits that the sum does not have); here only the integrand of the
 /// ball integrator at the far nodes of a half-line uses it, where such a term is below every precision asked, and
 /// the radius of the integral is the error estimate of the rule, not the radii of its terms.
 pub(crate) struct TailExp;

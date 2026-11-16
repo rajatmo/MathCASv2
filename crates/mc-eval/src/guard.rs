@@ -1,5 +1,5 @@
 //! The panic guard: a panic inside an evaluation becomes `failure(internal, "message (location)", f)` and the
-//! session goes on (round 11).
+//! session goes on.
 //!
 //! A native function that panics (an index out of bounds, an `expect` on a case its author thought impossible) used
 //! to unwind through the evaluator, the session's pool and the engine, and end the kernel. Now:

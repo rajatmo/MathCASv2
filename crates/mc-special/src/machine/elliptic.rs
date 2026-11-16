@@ -549,7 +549,7 @@ fn sncndn(u: DD, m: DD, mc: DD) -> (DD, DD, DD) {
 /// (sn, cn, dn)(u | m) for any real m (NaN for NaN or infinite arguments).
 fn jacobi(u: f64, m: f64) -> (f64, f64, f64) {
     if u.is_nan() || m.is_nan() || u.is_infinite() || m.is_infinite() || u.abs() > 1e12 {
-        // beyond 1e12 the double-double argument has no digit of the reduction modulo the period (D23-24): the
+        // beyond 1e12 the double-double argument has no digit of the reduction modulo the period: the
         // caller falls back to the ball evaluation, which reduces with K at the bits needed
         return (f64::NAN, f64::NAN, f64::NAN);
     }

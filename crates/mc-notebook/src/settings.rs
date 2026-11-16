@@ -49,8 +49,7 @@ pub struct Settings {
     pub caret_blink: bool,
     /// typing an opening bracket or quote inserts its closer
     pub auto_close: bool,
-    /// outputs end at the content's right edge (View > Output alignment > Right); off (the default, user
-    /// decision of round 13): they start at the left edge like inputs
+    /// outputs end at the content's right edge (View > Output alignment > Right); off (the default): they start at the left edge like inputs
     pub outputs_right: bool,
     /// only the bundled fonts, never the system's (the same look on every system)
     pub bundled_fonts: bool,

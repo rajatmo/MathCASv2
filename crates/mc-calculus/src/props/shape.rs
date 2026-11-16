@@ -144,7 +144,7 @@ fn decide<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, order:
     let region = s.cond.unwrap_or_else(|| cx.bool(true));
     let xs = cx.list(&s.vars);
     // monotonicity and convexity: a real pole of `f` inside the region breaks it (the function jumps across the pole,
-    // B26-5; and the domain is no longer one interval: `1/x^2 + a` is not convex on x != 0, as `1/x^2` is not)
+    // and the domain is no longer one interval: `1/x^2 + a` is not convex on x != 0, as `1/x^2` is not)
     let mut no_pole = vec![];
     if order >= 1 {
         let tf = cx.eval(b.call("together", &[f]))?;

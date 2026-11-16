@@ -542,7 +542,7 @@ const PRINT_LATER: [mc_graphics::deferred::Later; 2] = [
     mc_graphics::deferred::Later { ext: PRINT_EXTENSIONS[0], size: Some(PRINT_SIZE), format: Format::Svg },
     mc_graphics::deferred::Later { ext: PRINT_EXTENSIONS[1], size: Some(PRINT_SIZE), format: Format::Pdf },
 ];
-/// The page of a plot's column twin (round 37), in points: the plot laid out for the picture column of a notebook's
+/// The page of a plot's column twin, in points: the plot laid out for the picture column of a notebook's
 /// PDF export (`mc-nbexport`: A4 with 2 cm margins, pictures 459.9 pt wide, code at 10.5 pt), where it is drawn
 /// scaled to the column's width. The window shows a plot's 13-point text at the size of the code (13 px); this
 /// page keeps that proportion in the PDF: 459.9 x 13 / 10.5 = 569.4 points wide, the default page's shape, so the
@@ -719,7 +719,7 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
     };
     cx.poll()?;
     let scene = if three { text.as_deref() } else { None };
-    // a 3D picture of the default size also gets a column twin (round 38): the projection drawn on a page as wide as
+    // a 3D picture of the default size also gets a column twin: the projection drawn on a page as wide as
     // a 2D plot's twin, its text and lines at their own sizes, so the PDF export draws it at the column's width with
     // its text in the proportion the window shows
     let mut twins: Vec<(&str, Vec<u8>)> = vec![];
@@ -881,7 +881,7 @@ fn write_files(files: &[Vec<u8>], json: &str, scene: Option<&str>, twins: &[(&st
         std::fs::write(&sidecar, text).map_err(|e| e.to_string())?;
     } else {
         // a 3D scene left under this name by an earlier process with the same id and count must not make this
-        // 2D plot look like a 3D one (R20-15)
+        // 2D plot look like a 3D one
         let _ = std::fs::remove_file(&sidecar);
     }
     // the twins, and no twin an earlier process left under this name (a plot of its own size has none; the PDF
@@ -1865,7 +1865,7 @@ fn one_option<'h>(cx: &NativeCx<'_, '_, 'h>, key: &str, v: T<'h>, look: &mut Loo
                 return Some(true);
             }
             // `bar_legend(scheme)` on a plot with a colour bar (density, contour): the scheme colours the plot and
-            // the bar is shown (ui B21-14)
+            // the bar is shown
             if takes("color_bar") {
                 if let Some(scheme) = bar_scheme(cx, v) {
                     look.gradient = Some(match mc_graphics::gradient::read(h, scheme) {

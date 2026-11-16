@@ -1,7 +1,6 @@
 //! Definite integrals of functions defined by cases (decision IOSYM.2): `abs`, `sign`,
 //! `unit_step`, `max`, `min`, `if` and `piecewise` of the variable, and the integer-valued step functions `floor`,
-//! `ceiling`, `round`, `integer_part` and `fractional_part` of a linear argument over a bounded interval (round 19,
-//! Q19-34: cut where the argument crosses an integer, or a half-integer for `round`; at most 64 pieces).
+//! `ceiling`, `round`, `integer_part` and `fractional_part` of a linear argument over a bounded interval (cut where the argument crosses an integer, or a half-integer for `round`; at most 64 pieces).
 //!
 //! The interval is cut at the real zeros of the switching expressions (the arguments of `abs`, `sign` and
 //! `unit_step`, the differences of the arguments of `max` and `min`, the two sides of every comparison in a

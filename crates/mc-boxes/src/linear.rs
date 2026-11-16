@@ -179,7 +179,7 @@ fn write_row(row: &Row, out: &mut String) {
                     .find(|x| !matches!(x, Item::Char(' ')))
                     .map_or(Side::Edge, |x| if let Item::Char(c) = x { Side::Char(*c) } else { Side::Box });
                 // a number right before a power or a call that starts with a name or `(` multiplies it by
-                // juxtaposition, which binds like `*` (round 32: `2x^2`, not `2(x^2)`)
+                // juxtaposition, which binds like `*` (`2x^2`, not `2(x^2)`)
                 let coefficient = ends_with_number(&out[start..])
                     && t.chars().next().is_some_and(|c| c.is_alphabetic() || c == '(');
                 let wrap = match form {

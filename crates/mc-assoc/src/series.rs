@@ -1,11 +1,11 @@
-//! Data containers (round 29): `weighted_data(data, weights)`, `event_data(data, flags)`, `time_series(values,
+//! Data containers: `weighted_data(data, weights)`, `event_data(data, flags)`, `time_series(values,
 //! times)` and `temporal_data(values, times)`.
 //!
 //! They are held terms with a normal form and properties read by calling the container on a property name:
 //! `ts("Values")`. A series made from time-value pairs `time_series([[t1, v1], ...])`, from values alone (times 0,
 //! 1, 2, ...) or from values and a start and end time `time_series(values, [t0, t1])` (evenly spaced) is stored as `time_series(values,
 //! times)`. The statistics `mean`, `median`, `variance`, `std_dev`, `quantile` of a series are those of
-//! its values (decision b29.2); `mean` of weighted data is the weighted mean `dot(data, w) / total(w)`.
+//! its values; `mean` of weighted data is the weighted mean `dot(data, w) / total(w)`.
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Attributes, Kernel, Native, NativeCx, Reply, Res, Rhs};
 use mc_eval::pat::{self, Pat};

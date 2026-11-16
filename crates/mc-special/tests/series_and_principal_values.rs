@@ -36,7 +36,7 @@ fn close(src: &str, want: &[(f64, f64)], tol: f64) {
     }
 }
 
-/// G59: elementary and special functions of a series give the series of the composition.
+/// Elementary and special functions of a series give the series of the composition.
 #[test]
 fn functions_of_series() {
     check(&[
@@ -48,7 +48,7 @@ fn functions_of_series() {
     ]);
 }
 
-/// G62 and the principal values: machine arguments outside a function's real domain give complex values, complex
+/// The principal values: machine arguments outside a function's real domain give complex values, complex
 /// arguments without an algorithm of their own go through formulas.
 #[test]
 fn complex_values_at_machine_arguments() {

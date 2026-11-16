@@ -57,7 +57,7 @@ fn common_options_are_accepted() {
     assert!(svg(&p).contains(r#"aria-label="a title""#));
 }
 
-/// Gap queue G19, G20, G21: titles, grid lines with styles, epilog on log plots.
+/// Titles, grid lines with styles, epilog on log plots.
 #[test]
 fn titles_grid_lines_and_epilog() {
     let mut e = CoreEngine::new();
@@ -71,7 +71,7 @@ fn titles_grid_lines_and_epilog() {
     assert!(s.contains("#ff0000") && s.contains(r#"aria-label="m""#), "{s}");
 }
 
-/// Gap queue G18, G22: plots combined with show and laid out side by side.
+/// Plots combined with show and laid out side by side.
 #[test]
 fn plots_combine_and_lay_out() {
     let mut e = CoreEngine::new();
@@ -99,7 +99,7 @@ fn plots_combine_and_lay_out() {
     assert_eq!(eval(&mut e, "row([1, 2])"), "row([1, 2])");
 }
 
-/// Gap queue G23: contours of scattered values and of an equation.
+/// Contours of scattered values and of an equation.
 #[test]
 fn contours_of_scattered_values_and_equations() {
     let mut e = CoreEngine::new();
@@ -111,7 +111,7 @@ fn contours_of_scattered_values_and_equations() {
     is_image(&mut e, "contour_plot([x^2 + y^2 == 1, x == y], [x, -1, 1], [y, -1, 1])");
 }
 
-/// Gap queue G24, G25: colours as lists and values; per-curve thickness; the rule form of filling.
+/// Colours as lists and values; per-curve thickness; the rule form of filling.
 #[test]
 fn colours_thickness_and_filling_rules() {
     let mut e = CoreEngine::new();
@@ -128,7 +128,7 @@ fn colours_thickness_and_filling_rules() {
     is_image(&mut e, "plot(sin(x), [x, 0, 1], filling: top)");
 }
 
-/// Gap queue G30, G33, G34, G36: a legend title, filling one curve, the whole range of data, accents in labels.
+/// A legend title, filling one curve, the whole range of data, accents in labels.
 #[test]
 fn legend_titles_partial_filling_full_ranges_and_accents() {
     let mut e = CoreEngine::new();
@@ -143,7 +143,7 @@ fn legend_titles_partial_filling_full_ranges_and_accents() {
     let j: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&std::fs::read(std::path::Path::new(image_path(&p)).with_extension("json")).unwrap())).unwrap();
     assert!(j["y"]["max"].as_f64().unwrap() >= 1.0, "{}", j["y"]);
     assert_eq!(j["series"].as_array().unwrap().len(), 2, "both lines drawn");
-    // G37: joined per data set
+    // Joined per data set
     let p = is_image(&mut e, "list_plot([[[1, 1], [2, 2], [3, 3]], [[1, 2], [2, 1], [3, 2]]], joined: [true, false])");
     let j: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&std::fs::read(std::path::Path::new(image_path(&p)).with_extension("json")).unwrap())).unwrap();
     let kinds: Vec<&str> = j["series"].as_array().unwrap().iter().map(|s| s["kind"].as_str().unwrap()).collect();
@@ -154,7 +154,7 @@ fn legend_titles_partial_filling_full_ranges_and_accents() {
     assert!(!svg(&p).contains("\\barb"));
 }
 
-/// Gap queue G26: graphics as the frames of an animated GIF.
+/// Graphics as the frames of an animated GIF.
 #[test]
 fn animations_are_gif_files() {
     let mut e = CoreEngine::new();
@@ -226,7 +226,7 @@ fn three_dimensional_plots() {
     assert_eq!(eval(&mut e, "plot3d(x, [x, 1, 0], [y, 0, 1])"), "failure(argument, plot3d, 2)");
 }
 
-/// Gap queue G26: export_data of a list of graphics (or plots) writes an animated GIF.
+/// Export_data of a list of graphics (or plots) writes an animated GIF.
 #[test]
 fn export_data_writes_animations() {
     let mut e = CoreEngine::new();
@@ -276,7 +276,7 @@ fn callouts_and_placed_labels() {
     is_image(&mut e, "graphics([circle(), placed(\"$r = 1$\", below)])");
 }
 
-/// Gap queue G43, G44, G49: letter styles in labels, hex colours in grid lines and directives, epilog positions in
+/// Letter styles in labels, hex colours in grid lines and directives, epilog positions in
 /// data values on log axes, and layouts of dense plots drawn from the remembered graphics.
 #[test]
 fn letter_styles_hex_grid_lines_and_dense_layouts() {
@@ -336,7 +336,7 @@ fn short_marks(svg: &str) -> usize {
         .count()
 }
 
-/// Gap queue G69: frame ticks per side, given ticks in data values on log axes next to the plot's own powers of
+/// Frame ticks per side, given ticks in data values on log axes next to the plot's own powers of
 /// ten, TeX in tick labels, long tick lists with minor marks.
 #[test]
 fn given_ticks_in_data_values_frame_ticks_and_minor_marks() {
@@ -367,14 +367,14 @@ fn given_ticks_in_data_values_frame_ticks_and_minor_marks() {
     assert!(short_marks(&s) >= 40, "minor marks: {}", short_marks(&s));
 }
 
-/// Gap queue G66, G72, G78: legends in a row with a rounded frame, placed in a corner, dashed styles given as lists.
+/// Legends in a row with a rounded frame, placed in a corner, dashed styles given as lists.
 #[test]
 fn legend_layouts_frames_and_places() {
     let mut e = CoreEngine::new();
     let s = svg(&is_image(&mut e, r#"plot([x, x^2], [x, 0, 1], plot_legends: line_legend(["a", "b"], legend_layout: row, legend_function: frame))"#));
     let ((xa, ya, _), (xb, yb, _)) = (label_at(&s, "a").unwrap(), label_at(&s, "b").unwrap());
     assert!(ya == yb && xb > xa + 10.0, "side by side: {xa} {ya}, {xb} {yb}");
-    // the frame is chrome: a class before its data (round nb-svg)
+    // the frame is chrome: a class before its data
     assert!(s.split("<path ").skip(1).any(|p| p[..p.find('>').unwrap()].contains('C') && p.contains("stroke=")), "a rounded frame");
     // placed(legend, [left, bottom]): the bottom left corner
     let s = svg(&is_image(&mut e, r#"plot([x, x^2], [x, 0, 1], plot_legends: placed(line_legend(["a", "b"]), [left, bottom]))"#));
@@ -386,7 +386,7 @@ fn legend_layouts_frames_and_places() {
     assert!(s.contains("stroke-dasharray") && s.contains(r#"aria-label="b""#));
 }
 
-/// Gap queue G74: label sizes (label_style, styled frame labels), framed columns inside graphics.
+/// Label sizes (label_style, styled frame labels), framed columns inside graphics.
 #[test]
 fn label_sizes_and_framed_columns() {
     let mut e = CoreEngine::new();

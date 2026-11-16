@@ -13,7 +13,7 @@
 //! - **Reduction and proof**: `T` is a period by construction (an integer multiple of a period of every periodic
 //!   subterm). The smallest period is `T / k` for the largest `k <= 24` (over the integers the smallest divisor `d`
 //!   of the integer period) that is not refuted: a shift is refuted when f(x + p) and f(x) are proved different at a
-//!   point (30-digit balls), and accepted only when f(x + p) - f(x) simplifies to 0 (round 43: agreement at six
+//!   point (30-digit balls), and accepted only when f(x + p) - f(x) simplifies to 0 (agreement at six
 //!   points is no proof); a shift neither refuted nor proved leaves the call unevaluated. A constant function (two
 //!   shifts not refuted) needs a derivative that simplifies to 0. Gap: a smallest period T/n with every prime factor
 //!   of n above 24 is not looked for.
@@ -75,7 +75,7 @@ fn candidates<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, x: T<'
             // c^w = exp(w log(c))
             let l = if *base == h.sym_term(b.hd.e) { b.one() } else { cx.eval(b.call("log", &[*base]))? };
             let Some(a) = slope(cx, *ex)? else {
-                // exp of a periodic function (exp(sin(x))): the periods of the exponent (B26-23)
+                // exp of a periodic function (exp(sin(x))): the periods of the exponent
                 let before = out.len();
                 return Ok(candidates(cx, b, *ex, x, integers, out)? && out.len() > before);
             };
@@ -88,7 +88,7 @@ fn candidates<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, x: T<'
         return Ok(false);
     }
     if s == b.hd.add || s == b.hd.mul || s == b.hd.list {
-        // `w - floor(w)` is the fractional part of a linear `w`: period 1 / slope (D26-17)
+        // `w - floor(w)` is the fractional part of a linear `w`: period 1 / slope
         let mut skip = vec![false; args.len()];
         if s == b.hd.add {
             for (i, &a) in args.iter().enumerate() {
@@ -128,7 +128,7 @@ fn candidates<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, x: T<'
     };
     if let (Some(p), [w]) = (base, args) {
         let Some(a) = slope(cx, *w)? else {
-            // a periodic function of a periodic one (sin(cos(x))): the periods of the inner function (B26-23)
+            // a periodic function of a periodic one (sin(cos(x))): the periods of the inner function
             let before = out.len();
             return Ok(candidates(cx, b, *w, x, integers, out)? && out.len() > before);
         };
@@ -183,7 +183,7 @@ fn one<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<'h>,
         }
     }
     let zero = b.zero();
-    // a constant function has no smallest period: 0 (D26-10)
+    // a constant function has no smallest period: 0
     if s.comps.iter().all(|&f| is_free(b, f, x)) {
         return Ok(Some(zero));
     }
@@ -385,7 +385,7 @@ fn refuted<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<
     let p = cx.eval(h.call(h.sym("rewrite"), &[p, fr]))?;
     // a huge integer power underflows the samples: `g^N` has the period of `g` (N odd) or of `abs(g)` (N even)
     let comps: Vec<T<'h>> = s.comps.iter().map(|&f| strip_big_power(b, f)).collect();
-    // a step function changes only at its jumps: samples spread over the periods (B26-1)
+    // a step function changes only at its jumps: samples spread over the periods
     let steps = !integers && comps.iter().any(|&f| has_steps(b, f));
     let points: Vec<T<'h>> = if steps {
         let pn = cx.eval(h.call(h.sym("n"), &[p]))?;

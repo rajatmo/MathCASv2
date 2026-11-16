@@ -151,8 +151,8 @@ fn split(nu: f64) -> (u64, f64) {
 
 /// K_nu(x) for machine reals (NaN for x < 0, +inf at x = 0).
 ///
-/// Moderate orders and arguments take the plain double-precision path [`fast`] (a few ulps, several times faster;
-/// decision cov-num.1); the rest, and any fast result near the edges of the double range, the double-double one.
+/// Moderate orders and arguments take the plain double-precision path [`fast`] (a few ulps, several times faster);
+/// the rest, and any fast result near the edges of the double range, the double-double one.
 pub fn bessel_k(nu: f64, x: f64) -> f64 {
     if nu.is_nan() || x.is_nan() || x < 0.0 {
         return f64::NAN;
@@ -175,7 +175,7 @@ pub fn bessel_k(nu: f64, x: f64) -> f64 {
     k_up(mu, n, x, k_pair(mu, x)).0.to_f64()
 }
 
-/// K_nu(x) in plain double precision (gap G94, decision cov-num.1): Steed's continued fraction CF2 and the forward
+/// K_nu(x) in plain double precision: Steed's continued fraction CF2 and the forward
 /// recurrence of the double-double path, for orders 0 <= nu <= 3 and 2 <= x <= 600: within about 8 ulps of the
 /// correctly rounded value (the double-double path is within 2), and many times faster. `None` outside
 /// that box or when the result lies within a factor 2^40 of the edges of the double range.

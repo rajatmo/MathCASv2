@@ -68,11 +68,11 @@ fn mul<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<T<'h>> {
 }
 
 /// `sum(f, [k, a, b])`, `sum(f, [k, n])` (k from 1 to n). `f` is held (the attribute `hold_first`): a body with
-/// effects (`sow`, `print`) runs once per term, as in `table`; the symbolic paths evaluate it once first (R20-10).
+/// effects (`sow`, `print`) runs once per term, as in `table`; the symbolic paths evaluate it once first.
 pub(crate) fn iterated<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [f, spec] = *args else { return Ok(Reply::Decline) };
-    // `sum(f, [k, [x1, x2, ...]])`: k takes the values of the list (decision io-core.15)
+    // `sum(f, [k, [x1, x2, ...]])`: k takes the values of the list
     if let Some(&[kv, vals]) = cx.as_list(spec) {
         if cx.as_list(vals).is_some() && matches!(h.view(kv), View::Sym(_)) {
             let terms = call(cx, "table", &[f, kv, vals])?;
@@ -100,7 +100,7 @@ pub(crate) fn iterated<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>,
         }
     }
     // non-integer numeric bounds: the terms are f(a), f(a + 1), ... up to b (the closed forms below assume integer
-    // bounds and give 9.625 for sum(k, [k, 1.5, 4]), whose terms 1.5 + 2.5 + 3.5 add to 7.5, D23-18)
+    // bounds and give 9.625 for sum(k, [k, 1.5, 4]), whose terms 1.5 + 2.5 + 3.5 add to 7.5)
     if let Some((kv, a, b)) = bounds {
         let (fa, fb) = (fractional(cx, a)?, fractional(cx, b)?);
         if fa.is_some() || fb.is_some() {
@@ -428,11 +428,11 @@ pub(crate) fn piecewise<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
 }
 
 /// `product(f, [k, a, b])`, `product(f, [k, n])`, `product(f, [k, [x1, ...]])`: the product of the terms, for
-/// integer bounds (at most `MAX_TERMS` terms) or a list of values (decision io-core.15); otherwise unevaluated.
+/// integer bounds (at most `MAX_TERMS` terms) or a list of values; otherwise unevaluated.
 pub(crate) fn iterated_product<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [f, spec] = *args else { return Ok(Reply::Decline) };
-    // the body is held: a body with effects runs once per term; the symbolic paths evaluate it once (R20-10)
+    // the body is held: a body with effects runs once per term; the symbolic paths evaluate it once
     if matches!(h.view(spec), View::Sym(_)) {
         let held = f;
         let f = cx.eval(f)?;
@@ -582,7 +582,7 @@ fn indefinite<'h>(cx: &mut NativeCx<'_, '_, 'h>, op: &str, f: T<'h>, spec: T<'h>
     }
     // a non-polynomial body goes to the summation library first (telescoping, periodic and Gosper antidifferences give
     // `g(k)` for `g(k + 1) - g(k)`; the sum from 0 to k - 1 below would give `g(k) - g(0)`); since `sum` holds its
-    // body (round 22) this native runs before that library, so it declines here
+    // body this native runs before that library, so it declines here
     if op == "sum" && !polynomial_in(h, f, spec) {
         return Ok(None);
     }

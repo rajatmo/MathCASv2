@@ -1,4 +1,4 @@
-//! Functions of one argument on packed arrays (gap G48, decision sp-core.3): the parts of complex numbers (`re`,
+//! Functions of one argument on packed arrays: the parts of complex numbers (`re`,
 //! `im_part`, `conjugate`, `arg`, `abs`) and the elementary functions (`exp`, `log`, `sin`, ...) applied to a packed
 //! array of machine reals or machine complex numbers work on the payload and give a packed array, without making a
 //! term per element.
@@ -32,7 +32,7 @@ enum Op {
     Arg,
     Abs,
     /// the square root of positive machine reals: the arithmetic's power `x^(1/2)`, `x.powf(0.5)`; also for one
-    /// machine real (a hot spot of the profiles: the general native takes four times as long, decision sp-core.6)
+    /// machine real (a hot spot of the profiles: the general native takes four times as long)
     Sqrt,
     Elem(Fun),
 }

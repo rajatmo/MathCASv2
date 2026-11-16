@@ -1,4 +1,4 @@
-//! The complexity measure `simplify` minimises (decisions s-cost.1 to s-cost.3).
+//! The complexity measure `simplify` minimises.
 //!
 //! - **Size** ([`Cost::size`]): a leaf count in which integers weigh by their length. Zero counts 1; a nonzero
 //!   integer counts its number of decimal digits, plus 1 when it is negative; a rational counts 1 plus its

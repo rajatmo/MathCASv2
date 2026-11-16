@@ -220,7 +220,7 @@ fn add_page<'h>(cx: &mut NativeCx<'_, '_, 'h>, out: &mut PdfOut, t: T<'h>, dpi: 
     let h = cx.heap();
     if let Some(src) = image_path(h, t) {
         let file = h.string(src);
-        // a plot's print twin, as for one plot (round 37: a list of plots printed its screen pages)
+        // a plot's print twin, as for one plot (a list of plots printed its screen pages)
         if let Some(pdf) = export_twin(src, "pdf") {
             return Ok(match open_pdf(h, file, &pdf.to_string_lossy()) {
                 Ok((doc, _)) => import_pages(cx, out, &doc, file)?,

@@ -1,6 +1,6 @@
-//! Machine fast paths of round 33:the Jacobi elliptic functions sn, cn, dn at a complex
-//! argument u and a real parameter m, in complex double-double arithmetic ([`crate::cdd`]). Before, a complex machine
-//! value went through the ball loop (6 to 35 ms per value), so `complex_plot3d` of any Jacobi function timed out.
+//! Machine fast paths for the Jacobi elliptic functions sn, cn, dn at a complex
+//! argument u and a real parameter m, in complex double-double arithmetic ([`crate::cdd`]). A ball loop takes 6 to 35
+//! ms per complex machine value, so `complex_plot3d` of any Jacobi function would time out on it.
 //!
 //! Method (DLMF 22.2.4-6, 22.6.9-11, 22.17, A&S 16.10-16.11):
 //! - m outside [0, 1]: the real-parameter transformations to mu in (0, 1) (m < 0: mu = -m/(1 - m), v = u sqrt(1 - m);
@@ -20,8 +20,8 @@ use mc_numeric::machine::C64;
 
 /// (sn, cn, dn)(u | m) for 0 < m <= 1/2 by the theta series.
 fn core(u: CD, m: DD) -> Option<(CD, CD, CD)> {
-    let k = crate::fast29::k_cd(CD::real(m))?;
-    let kp = crate::fast29::k_cd(CD::real(DD::ONE - m))?;
+    let k = crate::fast_dd::k_cd(CD::real(m))?;
+    let kp = crate::fast_dd::k_cd(CD::real(DD::ONE - m))?;
     let (k, kp) = (k.re, kp.re);
     // reduce modulo the periods
     let two_k = k.mul_f(2.0);
@@ -274,7 +274,7 @@ pub(crate) fn elliptic_pi_complete(n: CD, m: CD) -> Option<C64> {
     }
     let one = CD::ONE;
     let y = one - m;
-    let rf = crate::fast29::carlson_rf_cd(CD::ZERO, y, one)?;
+    let rf = crate::fast_dd::carlson_rf_cd(CD::ZERO, y, one)?;
     let rj = rj_cd(CD::ZERO, y, one, one - n)?;
     let v = (rf + (n * rj) / CD::f(3.0)).to_c64();
     (v.re.is_finite() && v.im.is_finite()).then_some(v)
@@ -294,7 +294,7 @@ pub(crate) fn elliptic_pi_inc(n: CD, phi: CD, m: CD) -> Option<C64> {
         let sn = ph.sin();
         let cs = ph.cos();
         let (s2, c2, one) = (sn * sn, cs * cs, CD::ONE);
-        let rf = crate::fast29::carlson_rf_cd(c2, one - m * s2, one)?;
+        let rf = crate::fast_dd::carlson_rf_cd(c2, one - m * s2, one)?;
         let rj = rj_cd(c2, one - m * s2, one, one - n * s2)?;
         sn * (rf + (n * s2 * rj) / CD::f(3.0))
     };
@@ -321,7 +321,7 @@ pub(crate) fn elliptic_f_beyond(phi: f64, m: f64) -> Option<C64> {
     let (sn, cs) = CD::sin_cos_real(ph);
     let (s2, c2) = (sn * sn, cs * cs);
     let y = CD::new(DD::ONE - DD::new(m) * s2, DD::new(1e-290));
-    let part = CD::real(sn) * crate::fast29::carlson_rf_cd(CD::real(c2), y, CD::ONE)?;
+    let part = CD::real(sn) * crate::fast_dd::carlson_rf_cd(CD::real(c2), y, CD::ONE)?;
     let tot = if k == 0.0 {
         part
     } else {
@@ -479,8 +479,8 @@ pub(crate) fn elliptic_k_above_one(m: f64) -> Option<C64> {
     }
     let md = DD::new(m);
     let inv = DD::ONE / md;
-    let a = crate::fast29::k_cd(CD::real(inv))?.re;
-    let b = crate::fast29::k_cd(CD::real(DD::ONE - inv))?.re;
+    let a = crate::fast_dd::k_cd(CD::real(inv))?.re;
+    let b = crate::fast_dd::k_cd(CD::real(DD::ONE - inv))?.re;
     let rt = md.sqrt();
     let v = CD::new(a / rt, -(b / rt)).to_c64();
     (v.re.is_finite() && v.im.is_finite()).then_some(v)

@@ -48,7 +48,7 @@
 //! [`S::Pair`] that calls the arithmetic or `mc-numeric` themselves. Exact complex numbers are compiled only as
 //! constant operands of a sum or product (`y*im`).
 //!
-//! **Library calls and more** (round 13, decisions LC.1 to LC.9): special functions of machine reals (`bessel_k`,
+//! **Library calls and more** (decisions LC.1 to LC.9): special functions of machine reals (`bessel_k`,
 //! `gamma`, `erf`, ...), local interpolations and derivatives of interpolations, and solutions of `n_dsolve` are
 //! [`E::Call`]s of [`crate::callee`]; `piecewise`, `unit_step`, `heaviside_theta` and `sign` are branches and
 //! selections giving the interpreter's exact values; pure subterms are computed once per binding environment (common
@@ -463,7 +463,7 @@ enum Prim {
     Draw(Draw),
     Sum,
     Table,
-    /// `piecewise(cases)`, `piecewise(cases, default)` (round 13): nested `if`s
+    /// `piecewise(cases)`, `piecewise(cases, default)`: nested `if`s
     Piecewise,
     /// `unit_step(x, ...)`: the exact 1 when every x >= 0, else the exact 0
     UnitStep,
@@ -608,7 +608,7 @@ struct Fe<'h, 's> {
     consts: [(Sym, f64); 2],
     /// the imaginary unit `im` (the exact `complex(0, 1)`)
     im: Sym,
-    /// common subexpressions (round 13, decision LC.6): the values of pure subterms already computed, one table
+    /// common subexpressions (decision LC.6): the values of pure subterms already computed, one table
     /// per open statement list (a value computed in a branch is not available after it), keyed by the term and the
     /// binding environment it was computed in
     memo: Vec<HashMap<(T<'h>, u64), Val>>,
@@ -1878,7 +1878,7 @@ impl<'h> Fe<'h, '_> {
         self.real_arg_kind(t).map(|(e, _)| e)
     }
 
-    /// The library function `id` ([`crate::callee`]) at `args` (round 13, decision LC.1). With `special`, one
+    /// The library function `id` ([`crate::callee`]) at `args` (decision LC.1). With `special`, one
     /// argument at least must be a machine real: with exact arguments only, the interpreter keeps the call exact.
     fn library_call(&mut self, id: u32, s: Sym, args: &'h [T<'h>], special: bool) -> Res<Val> {
         if args.is_empty() || args.len() > crate::callee::MAX_ARGS {
@@ -2238,7 +2238,7 @@ impl<'h> Fe<'h, '_> {
                 }
                 // an untyped parameter of an inlined function takes the argument's own value (the interpreter binds
                 // whatever it is given): a number in a fresh variable, a complex number or a list held once, a
-                // vector as it is (round 13)
+                // vector as it is
                 Param::Vector => match self.value(a)? {
                     v @ Val::V(..) => v,
                     Val::S(_, Ty::Bool) => return Err(format!("`{name}` called with a boolean")),

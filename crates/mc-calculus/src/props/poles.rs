@@ -75,7 +75,7 @@ pub fn poles<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>) -> 
             }
             Some(GammaOrEq::Gamma(u)) => {
                 if !bounded {
-                    // the poles `u = -k`, `k = 0, 1, 2, ...`, of a linear `u`: the family `(-k - u0)/a` (F27.5)
+                    // the poles `u = -k`, `k = 0, 1, 2, ...`, of a linear `u`: the family `(-k - u0)/a`
                     let a = cx.eval(b.call("d", &[u, x]))?;
                     if !is_free(b, a, x) || a == b.zero() {
                         return Ok(None);

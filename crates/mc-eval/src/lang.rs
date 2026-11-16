@@ -663,7 +663,7 @@ impl Native for Rewrite {
             [e, r, o] => (e, r, Some(o)),
             _ => return Ok(Reply::Decline),
         };
-        // a list of rule lists (`solve`'s solutions): one result per list (decision p6core.13)
+        // a list of rule lists (`solve`'s solutions): one result per list
         if let Some(sets) = cx.as_list(rules).filter(|rs| !rs.is_empty() && rs.iter().all(|&r| cx.as_list(r).is_some())) {
             let head = h.sym_term(h.sym("rewrite"));
             let calls: Vec<T<'h>> = sets
@@ -820,7 +820,7 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     let fx = |hold| Attributes { hold, effect: true, ..Attributes::default() };
     k.register(h.sym("fn"), a(Hold::All), Box::new(Closure));
     k.register_form(h.sym("block"), a(Hold::All), Form::Block);
-    // assignments keep failures (decision p6core.25)
+    // assignments keep failures
     let keep = |at: Attributes| Attributes { handles_failures: true, ..at };
     k.register(h.sym("let"), keep(fx(Hold::First)), Box::new(TopLocal));
     k.register(h.sym("var"), keep(fx(Hold::First)), Box::new(TopLocal));

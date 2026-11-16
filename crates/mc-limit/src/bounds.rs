@@ -1,6 +1,5 @@
 //! Real bounds and critical points ([`Pt`]: a finite real constant or an infinity), the sign and order of constants,
-//! and substitution, shared by limits and definite integrals (round 34: moved here from the definite integrals,
-//! now `mc-integrals`, when limits and integration became crates of their own).
+//! and substitution, shared by limits and definite integrals (`mc-integrals`).
 use mc_api::{names, Store, View, T};
 use mc_calculus::common::{apply, is_free};
 use mc_calculus::term::Build;

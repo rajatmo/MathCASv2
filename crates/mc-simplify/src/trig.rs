@@ -151,7 +151,7 @@ pub fn exp_to_trig<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Re
 
 /// [`exp_to_trig`]; `real`: also exp(x) = cosh(x) + sinh(x) for a real exponent. Off everywhere for now: the
 /// transforms, d_solve and simplify call exp_to_trig expecting exponentials of real arguments to stay (exp(-t)
-/// would become cosh(t) - sinh(t)); a user-facing option can turn it on later (round 28 note)
+/// would become cosh(t) - sinh(t)); a user-facing option can turn it on later
 pub fn exp_to_trig_with<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, real: bool) -> Res<T<'h>> {
     let r = rewrite(cx, b, t, &mut |_, b, node| {
         let Some(u) = b.exp_arg(node) else { return Ok(None) };
@@ -369,7 +369,7 @@ fn product_to_sum<'h>(b: &B<'h>, node: T<'h>) -> Option<T<'h>> {
     // the sine and cosine factors (circular, then hyperbolic: the first family with two of them is rewritten), one
     // entry per unit of power, and the other factors; products of more than MAX_TRIG_UNITS sines and cosines are
     // left alone (sin(x)^(2^31) would need a list of 2^31 entries, 16 GB, and the allocation failure aborts the
-    // process; found by the round 21 fuzz campaign)
+    // process)
     for (sn, cs, circular) in [(hd.sin, hd.cos, true), (hd.sinh, hd.cosh, false)] {
         let mut trig: Vec<(Sym, T<'h>)> = Vec::new();
         let mut rest: Vec<T<'h>> = Vec::new();

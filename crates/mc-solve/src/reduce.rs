@@ -124,7 +124,7 @@ pub(crate) fn several<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>,
         return Ok(None);
     }
     // one variable without parameters: the exact algorithm below, unless a function of the variable that is not
-    // rational (abs, a radical, max) needs the decomposition's case split (round 19, Q19-38)
+    // rational (abs, a radical, max) needs the decomposition's case split
     if vars.len() == 1 && !quantified && !has_parameters(h, cond, vars[0]) && rational_in(h, cond, vars[0]) {
         return Ok(None);
     }
@@ -185,7 +185,7 @@ fn rational_in<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
     true
 }
 
-/// `reduce(eqs, xs, modulus: n)` (round 19, Q19-06): the solutions of `solve(eqs, xs, modulus: n)` (every residue
+/// `reduce(eqs, xs, modulus: n)`: the solutions of `solve(eqs, xs, modulus: n)` (every residue
 /// tried, `crate::modular`) as a disjunction of conjunctions `x == r`; `false` for none. `None` when there is no
 /// modulus option.
 pub(crate) fn modulus<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<'h>>> {

@@ -212,7 +212,7 @@ impl C64 {
 }
 
 /// The elements of a list of machine numbers (machine reals, or complex numbers with machine parts), read without
-/// the evaluator (a packed array through its payload); `None` for any other list or term (gap queue G48). Each
+/// the evaluator (a packed array through its payload); `None` for any other list or term. Each
 /// element keeps its kind: a complex leaf with a zero imaginary part is a complex number, as in packed complex
 /// arrays and for one number alone.
 pub fn machine_list<H: mc_api::Store + ?Sized>(h: &H, t: mc_api::T<'_>) -> Option<Vec<Mach>> {
@@ -260,8 +260,8 @@ pub fn machine_list_term<'h, H: mc_api::Store + ?Sized>(h: &'h H, vals: &[Mach])
     h.call(h.sym(mc_api::names::LIST), &items)
 }
 
-/// A sum or product of machine real lists (equal lengths) and machine numbers, elementwise without the evaluator
-/// (gap queue G48). `None` unless some argument is such a list and every other argument a machine real, a machine
+/// A sum or product of machine real lists (equal lengths) and machine numbers, elementwise without the evaluator.
+/// `None` unless some argument is such a list and every other argument a machine real, a machine
 /// integer, or such a list; complex operands are left to the evaluator's element-wise arithmetic, which folds them
 /// as the arithmetic does.
 pub fn list_arith<'h, H: mc_api::Store + ?Sized>(h: &'h H, product: bool, args: &[mc_api::T<'h>]) -> Option<mc_api::T<'h>> {

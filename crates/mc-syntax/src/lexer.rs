@@ -5,7 +5,7 @@
 //!   of open brackets for this; inside `{...}` new lines are significant again (blocks, modules, match arms).
 //! - **Juxtaposition** (`2x`, `3(a+b)`): a [`Tok::Juxt`] token is inserted between a number and a name or `(` that
 //!   follows it with no space in between (decision C.3). Operands separated by white space (`a b`, `2 pi r`) are
-//!   multiplied by the parser, which sees the space as a gap between the tokens' spans (round 35).
+//!   multiplied by the parser, which sees the space as a gap between the tokens' spans.
 use crate::ident::{alias, is_ident_continue, is_ident_start, is_keyword, symbol_alias, unicode_operator, PLACEHOLDER};
 use crate::span::{Diagnostic, Span};
 
@@ -630,7 +630,7 @@ impl<'s> Lexer<'s> {
     }
 
     /// `%` (the previous result), `%%` (the one before; one more `%` per step back), `%n` (result n): the tokens
-    /// of `out(-1)`, `out(-2)`, `out(n)` (gap G77).
+    /// of `out(-1)`, `out(-2)`, `out(n)`.
     fn history(&mut self) {
         let start = self.pos;
         let mut back = 0u32;

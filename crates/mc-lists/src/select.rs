@@ -11,7 +11,7 @@ pub(crate) fn select<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
     let h = cx.heap();
     let (xs, f, most) = match *args {
         [xs, f] => (xs, f, usize::MAX),
-        // `select(xs, f, n)`: the first n (decision io-core.6)
+        // `select(xs, f, n)`: the first n
         [xs, f, n] => match h.view(n) {
             View::Int(n @ 0..) => (xs, f, n as usize),
             _ => return Ok(Reply::Decline),
@@ -29,7 +29,7 @@ pub(crate) fn select<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
         _ => (f, None),
     };
     let (head, xs) = take!(lib.operand(h, t, xs, 1));
-    // an association's entries are tested by their values (decision p6core.22)
+    // an association's entries are tested by their values
     let rule = h.sym_term(lib.s.rule);
     let by_value = head == h.sym_term(h.sym("assoc"))
         && xs.iter().all(|&x| matches!(h.view(x), View::App { head: r, args: [_, _] } if r == rule));
@@ -117,7 +117,7 @@ fn pattern<'l, 'h>(
 /// for each match, `r` with the pattern's variables replaced, evaluated.
 pub(crate) fn cases<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // `cases(x, p, levels)`, `cases(x, p, levels, n)`: the parts at the levels, the first n (decision io-core.11)
+    // `cases(x, p, levels)`, `cases(x, p, levels, n)`: the parts at the levels, the first n
     let (args, heads) = crate::ctx::option(h, args, 2, "heads");
     // with `heads: true` the default level is 1: the head and the elements
     let with_level;

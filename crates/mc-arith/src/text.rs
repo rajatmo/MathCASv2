@@ -79,7 +79,7 @@ pub fn ball_digits(b: &Ball, p: u64) -> Option<Digits> {
     }
     let r = if b.rad.is_zero() { Mag::pow2(b.mid.top() - p as i64 - 1) } else { b.rad };
     // a radius far below the last bit of the working precision (1 - 10.0~25^-10^8 is 1 to 10^8 digits) does not make
-    // more digits worth printing: the exact difference m - r would have the whole exponent gap as digits (X26-16)
+    // more digits worth printing: the exact difference m - r would have the whole exponent gap as digits
     let floor = Mag::pow2(b.mid.top() - p as i64 - 64);
     let r = if r.to_float().top() < floor.to_float().top() { floor } else { r };
     let m = b.mid.abs();

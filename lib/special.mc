@@ -9,7 +9,7 @@ fn ds_product(f, a, b) = fold((p, q) => p*q, 1, map(f, range(a, b)))
 
 # --- series of special functions ---
 #
-# The `series` native hands a call it declines to ds_series(e, x, x0, k) (crates/mc-special/src/series30.rs). Each
+# The `series` native hands a call it declines to ds_series(e, x, x0, k) (crates/mc-special/src/series_fallback.rs). Each
 # special function f(..., u, ...) of x in e whose expansion at u0 (the value of u at x0, or inf) is known is replaced
 # by the expansion truncated after enough terms, and `series` runs again on the result; an expansion at infinity
 # with an exponential or oscillating factor, ds_pieces([[p1, s1], ...]) for p1 s1 + ..., is only used when e is a
@@ -198,7 +198,7 @@ rule ds_at(jacobi_sd(u_, m_), 1, u0_, k_) := jacobi_sn(u, m)/jacobi_dn(u, m)
 rule ds_at(jacobi_cd(u_, m_), 1, u0_, k_) := jacobi_cn(u, m)/jacobi_dn(u, m)
 rule ds_at(jacobi_dc(u_, m_), 1, u0_, k_) := jacobi_dn(u, m)/jacobi_cn(u, m)
 
-# the Jacobi functions as series in the parameter m about 0 (round 36). The amplitude phi(u | m) = u + sum m^n phi_n(u)
+# the Jacobi functions as series in the parameter m about 0. The amplitude phi(u | m) = u + sum m^n phi_n(u)
 # solves phi' = dn = (1 - m sin^2 phi)^(1/2), phi(0) = 0, so each phi_n is the integral of the m^n coefficient of the
 # right side computed from phi_1 ... phi_(n-1) (Byrd and Friedman 710; Abramowitz and Stegun 16.13 for the first
 # order); sn = sin(phi), cn = cos(phi), dn = phi', E(am u | m) = integral of dn^2, Z = E(am u | m) - u E(m)/K(m).
@@ -280,7 +280,7 @@ rule ds_at(inverse_jacobi_ns(v_, m_), 2, 0, k_) := ds_ij1(v, m, 4, 1, acsc(v)) w
 rule ds_at(inverse_jacobi_ds(v_, m_), 2, 0, k_) := ds_ij1(v, m, 3, 1, acsc(v)) when k == 4
 rule ds_at(inverse_jacobi_cs(v_, m_), 2, 0, k_) := ds_ij1(v, m, 2, 1, acot(v)) when k == 4
 
-# --- series (round 36): functions defined by a series, a differential equation or a known expansion in a parameter ---
+# --- series: functions defined by a series, a differential equation or a known expansion in a parameter ---
 # the Taylor/Frobenius coefficients y_0 ... y_K at a point of the solution of A y'' + B y' + C y = 0, with the polynomials
 # given by their coefficient lists (powers of t = z - z0, index i + 1): at a regular singular point (A(z0) = 0) the
 # solution of exponent 0 with y_0 = 1, else y_0 and y_1 given. The coefficient of t^n gives y_(n+1) (singular start) or
@@ -370,7 +370,7 @@ rule multinomial(a_, b_) := ds_multi([a, b]) when not (is_integer(a) and is_inte
 rule multinomial(a_, b_, c_) := ds_multi([a, b, c]) when not (is_integer(a) and is_integer(b) and is_integer(c))
 rule multinomial(a_, b_, c_, d_) := ds_multi([a, b, c, d]) when not (is_integer(a) and is_integer(b) and is_integer(c) and is_integer(d))
 
-# --- round 36: more series ---
+# --- more series ---
 
 # near 0 (more): the inverse nome as the quotient of theta constants lambda = 16 q (sum q^(j(j+1)))^4/(1 + 2 sum q^(j^2))^4
 # (DLMF 20.9.1-3), the regularized pFq termwise, the Anger and Weber functions of a numeric order from their integral
@@ -574,7 +574,7 @@ rule riemann_siegel_z(im_part(zeta_zero(k_))) := 0
 rule anger_j(nu_, 0) := sinc(pi*nu)
 rule weber_e(nu_, 0) := (if nu == 0 then 0 else (1 - cos(pi*nu))/(pi*nu)) when is_numeric(nu)
 
-# --- closed forms at exact arguments and symmetries (round 44) ---
+# --- closed forms at exact arguments and symmetries ---
 # an exact number (rational, algebraic or a multiple of pi; not a machine or ball number)
 fn ds_exact(z) = is_numeric(z) and precision(z) === inf
 # z written with a negative sign: a negative rational, or a product with a negative rational coefficient
@@ -947,7 +947,7 @@ rule prime_zeta_p(s_) := {
   sum(map(k => if moebius_mu(k) == 0 then 0 else moebius_mu(k)/k*log(zeta(k*s)), range(top)))
 } when is_inexact(s) and is_real(re(s)) and re(s) > 1
 # a real s in [1/5, 1): the same series; the terms with k s > 1 are real, and each log(zeta(k s)) with k s < 1 (zeta is
-# negative on (0, 1)) is taken on the principal branch, log|zeta(k s)| + i pi (round 44: below 1/2 too, so that
+# negative on (0, 1)) is taken on the principal branch, log|zeta(k s)| + i pi (below 1/2 too, so that
 # P(1/4) = ... + i pi/6 and P(4/11) = ... + i pi/2); the terms fall like 2^(-k s)/k, so (digits + 3) 3.33/s of them
 rule prime_zeta_p(s_) := {
   let digits = if is_machine_number(s) then 17 else precision(s)

@@ -1,5 +1,5 @@
 //! Injectivity of a function of one real variable from the pieces of its domain and the intermediate value
-//! theorem (round 43b).
+//! theorem.
 //!
 //! - **Pieces with limits** ([`by_pieces`]): the domain reduced to intervals, f continuous on each (no jumps). The
 //!   image of a piece contains the open interval between the limits of f at its two ends; when the open intervals of

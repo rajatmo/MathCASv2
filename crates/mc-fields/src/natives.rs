@@ -182,7 +182,7 @@ fn finite_field<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: &Syms, t: T<'h>, args: &[T
                 return decline();
             }
             if e > 4096 {
-                // the same degree cap as finite_field(p, n); no Conway search for degree 100000 (B26-10)
+                // the same degree cap as finite_field(p, n); no Conway search for degree 100000
                 return decline();
             }
             standard_field(cx, p, e as usize, repr)?
@@ -405,7 +405,7 @@ fn primitive_element<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: &Syms, _t: T<'h>, arg
     let [ft] = args else { return decline() };
     let Some(f) = field_of(h, s, *ft, cx)? else { return decline() };
     // an element of the prime field has order dividing p - 1: for n >= 2 the search starts at the index p (the
-    // element x), the first one outside it (B26-9: 10^6 constants used up the whole iteration cap for p > 10^6)
+    // element x), the first one outside it (10^6 constants used up the whole iteration cap for p > 10^6)
     let mut k = if f.n >= 2 { Nat::from_u64(f.p()) } else { Nat::from_u64(1) };
     for _ in 0..1_000_000 {
         if k >= f.q {
@@ -549,7 +549,7 @@ fn is_irreducible_polynomial<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: &Syms, _t: T<
             .collect();
         return Ok(Reply::Again(h.call(s.list, &calls)));
     }
-    // is_irreducible_polynomial(f) or (f, x): the variable may be named (D26-21)
+    // is_irreducible_polynomial(f) or (f, x): the variable may be named
     let (f, named) = match plain {
         [f] => (f, None),
         [f, x] if matches!(h.view(*x), View::Sym(_)) => (f, Some(*x)),
@@ -867,7 +867,7 @@ enum Op {
     Equal(bool),
     Element,
     MinimalPolynomial,
-    /// `multiplicative_order(a)` of an element (D26-09)
+    /// `multiplicative_order(a)` of an element
     Order,
     /// `factor` (`factor_square_free` when true)
     Factor(bool),
@@ -1262,7 +1262,7 @@ fn order<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: &Syms, a: T<'h>) -> Res<Option<Re
 }
 
 /// `p == q` for polynomials in one variable with elements of a field inside (and integers, which are numbers of its
-/// prime field): equal when they are the same polynomial over the field (D26-07: `expand(factor(p, extension: F))`
+/// prime field): equal when they are the same polynomial over the field (`expand(factor(p, extension: F))`
 /// against `p`). Unevaluated when a side is no such polynomial.
 fn deep_equality<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: &Syms, args: &[T<'h>], neg: bool) -> Res<Option<Reply<'h>>> {
     let h = cx.heap();
@@ -1284,7 +1284,7 @@ fn is_probable_prime(q: &Nat) -> bool {
 }
 
 /// `f(p, modulus: q)` with q = r^e (e > 1) as `f(p, extension: F_q)`: the polynomial functions over the field of q
-/// elements (D26-08). Unevaluated for a q that is no prime power.
+/// elements. Unevaluated for a q that is no prime power.
 fn as_extension<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: &Syms, name: mc_core::Sym, args: &[T<'h>]) -> Res<Option<Reply<'h>>> {
     let h = cx.heap();
     let Some(m) = option(h, s, args, "modulus") else { return Ok(None) };

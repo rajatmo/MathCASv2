@@ -1,4 +1,4 @@
-//! Complex-ball enclosures by power series (round 20, the precision contract): the hypergeometric series pFq with
+//! Complex-ball enclosures by power series (the precision contract): the hypergeometric series pFq with
 //! complex parameters and argument, and through it the Bessel functions J, I (and Y, K of non-integer order) and the
 //! Airy functions at complex arguments; digamma and polygamma at complex arguments by the asymptotic series.
 //!
@@ -91,7 +91,7 @@ fn log2_low_exact(z: &CBall) -> f64 {
 /// step (|t q - tm qm| <= |tm qm| (rel_t + rel_q + rel_t rel_q), a rotation-invariant bound). Rectangular complex
 /// balls multiplied directly grow their radii by (|Re q| + |Im q|)/|q| per factor (the wrapping effect): for
 /// 2F1(1/2, 1/2; 1; w) at w = 0.33 + 0.74 i (|w| = 0.81) the terms' radii grew like 1.06^k, the tail test never
-/// passed and the series ran to its term limit (elliptic_k of a complex ball hung, round 28 gap). Returns the term
+/// passed and the series ran to its term limit (elliptic_k of a complex ball hung). Returns the term
 /// as a ball, the new midpoint and the new bound.
 fn polar_step(tm: &CBall, lrel: f64, q: &CBall, wp: u64) -> (CBall, CBall, f64) {
     let qm = mid_c(q);

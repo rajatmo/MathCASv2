@@ -196,7 +196,7 @@ fn expo<'h>(
         return Ok(expo(cx, tc, st, kind, sgn, rest, t, w, depth + 1)?.map(|r| b.mul(&[c, r])));
     }
     // a derivative of an undefined function, g^(k)(t): (-i SGN w)^k G(w) (the kernel exp(i SGN w t), integration
-    // by parts; D21-09: the call was held and evaluated again until the depth limit)
+    // by parts; the call is not held, which would evaluate it again until the depth limit)
     if let View::App { head, args: [u] } = h.view(f) {
         if *u == t {
             if let Some((orders, g)) = b.as_derivative(head) {

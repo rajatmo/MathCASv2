@@ -189,7 +189,7 @@ pub fn integrate<'h>(
     Ok(Some(c.finish(cx, stop, v)?))
 }
 
-/// The value simplified under the facts of the context (decision n14e.I2): a value with logarithms, roots, `abs`,
+/// The value simplified under the facts of the context (roadmap item 14E): a value with logarithms, roots, `abs`,
 /// `sign` or inverse trigonometric functions of the parameters is refined and simplified once, and the smaller form
 /// kept (`-(1/8) log(a/2) a^2 + (1/8) log(-a/2) a^2` is `(im/8) pi a^2` when `a > 0`).
 fn under_facts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'h>) -> Res<T<'h>> {
@@ -446,8 +446,8 @@ fn on_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>
 
 /// `f` with each square root `(a + c cos(u))^(1/2)`, `u` depending on `x` and the expanded radicand of that form with
 /// numbers `a > 0` and `c = -a` or `c = a`, written by the half-angle formulas as `(2 a)^(1/2) abs(sin(u/2))` or
-/// `(2 a)^(1/2) abs(cos(u/2))` (1 -+ cos u = 2 sin^2(u/2), 2 cos^2(u/2)), valid for real `u` (round 36: the
-/// arc length of the astroid, the integral of sqrt(9/8 (1 - cos 4 t)) over [0, 2 pi], stayed unevaluated); `None`
+/// `(2 a)^(1/2) abs(cos(u/2))` (1 -+ cos u = 2 sin^2(u/2), 2 cos^2(u/2)), valid for real `u` (e.g. the
+/// arc length of the astroid, the integral of sqrt(9/8 (1 - cos 4 t)) over [0, 2 pi]); `None`
 /// when there is no such root.
 fn half_angle<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<Option<T<'h>>> {
     let h = b.heap();
@@ -574,7 +574,7 @@ fn real_range_in<'h>(
             all.extend(held.iter().copied());
             if let Some(v) = under_conditions(job, cx, b, f, x, lo, hi, all)? {
                 // recorded also without generate_conditions: the numeric check samples only where they hold
-                // (decision n14e.I3); they are attached only when asked for
+                // (roadmap item 14E); they are attached only when asked for
                 for c in cs {
                     job.record(c);
                 }
@@ -933,7 +933,7 @@ fn unordered_bounds<'h>(
 }
 
 /// Bounds whose order depends on the sign of one parameter (`integrate(sqrt(x (x - a)), [x, 0, a])`): the integral
-/// under `a > 0` and under `a < 0`, joined (decision n14e.I1): one value when they agree, `sign(a)` times the first
+/// under `a > 0` and under `a < 0`, joined (roadmap item 14E): one value when they agree, `sign(a)` times the first
 /// when they are opposite (`a abs(a)` for `a^2`), else a `piecewise` of the two; the result holds for real `a`,
 /// recorded as the condition `element(a, reals)`.
 fn by_sign_of_bounds<'h>(

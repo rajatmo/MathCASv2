@@ -126,7 +126,7 @@ pub(crate) fn parts(nb: &Notebook) -> Vec<Part> {
 }
 
 /// The title of the document: the first title cell's text (its first line), if any.
-/// Where the multiplication signs of a code text go (round 35: a space between two operands multiplies, and the
+/// Where the multiplication signs of a code text go (a space between two operands multiplies, and the
 /// notebook shows a faint sign there): for each such gap on one line, the byte offset of its middle space. An export
 /// writes the sign in place of that space, so the columns of the code do not move. A product across a line end has
 /// no space to take and gets none.

@@ -76,7 +76,7 @@ fn refine_decides_membership_and_comparisons() {
 fn simplify_with_facts_and_options() {
     check(&[
         ("simplify(sqrt(x^2), x > 0)", "x"),
-        // the measure chooses (decision s-cost.5): abs(x) (2) is simpler than -x = mul(-1, x) (4); refine gives -x
+        // the measure chooses: abs(x) (2) is simpler than -x = mul(-1, x) (4); refine gives -x
         ("simplify(abs(x), x < 0)", "abs(x)"),
         ("refine(abs(x), x < 0)", "-x"),
         ("simplify(abs(x) + x, x < 0)", "0"),

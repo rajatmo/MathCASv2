@@ -187,7 +187,7 @@ pub(crate) fn integrate<'h, S: Scalar>(
         ranges.push(range);
     }
     // an algebraic tail beyond the machine range: that piece is integrated in ln|x - a| with the tail beyond e^230
-    // added from its power law (R24-02)
+    // added from its power law
     if let Some(pi) = tail_piece {
         if let Some(out) = algebraic_tail(cx, f, pieces, pi, goals, max_level)? {
             return Ok(out);

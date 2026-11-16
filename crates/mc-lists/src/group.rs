@@ -126,7 +126,7 @@ pub(crate) fn unique_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
 }
 
 /// `count_by(xs, f)`: the association of each distinct key `k = f(x)` with its number of elements, in order of first
-/// occurrence (decision p6core.29, like `counts`).
+/// occurrence (like `counts`).
 pub(crate) fn count_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [xs, f] = *args else { return Ok(Reply::Decline) };
@@ -137,7 +137,7 @@ pub(crate) fn count_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
 }
 
 /// The classes of `xs` under the test `f`: each element joins the first class whose first element `r` has
-/// `f(r, x)` true, else starts a class (decision io-core.7). `Err` holds a failure of a test. Quadratic in the
+/// `f(r, x)` true, else starts a class. `Err` holds a failure of a test. Quadratic in the
 /// number of classes, as any test that is not an identity must be.
 pub(crate) fn classes<'h>(
     lib: &Lib,

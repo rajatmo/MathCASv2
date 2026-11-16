@@ -1,5 +1,4 @@
-//! `put(value, file)` and `get(file)`: a value saved to a text file and read back in a later session (decision
-//! io-num.14, gap G75).
+//! `put(value, file)` and `get(file)`: a value saved to a text file and read back in a later session.
 //!
 //! The file is the value in the language's own input form after a first line `#! mathcas 2 value`; `get` reads it
 //! back with `to_expression` (so the value is evaluated again, in the session that reads it). Machine reals print

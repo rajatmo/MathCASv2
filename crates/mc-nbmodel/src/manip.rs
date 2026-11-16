@@ -1,4 +1,4 @@
-//! Interactive controls (round 13): an output `manipulate(expr, [a, lo, hi], [b, lo, hi, step], [[c, init], lo, hi],
+//! Interactive controls: an output `manipulate(expr, [a, lo, hi], [b, lo, hi, step], [[c, init], lo, hi],
 //! ...)` shows a slider per parameter; moving one evaluates `{ let a = v; let b = w; ...; expr }` in the kernel and
 //! the result shows in the output below the controls (an Output cell marked `manipulated`).
 //!

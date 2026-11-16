@@ -1,8 +1,8 @@
 //! Matrix functions and constructors defined by formulas (`mc_numeric::formula`):
-//! `matrix_function(f, m)`, `matrix_exp`, `matrix_log`, `matrix_power`, `conjugate_transpose` (gap queue G3),
+//! `matrix_function(f, m)`, `matrix_exp`, `matrix_log`, `matrix_power`, `conjugate_transpose`,
 //! `hilbert_matrix`, `rotation_matrix`.
 //!
-//! `matrix_function(f, m)` (decision P6N.8): a diagonal matrix maps its diagonal; a triangular matrix with distinct
+//! `matrix_function(f, m)`: a diagonal matrix maps its diagonal; a triangular matrix with distinct
 //! diagonal entries uses Parlett's recurrence (exact for exact entries); a matrix of machine numbers with a
 //! complete set of eigenvectors is V f(D) V^-1; otherwise f(m) is p(m) for the polynomial p interpolating f and its
 //! derivatives at the eigenvalues with their multiplicities (Newton's divided differences, confluent for repeated
@@ -676,7 +676,7 @@ fn rotation_between<'h>(fx: &mut Fx<'_, '_, '_, 'h>, u: &[T<'h>], v: &[T<'h>]) -
     Ok(Some(fx.list(&rows)))
 }
 
-/// sparse_array(rules, dims, default) (decision P6N.14): the array is built dense (MathCAS has no sparse storage);
+/// sparse_array(rules, dims, default): the array is built dense (MathCAS has no sparse storage);
 /// rules are `position -> value` with literal positions or patterns (`[i_, i_] -> 2`), the first matching rule
 /// wins, dimensions default to the largest positions, the default value to 0; at most 10^6 elements.
 /// `sparse_array(automatic, dims, default, [1, [offsets, columns], values])`, the compressed row form: row i (or

@@ -32,7 +32,7 @@ use mc_eval::{NativeCx, Res};
 /// The table of the Mellin transform (`t` the variable, `s` the transform's). Sources: Oberhettinger 1974,
 /// sections 2 (exponentials and trigonometric functions), 6 (error functions and exponential integrals), 10
 /// (Bessel functions); products of two Bessel functions of one argument from DLMF 10.22.57 (written with the
-/// duplication formula, so gamma(1 - s) does not appear) and 10.43.19 (round 22).
+/// duplication formula, so gamma(1 - s) does not appear) and 10.43.19.
 pub(crate) const TABLE: &str = r#"
 [bessel_j(n, t), 2^(s - 1)*gamma(n/2 + s/2)/gamma(n/2 - s/2 + 1), true, -re(n) < re(s) and re(s) < 3/2]
 [bessel_j(n, t)^2, gamma(n + s/2)*gamma(1/2 - s/2)/(2*pi^(1/2)*gamma(1 - s/2)*gamma(1 + n - s/2)), true, -2*re(n) < re(s) and re(s) < 1]
@@ -597,7 +597,7 @@ fn imel<'h>(
         let r = cx.eval(r)?;
         return Ok(Some(b.mul(&[ad, subst(cx, b, r, x, b.div(x, ak))?])));
     }
-    // gamma ratios as a Meijer G-function (round 22): first when it reduces to named functions, else after the
+    // gamma ratios as a Meijer G-function: first when it reduces to named functions, else after the
     // residue series (which sums one family of poles)
     let g = super::meijer_inv::inverse(cx, b, f, s, x, lo)?;
     let named = |t: T<'h>| is_free(b, t, h.sym_term(h.sym("meijer_g")));

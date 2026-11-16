@@ -1,4 +1,4 @@
-//! G93: a native that writes to standard error from another thread while a script runs does not hang `mc-repl`
+//! A native that writes to standard error from another thread while a script runs does not hang `mc-repl`
 //! (the run must not hold the stream's lock for its whole length).
 use mc_api::StopFlag;
 use mc_core::{Heap, Store, T};

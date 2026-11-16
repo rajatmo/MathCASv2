@@ -6,7 +6,7 @@
 //! with `MC_LISTS_FULL=1` (run that under the guard with a cap of 8 GB or more: S8 at 10^7 alone holds about 4 GB).
 //! Each case prints its time and `[k/N pct%]` progress.
 //!
-//! The cases run one at a time, whatever the test runner's thread count (decision sp-core.7): each builds
+//! The cases run one at a time, whatever the test runner's thread count: each builds
 //! millions of terms (S2 at 10^6 peaks at about 2.1 GB, S1, S7 and N10 at 0.6 to 0.8 GB, S8 at 0.4 GB), so run side
 //! by side they passed the 3 GB cap of a guarded suite run (3.0 GB measured with three threads), and their times,
 //! single-thread throughput measurements, were distorted by each other. Serialised, the binary's peak is that of

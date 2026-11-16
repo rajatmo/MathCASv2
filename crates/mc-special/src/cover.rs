@@ -13,7 +13,7 @@
 //! - `fresnel_f`, `fresnel_g`, `logistic_sigmoid`, `riemann_siegel_theta`, `riemann_siegel_z`, `lerch_phi`,
 //!   `mittag_leffler_e`, `barnes_g`, `log_barnes_g`, `inverse_gamma_regularized`, `inverse_beta_regularized`.
 //!
-//! Decisions (cov-num.2): numeric values come from a **working form** ([`Work`]): the arguments as balls at the
+//! Numeric values come from a **working form** ([`Work`]): the arguments as balls at the
 //! target precision plus the bits a series is expected to cancel (machine arguments too, so alternating series of
 //! large arguments keep their digits), the result rounded back to the arguments' kind. Real arguments give real
 //! values where the function is real there. Series are summed in the canonical arithmetic until a term is below
@@ -87,8 +87,8 @@ impl Work {
             // (hypergeometric_2f1_regularized(1, 2, -3, 4.5) had 2e-65 i)
             Num::Complex(x, y) if self.machine && self.real && x.to_f64() != 0.0 && y.to_f64() != 0.0 && y.to_f64().abs() <= 1e-40 * x.to_f64().abs() => Num::Real(x),
             // a machine value whose imaginary part is a ball around zero: real at the precision of the arguments when
-            // they are real; a complex argument keeps a complex value with the imaginary part 0.0 (round 36:
-            // elliptic_theta(2, 0, 0.2 + 0.0 im) was real)
+            // they are real; a complex argument keeps a complex value with the imaginary part 0.0
+            // (elliptic_theta(2, 0, 0.2 + 0.0 im) is not real)
             Num::Complex(x, Real::Ball(b, _)) if self.machine && b.contains_zero() && x.to_f64() != 0.0 => {
                 if self.real {
                     Num::Real(x)
@@ -427,12 +427,12 @@ fn theta_rule<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], deriv: bool) -> R<'h
     if !numeric(fx, &a[1..]) {
         return Ok(None);
     }
-    // machine arguments: the series in complex machine arithmetic (round 37; the ball path took 1 ms a point and the
-    // contour plots of theta_4 timed out), the ball path when it declines
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, &a[1..]) {
-        if let Some(v) = crate::fast29::theta(k as u8, ms[0], ms[1], deriv) {
+    // machine arguments: the series in complex machine arithmetic (the ball path takes 1 ms a point and the
+    // contour plots of theta_4 would time out), the ball path when it declines
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, &a[1..]) {
+        if let Some(v) = crate::fast_dd::theta(k as u8, ms[0], ms[1], deriv) {
             let real = real && (ms[1].re.hi >= 0.0 || k >= 3);
-            if let Some(t) = crate::fast29::machine_out(fx, v, real) {
+            if let Some(t) = crate::fast_dd::machine_out(fx, v, real) {
                 return Ok(Some(t));
             }
         }
@@ -706,9 +706,9 @@ fn modular_lambda_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if !numeric(fx, a) {
         return Ok(None);
     }
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
-        if let Some(v) = crate::fast33::modular_lambda(ms[0]) {
-            return Ok(crate::fast29::machine_out(fx, v, real && v.im == 0.0));
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
+        if let Some(v) = crate::fast_elliptic::modular_lambda(ms[0]) {
+            return Ok(crate::fast_dd::machine_out(fx, v, real && v.im == 0.0));
         }
     }
     // every other numeric point (balls, machine points near the real axis): the reduction in ball arithmetic (the nome
@@ -737,9 +737,9 @@ fn klein_j_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         }
         return Ok(None);
     }
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
-        if let Some(v) = crate::fast33::klein_j(ms[0]) {
-            return Ok(crate::fast29::machine_out(fx, v, real && v.im == 0.0));
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
+        if let Some(v) = crate::fast_elliptic::klein_j(ms[0]) {
+            return Ok(crate::fast_dd::machine_out(fx, v, real && v.im == 0.0));
         }
     }
     crate::modular::modular(fx, a[0], crate::modular::Modular::J)
@@ -751,8 +751,8 @@ fn inverse_nome<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         return Ok(Some(fx.int(0)));
     }
     // q = 1, the end of the real domain -1 < q <= 1: m(q) = theta_2^4/theta_3^4 -> 1 as q -> 1- (the nome q(m) =
-    // exp(-pi K'(m)/K(m)) -> 1 as m -> 1-, DLMF 22.2.1, 19.12.1); the theta series diverge there (round 37: the call
-    // stayed theta_2(0, 1.)^4/theta_3(0, 1.)^4). An inexact 1 gives 1 of its own kind.
+    // exp(-pi K'(m)/K(m)) -> 1 as m -> 1-, DLMF 22.2.1, 19.12.1); the theta series diverge there (the call
+    // is not left as theta_2(0, 1.)^4/theta_3(0, 1.)^4). An inexact 1 gives 1 of its own kind.
     if fx.is_int(q, 1) || fx.f64_of(q).is_some_and(|v| v == 1.0) && numeric(fx, a) && !has_radius(fx, q) {
         return Ok(Some(q));
     }
@@ -819,9 +819,9 @@ fn dedekind_eta_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     };
     // a machine point: the double-double reduction; otherwise (balls, points near the real axis, where the product
     // (q; q)_inf at |q| near 1 needed more factors than it allows) the reduction in ball arithmetic
-    if let Some((ms, _)) = crate::fast29::machine_args(fx, &[tau]) {
-        if let Some(v) = crate::fast33::dedekind_eta(ms[0]) {
-            return Ok(crate::fast29::machine_out(fx, v, false));
+    if let Some((ms, _)) = crate::fast_dd::machine_args(fx, &[tau]) {
+        if let Some(v) = crate::fast_elliptic::dedekind_eta(ms[0]) {
+            return Ok(crate::fast_dd::machine_out(fx, v, false));
         }
     }
     crate::modular::modular(fx, tau, crate::modular::Modular::Eta)
@@ -902,20 +902,20 @@ fn q_pochhammer<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if !numeric(fx, a) {
         return Ok(None);
     }
-    // machine arguments: the product in complex machine arithmetic with its cancellation bound (round 37; the
-    // contour plots of q_pochhammer and q_factorial timed out on the ball path), else the ball path
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
+    // machine arguments: the product in complex machine arithmetic with its cancellation bound (the
+    // contour plots of q_pochhammer and q_factorial would time out on the ball path), else the ball path
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
         let (x, q) = if a.len() == 1 { (ms[0], ms[0]) } else { (ms[0], ms[1]) };
-        let v = crate::fast29::q_product(x, q).and_then(|v| {
+        let v = crate::fast_dd::q_product(x, q).and_then(|v| {
             if a.len() < 3 {
                 return Some(v);
             }
             // (x; q)_n = (x; q)_inf/(x q^n; q)_inf with the principal q^n
             let qn = (ms[2] * q.log()).exp();
-            let d = crate::fast29::q_product(x * qn, q)?;
+            let d = crate::fast_dd::q_product(x * qn, q)?;
             (d.re != 0.0 || d.im != 0.0).then(|| v / d)
         });
-        if let Some(t) = v.and_then(|v| crate::fast29::machine_out(fx, v, real)) {
+        if let Some(t) = v.and_then(|v| crate::fast_dd::machine_out(fx, v, real)) {
             return Ok(Some(t));
         }
     }
@@ -1026,8 +1026,8 @@ fn inverse_jacobi<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: &str) -> 
     // cn(u | m) = dn(k u | 1/m), dn(u | m) = cn(k u | 1/m), so each inverse at m is an inverse at 1/m < 1 divided by k,
     // and the real range of the function on the real line at m (dn and dc fill [-1, 1], cd and nd |v| >= 1) is carried
     // to the real range at 1/m, where the principal inverse is real. The formulas of DLMF 22.15 below take |v| only for
-    // m > 1 (asin of sqrt((1 - v^2)/m) for dn), and the inverse came out complex on half the range (round 37:
-    // inverse_jacobi_dn(-0.3, 3.) was 0.787 + 2.343i, the real inverse is 1.2149); inverse_jacobi_nd(-1, m) =
+    // m > 1 (asin of sqrt((1 - v^2)/m) for dn), else the inverse would come out complex on half the range
+    // (inverse_jacobi_dn(-0.3, 3.) is 1.2149, not 0.787 + 2.343i); inverse_jacobi_nd(-1, m) =
     // 2 K(1/m)/sqrt(m) for m > 1 is the documented value at the end point.
     if fx.f64_of(m).is_some_and(|v| v > 1.0) {
         let mu = fx.div(one, m);
@@ -1073,7 +1073,7 @@ fn inverse_jacobi<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: &str) -> 
     let u = fx.eval(fx.call("elliptic_f", &[phi, m]))?;
     // the formulas are those of the real case (DLMF 22.15) and the square roots and arcs of a complex argument may fall on the
     // wrong sheet: u is kept when the function maps it back to x, else the images under the symmetries u -> -u and
-    // u -> 2K - u (each function of the list changes by a sign or not under them) are tried (round 32: cd(u) = -x for
+    // u -> 2K - u (each function of the list changes by a sign or not under them) are tried (cd(u) = -x for
     // x = 0.2 + i, m = 0.1 - 0.3 i)
     let forward = format!("jacobi_{which}");
     let back = |fx: &mut Fx<'_, '_, '_, 'h>, c: T<'h>| -> Res<Option<f64>> {
@@ -1226,7 +1226,7 @@ fn kelvin<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: u8) -> R<'h> {
         return Ok(Some(fx.int(if which == 0 { 1 } else { 0 })));
     }
     // ber_nu(0) = bei_nu(0) = 0 for nu > 0 (the factor x^nu of the series, DLMF 10.61.5); ker(0) = +inf and
-    // kei(0) = -pi/4 for nu = 0 (DLMF 10.65.9, 10.65.10); exact arguments only (D23-26)
+    // kei(0) = -pi/4 for nu = 0 (DLMF 10.65.9, 10.65.10); exact arguments only
     if fx.is_int(x, 0) && fx.rat_of(nu).is_some_and(|q| !q.num.neg && !q.is_zero()) && which < 2 {
         return Ok(Some(fx.int(0)));
     }
@@ -1258,7 +1258,7 @@ fn kelvin<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: u8) -> R<'h> {
     }
     // ber and bei of a machine x > 1000: |value| ~ e^(x/sqrt 2)/sqrt(2 pi x) overflows; the sign is that of cos(alpha) (ber)
     // or sin(alpha) (bei), alpha = x/sqrt 2 + (nu/2 - 1/8) pi (DLMF 10.67.1), alpha reduced in double-double; a sign too
-    // near zero to trust leaves the call unevaluated (round 27, B26-22: kelvin_ber(2, 75069.9) took 13 s and gave up)
+    // near zero to trust leaves the call unevaluated (kelvin_ber(2, 75069.9) took 13 s and gave up)
     if which < 2 && fx.f64_of(nu).is_some_and(|v| v.abs() <= 100.0) {
         if let Some(xm) = fx.machine_of(x).filter(|v| *v > 1100.0) {
             use crate::dd::{sin_cos_pi_any, DD, PI};
@@ -1337,10 +1337,10 @@ fn kelvin<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: u8) -> R<'h> {
     // integer (J_n(x e^(3 pi i/4)) with x < 0 is the conjugate direction, whose value is real up to the factor (-1)^n)
     let real = [nu, x].iter().all(|&t| fx.f64_of(t).is_some())
         && fx.f64_of(x).is_some_and(|v| v > 0.0 || (which < 2 && fx.int_of(nu).is_some()));
-    // the rotation phases carry pi: evaluate the closed form at the precision of the arguments (D23-26)
+    // the rotation phases carry pi: evaluate the closed form at the precision of the arguments
     let v = numify(fx, v, a)?;
     // a real value computed as a complex ball: its imaginary part is 0 +- 2^-p and cannot reach any relative precision,
-    // so `n` reports precision_not_reached with the best value; the real part of that value is the answer (B26-17)
+    // so `n` reports precision_not_reached with the best value; the real part of that value is the answer
     let v = match fx.call_of(v, "failure") {
         Some(&[tag, best]) if real && tag == fx.sym("precision_not_reached") && fx.num(best).is_some() => best,
         _ => v,
@@ -1354,7 +1354,7 @@ fn kelvin<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: u8) -> R<'h> {
             return Ok(None);
         }
         // the parts p and m are machine values with an error relative to their size; a value far below them (near x = 0
-        // the terms of size x^(-n) cancel) has lost that many bits (round 37: kelvin_ker(2, 1e-6) was 0.49988, the value
+        // the terms of size x^(-n) cancel) has lost that many bits (kelvin_ker(2, 1e-6) was 0.49988, the value
         // is 0.4999999999999018, kelvin_ber(2, 1e-6) was 0.2 % off): then the closed form again with the arguments'
         // binary values as balls, at the digits the loss asks for, until the value has the 53 bits of a double
         let size = |fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>| -> Res<f64> {
@@ -1397,7 +1397,7 @@ fn kelvin<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: u8) -> R<'h> {
     }
     Ok(Some(out))
 }
-/// ker_n(0) or kei_n(0) (`kei`) at an integer order n, as the limit x -> 0+ (round 37: ker_2(0.) was -inf, kei_0(0.)
+/// ker_n(0) or kei_n(0) (`kei`) at an integer order n, as the limit x -> 0+ (ker_2(0.) was -inf, kei_0(0.)
 /// was 0). ker_n + i kei_n = e^(-n pi i/2) K_n(x e^(pi i/4)) and K_(-n) = K_n give the factor (-1)^n for a negative
 /// order; for n >= 1, K_n(w) = (1/2) sum_(k<n) ((n - k - 1)!/k!) (w/2)^(2k - n) (-1)^k + O(w^n log w) (DLMF 10.31.1), so
 /// the term k contributes (1/2) ((n - k - 1)!/k!) (2/x)^(n - 2k) e^(i pi m/4) with m = 6k - 3n: the first k < n/2 whose
@@ -1463,7 +1463,7 @@ fn kelvin_kei<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 }
 
 /// Is a Maclaurin series in z too long to sum (about 2|z| terms at 1.5|z| extra bits, a cost growing like |z|^2)? The
-/// Struve, Anger, Weber and Lommel sums then stay unevaluated rather than allocate without bound (round 32).
+/// Struve, Anger, Weber and Lommel sums then stay unevaluated rather than allocate without bound.
 pub(crate) fn series_too_long<'h>(fx: &Fx<'_, '_, '_, 'h>, z: T<'h>) -> bool {
     mag(fx, z) > 2500.0
 }
@@ -1488,7 +1488,7 @@ fn struve<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], l: bool) -> R<'h> {
     }
     // H_nu(x) at a machine real x >= 40 + nu^2: Y_nu(x) + (1/pi) sum_k Gamma(k + 1/2) (x/2)^(nu - 2k - 1)/Gamma(nu + 1/2 - k)
     // (DLMF 11.6.1 and 11.2.5; the sum of the series of the Maclaurin form cancels e^x-like terms: H_(1/3)(309994.9)
-    // did not return, round 27, B26-22), terms until below 1e-17 or growing
+    // did not return), terms until below 1e-17 or growing
     if !l {
         if let (Some(nm), Some(xm)) = (fx.f64_of(nu), fx.machine_of(z)) {
             if xm >= 40.0 + nm * nm && nm.abs() <= 30.0 {
@@ -1558,14 +1558,14 @@ fn struve<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], l: bool) -> R<'h> {
     let real = wk.real && parts(fx, z).is_some_and(|p| p.0 >= 0.0);
     Ok(wk.out(fx, v, real))
 }
-/// H_nu(z) or L_nu(z) at machine arguments (round 37): s_(nu,nu)(z)/c or t_(nu,nu)(z)/c with c = sqrt(pi) Gamma(nu +
-/// 1/2) 2^(nu - 1) (DLMF 11.9.7), the Lommel series in the double-double kernels of `fast29` and c from a 40-digit
+/// H_nu(z) or L_nu(z) at machine arguments: s_(nu,nu)(z)/c or t_(nu,nu)(z)/c with c = sqrt(pi) Gamma(nu +
+/// 1/2) 2^(nu - 1) (DLMF 11.9.7), the Lommel series in the double-double kernels of `fast_dd` and c from a 40-digit
 /// ball; the ball path took 0.3-1 ms a value and the plots of Lommel derivatives (Struve terms) timed out. `None` when
 /// a kernel declines (cancellation, a pole) or c is not a finite nonzero number.
 fn struve_machine<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], l: bool) -> R<'h> {
-    let Some((ms, real)) = crate::fast29::machine_args(fx, a) else { return Ok(None) };
+    let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) else { return Ok(None) };
     let (nu, z) = (ms[0], ms[1]);
-    let s = if l { crate::fast29::lommel_t1_cd(nu, nu, z) } else { crate::fast29::lommel_s1_cd(nu, nu, z) };
+    let s = if l { crate::fast_dd::lommel_t1_cd(nu, nu, z) } else { crate::fast_dd::lommel_s1_cd(nu, nu, z) };
     let Some(s) = s else { return Ok(None) };
     // c depends on the order only: the last one is kept (a plot evaluates one order at many points)
     type OrderKey = (f64, f64, f64, f64);
@@ -1576,15 +1576,15 @@ fn struve_machine<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], l: bool) -> R<'h
     if let Some((k, cd)) = LAST_C.with(|c| c.get()) {
         if k == key {
             let v = (s / cd).to_c64();
-            return Ok(crate::fast29::machine_out(fx, v, real && z.re.hi >= 0.0));
+            return Ok(crate::fast_dd::machine_out(fx, v, real && z.re.hi >= 0.0));
         }
     }
     // c at 40 digits from the exact (or exactly converted machine) order
     let nu_t = fx.eval(fx.call("set_precision", &[a[0], fx.int(40)]))?;
     let c = fx.eval(fx.mul(&[fx.pow(fx.sym("pi"), fx.rat(1, 2)), fx.call("gamma", &[fx.add(&[nu_t, fx.rat(1, 2)])]), fx.pow(fx.int(2), fx.sub(nu_t, fx.int(1)))]))?;
     let cd = match fx.num(c) {
-        Some(Num::Real(Real::Ball(b, _))) if !b.contains_zero() => crate::cdd::CD::real(crate::fast29::dd_of_ball(&b)),
-        Some(Num::Complex(Real::Ball(x, _), Real::Ball(y, _))) => crate::cdd::CD::new(crate::fast29::dd_of_ball(&x), crate::fast29::dd_of_ball(&y)),
+        Some(Num::Real(Real::Ball(b, _))) if !b.contains_zero() => crate::cdd::CD::real(crate::fast_dd::dd_of_ball(&b)),
+        Some(Num::Complex(Real::Ball(x, _), Real::Ball(y, _))) => crate::cdd::CD::new(crate::fast_dd::dd_of_ball(&x), crate::fast_dd::dd_of_ball(&y)),
         _ => return Ok(None),
     };
     if cd.abs() == 0.0 || !cd.finite() {
@@ -1592,7 +1592,7 @@ fn struve_machine<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], l: bool) -> R<'h
     }
     LAST_C.with(|c| c.set(Some((key, cd))));
     let v = (s / cd).to_c64();
-    Ok(crate::fast29::machine_out(fx, v, real && z.re.hi >= 0.0))
+    Ok(crate::fast_dd::machine_out(fx, v, real && z.re.hi >= 0.0))
 }
 
 /// H_nu(z) (`l` false) or L_nu(z) at a half-integer order |nu| <= 21/2 in elementary functions: H_(1/2) =
@@ -1611,8 +1611,8 @@ fn struve_half_integer<'h>(fx: &mut Fx<'_, '_, '_, 'h>, nu: T<'h>, z: T<'h>, l: 
         return None;
     }
     // sqrt(2/pi) z^(-1/2), not (2/(pi z))^(1/2): the two differ in sign on the negative axis, and the principal branch
-    // H_nu(z) = (z/2)^(nu + 1) (an even series) takes the power z^(-1/2) there, as the terms c_nu below do (round 37:
-    // H_(5/2)(-17/10) was -2.18i, the series gives -0.0944i)
+    // H_nu(z) = (z/2)^(nu + 1) (an even series) takes the power z^(-1/2) there, as the terms c_nu below do
+    // (H_(5/2)(-17/10) is -0.0944i, as the series gives, not -2.18i)
     let pre = fx.mul(&[fx.pow(fx.int(2), fx.rat(1, 2)), fx.pow(fx.sym("pi"), fx.rat(-1, 2)), fx.pow(z, fx.rat(-1, 2))]);
     let (c, s) = if l { (fx.call("cosh", &[z]), fx.call("sinh", &[z])) } else { (fx.call("cos", &[z]), fx.call("sin", &[z])) };
     let p_half = if l { fx.mul(&[pre, fx.sub(c, fx.int(1))]) } else { fx.mul(&[pre, fx.sub(fx.int(1), c)]) };
@@ -1726,7 +1726,7 @@ fn weber_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     anger_weber(fx, a, true)
 }
 
-/// The Lommel functions in closed form at symbolic arguments (round 37), for `which` 0 = s, 1 = S, 2 = t, 3 = T:
+/// The Lommel functions in closed form at symbolic arguments, for `which` 0 = s, 1 = S, 2 = t, 3 = T:
 ///
 /// - mu = nu: s = c H_nu, S = c (H_nu - Y_nu), t = c L_nu, T = c (I_(-nu) - L_nu) with c = pi (1/2)_nu 2^(nu - 1)
 ///   (DLMF 11.9.7 for s, with 11.9.5 for S; the modified functions alike, T by I_(-nu) = I_nu + 2 sin(nu pi)/pi K_nu,
@@ -1835,10 +1835,10 @@ fn lommel_s1<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if !numeric(fx, a) {
         return Ok(None);
     }
-    // machine arguments: the series in double-double numbers (round 37), the ball path when it declines
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
-        if let Some(v) = crate::fast29::lommel_s1(ms[0], ms[1], ms[2]) {
-            return Ok(crate::fast29::machine_out(fx, v, real && ms[2].re.hi >= 0.0));
+    // machine arguments: the series in double-double numbers, the ball path when it declines
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
+        if let Some(v) = crate::fast_dd::lommel_s1(ms[0], ms[1], ms[2]) {
+            return Ok(crate::fast_dd::machine_out(fx, v, real && ms[2].re.hi >= 0.0));
         }
     }
     if series_too_long(fx, a[2]) {
@@ -1952,7 +1952,7 @@ fn u_asymptotic<'h>(fx: &mut Fx<'_, '_, '_, 'h>, xs: &[T<'h>], p: u64, w: u64) -
     let size = |q: (f64, f64)| q.0.hypot(q.1);
     let zm = size(pz);
     // Re z < 0: the series (DLMF 13.7.3, |ph z| < 3 pi/2) leaves exponentially small terms of relative size e^(Re z),
-    // negligible only when -Re z > 0.7 (p + 10) (U(2, 2, -8085.6) took 23 s through the connection formula, B26-22)
+    // negligible only when -Re z > 0.7 (p + 10) (U(2, 2, -8085.6) took 23 s through the connection formula)
     if (pz.0 < 0.0 && -pz.0 < 0.7 * (p as f64 + 10.0)) || p > 900 || zm < (p as f64).max(53.0) * 0.7 + 4.0 * (size(pa) + size(pb)) || zm.is_nan() {
         return Ok(None);
     }
@@ -2043,7 +2043,7 @@ fn hypergeometric_u<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         return Ok(Some(if fx.num(sum).is_some() || !exact_x { sum } else { fx.call("expand", &[sum]) }));
     }
     // z = 0 with Re b < 1 (a not a non-positive integer, above): U(a, b, 0) = Gamma(1 - b)/Gamma(a - b + 1), the limit
-    // of DLMF 13.2.20-13.2.22 (0 when a - b + 1 is a pole of Gamma; round 37: hypergeometric_u(1/3, 1/2, 0.) stayed
+    // of DLMF 13.2.20-13.2.22 (0 when a - b + 1 is a pole of Gamma; hypergeometric_u(1/3, 1/2, 0.) stayed
     // unevaluated and U(1, 1/2, 0) gave 0 through the rule e^x x^(1 - b) Gamma(b - 1, x)); Re b >= 1 has no finite
     // value there (z^(1 - b) or log z)
     if fx.num(z).is_some_and(|n| n.is_zero()) && fx.num(x).is_some() && parts(fx, b).is_some_and(|p| p.0 < 1.0) {
@@ -2228,7 +2228,7 @@ fn parabolic_d<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     }
     // machine reals, x >= 30 and |nu| <= x^2/8: D_nu(x) = e^(-x^2/4) x^nu sum_s (-1)^s (-nu)_(2s)/(s! (2 x^2)^s)
     // (DLMF 12.9.1 with D_nu = U(-nu - 1/2, x)); the exponential underflows to 0 as the value does. The Maclaurin
-    // route below needs 1.1 x^2 extra bits: D_(0.35)(278.9) did not return (round 27, B26-22)
+    // route below needs 1.1 x^2 extra bits: D_(0.35)(278.9) did not return
     if let (Some(nm), Some(xm)) = (fx.f64_of(nu), fx.machine_of(z)) {
         if xm >= 30.0 && nm.abs() <= xm * xm / 8.0 {
             let (mut term, mut sum) = (1.0f64, 1.0f64);
@@ -2524,7 +2524,7 @@ fn mittag_leffler<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if fx.is_int(al, 0) && fx.num(b).is_some() && fx.num(z).is_some() {
         return Ok(Some(fx.div(fx.int(1), fx.mul(&[fx.call("gamma", &[b]), fx.sub(fx.int(1), z)]))));
     }
-    // closed forms at an exact or symbolic z (round 37). A positive integer a = m and an integer b: E_(m,b)(z) =
+    // closed forms at an exact or symbolic z. A positive integer a = m and an integer b: E_(m,b)(z) =
     // (1/m) z^((1-b)/m) sum_(k<m) w^(k(1-b)) exp(w^k z^(1/m)), w = exp(2 pi i/m) (the sum keeps the powers j = b - 1
     // mod m of the exponential series, and 1/Gamma vanishes at the poles for b <= 0; Gorenflo, Kilbas, Mainardi and
     // Rogosin, *Mittag-Leffler functions*, 2014, 4.2). a = 1 and any b: E_(1,b)(z) = e^z z^(1-b) (Q(b - 1, 0) -
@@ -2545,7 +2545,7 @@ fn mittag_leffler<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
             }
             let pre = fx.mul(&[fx.rat(1, m), fx.pow(z, fx.rat(1 - bi, m))]);
             // for b >= 2 the kept powers j = b - 1 mod m of the exponential series include j < b - 1, the terms
-            // z^((j + 1 - b)/m)/j! of negative index that the series of E does not have (round 44: E_(1,2)(z) was
+            // z^((j + 1 - b)/m)/j! of negative index that the series of E does not have (E_(1,2)(z) was
             // e^z/z, it is (e^z - 1)/z)
             let mut extra = vec![];
             for j in 0..(bi - 1).max(0) {
@@ -2736,7 +2736,7 @@ fn barnes_g<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let Some(c) = zeta_prime_m1(fx, wk.w)? else { return Ok(None) };
     let Some(l) = log_g(fx, xs[0], wk.w, Some(c))? else { return Ok(None) };
     // a real x < 0: G is real there (an entire function with real Taylor coefficients, DLMF 5.17), and exp of the
-    // complex log G left an imaginary part of rounding size (round 37). |G(x)| = exp(Re log G(x)); the sign: with c =
+    // complex log G left an imaginary part of rounding size. |G(x)| = exp(Re log G(x)); the sign: with c =
     // ceil(-x), G(x) = G(x + c)/prod_(k<c) Gamma(x + k), G(x + c) > 0 and Gamma(x + k) of sign (-1)^(c - k), so the sign is
     // (-1)^(c (c + 1)/2), odd for c = 1, 2 mod 4.
     if wk.real && re < 0.0 {
@@ -2888,7 +2888,7 @@ pub static DEFS: &[Def] = &[
     def!("inverse_beta_regularized", &[3], Some(inverse_beta_regularized), None, "inverse_beta_regularized(s, a, b): the x with beta_regularized(x, a, b) = s"),
 ];
 
-// ---------------------------------------------------------------- Hankel functions (round 24, B23-4, B23-23)
+// ---------------------------------------------------------------- Hankel functions
 
 /// Are the parts of the number `h` accurate to `d` decimal digits (balls by their radii; machine and exact parts
 /// always)?
@@ -3047,7 +3047,7 @@ fn hankel_pair<'h>(fx: &mut Fx<'_, '_, '_, 'h>, nu: T<'h>, z: T<'h>, i_s: T<'h>)
 }
 
 /// `num/den` of two functions of `a` (the Jacobi ratios sn/cn, ...) at numeric arguments. Their quotient of
-/// balls can have far fewer digits than either (a cancellation inside the theta sums, B23-23: `n(jacobi_cd(5 -
+/// balls can have far fewer digits than either (a cancellation inside the theta sums: `n(jacobi_cd(5 -
 /// 3 i, 1/3), 30)` had 13 digits), and the input radii (2^-p) limit what a ball evaluation can prove. Ball
 /// arguments are therefore evaluated at their midpoints, exactly, at p + extra bits (extra from 64, doubled
 /// while the quotient lacks the digits, to 4096), and the result is given the radius 2^-(p-8) |q|: the digits the

@@ -78,7 +78,7 @@ fn reduce<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, op: Op, xs: &[T<'h>]) ->
     // the canonicaliser's own pass is linear (collection by hashing) plus a sort
     cx.tick(other.len() as u64 / 4)?;
     other.push(exact[0]);
-    // quantities and uncertain numbers: their arithmetic is the evaluator's (decision io-core.5)
+    // quantities and uncertain numbers: their arithmetic is the evaluator's
     if other.iter().any(|&x| cx.is_value(x)) {
         let f = match op {
             Op::Add => mc_api::names::ADD,
@@ -123,11 +123,11 @@ fn packed_sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, p: Packed<'h>) -> Res<Option<T<
 /// `nl_total_compensated(xs)`: Neumaier's compensated sum (Neumaier 1974) of a list of machine numbers, in the order
 /// given: a running compensation collects the low bits each addition loses, so a million `0.1` add to `100000.0`.
 /// The helper of `total(xs, method: compensated_summation)`; a list with anything but machine reals and integers goes
-/// to the library's `b29_total_fold`.
+/// to the library's `ls_total_fold`.
 pub(crate) fn total_compensated<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [xs] = *args else { return Ok(Reply::Decline) };
-    let fold = || Ok(Reply::Again(h.call(h.sym("b29_total_fold"), &[xs])));
+    let fold = || Ok(Reply::Again(h.call(h.sym("ls_total_fold"), &[xs])));
     let values: Vec<f64> = match h.packed(xs) {
         Some(Packed::Reals { data, .. }) if h.packed(xs).is_some_and(|p| p.rank() == 1) => data.to_vec(),
         Some(_) => return fold(),
@@ -259,14 +259,13 @@ enum Levels {
 
 /// `total(xs)`: the sum of the elements of `xs` (lists among them added element-wise, so `total(m)` of a matrix is
 /// its column sums); `total(xs, n)`: levels 1 to n added (`inf`: every level, the sum of all leaves); `total(xs,
-/// [n])`: the totals at level n only (`[-1]`: of the innermost lists). Decision p6core.6, replacing I.9's sum of all
-/// leaves for one argument.
+/// [n])`: the totals at level n only (`[-1]`: of the innermost lists).
 pub(crate) fn total<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let (xs, levels) = match *args {
         [xs] => (xs, Levels::UpTo(1)),
         [xs, n] => {
-            // negative levels count from the leaves of the full array (-1 the deepest level, decision r37.6):
+            // negative levels count from the leaves of the full array (-1 the deepest level):
             // total(xs, -k) adds levels 1 to d + 1 - k of an array of depth d, total(xs, [a, b]) levels a to b
             let depth = |cx: &mut NativeCx<'_, '_, 'h>| -> Res<i64> { Ok(crate::structure::list_dims(cx, xs)?.len() as i64) };
             let int = |x: T<'h>| match h.view(x) {
@@ -524,7 +523,7 @@ fn ball_extreme<'h>(ar: &Arith<'h, Heap>, xs: &[T<'h>], max: bool) -> Option<T<'
     Some(ar.number(&Num::Real(Real::Ball(Ball { mid, rad }, p))))
 }
 
-/// `max`/`min` when an element is a number-like value (G54): an interval stands for its largest (smallest) end, the
+/// `max`/`min` when an element is a number-like value: an interval stands for its largest (smallest) end, the
 /// other elements are compared by the evaluator's `greater`/`less` (quantities in a common unit, `around` by its
 /// spread). The call stays unevaluated when a comparison is not decided.
 fn value_extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: &[T<'h>], max: bool) -> Res<Reply<'h>> {

@@ -68,7 +68,7 @@ impl App {
         } else {
             self.doc.nb.to_file()
         };
-        // the pictures go into the file itself (design 7.5, round 13: one file per notebook); the document keeps
+        // the pictures go into the file itself (design 7.5: one file per notebook); the document keeps
         // showing them from where they are, and an older notebook's sidecar folder is left alone
         let base = self.doc.view.base.clone();
         // pictures named relative to the old folder (an older notebook's sidecar folder) are shown by their full

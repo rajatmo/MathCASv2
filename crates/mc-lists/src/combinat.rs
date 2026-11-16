@@ -25,8 +25,7 @@ fn binomial(n: usize, k: usize) -> u128 {
 }
 
 /// The size argument (argument 2 of `subsets` and `permutations`): `n` for the sizes 0 to `n`, `[n]` for exactly
-/// `n`, `[a, b]` for `a` to `b`, `[a, b, s]` for `a`, `a + s`, ... up to `b` (a negative step counts down,
-/// decision r37.4). Sizes above `len` are left out; an empty range gives no sizes.
+/// `n`, `[a, b]` for `a` to `b`, `[a, b, s]` for `a`, `a + s`, ... up to `b` (a negative step counts down). Sizes above `len` are left out; an empty range gives no sizes.
 fn sizes<'h>(lib: &Lib, h: &'h Heap, t: T<'h>, a: Option<T<'h>>, len: usize) -> Result<Vec<usize>, Reply<'h>> {
     let Some(a) = a else { return Ok((0..=len).collect()) };
     if matches!(h.view(a), View::Sym(s) if h.sym_name(s) == "all") {
@@ -70,7 +69,7 @@ fn sizes<'h>(lib: &Lib, h: &'h Heap, t: T<'h>, a: Option<T<'h>>, len: usize) -> 
 /// by position (repeated elements give repeated subsets).
 pub(crate) fn subsets<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // `subsets(xs, spec, m)`: the first m subsets, `[k]` the k-th, `[a, b]` the a-th to the b-th (decision io-core.14)
+    // `subsets(xs, spec, m)`: the first m subsets, `[k]` the k-th, `[a, b]` the a-th to the b-th
     let (xs, spec, pick) = match *args {
         [xs] => (xs, None, None),
         [xs, s] => (xs, Some(s), None),
@@ -95,7 +94,7 @@ pub(crate) fn subsets<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
         }
         _ => return Ok(Reply::Decline),
     };
-    // the subsets of a product, a sum, ... are products, sums, ... (decision io-core.14)
+    // the subsets of a product, a sum, ... are products, sums, ...
     let (head, xs) = take!(lib.operand(h, t, xs, 1));
     let n = xs.len();
     let ks = take!(sizes(lib, h, t, spec, n));
@@ -177,7 +176,7 @@ fn product_len(lists: &[&[T<'_>]]) -> u128 {
 pub(crate) fn tuples<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let list = h.sym_term(lib.s.list);
-    // the head of the tuples: that of xs in tuples(xs, n) (tuples(f(x, y), 2) are f(..)s, decision r37.4)
+    // the head of the tuples: that of xs in tuples(xs, n) (tuples(f(x, y), 2) are f(..)s)
     let mut head = list;
     // tuples(xs, [n1, ..., nk]): the tuples of n1 ... nk elements, each as an n1 x ... x nk array
     let mut dims: Option<Vec<usize>> = None;
@@ -291,7 +290,7 @@ pub(crate) fn permutations<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h
         [xs, s] => (xs, Some(s)),
         _ => return Ok(Reply::Decline),
     };
-    // the permutations of a product, a sum, ... keep its head, as `subsets` does (decision r37.4)
+    // the permutations of a product, a sum, ... keep its head, as `subsets` does
     let (head, xs) = take!(lib.elements_operand(h, t, xs, 1));
     let n = xs.len();
     let ks = match spec {
@@ -365,7 +364,7 @@ pub(crate) fn permutations<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h
 
 /// `outer(f, xs1, ..., xsk)`: `f(x1, ..., xk)` for every choice of a leaf `xi` of `xsi`, nested like the
 /// arguments (the structure of `xs1` outermost); `outer(f, xs1, ..., xsk, n)`: the parts at level `n` are the
-/// leaves. The arguments may have any one head, which the result keeps (decision cov-core.12, replacing 1A.13's
+/// leaves. The arguments may have any one head, which the result keeps (replacing 1A.13's
 /// first level only). Evaluated.
 pub(crate) fn outer<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();

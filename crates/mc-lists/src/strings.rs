@@ -55,7 +55,7 @@ pub(crate) fn string_join<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>
 /// `to_string(t)`: a string itself, any other term as the printer writes it.
 pub(crate) fn to_string<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // the text form is the input form: `to_string(x, input_form)` and a page width are accepted (decision io-core.9)
+    // the text form is the input form: `to_string(x, input_form)` and a page width are accepted
     let (args, _) = crate::ctx::option(h, args, 1, "page_width");
     let x = match *args {
         [x] => x,
@@ -126,7 +126,7 @@ fn string<'h>(lib: &Lib, h: &'h mc_core::Heap, t: T<'h>, a: T<'h>, k: usize) -> 
 /// nonempty string `sep`, empty pieces included.
 pub(crate) fn split<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // a list: its runs of identical elements, or of neighbours for which the test holds (decision p6core.7)
+    // a list: its runs of identical elements, or of neighbours for which the test holds
     if let Some(&xs) = args.first() {
         if let View::App { head, args: elems } = h.view(xs) {
             if head == h.sym_term(lib.s.list) {

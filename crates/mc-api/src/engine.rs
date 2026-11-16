@@ -3,7 +3,7 @@
 //! The benchmark runner never parses or evaluates the concrete syntax itself. The caller supplies an [`Engine`] that
 //! takes source text, evaluates it in its session and returns the printed result; the runner only times, guards and
 //! checks. This keeps `mc-bench` free of dependencies on `mc-syntax` and `mc-eval` (decision D.1). The trait lives
-//! in the interface contract (moved from `mc-bench` in round 34), so engines and their users need not depend on the
+//! in the interface contract, so engines and their users need not depend on the
 //! benchmark runner.
 use std::fmt;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};

@@ -60,7 +60,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("generating_function", "generating_function(f, n, z): the sum of f z^n over n >= 0 in closed form; generating_function(f, [n, m], [x, y]) for several variables"),
     ("sum_convergence", "sum_convergence(f, n), sum_convergence(f, [n, a, inf]): true when the sum of f converges, false when it diverges, or a condition on the parameters"),
     ("recurrence_table", "recurrence_table(eqs, a, [n, nmin, nmax]): the values a(nmin), ..., a(nmax) of the sequence defined by a recurrence and its initial values; [n, nmax] starts at 1, [n, nmin, nmax, step] steps"),
-    // round 28, written in MathCAS (lib/calculus.mc)
+    // written in MathCAS (lib/calculus.mc)
     ("find_repeat", "find_repeat(xs), (xs, k): the shortest block the list, string or matrix xs repeats at least twice (k times)"),
     ("find_transient_repeat", "find_transient_repeat(xs, k): [transient, block], the shortest transient after which xs repeats a block at least k times"),
     ("truncate_sum", "truncate_sum(e, k): every sum(f, [i, a, b]) in e cut to its first k terms"),

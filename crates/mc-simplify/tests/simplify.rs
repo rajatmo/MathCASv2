@@ -150,7 +150,7 @@ fn interrupt_stops_a_long_simplification() {
 
 #[test]
 fn medium_size_expressions_stay_within_the_budget() {
-    // gap G73: multivariate factoring of these numerators is exponential in the degrees; each polynomial move has
+    // Multivariate factoring of these numerators is exponential in the degrees; each polynomial move has
     // a time budget and the search one too, so simplify answers (with the cheapest form found) instead of hanging
     let mut s = Sys::new();
     let e = "-4*lam*p^3/(3*sqrt(lam*p^4/(3*mp^2))*(1 + (a*nc)^5*t^3/(2*f^2)/(1 + 2*nf*nc^4*a^5*t/sqrt(lam*p^4/(3*mp^2)))/(3*sqrt(lam*p^4/(3*mp^2)))))";
@@ -165,7 +165,7 @@ fn medium_size_expressions_stay_within_the_budget() {
     assert_eq!(s.run("simplify(x^2 + 2*x + 1)"), "(1 + x)^2");
 }
 
-/// The measure (decisions s-cost.1 to s-cost.6): digits and signs count, the measure chooses inside
+/// The measure: digits and signs count, the measure chooses inside
 /// `assuming` too, logarithms of positive rationals combine, and `complexity_function:` replaces the measure.
 #[test]
 fn complexity_measure_and_option() {

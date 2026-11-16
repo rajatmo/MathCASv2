@@ -14,7 +14,7 @@
 //!   give the IEEE sum or product, which is commutative, so the canonical operand order does not matter. Operands
 //!   holding a NaN leave the shortcut (the canonical order of NaNs and their payload propagation are the general
 //!   path's business). Any other shape falls through to ordinary threading.
-//! - **Complex operands** (gap G48, decision sp-core.2). Packed arrays of machine complex numbers, complex machine
+//! - **Complex operands**. Packed arrays of machine complex numbers, complex machine
 //!   numbers and exact Gaussian integers (`im`, `2 - 3*im`) join `add` and `mul` too ([`complex_fold`]): per element
 //!   the exact operands are folded exactly, the inexact ones are sorted by the canonical order of numbers and folded
 //!   with the arithmetic's own formulas (`(a + bi)(c + di) = (ac - bd) + (ad + bc)i`, a real times a complex number
@@ -34,7 +34,7 @@ const EXACT_INT: i64 = 1 << 53;
 pub(crate) enum Op {
     Add,
     Mul,
-    /// `base^exponent` with a machine-real result (decision p6core.27): computed as the general path computes a
+    /// `base^exponent` with a machine-real result: computed as the general path computes a
     /// machine power, `a.powf(c)`; declined when an element would be complex or an exact integer power
     Pow,
 }
@@ -265,7 +265,7 @@ fn complex_fold<'h>(
 }
 
 /// `add` or `mul` of three to eight operands, packed arrays of one shape and machine numbers, element by element as
-/// the arithmetic folds machine numbers (decision p6core.27): the integers exactly first, then the reals in their
+/// the arithmetic folds machine numbers: the integers exactly first, then the reals in their
 /// total order. Declined for anything else (an overflow, a non-finite element, other operands).
 fn fold_many<'h>(h: &'h Heap, op: Op, vals: &[T<'h>], tick: &mut dyn FnMut(u64) -> Res<()>) -> Res<Option<T<'h>>> {
     if vals.len() > 8 {

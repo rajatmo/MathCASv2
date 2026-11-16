@@ -235,7 +235,7 @@ fn wrap_code(chars: &[(char, Rgb)], font: Font, size: f32, width: f32) -> Vec<Ve
 }
 
 /// The characters of `src` with their syntax colours; a space that multiplies is the faint sign the notebook draws
-/// there (round 35).
+/// there.
 fn coloured_chars(src: &str) -> Vec<(char, Rgb)> {
     let tokens = mc_syntax::classify(src);
     let marks = crate::model::product_marks(src);
@@ -413,7 +413,7 @@ impl Builder<'_> {
         found
     }
 
-    /// The column twin of the picture at `path` (round 37, design 08 7.5): the plot laid out for this column, which
+    /// The column twin of the picture at `path` (design 08 7.5): the plot laid out for this column, which
     /// `mc-plot` writes next to a plot of the default size and a saved notebook carries beside the plot's SVG.
     fn column_twin(&mut self, path: &str) -> Option<Placed> {
         let file = resolve(path, Some(self.base)).with_extension(COLUMN_TWIN);

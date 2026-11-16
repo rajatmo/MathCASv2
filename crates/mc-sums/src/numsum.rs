@@ -582,7 +582,7 @@ fn numeric_int<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: i64, hi:
         },
         // a long finite range: the difference of two tails when the series converges; a divergent (or too slowly
         // convergent) one is summed term by term with the summand compiled (the difference of two divergent tails is
-        // no number: n_product(1 + (-1)^k/sqrt(k), [k, 2, 10^6]) is not 0.0212, B23-8)
+        // no number: n_product(1 + (-1)^k/sqrt(k), [k, 2, 10^6]) is not 0.0212)
         Some(u) if u - lo > 20_000 => {
             let tails = match sum_values(sx, f, k, lo, None, product)? {
                 Some(a) => sum_values(sx, f, k, u + 1, None, product)?.map(|b| (a.0 - b.0, a.1 - b.1)),

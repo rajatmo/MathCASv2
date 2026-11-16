@@ -367,7 +367,7 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
     }
 
     /// The fast path of a sum or product of finite machine reals and machine-word integers, at least one real
-    /// (decision sp-core.6): what the general path computes (`Num::sum`, `Num::product`: the integers exactly, then
+    /// gives what the general path computes (`Num::sum`, `Num::product`: the integers exactly, then
     /// the reals in canonical order, which for finite reals is their total order, folded onto the integers'
     /// machine value), without its bookkeeping. `None` for anything else, an exact part beyond 2^53 or overflowing,
     /// and an exact zero factor of a product (the general path's business).
@@ -410,7 +410,7 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
         Some(self.st.real(acc))
     }
 
-    /// The fast path of a power of a finite positive machine real (decision sp-core.6): with a finite machine-real
+    /// The fast path of a power of a finite positive machine real: with a finite machine-real
     /// exponent, or an exact integer (nonzero, at most 2^53 in magnitude) or rational exponent of word-size parts,
     /// the general path's machine power `base.powf(e)` (`Num::pow_int`, `Num::pow_machine`). `None` otherwise.
     fn machine_pow(&self, base: T<'h>, exp: T<'h>) -> Option<T<'h>> {
@@ -611,7 +611,7 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
                 Ok(true)
             }
             Err(NumError::Unevaluated) => Ok(false),
-            // an exact fraction to a huge power stays a power (n evaluates it with balls; Q19-14); an integer to a
+            // an exact fraction to a huge power stays a power (n evaluates it with balls); an integer to a
             // huge power is the memory failure
             Err(NumError::TooLarge) if x.as_rat().is_some_and(|q| !q.is_int()) => Ok(false),
             Err(e) => Err(e),
@@ -916,7 +916,7 @@ mod tests {
         assert_eq!(decimal_value("e5", 1 << 20), None);
     }
 
-    /// The machine fast paths give the general path's terms, bit for bit (decision sp-core.6).
+    /// The machine fast paths give the general path's terms, bit for bit.
     #[test]
     fn machine_fast_paths_agree_with_the_general_path() {
         use super::Arith;

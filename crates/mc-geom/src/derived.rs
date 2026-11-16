@@ -1,4 +1,4 @@
-//! Regions made from other regions (round 29): `winding_polygon` and `crossing_polygon` (the region a closed curve
+//! Regions made from other regions: `winding_polygon` and `crossing_polygon` (the region a closed curve
 //! encloses by the non-zero winding rule or the even-odd rule), `polygon_decomposition` (triangles by ear clipping),
 //! `boolean_region` (any Boolean function of plane regions), `transformed_region` (a region under an affine
 //! `transformation_function`), `discretize_region` (a triangle mesh), `highlight_mesh` (a mesh with the cells of
@@ -340,7 +340,7 @@ pub fn discretize<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'
         return Ok(Reply::Decline);
     }
     // a bound on the cell size is not honoured here (the mesh is the polygon's triangulation): a failure that says
-    // so, not a mesh that ignores it (round 36)
+    // so, not a mesh that ignores it
     if a.len() == 2 && mentions(h, a[1], "max_cell_measure") {
         return Ok(Reply::Done(e.f("failure", &[h.sym_term(h.sym("unsupported_option")), h.sym_term(h.sym("max_cell_measure"))])));
     }

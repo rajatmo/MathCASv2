@@ -146,7 +146,7 @@ impl<'a, 'h, S: Store + ?Sized> Conv<'a, 'h, S> {
                     Node::Kernel(k, n.unsigned_abs() as u32)
                 }
                 // e^(c w) with an integer c, |c| > 1, is (e^(w sign c))^|c|: exp(2 x) - 2 exp(x) + 1 is a polynomial in
-                // the kernel exp(x) (round 31; the writer's canonical power puts exp(2 x) back)
+                // the kernel exp(x) (the writer's canonical power puts exp(2 x) back)
                 View::App { head: eh, args: xs } if self.split_exp && args[0] == self.hd.e && eh == self.hd.mul && xs.len() >= 2 => {
                     match self.st().view(xs[0]) {
                         View::Int(c) if c.unsigned_abs() >= 2 && c.unsigned_abs() <= u32::MAX as u64 => {

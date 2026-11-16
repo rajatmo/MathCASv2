@@ -1,4 +1,4 @@
-//! `hash(e)`, `hash(e, method)`, `hash(e, method, format)` (round 17): message digests.
+//! `hash(e)`, `hash(e, method)`, `hash(e, method, format)`: message digests.
 //!
 //! - **What is hashed**: a string's UTF-8 bytes; a byte array `byte_array([...])` its bytes; any other term the
 //!   UTF-8 bytes of its `to_string` form (so equal
@@ -7,7 +7,7 @@
 //!   build.
 //! - **Methods**: `"MD5"` (RFC 1321), `"SHA"` (SHA-1), `"SHA256"`, `"SHA512"`, `"SHA384"`, `"SHA224"` (FIPS 180-4),
 //!   `"CRC32"` (ISO 3309 / ITU-T V.42, the polynomial 0xEDB88320 reflected), `"Adler32"` (RFC 1950), also
-//!   `["SHA", 256]` and the like. Implemented from those specifications. Round 41 (module `digests`): `"MD2"`,
+//!   `["SHA", 256]` and the like. Implemented from those specifications. Further methods (module `digests`):`"MD2"`,
 //!   `"MD4"`, `"RIPEMD160"`, `"SHA3-224"` to `"SHA3-512"` (`["SHA3", n]`), `"Keccak224"` to `"Keccak512"`,
 //!   `"BLAKE2b"`, `"BLAKE2s"` (`["BLAKE2b", bits]` for other lengths), `["BLAKE2xb", bits]`, `["BLAKE2xs", bits]`, and
 //!   the compositions `"SHA256SHA256"` (SHA-256 twice) and `"RIPEMD160SHA256"` (RIPEMD-160 of the SHA-256 digest).

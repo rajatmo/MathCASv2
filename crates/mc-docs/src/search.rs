@@ -1,4 +1,4 @@
-//! Incremental search over the catalogue (round 19: forgiving, and still exact first).
+//! Incremental search over the catalogue (forgiving, and still exact first).
 //!
 //! A query is matched against each function's name, then its one-line description, then its page. Name matches
 //! ignore case and underscores (`nintegrate` and `NIntegrate` find `n_integrate`, `besselj` finds `bessel_j`),
@@ -232,7 +232,7 @@ impl Searcher {
     }
 }
 
-/// What a search looks through for one topic guide (round 23).
+/// What a search looks through for one topic guide.
 #[derive(Clone, Debug)]
 pub struct GuideText {
     /// the title, lower case

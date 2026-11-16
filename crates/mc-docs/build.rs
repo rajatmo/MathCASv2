@@ -10,7 +10,7 @@ fn main() {
     println!("cargo:rerun-if-changed={}", root.display());
     let mut files = vec![];
     collect(&root, &root, &mut files);
-    // the topic guides (`docs/guides/`) as `guides/<file>` (round 21)
+    // the topic guides (`docs/guides/`) as `guides/<file>`
     let guides = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/guides");
     println!("cargo:rerun-if-changed={}", guides.display());
     let mut found = vec![];

@@ -113,7 +113,7 @@ impl<'b, 'h> Diff<'b, 'h> {
                 continue;
             };
             // a constant list (the parameters of hypergeometric_pfq or meijer_g): its
-            // derivative is 0, not a list of zeros (R22-03)
+            // derivative is 0, not a list of zeros
             if !ready && self.b.sym_of(head) == Some(self.b.hd.list) && self.is_free(u) {
                 // the parts too (a rule may ask for the derivative of an argument inside the list)
                 let mut parts = mc_api::walk::Walk::new(u);
@@ -126,7 +126,7 @@ impl<'b, 'h> Diff<'b, 'h> {
                 }
                 continue;
             }
-            // a constant algebraic number root(f, k): its pure function is not differentiated as a term (round 37)
+            // a constant algebraic number root(f, k): its pure function is not differentiated as a term
             if !ready && self.b.sym_of(head) == Some(h.sym("root")) && self.is_free(u) {
                 self.memo.insert(u, self.b.zero());
                 continue;

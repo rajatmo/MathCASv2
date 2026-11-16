@@ -1,4 +1,4 @@
-//! The Meijer G stage of definite integration (round 22; the hook of decision 14D.1).
+//! The Meijer G stage of definite integration (the hook of decision 14D.1).
 //!
 //! An integrand on `(0, inf)` that is `C x^alpha f1(e1 x^k) f2(e2 x^k)` with f1, f2 functions with a Meijer G
 //! representation (exponentials, `sin`, `cos`, Bessel J and K, `erfc`, `(1 + t)^-a`; Prudnikov, Brychkov and

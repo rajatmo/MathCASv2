@@ -1,6 +1,6 @@
 #! mathcas 2
 # Calculus library: functions written in MathCAS itself, evaluated after the prelude and the
-# language library, defined in every session. Helper functions are prefixed `calc_` and not part of the interface.
+# language library, defined in every session. Helper functions are prefixed `calc_` (`sr_` for power series) and not part of the interface.
 
 # calc_real(x): whether x has a real numerical value (inf excluded)
 fn calc_real(x) = is_real(n(x)) === true
@@ -1108,22 +1108,22 @@ fn is_polynomial_expression(e, x, test) = calc_poly_expr(e, if is_list(x) then x
 # non-negative integer powers from the variables and from coefficients that contain no symbol of the variables
 # (so sec(x) is no coefficient of cos(x)); a power b^p is the power (b^q)^(p/q) of a variable b^q when p/q is a
 # non-negative integer (x^(3/2) is the cube of sqrt(x)); is_polynomial(e) takes the variables of e
-fn r38_poly_power(e, xs) = {
+fn sr_poly_power(e, xs) = {
   let b = if head(e) === pow then e[1] else e
   let p = if head(e) === pow then e[2] else 1
   some(xs, x => not is_atom(x) and head(x) === pow and x[1] === b and is_rational(x[2]) and is_rational(p) and is_integer(p/x[2]) and p/x[2] >= 0)
 }
-fn r38_is_poly(e, xs, syms) = {
+fn sr_is_poly(e, xs, syms) = {
   if some(xs, x => e === x) then true
   else if every(syms, s => free_of(e, s)) then true
-  else if r38_poly_power(e, xs) then true
-  else if head(e) === add or head(e) === mul then every(apply(list, e), t => r38_is_poly(t, xs, syms))
-  else if head(e) === pow and is_integer(e[2]) and e[2] >= 0 then r38_is_poly(e[1], xs, syms)
+  else if sr_poly_power(e, xs) then true
+  else if head(e) === add or head(e) === mul then every(apply(list, e), t => sr_is_poly(t, xs, syms))
+  else if head(e) === pow and is_integer(e[2]) and e[2] >= 0 then sr_is_poly(e[1], xs, syms)
   else false
 }
 fn is_polynomial(e, x) = {
   let xs = if is_list(x) then x else [x]
-  r38_is_poly(e, xs, unique(flat_map(calc_syms, xs)))
+  sr_is_poly(e, xs, unique(flat_map(calc_syms, xs)))
 }
 fn is_polynomial(e) = is_polynomial(e, variables(e))
 
@@ -1131,15 +1131,15 @@ fn is_polynomial(e) = is_polynomial(e, variables(e))
 # for every value of the variables: every coefficient of the numerator of lhs - rhs, as a polynomial in the
 # variables, vanishes; solved by solve for the symbols of those coefficients (for the first of them in the canonical
 # order when there are more symbols than equations)
-fn r38_always_parts(eq, xs) = {
+fn sr_always_parts(eq, xs) = {
   let ex = if not is_atom(eq) and head(eq) === equal then eq[1] - eq[2] else eq
   let num = numerator(together(ex))
   if is_polynomial_expression(num, xs) then map(r => r[2], coefficient_rules(expand(num), xs)) else null
 }
-fn r38_solve_always(eqs, x) = {
+fn sr_solve_always(eqs, x) = {
   let xs = if is_list(x) then x else [x]
   let es = if is_list(eqs) then eqs else [eqs]
-  let parts = map(q => r38_always_parts(q, xs), es)
+  let parts = map(q => sr_always_parts(q, xs), es)
   if some(parts, p => p === null) then null
   else {
     let cs = select(catenate(parts), c => not (c === 0))
@@ -1154,7 +1154,7 @@ fn r38_solve_always(eqs, x) = {
     else solve(eqs2, unknowns)
   }
 }
-fn solve_always(eqs, x) when r38_solve_always(eqs, x) !== null = r38_solve_always(eqs, x)
+fn solve_always(eqs, x) when sr_solve_always(eqs, x) !== null = sr_solve_always(eqs, x)
 
 # --- compose_series, inverse_series ---
 # Power series as series_data(x, x0, [c_n0, ...], n0, n1) (the sum of c_k (x - x0)^k for n0 <= k < n1, plus
@@ -1165,8 +1165,8 @@ fn solve_always(eqs, x) when r38_solve_always(eqs, x) !== null = r38_solve_alway
 # analysis 1, 1.9), after (s/b_v)^(1/v) for a leading term b_v (x - x0)^v with v > 1 (a Puiseux series in
 # (y - y0)^(1/v)).
 
-# r38_order_of(t): [variable, point, order] of an O term O((x - a)^k) or O(x - a)^k, else null
-fn r38_order_of(t) = {
+# sr_order_of(t): [variable, point, order] of an O term O((x - a)^k) or O(x - a)^k, else null
+fn sr_order_of(t) = {
   let k = if head(t) === pow and not is_atom(t[1]) and head(t[1]) === O then t[2] else 1
   let o = if head(t) === pow and not is_atom(t[1]) and head(t[1]) === O then t[1] else t
   if is_atom(o) or not (head(o) === O) then null
@@ -1183,15 +1183,15 @@ fn r38_order_of(t) = {
     }
   }
 }
-# r38_series(s): s as series_data, or null
-fn r38_series(s) =
+# sr_series(s): s as series_data, or null
+fn sr_series(s) =
   if not is_atom(s) and head(s) === series_data then s
   else if not is_atom(s) and head(s) === add then {
     let ts = apply(list, s)
-    let os = select(ts, t => r38_order_of(t) !== null)
+    let os = select(ts, t => sr_order_of(t) !== null)
     if length(os) != 1 then null else {
-      let o = r38_order_of(os[1])
-      let p = total(select(ts, t => r38_order_of(t) === null))
+      let o = sr_order_of(os[1])
+      let p = total(select(ts, t => sr_order_of(t) === null))
       if free_of(p, o[1]) then series_data(o[1], o[2], [p], 0, o[3])
       else {
         let r = series(p, [o[1], o[2], o[3] - 1])
@@ -1200,48 +1200,48 @@ fn r38_series(s) =
     }
   }
   else null
-# r38_coef(s, k): the coefficient of (x - x0)^k in the series_data s
-fn r38_coef(s, k) = if k >= s[4] and k - s[4] < length(s[3]) then s[3][k - s[4] + 1] else 0
-# r38_valuation(s, from): the least k >= from below the order with a non-zero coefficient, or null
-fn r38_valuation(s, from) = {
-  let ks = select(range(max(from, s[4]), s[5] - 1), k => not is_possible_zero(r38_coef(s, k)))
+# sr_coef(s, k): the coefficient of (x - x0)^k in the series_data s
+fn sr_coef(s, k) = if k >= s[4] and k - s[4] < length(s[3]) then s[3][k - s[4] + 1] else 0
+# sr_valuation(s, from): the least k >= from below the order with a non-zero coefficient, or null
+fn sr_valuation(s, from) = {
+  let ks = select(range(max(from, s[4]), s[5] - 1), k => not is_possible_zero(sr_coef(s, k)))
   if length(ks) == 0 then null else ks[1]
 }
-fn r38_compose(f, g) = {
+fn sr_compose(f, g) = {
   let x0 = f[2]
   let h = g - x0
-  let hs = r38_series(h)
-  let v = if hs === null then null else r38_valuation(hs, 0)
-  if hs === null or v === null or v < 1 or not is_possible_zero(r38_coef(hs, 0)) then null
+  let hs = sr_series(h)
+  let v = if hs === null then null else sr_valuation(hs, 0)
+  if hs === null or v === null or v < 1 or not is_possible_zero(sr_coef(hs, 0)) then null
   else {
-    let terms = map(k => r38_coef(f, k)*h^k, range(f[4], f[5] - 1))
+    let terms = map(k => sr_coef(f, k)*h^k, range(f[4], f[5] - 1))
     total(terms) + O((g[1] - g[2])^(v*f[5]))
   }
 }
-fn r38_compose_series(f, g) = {
-  let fs = r38_series(f)
-  let gs = r38_series(g)
-  if fs === null or gs === null then null else r38_compose(fs, gs)
+fn sr_compose_series(f, g) = {
+  let fs = sr_series(f)
+  let gs = sr_series(g)
+  if fs === null or gs === null then null else sr_compose(fs, gs)
 }
 # a composition that does not exist (g - x0 of positive valuation is needed) stays unevaluated
-fn compose_series(f, g) when r38_compose_series(f, g) !== null = r38_compose_series(f, g)
+fn compose_series(f, g) when sr_compose_series(f, g) !== null = sr_compose_series(f, g)
 fn compose_series(f, g, h) = compose_series(compose_series(f, g), h)
 fn compose_series(f, g, h, k) = compose_series(compose_series(compose_series(f, g), h), k)
 
-fn r38_invert_unit(s, b1, n1, y, c0) = {
+fn sr_invert_unit(s, b1, n1, y, c0) = {
   # s: the series of valuation 1 at 0 in its variable; returns the series of x in u = y - c0 to O(u^n1)
   let u = series_data(y, c0, [1], 1, n1)
   var xs = u/b1
   for i in range(n1) {
-    xs = (u - total(map(k => r38_coef(s, k)*xs^k, range(2, n1 - 1))))/b1
+    xs = (u - total(map(k => sr_coef(s, k)*xs^k, range(2, n1 - 1))))/b1
   }
   xs
 }
-fn inverse_series(s) when r38_series(s) !== null = inverse_series(s, r38_series(s)[1])
-fn inverse_series(s) when r38_series(s) === null and r38_puiseux(s) !== null = inverse_series(s, r38_puiseux(s)[1])
-# r38_puiseux(s): a sum of terms c x^p (rational p) and one O(x^q) at 0 as [x, v, the series_data in t = x^(1/v)],
+fn inverse_series(s) when sr_series(s) !== null = inverse_series(s, sr_series(s)[1])
+fn inverse_series(s) when sr_series(s) === null and sr_puiseux(s) !== null = inverse_series(s, sr_puiseux(s)[1])
+# sr_puiseux(s): a sum of terms c x^p (rational p) and one O(x^q) at 0 as [x, v, the series_data in t = x^(1/v)],
 # v the common denominator of the exponents; null otherwise
-fn r38_puiseux(s) =
+fn sr_puiseux(s) =
   if is_atom(s) or not (head(s) === add) then null
   else {
     let ts = apply(list, s)
@@ -1258,41 +1258,41 @@ fn r38_puiseux(s) =
         let ks = map(p => p*v, ps)
         let lo = min(join(ks, [o[2]*v]))
         let hi = o[2]*v
-        [x, v, series_data(r38_t, 0, map(k => total(map(i => if ks[i] == k then cs[i] else 0, range(length(ks)))), range(lo, hi - 1)), lo, hi)]
+        [x, v, series_data(sr_t, 0, map(k => total(map(i => if ks[i] == k then cs[i] else 0, range(length(ks)))), range(lo, hi - 1)), lo, hi)]
       }
     }
   }
-fn r38_inverse_series(s, y) = {
-  let ss = r38_series(s)
-  let pu = if ss === null then r38_puiseux(s) else null
+fn sr_inverse_series(s, y) = {
+  let ss = sr_series(s)
+  let pu = if ss === null then sr_puiseux(s) else null
   if pu !== null then {
     # a Puiseux series in t = x^(1/v): invert in t, then x = t^v in the series arithmetic
-    let ti = r38_inverse_series(pu[3], y)
+    let ti = sr_inverse_series(pu[3], y)
     if ti !== null and not is_atom(ti) and head(ti) === series_data then ti^pu[2] else null
   }
   else if ss === null or ss[4] < 0 then null else {
     let x0 = ss[2]
-    let c0 = r38_coef(ss, 0)
+    let c0 = sr_coef(ss, 0)
     let n1 = ss[5]
-    let v = r38_valuation(ss, 1)
+    let v = sr_valuation(ss, 1)
     if v === null then null
-    else if v == 1 then x0 + r38_invert_unit(ss, r38_coef(ss, 1), n1, y, c0)
+    else if v == 1 then x0 + sr_invert_unit(ss, sr_coef(ss, 1), n1, y, c0)
     else {
       # w = (x - x0) ((s - c0)/(b_v (x - x0)^v))^(1/v) has valuation 1 and is known to O((x - x0)^(n1 - v + 1))
-      let bv = r38_coef(ss, v)
-      let q = series_data(ss[1], x0, map(k => r38_coef(ss, k)/bv, range(v, n1 - 1)), 0, n1 - v)
+      let bv = sr_coef(ss, v)
+      let q = series_data(ss[1], x0, map(k => sr_coef(ss, k)/bv, range(v, n1 - 1)), 0, n1 - v)
       let w = series_data(ss[1], x0, [1], 1, n1 - v + 1)*q^(1/v)
-      let ws = r38_series(w)
+      let ws = sr_series(w)
       if ws === null then null else {
         let m = n1 - v + 1
-        let t = r38_invert_unit(ws, r38_coef(ws, 1), m, r38_t, 0)
+        let t = sr_invert_unit(ws, sr_coef(ws, 1), m, sr_t, 0)
         let tv = ((y - c0)/bv)^(1/v)
-        x0 + total(map(k => r38_coef(t, k)*tv^k, range(1, m - 1))) + O((y - c0)^(m/v))
+        x0 + total(map(k => sr_coef(t, k)*tv^k, range(1, m - 1))) + O((y - c0)^(m/v))
       }
     }
   }
 }
-fn inverse_series(s, y) when is_symbol(y) and r38_inverse_series(s, y) !== null = r38_inverse_series(s, y)
+fn inverse_series(s, y) when is_symbol(y) and sr_inverse_series(s, y) !== null = sr_inverse_series(s, y)
 
 # is_possible_zero(e): whether e is probably zero: true when simplify gives 0; otherwise e is evaluated to 40 digits
 # at its symbols set to three complex sample points, a value that cannot be told from 0 counting as zero
@@ -2752,7 +2752,7 @@ rule differential_root(f_)(x0_) := {
 } when is_inexact(x0) and calc_real(x0) and not (calc_ic_point(f(calc_dfy, calc_dfx)) === null)
 
 
-# --- wave functions in the piecewise expansion (round 32; piecewise_expand calls calc_waves) ---
+# --- wave functions in the piecewise expansion (piecewise_expand calls calc_waves) ---
 
 # calc_waves(f): the waves of f as floor and abs expressions (sawtooth u - floor(u), square wave
 # 1 - 2 floor(2 u) + 4 floor(u), triangle wave 1 - 4 |t - 1/2| with t = frac(u + 1/4) and |t - 1/2| written without
@@ -3239,7 +3239,7 @@ fn calc_series_multi_ok(specs) = every(specs, sp => is_list(sp) and length(sp) =
 rule series(f_, s1_, s2_) := calc_series_multi(f, [s1, s2]) when is_list(s1) and is_list(s2) and calc_series_multi_ok([s1, s2]) and not (calc_series_multi(f, [s1, s2]) === null)
 rule series(f_, s1_, s2_, s3_) := calc_series_multi(f, [s1, s2, s3]) when is_list(s1) and is_list(s2) and is_list(s3) and calc_series_multi_ok([s1, s2, s3]) and not (calc_series_multi(f, [s1, s2, s3]) === null)
 
-# function_range of an integer step of the variable itself (round 44): floor, ceiling, round and integer_part of x
+# function_range of an integer step of the variable itself: floor, ceiling, round and integer_part of x
 # take only integer values, and every integer k (at x = k)
 rule function_range(f_, x_, y_) := element(y, integers) when is_symbol(x) and is_symbol(y) and not (x === y) and (f === floor(x) or f === ceiling(x) or f === round(x) or f === integer_part(x))
 
@@ -4349,7 +4349,7 @@ rule green_function(op_, ux_, xspec_, t_, ys_) := cb_green_pde(op, ux, xspec, t,
 # ====== further calculus functions (loaded after the libraries above, before the further functions library, whose
 # helpers they call only when their functions run) ======
 # Calculus library: functions written in MathCAS itself that call two helpers of the further functions
-# library (c30_sph_coefs and c30_sph_j_all) when they run. Helper functions are prefixed `cf_`.
+# library (ff_sph_coefs and ff_sph_j_all) when they run. Helper functions are prefixed `cf_`.
 
 # --- spheroidal_s1_prime ---
 # The z-derivative of the radial spheroidal function of the first kind. With S1(z) = P(z) N(z)/D, P = (z^2 - 1)^(m/2)
@@ -4360,10 +4360,10 @@ fn cf_s1p(nn, m, g, z) = {
   let p = if is_machine_number(n(abs(z))) and is_machine_number(n(abs(g))) then 16 else min(precision(z), precision(g))
   let lam = spheroidal_eigenvalue(nn, m, g)
   let kk = 20 + ceiling(abs(n(g))) + floor(p/2)
-  let a = c30_sph_coefs(nn, m, g^2, lam, kk)
+  let a = ff_sph_coefs(nn, m, g^2, lam, kk)
   let k0 = -floor((nn - m)/2)
   let x = g*z
-  let js = c30_sph_j_all(nn + 2*kk + 1, x)
+  let js = ff_sph_j_all(nn + 2*kk + 1, x)
   let w = k => factorial(nn + m + 2*k)/factorial(nn - m + 2*k)
   let nu = i => nn + 2*(k0 + i - 1)
   let jp = i => if nu(i) == 0 then -js[2] else js[nu(i)] - (nu(i) + 1)*js[nu(i) + 1]/x
@@ -4371,11 +4371,11 @@ fn cf_s1p(nn, m, g, z) = {
   let dnum = total(map(i => a[i]*w(k0 + i - 1)*jp(i), range(length(a))))
   let den = total(map(i => (-1)^(k0 + i - 1)*a[i]*w(k0 + i - 1), range(length(a))))
   let pz = (z^2 - 1)^(m/2)*z^(-m)
-  c30_cx(pz*(m/(z*(z^2 - 1))*num + g*dnum)/den)
+  ff_cx(pz*(m/(z*(z^2 - 1))*num + g*dnum)/den)
 }
 
 rule spheroidal_s1_prime(nn_, m_, g_, z_) := map(w => spheroidal_s1_prime(nn, m, g, w), z) when is_list(z)
-rule spheroidal_s1_prime(nn_, m_, g_, z_) := cf_s1p(round(nn), round(m), g, z) when c30_intq(nn) and c30_intq(m) and nn >= m and m >= 0 and is_numeric(g) and is_numeric(z) and not is_list(z) and (is_inexact(g) or is_inexact(z)) and z != 0 and g != 0 and abs(z) != 1
+rule spheroidal_s1_prime(nn_, m_, g_, z_) := cf_s1p(round(nn), round(m), g, z) when ff_intq(nn) and ff_intq(m) and nn >= m and m >= 0 and is_numeric(g) and is_numeric(z) and not is_list(z) and (is_inexact(g) or is_inexact(z)) and z != 0 and g != 0 and abs(z) != 1
 
 # --- differences with a step and along several levels ---
 

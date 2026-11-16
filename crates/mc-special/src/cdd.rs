@@ -1,5 +1,5 @@
-//! Complex double-double numbers (round 29): re + i im with double-double parts, about 32
-//! digits, for the machine fast paths of the round 28 functions ([`crate::fast29`]). A series or a Taylor
+//! Complex double-double numbers: re + i im with double-double parts, about 32
+//! digits, for the machine fast paths of the further special functions ([`crate::fast_dd`]). A series or a Taylor
 //! continuation that cancels ten digits still rounds to the correct double, so the machine values keep the
 //! precision contract (agreement with the 40-digit value of the exact argument) without the ball loop.
 //!

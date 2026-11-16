@@ -149,8 +149,8 @@ pub(crate) fn root<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResu
 
 /// The canonical form of the k-th root (in root order) of the polynomial with rational coefficients `p`: the root of
 /// the irreducible factor it belongs to, as a rational number (degree one), radicals `(-b +- sqrt(b^2 - 4ac))/(2a)`
-/// (degree two) or the root object `root(&(q(&1)), j)` of the primitive irreducible factor `q` (decision i19.root:
-/// the normal form of root objects). `None` when the roots could not be ordered.
+/// (degree two) or the root object `root(&(q(&1)), j)` of the primitive irreducible factor `q` (the
+/// normal form of root objects). `None` when the roots could not be ordered.
 fn canonical_root<'h>(env: &Env<'h>, p: &[Rat], k: usize, m: &mut Meter) -> WorkResult<Option<T<'h>>> {
     let factors = qpoly::factor(p, m)?;
     let (g, j) = match factors.as_slice() {

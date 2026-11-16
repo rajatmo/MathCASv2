@@ -703,7 +703,7 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
         }
         ("parallelogram", []) => Shape::Polygon(vec![vec![origin, Pt { x: 1.0, y: 0.0, scaled: false }, Pt { x: 1.0, y: 1.0, scaled: false }, Pt { x: 0.0, y: 1.0, scaled: false }]]),
         ("ball", _) if args.len() <= 2 => return shape(h, "disk", args),
-        // the sphere of two dimensions is the circle (round 37)
+        // the sphere of two dimensions is the circle
         ("sphere", _) if args.len() <= 2 && args.first().is_none_or(|&c| point(h, c, 1).is_ok()) => return shape(h, "circle", args),
         // ellipsoid(c, sigma) with a symmetric positive definite 2 x 2 matrix: the points x with
         // (x - c)^T sigma^-1 (x - c) <= 1, the ellipse with semi-axes sqrt(lambda) along the eigenvectors of sigma

@@ -25,7 +25,7 @@ use mc_eval::{NativeCx, Res};
 pub fn z_transform<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, f: T<'h>, n: T<'h>, z: T<'h>) -> Res<Option<T<'h>>> {
     let b = tc.b;
     let h = b.heap();
-    // a term at n = 0 that is infinite (1/n): the sum starts at n = 0, so there is no transform (D23-15)
+    // a term at n = 0 that is infinite (1/n): the sum starts at n = 0, so there is no transform
     if !unknown_function(cx, b, f, n) {
         let f0 = subst(cx, b, f, n, b.zero())?;
         let f0 = cx.eval(f0)?;
@@ -111,7 +111,7 @@ fn zt<'h>(
             return Ok(Some(r));
         }
     }
-    // named sequences (D21-16): fibonacci(n), harmonic_number(n), 1/n and sin(n)/n (the last two from n = 1, their
+    // named sequences: fibonacci(n), harmonic_number(n), 1/n and sin(n)/n (the last two from n = 1, their
     // n = 0 terms being undefined), from the generating functions (Graham, Knuth and Patashnik, *Concrete
     // Mathematics*, 7.1-7.3)
     {
@@ -420,7 +420,7 @@ fn izt<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, big: T<'h>, z: T<'h>,
     }
     cx.tick(1)?;
     // c z^k (k >= 1): the non-causal sequence c discrete_delta(n + k); exp(c/z): c^n/n!; log(z/(z - 1)):
-    // unit_step(n - 1)/n (D21-16)
+    // unit_step(n - 1)/n
     {
         let (c, rest) = split_constant(b, big, z);
         let k = if rest == z {

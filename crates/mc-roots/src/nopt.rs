@@ -439,7 +439,7 @@ impl<'h> Reader<'h> {
             "cylinder" if n >= 2 => {
                 // cylinder([p, q], r) (default the unit cylinder along the z axis from -1 to 1): with a = q - p and
                 // d = x - p, 0 <= d.a <= a.a and the distance to the axis at most r, by Lagrange's identity
-                // |d|^2 |a|^2 - (d.a)^2 <= r^2 |a|^2 (round 37)
+                // |d|^2 |a|^2 - (d.a)^2 <= r^2 |a|^2
                 let (p, q) = match dargs.first() {
                     Some(&e) => match point_list(cx, e)? {
                         Some(pq) if pq.len() == 2 && pq[0].len() == n && pq[1].len() == n => (pq[0].clone(), pq[1].clone()),

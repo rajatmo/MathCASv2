@@ -116,7 +116,7 @@ fn cell<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Cell<'h>> {
             return Ok(Cell::Picture(t, (s.0 as f64, s.1 as f64)));
         }
     }
-    // a term nested very deeply is no plottable part, and typesetting it is quadratic in the depth (X23-8): shown
+    // a term nested very deeply is no plottable part, and typesetting it is quadratic in the depth: shown
     // as an ellipsis
     if deeper_than(h, t, 200) {
         let dots = h.string("...");

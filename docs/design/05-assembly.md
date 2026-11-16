@@ -34,13 +34,13 @@ crates/
 they can be built and tested against the simple store of `mc-api` before `mc-core` exists. `mc-core` implements the trait.
 
 The layout above is the one of milestone M1. The workspace as it grew, measured, with its rules, is in
-`12-architecture.md`. Since round 34: the `Engine` trait and `StopFlag` are `mc-api`'s (no crate but its
+`12-architecture.md`. Since then: the `Engine` trait and `StopFlag` are `mc-api`'s (no crate but its
 dev-dependants depends on `mc-bench`); `mc-libraries` depends on every library crate and gives `mc-engine`, `mc-lsp`
 and `mc-docs` the installation of the libraries, their MathCAS sources in load order and their `FUNCTIONS` tables;
 the graphics term's natives are `mc-graphics-kernel`'s, so `mc-graphics` (model, colours, themes, renderers, viewer)
 has no evaluator; calculus is `mc-calculus` (differentiation, properties, optimisation, the shared helpers),
 `mc-limit`, `mc-integrals`, `mc-transforms` and `mc-dsolve`; the integration rule table is `mc-integrate-rules`
-(was `mc-rules`) and the round 30 coverage library `mc-further-functions` (was `mc-cover30`).
+(was `mc-rules`) and the further functions library `mc-further-functions`.
 
 ## 3. The interface contract
 

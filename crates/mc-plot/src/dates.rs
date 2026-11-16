@@ -97,7 +97,7 @@ fn date_of(n: &Node<'_>, h: &Heap, t: Option<T<'_>>) -> Option<f64> {
     let v: Vec<f64> = n.items().iter().map(Node::num).collect::<Option<_>>()?;
     let (y, m, d) = (*v.first()? as i64, v.get(1).copied().unwrap_or(1.0) as i64, v.get(2).copied().unwrap_or(1.0));
     // a component far outside any calendar (2^64) is no date: the tick loops and the day arithmetic would not end
-    // or would overflow (X23-12)
+    // or would overflow
     let bad = |t: f64| t.is_nan() || t.abs() > 1e9;
     if y.abs() > 1_000_000 || m.abs() > 12_000_000 || bad(d) || v.iter().skip(3).any(|&t| bad(t)) {
         return None;

@@ -161,7 +161,7 @@ fn closed_integer<'h>(cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, nm: &
 pub fn decide<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, nm: &numeval::Names, x: T<'h>, dom: Domain) -> Res<Option<bool>> {
     let h = b.heap();
     let ar = &b.ar;
-    // an infinity is in no domain of numbers (round 44: `element(inf, complexes)` is false)
+    // an infinity is in no domain of numbers (`element(inf, complexes)` is false)
     if infinite(b, x) {
         return Ok(Some(false));
     }

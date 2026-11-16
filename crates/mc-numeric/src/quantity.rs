@@ -1,4 +1,4 @@
-//! Physical quantities (decision P6N.15): `quantity(m, unit)` with the unit a string or a
+//! Physical quantities: `quantity(m, unit)` with the unit a string or a
 //! product of powers of strings (`"Meters"/"Seconds"`), a table of SI and common units written for this crate,
 //! arithmetic with conversion, comparisons, and `unit_convert`, `quantity_magnitude`, `quantity_unit`.
 //!

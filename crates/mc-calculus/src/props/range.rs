@@ -1,4 +1,4 @@
-//! `function_range(f, x, y)` and `function_range([f, cond], x, y)` (decision F27.1): the values of a real
+//! `function_range(f, x, y)` and `function_range([f, cond], x, y)`: the values of a real
 //! function of one variable as a condition on `y`, with open and closed ends told apart.
 //!
 //! - **Rational functions** (parameters allowed): `resolve(exists(x, cond and den != 0 and num == y den))`

@@ -1,4 +1,4 @@
-//! Function composition and threading of heads (decision p6core.28): `composition(f, g, ...)(x)` is
+//! Function composition and threading of heads: `composition(f, g, ...)(x)` is
 //! `f(g(...(x)))`, `right_composition(f, g, ...)(x)` is `...(g(f(x)))`, `through(p(f, g)(x))` is `p(f(x), g(x))`,
 //! and `activate(e)` turns the inert heads `inactive(f)` of `e` into `f`.
 use mc_core::{Heap, Store, Sym, View, T};
@@ -19,7 +19,7 @@ impl Native for Compose {
         let View::App { head, .. } = h.view(t) else { return Ok(Reply::Decline) };
         if let View::Sym(own) = h.view(head) {
             // the plain composition is flat and drops `identity`: `composition(f, composition(g, h), identity)` is
-            // `composition(f, g, h)`, and the empty composition is `identity` (decision r36core.1)
+            // `composition(f, g, h)`, and the empty composition is `identity`
             let identity = h.sym_term(h.sym("identity"));
             let mut flat: Vec<T<'h>> = Vec::with_capacity(args.len());
             let mut changed = false;

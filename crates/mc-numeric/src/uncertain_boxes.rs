@@ -1,4 +1,4 @@
-//! Rectangular box arithmetic for `centered_interval` (round 36): a centered interval with a complex centre c and a
+//! Rectangular box arithmetic for `centered_interval`: a centered interval with a complex centre c and a
 //! radius rx + i ry (a real radius r meaning r in both parts) is the box [re c -+ rx] x [im c -+ ry]. Sums and
 //! products of boxes are interval arithmetic on the parts (re(zw) = re z re w - im z im w, ...); a power z^w is
 //! exp(w log z), with log over a box that avoids 0 and the branch cut (the modulus between the nearest point and the

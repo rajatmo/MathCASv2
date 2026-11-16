@@ -15,7 +15,7 @@
 //! out-line     = "#| " print | "#= " value | "#! " failure or error | "#? " message | "#~ " embedded data
 //! ```
 //!
-//! Pictures travel inside the file (round 13, user decision: one file per notebook, no sidecar folder): an output
+//! Pictures travel inside the file (one file per notebook, no sidecar folder): an output
 //! block's `#~` lines carry the files its `image("name")` values name, see [`embed`].
 //!
 //! Every marker, prose and output line is a comment, so a notebook is also a script whose statements are its code
@@ -537,7 +537,7 @@ impl Cell {
     }
 
     /// A cell of `kind` holding `content` exactly: every line break is a line of the body, so a content ending in
-    /// a line break (or in white space lines) is written and read back unchanged (ui B21-12). An empty content has
+    /// a line break (or in white space lines) is written and read back unchanged. An empty content has
     /// no line.
     pub fn exact(kind: Kind, content: &str) -> Cell {
         let mut c = Cell::new(kind, "");
@@ -698,7 +698,7 @@ fn split_gap(mut lines: Vec<String>) -> (Vec<String>, usize) {
 }
 
 /// `lines` of a code cell without its trailing empty lines (a line of white space belongs to the source, so an
-/// auto-indented new line survives a save, ui B21-12), and how many there were.
+/// auto-indented new line survives a save), and how many there were.
 fn split_code_gap(mut lines: Vec<String>) -> (Vec<String>, usize) {
     let keep = lines.iter().rposition(|l| !l.is_empty()).map_or(0, |i| i + 1);
     let gap = lines.len() - keep;

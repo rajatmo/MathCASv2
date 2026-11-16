@@ -551,7 +551,7 @@ impl Conv<'_> {
                 let (pe, s) = (p.span.end as usize, f.span.start as usize);
                 let gap = if pe <= s && self.src[pe..s].chars().all(|c| c == ' ' || c == '*') { pe..s } else { pe..pe };
                 // a name before a bracketed factor: a centred dot, so that the product `x·(x − a)` is told from the
-                // call `x(x − a)` (round 20)
+                // call `x(x − a)`
                 let dot = matches!(p.kind, ExprKind::Name(_)) && self.parenthesised(f);
                 out.push(Item::Char(if prev_num && num { '×' } else if dot { '\u{22C5}' } else { '\u{2009}' }), gap);
             }
@@ -816,7 +816,7 @@ impl Conv<'_> {
                         let (r, m) = s(0);
                         (Node::Radical { radicand: r, index: None }, vec![m])
                     }
-                    // the real n-th root (round 19, U19.3); `root(p, k)` is a root of a polynomial, not a radical
+                    // the real n-th root; `root(p, k)` is a root of a polynomial, not a radical
                     ("surd", 2) => {
                         let ((r, rm), (i, im)) = (s(0), s(1));
                         (Node::Radical { radicand: r, index: Some(i) }, vec![im, rm])
@@ -964,7 +964,7 @@ pub fn output_input_text(row: &Row) -> String {
     out
 }
 
-/// Input boxes for a part of typeset output (copying it with its boxes, round 13): the items with the output
+/// Input boxes for a part of typeset output (copying it with its boxes): the items with the output
 /// spellings turned back character by character as [`output_input_text`] does (the thin space of a product to `*`),
 /// inside the boxes too, and only the notebook's three boxes kept ([`mc_boxes::restrict`]). Its canonical text
 /// ([`mc_boxes::to_text`]) evaluates as the selected part reads.
@@ -1055,7 +1055,7 @@ fn main_variable<'a>(src: &str, terms: impl Iterator<Item = &'a Expr>) -> Option
 }
 
 /// A call that reads like a product: a plain name called on arguments in which the name is itself an operand
-/// (`x(x - a)`). As a power's base it keeps its brackets, `(x(x − a))²` (round 20; the printer writes them too).
+/// (`x(x - a)`). As a power's base it keeps its brackets, `(x(x − a))²` (the printer writes them too).
 fn confusable_call(e: &Expr) -> bool {
     let ExprKind::Call(f, args) = &e.kind else { return false };
     let ExprKind::Name(n) = &f.kind else { return false };
@@ -1133,7 +1133,7 @@ mod tests {
         assert_eq!(out("root(x, 3)"), "root(x, 3)", "a root of a polynomial is not a radical");
         assert_eq!(out("x^-1"), "(1/x)");
         // a call that reads like a product keeps the brackets of a power's base; a product with a bracketed
-        // factor after a name shows its dot (round 20)
+        // factor after a name shows its dot
         assert_eq!(out("(x(x - a))^2"), "((x(x − a))^2)");
         assert_eq!(out("(x(x - a))^(1/2)"), "√(x(x − a))");
         assert_eq!(out("x*(x - a)"), "x\u{22C5}(x − a)");

@@ -1,5 +1,4 @@
-//! The native of `integrate`: options, ranges, lists, the hand-back to the evaluator (moved from `mc-calculus`'s
-//! natives in round 34).
+//! The native of `integrate`: options, ranges, lists, the hand-back to the evaluator.
 use mc_api::{names, Store, View, T};
 use mc_arith::num::StopScope;
 use mc_calculus::common::{named_failure, variable};

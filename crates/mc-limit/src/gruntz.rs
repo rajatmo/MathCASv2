@@ -1014,7 +1014,7 @@ impl<'a, 'h> Gruntz<'a, 'h> {
     }
 
     /// Is the coefficient `c` zero? A function of x: by a common denominator (the kernels' zero test is polynomial
-    /// in their kernels; quotients that cancel need more). A closed numeric constant (round 44): by its sign, decided
+    /// in their kernels; quotients that cancel need more). A closed numeric constant: by its sign, decided
     /// by the decision service or an enclosure, else by `simplify`; `None` when that is not decided, since a
     /// coefficient that is zero but not seen to be (-sinh(2) - e^-2/2 + e^2/2 in the series of sinh(x) - sinh(2) at
     /// 2) taken as the leading term made `limit((fresnel_c(x) - fresnel_c(2))/(sinh(x) - sinh(2)), x -> 2)` 0. A
@@ -1137,7 +1137,7 @@ impl<'a, 'h> Gruntz<'a, 'h> {
         let r = match b.sym_of(head) {
             Some(s) if s == b.hd.add => {
                 // constant hyperbolic terms of a sum in the exp form of the others, so that the series kernels see
-                // cancellations: sinh(x) - sinh(2) at x = 2 (round 44)
+                // cancellations: sinh(x) - sinh(2) at x = 2
                 let mut terms = Vec::with_capacity(na.len());
                 for &a in &na {
                     terms.push(if self.free(a) { self.hyperbolic_as_exp(cx, a)? } else { a });

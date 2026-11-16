@@ -6,7 +6,7 @@
 //! (`bit_and`, `bit_or`, `bit_xor`, `bit_not`), digits (`integer_reverse`, `real_digits`, `mixed_radix`) and
 //! continued fractions (`continued_fraction`, `from_continued_fraction`).
 //!
-//! Decision cov-num.3: integer arguments beyond the word size go through the natives (`factor_integer`,
+//! Integer arguments beyond the word size go through the natives (`factor_integer`,
 //! `divisors`, ...) as terms; the counting functions work on `Int`s and stop at 10^4 (larger stay unevaluated).
 use mc_api::{Store, T};
 use mc_arith::num::{Int, Nat, Rat};
@@ -1090,7 +1090,7 @@ fn mixed_radix<'h>(_fx: &mut Fx<'_, '_, '_, 'h>, _a: &[T<'h>]) -> R<'h> {
 }
 
 /// The digits of an exact rational p/q >= 0 in base b: (prefix digits, repeating cycle, exponent), leading zeros
-/// removed (decision cov-num.4: a cycle of zeros is no cycle).
+/// removed (a cycle of zeros is no cycle).
 fn rational_digits(p: &Nat, q: &Nat, b: u64) -> Option<(Vec<u64>, Vec<u64>, i64)> {
     let bn = Nat::from_u64(b);
     let (ip, mut r) = p.divrem(q);

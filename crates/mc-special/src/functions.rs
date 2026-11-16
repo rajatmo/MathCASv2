@@ -370,7 +370,7 @@ impl Special {
             S::EllipticF => el::elliptic_f(a[0], a[1]),
             S::EllipticPi => el::elliptic_pi(a[0], a[1]),
             S::EllipticPiInc => el::elliptic_pi_inc(a[0], a[1], a[2]),
-            // beyond 1e12 the double-double reduction has no digit left: the real ball function at 192 bits (D23-24)
+            // beyond 1e12 the double-double reduction has no digit left: the real ball function at 192 bits
             S::JacobiSn | S::JacobiCn | S::JacobiDn if a[0].abs() > 1e12 && a[0].is_finite() && a[1].is_finite() => {
                 let ex = |v: f64| Real::Ball(mc_arith::num::Ball::exact(ball::float_of(v)), 192);
                 let (u, m) = (ex(a[0]), ex(a[1]));
@@ -419,11 +419,11 @@ impl Special {
             S::Polygamma if a[0].im == 0.0 => cx::polygamma(a[0].re, a[1]),
             S::Beta => cx::beta(a[0], a[1]),
             S::Zeta => cx::zeta(a[0]),
-            S::EllipticPi => crate::fast33::elliptic_pi_complete(CD::c(a[0]), CD::c(a[1])),
-            S::EllipticPiInc => crate::fast33::elliptic_pi_inc(CD::c(a[0]), CD::c(a[1]), CD::c(a[2])),
-            S::JacobiSn => crate::fast33::single(0, a[0], a[1]),
-            S::JacobiCn => crate::fast33::single(1, a[0], a[1]),
-            S::JacobiDn => crate::fast33::single(2, a[0], a[1]),
+            S::EllipticPi => crate::fast_elliptic::elliptic_pi_complete(CD::c(a[0]), CD::c(a[1])),
+            S::EllipticPiInc => crate::fast_elliptic::elliptic_pi_inc(CD::c(a[0]), CD::c(a[1]), CD::c(a[2])),
+            S::JacobiSn => crate::fast_elliptic::single(0, a[0], a[1]),
+            S::JacobiCn => crate::fast_elliptic::single(1, a[0], a[1]),
+            S::JacobiDn => crate::fast_elliptic::single(2, a[0], a[1]),
             S::Hyp0F1 => cx::hyp0f1(a[0], a[1]),
             S::Hyp1F1 => cx::hyp1f1(a[0], a[1], a[2]),
             S::Hyp2F1 => cx::hyp2f1(a[0], a[1], a[2], a[3]),
@@ -615,10 +615,10 @@ impl LibraryFn for Special {
     }
     fn machine(&self, args: &[f64]) -> Mach {
         if args.len() == self.arity() && !self.real_domain(args) {
-            // the complex values beyond the real domain on the cut from below (round 33)
+            // the complex values beyond the real domain on the cut from below
             let z = match (*self, args) {
-                (Special::EllipticF, [phi, m]) => crate::fast33::elliptic_f_beyond(*phi, *m),
-                (Special::EllipticK, [m]) => crate::fast33::elliptic_k_above_one(*m),
+                (Special::EllipticF, [phi, m]) => crate::fast_elliptic::elliptic_f_beyond(*phi, *m),
+                (Special::EllipticK, [m]) => crate::fast_elliptic::elliptic_k_above_one(*m),
                 _ => None,
             };
             if let Some(z) = z {

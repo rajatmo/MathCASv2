@@ -278,7 +278,7 @@ pub struct Facts<'h> {
     s: Arc<Syms>,
     rels: Vec<Rel<'h>>,
     kinds: FxHashMap<T<'h>, Kind>,
-    /// the terms stated prime (`element(p, primes)`, round 44)
+    /// the terms stated prime (`element(p, primes)`)
     primes: Vec<T<'h>>,
     /// the terms stated algebraic (`element(x, algebraics)`) or complex (`element(x, complexes)`): `true` for
     /// algebraic, `false` for a complex number only
@@ -371,7 +371,7 @@ impl<'h> Facts<'h> {
         if let (Some(op), [l, r]) = (self.s.op(s), args) {
             self.relation(*l, op, *r);
         } else if let (true, [x, dom]) = (s == self.s.element, args) {
-            // the domains outside the kinds (round 44): a prime is an integer of at least 2; an algebraic number
+            // the domains outside the kinds: a prime is an integer of at least 2; an algebraic number
             // and a complex number are finite complex numbers
             let extra = self.b.sym_of(*dom).map(|d| self.b.heap().sym_name(d));
             if let Some(name @ ("primes" | "algebraics" | "complexes")) = extra.as_deref() {
@@ -979,7 +979,7 @@ impl<'h> Facts<'h> {
         } else {
             None
         };
-        // round 19 (n12): exp is increasing, so a numeric bound c of u bounds exp(u) by exp(c), taken outward as a
+        // exp is increasing, so a numeric bound c of u bounds exp(u) by exp(c), taken outward as a
         // dyadic rational (the machine exponential is within an ulp; the bound is widened by a relative 10^-6, far
         // beyond that error): x < 3/2 gives exp(x) < 4.4817...
         let exp_bound = |c: T<'h>, up: bool| -> Option<T<'h>> {
@@ -1113,7 +1113,7 @@ impl<'h> Facts<'h> {
         self.parity_by_parts(cx, n, d)
     }
 
-    /// The parity of an integer from its parts (round 44): an integer number; a prime above 2 is odd and 2 even; the
+    /// The parity of an integer from its parts: an integer number; a prime above 2 is odd and 2 even; the
     /// parities of the terms of a sum of integers add; a product of integers is even when a factor is and odd when
     /// all are.
     fn parity_by_parts(&mut self, cx: &mut NativeCx<'_, '_, 'h>, n: T<'h>, d: u32) -> Res<Option<bool>> {
@@ -1173,7 +1173,7 @@ impl<'h> Facts<'h> {
         Ok(parities.iter().all(|p| *p == Some(false)).then_some(false))
     }
 
-    /// Is `t` an algebraic number (round 44)? `Some(true)` for rational numbers (exact complex ones too), the terms
+    /// Is `t` an algebraic number?`Some(true)` for rational numbers (exact complex ones too), the terms
     /// the facts make rational or state algebraic, and sums, products and rational powers of algebraic numbers (a
     /// negative power of a nonzero one); `None` when not known (never `false`: transcendence is not decided here).
     pub fn algebraic(&mut self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, d: u32) -> Res<Option<bool>> {
@@ -1215,7 +1215,7 @@ impl<'h> Facts<'h> {
         Ok(None)
     }
 
-    /// Is `t` a (finite) complex number (round 44)? `Some(true)` for numbers, real values, algebraic ones, the terms
+    /// Is `t` a (finite) complex number?`Some(true)` for numbers, real values, algebraic ones, the terms
     /// stated complex, and sums, products, nonnegative integer powers and the entire functions `exp`, `sin`, `cos`,
     /// `sinh`, `cosh` of complex numbers; `None` when not known.
     pub fn complex_number(&mut self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, d: u32) -> Res<Option<bool>> {

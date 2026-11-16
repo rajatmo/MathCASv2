@@ -235,12 +235,12 @@ passed on; `unquote(q)` evaluates it.
 | `x_` | any single term, bound to `x` |
 | `x_ : T` | a term of type `T` (a type expression, section 16) |
 | `xs__` / `xs___` | one or more / zero or more consecutive arguments, bound to a list (under an associative-commutative head, to that head applied to them: 6.2) |
-| `xs__ : T` / `xs___ : T` | such a run whose arguments are all of type `T` (decision C9B2.3) |
+| `xs__ : T` / `xs___ : T` | such a run whose arguments are all of type `T` |
 | `p \| q` | `p` or `q` (both must bind the same variables) |
 | `p when c` | `p`, and then `c` evaluates to `true` with the bindings in scope |
-| `x_ = d` | an optional argument with default `d`, on a definition's parameter list; `x_` may be any pattern with one variable naming the whole argument (`x_ : T`, `x @ p`, `p when c`), and a sequence variable's missing run is `[d]`; the default is not tested against the pattern (decision C9B2.1) |
+| `x_ = d` | an optional argument with default `d`, on a definition's parameter list; `x_` may be any pattern with one variable naming the whole argument (`x_ : T`, `x @ p`, `p when c`), and a sequence variable's missing run is `[d]`; the default is not tested against the pattern |
 | `optional(x_, d)` | the same inside a list, a rule or a nested pattern, where `x_ = d` would read as an assignment |
-| `optional(xs__, d)` | an optional run inside a pattern: the run when there are arguments for it, else the default (`[d]`, or `d` itself under an associative-commutative head: 6.2) (decision r18c14.1) |
+| `optional(xs__, d)` | an optional run inside a pattern: the run when there are arguments for it, else the default (`[d]`, or `d` itself under an associative-commutative head: 6.2) (decision 13.11) |
 | `repeated(p)`, `repeated(p, n)`, `repeated(p, [m, n])` | a run of consecutive arguments each matching `p` (one or more, at most `n`, exactly or between counts) |
 | `key_value_pattern([k -> p, ...])` | an association containing those keys with values matching the patterns, in any order |
 | literal term | exactly that term |
@@ -283,7 +283,7 @@ matched against the term, the optional variables bound to their defaults, becaus
 `optional(n_, 1) * x_` matches `x` with `n = 1` and `b^optional(k_, 1)` matches `b` with `k = 1`, while
 `optional(c_, 5) * x_` does not match `x` (`5 x` is not `x`). *Reason:* this is the one sound case of a missing
 argument in an operator that unwraps single arguments; giving a non-unit default the same treatment would match
-terms the instantiated pattern is not equal to. (Decision C9B2.2, November 2026.)
+terms the instantiated pattern is not equal to. (November 2026.)
 
 **Optional runs.** `optional(xs__, d)` among the arguments of an AC call pattern is tried present, as the sequence
 variable `xs__` (taking one or more arguments, standing for the head applied to them), then absent, bound to `d`;
@@ -291,7 +291,7 @@ the unit rule above applies to it like to any optional argument. So `optional(b_
 `-x^-2/c^2` with `b = -c^-2` (two factors) and `x^-2` with `b = 1`; a coefficient pattern of an integration rule
 needs exactly this. Under any other head it is the run, or the run `[d]` when absent (as a definition's optional
 run). *Reason:* a single variable takes one argument under an associative head (above), which is the right default;
-a rule that wants "the rest of the product, or 1" says so explicitly. (Decision r18c14.1, November 2026.)
+a rule that wants "the rest of the product, or 1" says so explicitly. (Decision 13.11.)
 
 **`rewrite` and parts of a call.** A rule given to `rewrite` whose left side is a call of an associative-commutative
 head and has no sequence variable among that call's arguments also rewrites part of a longer call of the head: it is
@@ -341,15 +341,15 @@ Defining a rule whose left side is identical (up to renaming of pattern variable
 - For a symbol `x`, `x = r` defines its own value.
 - A left side whose head is itself compound, `f(x_)(y_) := r`, defines a rule for the calls whose head matches
   `f(x_)`; such rules are kept with the innermost head symbol (`f`) and tried on a call whose head is not a symbol
-  (rules whose head pattern has no symbol, `g_(x_)(y_)`, after them). (Decision C9B2.4.)
+  (rules whose head pattern has no symbol, `g_(x_)(y_)`, after them).
 - Definitions return `null` and increment the symbol's version (4.3).
 - `unset(x)` removes the own value, identity element and rules of `x` (its attributes and a native implementation
   stay); `unset(f(p))` removes the one rule whose left side is `f(p)` up to renaming of pattern variables. Like a
   definition it is an effect and may happen in the middle of an evaluation: what it removes stays readable by other
-  tasks until the next safe point. (Decision r17fix.3.)
+  tasks until the next safe point. (Decision 13.8.)
 - A symbol with the attribute `protected` (`protect(f)`) keeps its definitions: an assignment, a rule definition
   (also one attached with `@on`), `unset` and an attribute change other than removing `protected` give
-  `failure(protected, f)`. (Decision r17fix.4.)
+  `failure(protected, f)`. (Decision 13.9.)
 
 ### 6.5 Argument-head rules
 
@@ -362,7 +362,7 @@ argument order, and then the rules of `h`. Within each symbol, 6.3 applies. Atta
 supported. (Decision 13.2.)
 
 The attaching argument may also be a bare symbol: `@on(square) rule area(square) = 1` is stored with `square` and
-tried when `square` itself is an argument. (Decision C9B.5.)
+tried when `square` itself is an argument.
 
 ### 6.6 Substitution is hygienic
 
@@ -375,7 +375,7 @@ local variables) are renamed when needed so that a substituted term never captur
   created.
 - `let(x = a, body)` introduces lexical local names.
 - A named lambda has exact arity. A slot function `&(...)` ignores arguments past its highest slot, so
-  `map(&(&1 + 1), ...)` can be given to functions that pass extra arguments. (Decision C9B.9.)
+  `map(&(&1 + 1), ...)` can be given to functions that pass extra arguments.
 - A block may introduce **mutable lexical locals** (`var` in the surface syntax): cells visible only in that block
   and in closures created inside it, assigned by `x = v`. They are never symbol definitions, carry no version and do
   not affect normal-form stamps; a term read from a local is an ordinary value.
@@ -523,7 +523,7 @@ representations, but users should never need to know which one is in use.
 - The option `assumptions: a` of a function that reads the context *replaces* the context for that call by `a`
   (`assumptions: true` is the empty context); a positional facts argument (`simplify(e, facts)`, `refine(e, facts)`)
   extends it. So `assuming(x > 0, simplify(e, assumptions: y < 0))` uses `y < 0` only. An option names the value of
-  one setting, as every other option does; extending stays available by nesting `assuming`. (Decision r17fix.5.)
+  one setting, as every other option does; extending stays available by nesting `assuming`. (Decision 13.10.)
 - Only functions that declare `uses_assumptions` in their signature read the context (`refine`, `simplify`,
   `integrate`, `limit`, `solve`, ...). For those functions the context is part of the evaluation's dependencies (4.3),
   so a result found under one context is never reused under another.
@@ -598,9 +598,10 @@ Decisions on what draft 1 left open. Each can be reopened by a spike or benchmar
 | 13.5 | Cost function for simplification | Size by default with canonical-order tie-break; others selectable | 14 |
 | 13.6 | Exact constants | Symbols with numeric rules and built-in facts; algebraic numbers packed | 15 |
 | 13.7 | Types, patterns and the compiler | One type language; the compiler takes monomorphic machine types only | 16 |
-| r17fix.3 | Removing definitions during an evaluation | `unset` is an effect of the frontier; removed rule sets are retired until a safe point | 6.4 |
-| r17fix.4 | Protection | A `protected` attribute; changes to a protected symbol's definitions are failures | 6.4 |
-| r17fix.5 | `assumptions:` option and `assuming` | The option replaces the context; `assuming` and positional facts extend it | 13 |
+| 13.8 | Removing definitions during an evaluation | `unset` is an effect of the frontier; removed rule sets are retired until a safe point | 6.4 |
+| 13.9 | Protection | A `protected` attribute; changes to a protected symbol's definitions are failures | 6.4 |
+| 13.10 | `assumptions:` option and `assuming` | The option replaces the context; `assuming` and positional facts extend it | 13 |
+| 13.11 | Optional runs under an associative-commutative head | The default is `d` itself, not `[d]`; elsewhere the run or `[d]` | 6.2 |
 | 1.0-7 | Property answers and functions of several intervals from samples | Only proved answers; points refute only, at exact or separating values; else unevaluated | 2.8 |
 
 Spike outcomes:

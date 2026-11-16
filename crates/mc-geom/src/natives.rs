@@ -85,7 +85,7 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     reg("region_intersection", |cx, a| boolean(cx, a, Op::Intersection));
     reg("region_difference", |cx, a| boolean(cx, a, Op::Difference));
     reg("region_integrate", region_integrate);
-    // round 18: more primitives stay inert; mesh regions, triangles, polygons
+    // more primitives stay inert: mesh regions, triangles, polygons
     reg("mesh_cells", |cx, a| crate::mesh::cells(cx, a, false));
     reg("mesh_primitives", |cx, a| crate::mesh::cells(cx, a, true));
     reg("mesh_cell_count", crate::mesh::cell_count);
@@ -344,7 +344,7 @@ fn measure_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], want: Option<usize
     }
 }
 
-/// The exact measure of an implicit region of at most three variables (round 19, Q19-28): the cylindrical
+/// The exact measure of an implicit region of at most three variables: the cylindrical
 /// decomposition of its condition (mc-cad), each full-dimensional cell `l_1 < x_1 < u_1, l_2(x_1) < x_2 <
 /// u_2(x_1), ...` integrated symbolically as a nested definite integral of 1, the cells summed. Accepted only
 /// when every integral has a closed form and the sum agrees with the numeric measure `approx` (to 10^-4
@@ -874,7 +874,7 @@ fn implicit_measure<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>) -> Res<Op
 }
 
 /// `area(region_intersection(disk(c1, r1), disk(c2, r2)))` and `region_moment(that, [0, 0])` (`n` arguments): the
-/// lens area of [`lens_area`] (exact data give the exact value, machine data a machine value; round 36, one
+/// lens area of [`lens_area`] (exact data give the exact value, machine data a machine value; one
 /// implementation for both); `None` for anything else.
 fn lens<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], n: usize) -> Res<Option<Reply<'h>>> {
     let h = cx.heap();
@@ -1091,7 +1091,7 @@ pub(crate) fn boolean_polygons<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], o
     let mut parts = vec![];
     let mut exact = true;
     // a disk (or ellipse) would enter as a 256-gon: the result would be a polygon only near the region, and its
-    // measures off by 1e-4 (round 36); the Boolean region stays as it is (discretize_region meshes it)
+    // measures off by 1e-4; the Boolean region stays as it is (discretize_region meshes it)
     if a.iter().any(|&t| matches!(read(cx, t), Some(Region::Ball { .. }))) {
         return Ok(Reply::Decline);
     }

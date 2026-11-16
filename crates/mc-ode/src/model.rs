@@ -97,7 +97,7 @@ impl<'h> Model<'h> {
     fn derivatives(&mut self, cx: &mut NativeCx<'_, '_, 'h>) -> Res<()> {
         let Some(mut p) = self.pending.take() else { return Ok(()) };
         // the Jacobian is evaluated once per step of the stiff method, a few dozen times in all: compiled at once
-        // rather than after the policy's count of interpreted calls (G41: a large Jacobian interpreted for the first
+        // rather than after the policy's count of interpreted calls (a large Jacobian interpreted for the first
         // 32 steps cost seconds); a refused or declined call still goes to the interpreter
         if matches!(p.policy, Policy::Family { .. } | Policy::Auto { .. }) {
             p.policy = Policy::Compiled;

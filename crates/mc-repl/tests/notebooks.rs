@@ -82,7 +82,7 @@ fn errors_are_recorded_and_the_run_goes_on() {
     std::fs::write(&path, "#! mathcas 2 notebook\n#% cell\n1/0\n#% cell\ny = (\n#% cell\n7\n#% output\n#= 7\n")
         .unwrap();
     let (code, out, err) = run_in(&dir, &["--update", "e.mcn"]);
-    // a cell that does not read is an error, but the cells after it still run (gap G77)
+    // a cell that does not read is an error, but the cells after it still run
     assert_eq!((code, out.as_str()), (1, "7\n"));
     assert!(err.starts_with("e.mcn: failure(division_by_zero)\ne.mcn:7:6: "), "{err}");
     let written = std::fs::read_to_string(&path).unwrap();

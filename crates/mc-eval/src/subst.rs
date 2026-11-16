@@ -44,7 +44,7 @@ pub(crate) struct Scopes {
     pub(crate) optional: Sym,
     pub(crate) held: Sym,
     pub(crate) rest: Sym,
-    /// `options(name -> value, ...)`: the names are not substituted (decision p6core.18)
+    /// `options(name -> value, ...)`: the names are not substituted
     pub(crate) options: Sym,
     /// the wrapper an option name hides in while a substitution runs
     pub(crate) option_name: Sym,

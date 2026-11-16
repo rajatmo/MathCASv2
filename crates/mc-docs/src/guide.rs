@@ -1,4 +1,4 @@
-//! Topic guides (round 21): short notebooks in `docs/guides/<NN>-<slug>.mcn`, one per topic, read from the same
+//! Topic guides: short notebooks in `docs/guides/<NN>-<slug>.mcn`, one per topic, read from the same
 //! notebook format as the function pages but with a free body.
 //!
 //! The cells come in this order:
@@ -193,7 +193,7 @@ impl Guide {
             .unwrap_or("")
     }
 
-    /// What search looks through: the title, headings, prose and example inputs (lower case; round 23).
+    /// What search looks through: the title, headings, prose and example inputs (lower case).
     pub fn search_text(&self) -> crate::search::GuideText {
         let mut words = String::new();
         for p in &self.parts {

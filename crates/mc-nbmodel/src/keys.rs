@@ -303,7 +303,7 @@ pub fn table() -> Vec<Binding> {
         ("Ctrl+^", Text, C::Structure(Structure::Superscript)),
         ("Ctrl+2", Text, C::Structure(Structure::Radical)),
         ("Ctrl+@", Text, C::Structure(Structure::Radical)),
-        // round 19: in a root to its index and back; elsewhere an n-th root (U19.3)
+        // in a root to its index and back; elsewhere an n-th root
         ("Ctrl+5", Text, C::Structure(Structure::Root)),
         ("Ctrl+%", Text, C::Structure(Structure::Root)),
         // at an insertion point the box keys make an Input cell holding the box (before the tab keys Ctrl+2/6)
@@ -312,7 +312,7 @@ pub fn table() -> Vec<Binding> {
         ("Ctrl+^", Gap, C::Structure(Structure::Superscript)),
         ("Ctrl+2", Gap, C::Structure(Structure::Radical)),
         ("Ctrl+@", Gap, C::Structure(Structure::Radical)),
-        // round 32 (R32.3): an n-th root at an insertion point too, as Ctrl+2 makes a square root
+        // an n-th root at an insertion point too, as Ctrl+2 makes a square root
         ("Ctrl+5", Gap, C::Structure(Structure::Root)),
         ("Ctrl+%", Gap, C::Structure(Structure::Root)),
         ("Ctrl+Space", Text, C::ExitStructure),
@@ -346,7 +346,7 @@ pub fn table() -> Vec<Binding> {
         ("Ctrl+Shift+J", Any, C::App(AppAction::ToggleOutputAlignment)),
         ("Ctrl+Alt+=", Any, C::App(AppAction::Zoom(1))),
         ("Ctrl+Alt+-", Any, C::App(AppAction::Zoom(-1))),
-        // the browser keys too (user request, round 13): one step of the magnification ladder; Ctrl+0 resets
+        // the browser keys too: one step of the magnification ladder; Ctrl+0 resets
         ("Ctrl+=", Any, C::App(AppAction::Zoom(1))),
         ("Ctrl+Shift+=", Any, C::App(AppAction::Zoom(1))),
         ("Ctrl+-", Any, C::App(AppAction::Zoom(-1))),

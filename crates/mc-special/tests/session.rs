@@ -97,7 +97,7 @@ fn machine_and_balls() {
     let mut s = Sys::new();
     assert_eq!(s.run("gamma(0.5)"), "1.772453850905516");
     assert_eq!(s.run("zeta(3.0)"), "1.2020569031595942");
-    // the plain double path (G94) is within a few ulps of 0.13986588181652243
+    // the plain double path is within a few ulps of 0.13986588181652243
     assert_eq!(s.run("bessel_k(1, 2.0)"), "0.13986588181652254");
     assert_eq!(s.run("bessel_i(0, 1.0)"), "1.2660658777520084");
     assert_eq!(s.run("log_gamma(-0.5)"), "complex(1.2655121234846454, -3.141592653589793)");

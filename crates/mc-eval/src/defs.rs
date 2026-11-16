@@ -88,7 +88,7 @@ pub struct Attributes {
     /// associative and commutative: arguments are flattened and sorted, and matching is modulo AC (6.2)
     pub ac: bool,
     /// associative only (`flat`): nested calls are spliced in, order is kept, and a pattern argument matches a run of
-    /// arguments wrapped in the head (R22-13); an AC head is flat as well, by `ac`
+    /// arguments wrapped in the head; an AC head is flat as well, by `ac`
     pub flat: bool,
     /// the function performs effects (semantics 9): calls are never evaluated speculatively ahead of their turn
     /// (used by the granularity estimate)
@@ -100,7 +100,7 @@ pub struct Attributes {
     /// the function reads the assumption context (semantics 13): its calls depend on it (see [`crate::assume`])
     pub uses_assumptions: bool,
     /// the symbol's definitions may not be changed: assignments, rule definitions, `unset` and attribute changes
-    /// other than `unprotect` give `failure(protected, f)` (decision r17fix.4)
+    /// other than `unprotect` give `failure(protected, f)` (decision 13.9 of design 01)
     pub protected: bool,
 }
 

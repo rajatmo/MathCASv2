@@ -32,7 +32,7 @@ pub(crate) enum Method {
 
 impl Method {
     fn from_name(s: &str) -> Option<Method> {
-        // the usual names, as symbols (gap G71): bisection, Ridders' and regula falsi are
+        // the usual names, as symbols: bisection, Ridders' and regula falsi are
         // bracketing methods too, and run as Brent's
         Some(match s.to_ascii_lowercase().replace(['_', ' '], "").as_str() {
             "newton" => Method::Newton,

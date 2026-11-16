@@ -345,7 +345,7 @@ impl Native for FindIntegerNullVector {
             p = p.min(q);
             nums.push(v);
         }
-        // complex numbers (round 37): integers c with sum c_i Re x_i = 0 and sum c_i Im x_i = 0 together. The search
+        // complex numbers: integers c with sum c_i Re x_i = 0 and sum c_i Im x_i = 0 together. The search
         // runs on the real numbers Re x_i + theta Im x_i with theta = sqrt(2) (a relation of both parts is one of
         // these), and a relation found is kept only when it holds for the real and the imaginary parts separately
         let complex = nums.iter().any(|v| matches!(v, Num::Complex(..)));

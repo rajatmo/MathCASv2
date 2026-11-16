@@ -123,7 +123,7 @@ pub(crate) fn member_of<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
 /// arguments in order (decision 1A.6).
 pub(crate) fn position<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // `position(t, p, levels)` (levels counted from the top) and `heads: false` (decision io-core.11)
+    // `position(t, p, levels)` (levels counted from the top) and `heads: false`
     let (args, heads) = crate::ctx::option(h, args, 2, "heads");
     let heads = heads.is_none_or(|v| !cx.is_false(v));
     // `position(t, p, levels, n)`: the first n positions
@@ -221,7 +221,7 @@ pub(crate) fn select_first<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h
         _ => return Ok(Reply::Decline),
     };
     // `select_first(xs, f -> "Index")`, `-> "Element"`, `-> ["Element", "Index"]` (a final rule may arrive as
-    // options; decision cov-core.11)
+    // options)
     let f = match h.view(f) {
         View::App { head, args: &[r] } if head == h.sym_term(h.sym("options")) => r,
         _ => f,

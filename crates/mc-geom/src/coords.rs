@@ -1,4 +1,4 @@
-//! Measures of a region written as a map and its ranges (round 33): `arc_length(map, [t, a, b])`,
+//! Measures of a region written as a map and its ranges: `arc_length(map, [t, a, b])`,
 //! `area(map, [u, a, b], [v, c, d])`, `volume(map, [u, ..], [v, ..], [w, ..])`, each with an optional coordinate
 //! system `polar`, `cylindrical` or `spherical` naming the coordinates of the map, and `perimeter(map, [u, a,
 //! b], [v, c, d])` (also of a `parametric_region`).
@@ -152,7 +152,7 @@ pub fn perimeter<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T
             continue;
         }
         // a closed curve run several times over (the astroid for theta in [0, 4 pi]): the boundary of the point set
-        // is one period, the largest k <= 12 with curve(t + L/k) = curve(t) (round 36)
+        // is one period, the largest k <= 12 with curve(t + L/k) = curve(t)
         let mut range = *range;
         if let Some(&[v, lo, hi]) = cx.as_list(range) {
             let span = cx.eval(e.add(&[hi, e.mul(&[e.int(-1), lo])]))?;

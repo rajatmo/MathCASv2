@@ -134,7 +134,7 @@ impl Label {
             return Label::text(s);
         }
         // an integer of tens of thousands of digits: its leading digits and exponent (printing all of it takes
-        // seconds and no drawing shows it; X26-13)
+        // seconds and no drawing shows it)
         if let View::BigInt { neg, mag } = h.view(t) {
             if mag.len() > HUGE_LIMBS {
                 return Label::huge_integer(neg, mag);
@@ -568,7 +568,7 @@ mod tests {
         notation(&Label::text(s).row)
     }
 
-    /// Gap queue G84: a tie is a space, `\rm` sets the letters upright to the end of the group.
+    /// A tie is a space, `\rm` sets the letters upright to the end of the group.
     #[test]
     fn ties_and_font_switches() {
         let t = tex(r"$\tau~T_n$");
@@ -582,7 +582,7 @@ mod tests {
         assert_eq!(tex("~5 s"), "~5 s");
     }
 
-    /// Gap queue G43: letter styles.
+    /// Letter styles.
     #[test]
     fn letter_styles() {
         assert_eq!(tex(r"$\mathcal{A}\mathcal{B}$"), "\u{1d49c}\u{212c}");

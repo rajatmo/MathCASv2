@@ -170,7 +170,7 @@ impl<'a, 'c, 'k, 'h> Sx<'a, 'c, 'k, 'h> {
     }
     /// `e` with `x` replaced by `v`, evaluated. The replacement is structural and `e` is not evaluated first (an
     /// inner `n_sum(f, [j, ...])` with the outer index still symbolic would print its "terms are not numbers"
-    /// message once for every outer value, D23-19).
+    /// message once for every outer value).
     pub fn subst(&mut self, e: T<'h>, x: T<'h>, v: T<'h>) -> Res<T<'h>> {
         let r = mc_numfn::replace(self.h(), e, &mut |t| (t == x).then_some(v));
         self.cx.eval(r)

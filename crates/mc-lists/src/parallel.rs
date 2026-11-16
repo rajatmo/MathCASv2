@@ -1,4 +1,4 @@
-//! Parallel evaluation (decision sp-core.4): `parallel_table`, `parallel_map`, `parallel_sum`, and the option
+//! Parallel evaluation: `parallel_table`, `parallel_map`, `parallel_sum`, and the option
 //! `parallel: true` of `table` and `map`.
 //!
 //! The values are split over the session's worker threads at once, in runs of about `n / (4 threads)` elements,

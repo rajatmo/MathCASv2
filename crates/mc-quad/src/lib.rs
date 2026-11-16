@@ -7,7 +7,7 @@
 //! - `rigorous`: guaranteed enclosures by Clenshaw–Curtis with Bernstein-ellipse error bounds (`rigorous: true`);
 //! - `domain`, `multi`, `cubature`, `mc`, `qmc`, `qmc_tables`: multiple integrals on the unit cube with the
 //!   integrand evaluated in parallel blocks: Genz–Malik adaptive cubature, VEGAS+ and plain Monte Carlo, randomised
-//!   lattice rules and scrambled Sobol points (decisions quad-1.1, quad-1.2, ...);
+//!   lattice rules and scrambled Sobol points;
 //! - `options`, `natives`: options and goals; argument forms, method choice, results and failures.
 //!
 //! ```

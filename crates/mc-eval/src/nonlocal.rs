@@ -1,5 +1,5 @@
 //! Non-local results (item 9B): `throw` and `catch`, `sow` and `reap`; and the pattern head
-//! `repeated` (matched by `crate::matcher`, C9B.4).
+//! `repeated` (matched by `crate::matcher`).
 //!
 //! | term | value |
 //! |---|---|
@@ -12,7 +12,7 @@
 //! | `reap(e, p)`, `reap(e, [p1, ...])` | the groups of the tags matching `p` (per pattern for a list) |
 //! | `reap(e, p, f)` | `f(tag, values)` for each group instead of the list of values |
 //!
-//! **Throw is a failure value** (semantics 10, decision C9B.2): a thrown value travels as `failure(thrown, ...)`,
+//! **Throw is a failure value** (semantics 10): a thrown value travels as `failure(thrown, ...)`,
 //! so it ends blocks and loops and propagates through strict calls exactly like any failure, and needs no new
 //! control mechanism in the evaluator. Terms that keep failures (lists, the results of `map` and other natives)
 //! hold it where it was made; `catch` then takes the first thrown failure in its value, depth first and left to
@@ -21,7 +21,7 @@
 //! The one difference from an exception: work after a throw inside a term that keeps failures still runs (its
 //! effects happen), though its result is discarded.
 //!
-//! **Sow is an effect** collected per `reap` on a stack the two natives share (decision C9B.3). Both are
+//! **Sow is an effect** collected per `reap` on a stack the two natives share. Both are
 //! marked `effect`, so they run in order on the frontier, never speculatively. The stack holds handles of the
 //! running evaluation only (a `reap` pops its frame before it returns, also when its body aborts), so it needs no
 //! tracing: no safe point falls inside an evaluation.
@@ -321,7 +321,7 @@ impl Native for Reap {
     }
 }
 
-/// `repeated(p, ...)` and `key_value_pattern(...)`: patterns (C9B.4, C9B.11), terms that only matching
+/// `repeated(p, ...)` and `key_value_pattern(...)`: patterns, terms that only matching
 /// reads; the native declines, so the call stays as written.
 struct Repeated;
 

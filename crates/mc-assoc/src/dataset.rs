@@ -46,7 +46,7 @@ pub(crate) fn dataset<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
                 return Ok(Reply::Done(x));
             }
             if let Some(entries) = lib.as_assoc(h, x) {
-                // an association of rows (each an association): the rows, their keys dropped (decision io-core.12)
+                // an association of rows (each an association): the rows, their keys dropped
                 let rows: Option<Vec<T<'h>>> = entries
                     .iter()
                     .map(|&e| lib.entry(h, e).map(|(_, v)| v).filter(|&v| lib.as_assoc(h, v).is_some()))
@@ -54,7 +54,7 @@ pub(crate) fn dataset<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
                 if let Some(rows) = rows.filter(|r| !r.is_empty()) {
                     return from_rows(lib, cx, &rows);
                 }
-                // an association of single values: a dataset of one row (G57)
+                // an association of single values: a dataset of one row
                 if !entries.is_empty() && entries.iter().all(|&e| Col::of(s, h, lib.value(h, e)).is_none()) {
                     return from_rows(lib, cx, &[x]);
                 }
@@ -451,7 +451,7 @@ fn part<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, tab: &Table<'h>, i: T<'h>,
                 _ => return Ok(Reply::Done(index(h.int(b)))),
             }
         }
-        // `all`: every row, so `ds[all, "y"]` is the column `y` as a list (G63)
+        // `all`: every row, so `ds[all, "y"]` is the column `y` as a list
         View::Sym(a) if h.sym_name(a) == "all" && tab.column(i).is_none() && more.first().is_some_and(|&c| tab.column(c).is_some()) => {
             (0..n).collect()
         }
@@ -479,7 +479,7 @@ fn part<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, tab: &Table<'h>, i: T<'h>,
                 }
                 ix
             }
-            // a function name before column indices (round 36): it applies to what the rest of the query selects
+            // a function name before column indices: it applies to what the rest of the query selects
             // from every row (`ds[total, "a"]` is total(ds[all, "a"]))
             (None, None)
                 if matches!(h.view(i), View::Sym(f) if h.sym_name(f) != "all" && cx.is_defined(f))

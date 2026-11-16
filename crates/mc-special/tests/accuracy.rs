@@ -157,7 +157,7 @@ fn bessel_grid() {
             ti.add(ulps(bessel::bessel_i(nu, x), &r.re), format!("{nu}, {x}"));
         }
     }
-    // K at orders up to 3 and x in [2, 600] takes the plain double path (gap G94, decision cov-num.1): a few ulps
+    // K at orders up to 3 and x in [2, 600] takes the plain double path: a few ulps
     tk.report(6.0);
     ti.report(4.0);
 }

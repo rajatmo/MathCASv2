@@ -44,7 +44,7 @@
 //! symmetry methods", Comp. Phys. Comm. 101 (1997); E. J. Putzer, "Avoiding the Jordan canonical form in the
 //! discussion of linear systems with constant coefficients", Amer. Math. Monthly 73 (1966).
 //!
-//! A crate of its own since round 34 (split out of `mc-calculus`).
+//! A crate of its own (split out of `mc-calculus`).
 #![warn(missing_docs)]
 mod delay;
 mod first;

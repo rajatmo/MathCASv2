@@ -1,4 +1,4 @@
-//! The memory the process may use, for the default memory budget of an evaluation (decision p6core.11): the
+//! The memory the process may use, for the default memory budget of an evaluation: the
 //! smaller of the physical memory and a limit set on the process (on Windows a job object's process memory limit,
 //! as `tools/guard.ps1` sets; on Unix `RLIMIT_AS`). `MC_MEMORY_LIMIT_MB` overrides both.
 

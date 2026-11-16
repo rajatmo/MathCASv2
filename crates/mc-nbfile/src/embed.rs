@@ -1,5 +1,5 @@
-//! Pictures inside the notebook file (round 13, user decision: "keep everything in one file"). Saving no longer
-//! writes a `<name>.files/` folder: each output block carries the files its image values name as `#~` lines, so a
+//! Pictures inside the notebook file (everything is kept in one file). Saving writes
+//! no `<name>.files/` folder: each output block carries the files its image values name as `#~` lines, so a
 //! notebook is one file that shows its plots, their hover read-outs and 3D rotation on any machine.
 //!
 //! ```text
@@ -15,9 +15,9 @@
 //! the header says so). Names are content hashes (`plot-<hash>.svg`), so a picture saved twice is the same text and
 //! a diff shows only the pictures that changed. Its siblings with the same stem travel with it, deflated: the plot
 //! description `.json` (hover read-outs), the 3D scene `.scene3d` (rotation) and, for a plot drawn as an SVG, its
-//! column twin `.column.svg` (round 37: the plot laid out for the text column of the PDF export, design 7.5).
+//! column twin `.column.svg` (the plot laid out for the text column of the PDF export, design 7.5).
 //!
-//! **Which picture** (round nb-svg): a plot or graphic of this program (`plot-N.png` with its SVG sibling, or an
+//! **Which picture**:a plot or graphic of this program (`plot-N.png` with its SVG sibling, or an
 //! SVG written by `mc-graphics`, see [`is_ours`]) is embedded as its SVG, deflated, so the notebook draws it sharp
 //! at every scale and in its theme. An SVG that deflates to more than [`SVG_LIMIT`] bytes (dense plots: some 10^5
 //! points and more) is embedded as a PNG rendered from it at [`HIRES`] times its size, marked with a `pHYs` chunk
@@ -26,7 +26,7 @@
 //! documentation's pages) is embedded as the SVG it holds, like a plot of the session. PDF siblings are never stored. Older notebooks
 //! carrying PNGs read as before.
 //!
-//! **Shared copies** (round nb-svg): a picture several outputs show is embedded once, in the first block that
+//! **Shared copies**: a picture several outputs show is embedded once, in the first block that
 //! shows it; the later blocks only name it. [`extract`] reads the files of every block before it points the values
 //! at them.
 //!

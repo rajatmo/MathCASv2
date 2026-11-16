@@ -1,4 +1,4 @@
-//! Binary data (round 29): `byte_array`, `binary_write` and `binary_read_list`.
+//! Binary data: `byte_array`, `binary_write` and `binary_read_list`.
 //!
 //! `byte_array([b1, b2, ...])` is a list of bytes (integers 0 to 255) held as that term; any other argument leaves
 //! it unevaluated. `binary_read_list(source, type, count)` reads a file (a path string) or a `byte_array` as a

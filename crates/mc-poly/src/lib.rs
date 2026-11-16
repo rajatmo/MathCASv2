@@ -86,7 +86,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("series", "series(e, x, x0, n): the power series of e in x at x0 up to the power n"),
     ("normal", "normal(s): a series as its truncated sum (other terms unchanged)"),
     ("O", "O(x^n): the order term of a printed series; series(... + O(x^n), x, 0, k) reads it back"),
-    // round 28, written in MathCAS (lib/calculus.mc)
+    // written in MathCAS (lib/calculus.mc)
     ("series_coefficient", "series_coefficient(s, k): the coefficient of order k of a series; series_coefficient(f, [x, x0, k], ...) of the expansion of f"),
     ("factor_list", "factor_list(p): [[c, 1], [f1, e1], ...], the numeric factor and the irreducible factors with multiplicities (negative for a denominator)"),
     ("factor_terms", "factor_terms(p), (p, x), (p, [x1, ...]): the numerical content of p pulled out, and with variables the factors free of them"),

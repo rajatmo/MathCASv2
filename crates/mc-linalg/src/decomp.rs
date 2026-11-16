@@ -298,7 +298,7 @@ pub fn svd<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'
         _ => return Ok(Out::Decline),
     };
     let a = take!(matrix_arg(env, args, 0));
-    // exact and ball matrices are decomposed in machine arithmetic too (round 19, Q19-27: they stayed unevaluated)
+    // exact and ball matrices are decomposed in machine arithmetic too
     Ok(match a.domain {
         Domain::Real | Domain::Rational | Domain::Ball => {
             let mat = a.reals(env);

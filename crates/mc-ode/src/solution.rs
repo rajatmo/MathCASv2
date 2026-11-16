@@ -163,7 +163,7 @@ impl Store {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// solutions in compiled code (round 13, decision LC.5)
+// solutions in compiled code (decision LC.5)
 
 /// The stores of the live sessions, for the compiler's resolver (a solution is found by its content key).
 static STORES: Mutex<Vec<std::sync::Weak<Store>>> = Mutex::new(Vec::new());

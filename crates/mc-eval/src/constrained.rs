@@ -1,4 +1,4 @@
-//! Evaluation under a time or memory limit (round 19): `time_constrained(e, t)`,
+//! Evaluation under a time or memory limit:`time_constrained(e, t)`,
 //! `time_constrained(e, t, fail)`, `memory_constrained(e, b)`, `memory_constrained(e, b, fail)`; and `pause(t)`.
 //!
 //! | term | value |

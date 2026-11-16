@@ -141,12 +141,12 @@ impl<'h, S: Scalar> Problem<'h, S> {
             Some(Method::DoubleExponential) => de::integrate(cx, &mut f, &pieces, goals, de_level),
             Some(_) | None => {
                 // the automatic choice (decision N2.7): the double-exponential rule first when the integrand is not
-                // numeric at a finite end (an endpoint singularity) or not smooth there (decision quad-2.2: an
+                // numeric at a finite end (an endpoint singularity) or not smooth there (an
                 // unbounded derivative, as x log x or x^x at 0, which defeats the Gauss-Kronrod error estimate),
                 // Gauss-Kronrod first otherwise; the other method when the first does not converge, keeping the
                 // better estimate
                 let (pieces, flags) = f.split_rough(cx, &pieces)?;
-                // an oscillating infinite tail: the oscillatory method first (decision quad-2.3)
+                // an oscillating infinite tail: the oscillatory method first
                 let mut osc_tail = false;
                 for p in &pieces {
                     let (a, dir) = match p.map {

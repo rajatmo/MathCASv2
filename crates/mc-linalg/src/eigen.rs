@@ -103,7 +103,7 @@ fn poly_term<'h>(env: &Env<'h>, coefs: &[T<'h>], x: T<'h>) -> T<'h> {
 /// `characteristic_polynomial(m, x)`: `det(x I - m)`, monic in `x`.
 pub fn characteristic_polynomial<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
     let [mt, x] = args else { return Ok(Out::Decline) };
-    // a pencil [a, b]: det(x b - a), the form that is det(x I - a) for b = I (decision r37.5)
+    // a pencil [a, b]: det(x b - a), the form that is det(x I - a) for b = I
     if let Some((a, b)) = pencil_arg(env, *mt) {
         let n = a.rows();
         let terms = shifted_by(env, &a.terms(env), Some(&b.terms(env)), n, *x, true);
@@ -138,7 +138,7 @@ fn shifted_by<'h>(env: &Env<'h>, a: &[T<'h>], b: Option<&[T<'h>]>, n: usize, x: 
 }
 
 /// The pencil argument `[a, b]` of `characteristic_polynomial` and the eigen functions: a list of two square
-/// matrices of one size (decision r37.5); a matrix of two rows is not one (its rows are vectors).
+/// matrices of one size; a matrix of two rows is not one (its rows are vectors).
 fn pencil_arg<'h>(env: &Env<'h>, t: T<'h>) -> Option<(Arr<'h>, Arr<'h>)> {
     let &[pa, pb] = env.as_list(t)? else { return None };
     let (a, b) = (env.read(pa)?, env.read(pb)?);
@@ -399,7 +399,7 @@ fn ordered_slots(groups: &[Group<'_>]) -> Vec<(usize, usize)> {
     slots
 }
 
-/// A vector of rationals scaled by a positive factor to coprime integers ([1/3, 1] is [1, 3], decision la-9d.1:
+/// A vector of rationals scaled by a positive factor to coprime integers ([1/3, 1] is [1, 3]:
 /// the form a reader expects of exact eigenvectors); vectors with other entries, or entries beyond 64 bits, as
 /// they are.
 fn integral<'h>(env: &Env<'h>, v: Vec<T<'h>>) -> Vec<T<'h>> {
@@ -609,8 +609,8 @@ fn d_is_one(p: &Poly) -> bool {
 fn eigen<'h>(env: &Env<'h>, a: &Arr<'h>, vectors: bool, m: &mut Meter) -> WorkResult<Result<(Vec<T<'h>>, Vec<T<'h>>), Out<'h>>> {
     let n = a.rows();
     match a.domain {
-        // real symmetric ball matrices at their own precision (round 36); other ball matrices are solved in machine
-        // arithmetic, as `svd` does (round 19)
+        // real symmetric ball matrices at their own precision; other ball matrices are solved in machine
+        // arithmetic, as `svd` does
         Domain::Ball if crate::apeigen::applies(&a.nums(env), n) => {
             let Some((vals, vecs)) = crate::apeigen::ball_symmetric(&a.nums(env), n, vectors, m)? else {
                 return Ok(Err(Out::Decline));
@@ -649,7 +649,7 @@ fn eigen<'h>(env: &Env<'h>, a: &Arr<'h>, vectors: bool, m: &mut Meter) -> WorkRe
 }
 
 /// Exact eigenvalues (and eigenvectors) of the matrix `terms`, or of the pencil `[terms, b]`: the roots of
-/// det(x b - a), and `inf` once for each degree that polynomial lacks (decision r37.5), first (the largest
+/// det(x b - a), and `inf` once for each degree that polynomial lacks, first (the largest
 /// modulus); the eigenvectors of `inf` span the null space of `b`.
 #[allow(clippy::type_complexity)]
 fn exact_eigen<'h>(
@@ -723,7 +723,7 @@ impl Want {
     }
 }
 
-/// The eigen functions of a pencil `[a, b]` (generalized eigenproblem a v = lambda b v, decision r37.5). Exact
+/// The eigen functions of a pencil `[a, b]` (generalized eigenproblem a v = lambda b v). Exact
 /// entries: the roots of det(x b - a) with `inf` for the missing degrees, eigenvectors as null spaces. Machine
 /// entries: those of b^-1 a when b is nonsingular to working precision (the eigenvalues and eigenvectors of the
 /// pencil then are those of b^-1 a); a singular b, or balls, decline.

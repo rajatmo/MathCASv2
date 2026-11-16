@@ -236,8 +236,8 @@ struct SimplifyNative {
 impl Native for SimplifyNative {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h: &'h Heap = cx.heap();
-        // options: `assumptions: a` replaces the surrounding context by the facts a (decision r17fix.5);
-        // `complexity_function: f` is simplify's measure (decision s-cost.3); the others (`trig`, ...) are accepted
+        // options: `assumptions: a` replaces the surrounding context by the facts a (decision 13.10 of design 01);
+        // `complexity_function: f` is simplify's measure; the others (`trig`, ...) are accepted
         // and ignored (decision A.8)
         let (args, opts) = split_options(h, args);
         let assumed = opts.assumed;
@@ -270,7 +270,7 @@ impl Native for SimplifyNative {
         let mut f = if facts.is_empty() && !needs { None } else { Some(Facts::new(cx, &b, &self.syms, facts)?) };
         let r = match self.f {
             Fun::Simplify | Fun::FullSimplify => {
-                // equational axioms (`for_all(vars, s == t)`) prove an equation outright (round 19)
+                // equational axioms (`for_all(vars, s == t)`) prove an equation outright
                 if let Some(v) = logic::prove(cx, &b, facts, *e)? {
                     return Ok(Reply::Done(v));
                 }

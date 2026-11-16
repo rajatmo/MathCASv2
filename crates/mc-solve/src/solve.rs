@@ -929,7 +929,7 @@ fn invert<'h>(env: &Env<'h>, k: T<'h>, v: T<'h>, x: T<'h>, m: &mut Meter) -> Wor
         "tanh" => vec![fam(u, f("atanh"), pi_i)],
         "coth" if reals => vec![one(u, f("acoth"))],
         "coth" => vec![fam(u, f("acoth"), pi_i)],
-        // csch(u) == v and sech(u) == v are sinh(u) == 1/v and cosh(u) == 1/v; 0 is not a value (round 37)
+        // csch(u) == v and sech(u) == v are sinh(u) == 1/v and cosh(u) == 1/v; 0 is not a value
         "csch" | "sech" if is_zero => vec![],
         "csch" if reals => vec![one(u, f("acsch"))],
         "csch" => {
@@ -942,14 +942,14 @@ fn invert<'h>(env: &Env<'h>, k: T<'h>, v: T<'h>, x: T<'h>, m: &mut Meter) -> Wor
             vec![fam(u, neg(w), two_pi_i), fam(u, w, two_pi_i)]
         }
         // the Gudermannian function is a bijection of the reals onto (-pi/2, pi/2): over the reals its inverse;
-        // inverse_gudermannian of a real value has the one real solution gudermannian(v) (round 37)
+        // inverse_gudermannian of a real value has the one real solution gudermannian(v)
         "gudermannian" if reals => match env.machine(v) {
             Some((a, 0.0)) if a.abs() >= std::f64::consts::FRAC_PI_2 => vec![],
             _ => vec![one(u, f("inverse_gudermannian"))],
         },
         "inverse_gudermannian" if reals || env.machine(v).is_some_and(|(_, b)| b == 0.0) => vec![one(u, f("gudermannian"))],
         // logistic_sigmoid(u) = 1/(1 + e^-u) == v: u == log(v/(1 - v)), over the complexes with period 2 pi i; 0 and 1
-        // are not values (round 37)
+        // are not values
         "logistic_sigmoid" => {
             let is_one = env.ar.num(env.ar.sub(v, env.int(1))).is_some_and(|n| n.is_zero());
             if is_zero || is_one {
@@ -986,7 +986,7 @@ fn invert<'h>(env: &Env<'h>, k: T<'h>, v: T<'h>, x: T<'h>, m: &mut Meter) -> Wor
             }
         }
         // the inverse functions: the value of the function, where v is in their range
-        // acsch(u) and asech(u) are never 0 (round 37)
+        // acsch(u) and asech(u) are never 0
         "acsch" | "asech" if is_zero => vec![],
         "log" | "asin" | "acos" | "atan" | "asinh" | "acosh" | "atanh" | "acsch" | "asech" => {
             let g = match name.as_str() {

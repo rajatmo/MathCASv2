@@ -29,7 +29,7 @@ fn symbolic_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>, s: T<'h
     Ok(Reply::Again(cx.list(&out)))
 }
 
-/// `range` of quantities (G56): `range(quantity(10, "Feet"))` lists `quantity(k, "Feet")` for `k` in `range(10)`;
+/// `range` of quantities: `range(quantity(10, "Feet"))` lists `quantity(k, "Feet")` for `k` in `range(10)`;
 /// with two or three bounds every bound is read in the unit of the first quantity among them
 /// (`quantity_magnitude(q, unit)`), so `range(quantity(3, "Ounces"), quantity(1, "Pounds"))` counts ounces.
 /// `None` when no bound is a quantity.
@@ -325,9 +325,9 @@ fn iterator_values<'h>(
 /// lists, the first iterator outermost, each range evaluated with the iterators before it bound. Every argument is
 /// held: `e` is the body of a closure `k => e` (lexical, hygienic: semantics 6.7), called on each value as a group
 /// like `map` (decision 1A.14). An iterator is a symbol and its range, or a count alone: `table(e, 4, 7)` is four
-/// lists of seven values of `e`, `table(e, 3, k, r)` three copies of `table(e, k, r)` (decision io-core.3).
+/// lists of seven values of `e`, `table(e, 3, k, r)` three copies of `table(e, k, r)`.
 pub(crate) fn table<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-    // `parallel: true` as the last argument splits the values over the worker threads (decision sp-core.4)
+    // `parallel: true` as the last argument splits the values over the worker threads
     match crate::parallel::option(cx, args)? {
         Some((rest, parallel)) => table_with(lib, cx, t, rest, parallel),
         None => table_with(lib, cx, t, args, false),
@@ -371,13 +371,13 @@ pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
         }
     }
     // the iterator lists `[k, a, b]` and `[k, a, b, step]` are `k, range(a, b)` and `k, range(a, b, step)`: bounds
-    // and steps of any numeric kind (R24-04)
+    // and steps of any numeric kind
     let iter_list = |t: T<'h>| match h.view(t) {
         View::App { head, args: it @ ([_, _] | [_, _, _] | [_, _, _, _]) } if head == h.sym_term(h.sym(mc_api::names::LIST)) && matches!(h.view(it[0]), View::Sym(_)) => Some(it),
         _ => None,
     };
     // only in an iterator slot: a list right after a variable is that variable's values (`table(k, k, [x, y, z])`,
-    // X26-9: round 25 read `[x, y, z]` there as an iterator and broke every table over a list of symbols)
+    // reading `[x, y, z]` there as an iterator would break every table over a list of symbols)
     let mut lowered = false;
     let mut out = vec![args[0]];
     let mut i = 1;
@@ -409,7 +409,7 @@ pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
     if lowered {
         return table_with(lib, cx, t, &out, parallel);
     }
-    // a count iterator before more iterators, `table(e, n, ...)`: n copies of `table(e, ...)` (decision io-core.3)
+    // a count iterator before more iterators, `table(e, n, ...)`: n copies of `table(e, ...)`
     if args.len() >= 3 && !matches!(h.view(args[1]), View::Sym(_)) {
         let mut inner = vec![args[0]];
         inner.extend_from_slice(&args[2..]);
@@ -594,7 +594,7 @@ fn compiled_table<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Opti
 /// 1A.15), evaluated as a group.
 pub(crate) fn map_indexed<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // heads: true: the heads are parts too, positions as index lists (round 37); heads: false is the plain form
+    // heads: true: the heads are parts too, positions as index lists; heads: false is the plain form
     let (args, heads) = crate::ctx::option(h, args, 2, "heads");
     if let Some(v) = heads {
         match h.view(v) {
@@ -613,7 +613,7 @@ pub(crate) fn map_indexed<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>
             _ => return Ok(Reply::Decline),
         }
     }
-    // with levels, the positions are index lists (decision p6core.9)
+    // with levels, the positions are index lists
     if let [f, x, spec] = *args {
         return match crate::levels::level_spec(h, spec) {
             Some(levels) => crate::levels::map_indexed_at(cx, f, x, levels),
@@ -663,7 +663,7 @@ pub(crate) fn map_thread<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
     }
     let [f, xss] = *args else { return Ok(Reply::Decline) };
     let xss = take!(lib.list_operand(h, t, xss, 2));
-    // associations with the same keys: the association of `f` of each key's values (decision io-core.4)
+    // associations with the same keys: the association of `f` of each key's values
     if !xss.is_empty() && xss.iter().all(|&a| crate::assocs::entries(lib, h, a).is_some()) {
         let mut vals = Vec::with_capacity(xss.len());
         for &a in xss {
@@ -804,7 +804,7 @@ pub(crate) fn fold_list<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
         return Ok(Reply::Done(v));
     }
     let h = cx.heap();
-    // fold_list(f, []) has no intermediate values: [] (decision r37.4)
+    // fold_list(f, []) has no intermediate values: []
     if let [_, xs] = *args {
         if cx.as_list(xs).is_some_and(|v| v.is_empty()) {
             return Ok(Reply::Done(xs));
@@ -896,7 +896,7 @@ fn arithmetic_op(h: &Heap, f: T<'_>) -> Option<bool> {
 }
 
 /// `fold`/`fold_list` (`list`) of addition or multiplication over a packed array of machine reals or integers,
-/// on its payload (decision p6core.30): the values the scalar loop gives, bit for bit (each step adds or
+/// on its payload: the values the scalar loop gives, bit for bit (each step adds or
 /// multiplies two machine numbers, an exact start converted first, as the arithmetic folds them); a packed result.
 /// `None` when the shortcut does not apply (other functions or elements, non-finite reals, integer overflow).
 fn packed_fold<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], list: bool) -> Res<Option<T<'h>>> {
@@ -989,7 +989,7 @@ fn fold_with<'h>(
     mut each: impl FnMut(T<'h>),
 ) -> Res<Result<T<'h>, Reply<'h>>> {
     let h = cx.heap();
-    // the elements may come in a term with any head (fold(f, x, p(a, b)) is f(f(x, a), b), decision r37.4); the
+    // the elements may come in a term with any head (fold(f, x, p(a, b)) is f(f(x, a), b)); the
     // head is reported for `fold_list`
     let (f, x, xs) = match *args {
         [f, x, xs] => match lib.elements_operand(h, t, xs, 3) {
@@ -1058,7 +1058,7 @@ pub(crate) fn subdivide<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
 }
 
 /// `subdivide(a, b, n)` with machine-real end points (or one an integer of magnitude at most 2^53), computed
-/// directly (a hot spot of the profiles, decision sp-core.6): the general path's value of point k,
+/// directly (a hot spot of the profiles): the general path's value of point k,
 /// `a + k*((b - a)*n^(-1))`, is `a + k*(n^(-1)*(b + (-a)))` in machine arithmetic (the exact factors converted
 /// first, the inexact ones in either order: one operation each). Point 0 is the general path's (it may be exact),
 /// and points 1, 2 and n are checked against it: any difference leaves the general path in charge.
@@ -1100,7 +1100,7 @@ fn machine_subdivide<'h>(
 }
 
 /// The steps of `nest_while` (`list` false) and `nest_while_list`: `f` applied from `x` while `test` holds, at most
-/// `max` times (decision io-core.8). The arguments after `test`: `m`, how many of the latest values the test sees
+/// `max` times. The arguments after `test`: `m`, how many of the latest values the test sees
 /// (an integer: the test waits until there are that many; `all`: every value so far; `[mmin, m]`: it waits for
 /// `mmin`); `max`; and `n`, applications after the end (`n > 0`) or values dropped from the end (`n < 0`).
 fn nest_while_steps<'h>(
@@ -1242,7 +1242,7 @@ fn machine_close<'h>(ar: &mc_arith::Arith<'h, Heap>, a: T<'h>, b: T<'h>) -> bool
 /// before it (numbers that agree count as repeating), at most `n` applications.
 pub(crate) fn fixed_point_list<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // `same_test: g`: the iteration stops when `g(previous, next)` is true (decision io-core.8)
+    // `same_test: g`: the iteration stops when `g(previous, next)` is true
     let (args, test) = crate::ctx::option(h, args, 2, "same_test");
     let (f, x, max) = match *args {
         [f, x] => (f, x, u64::MAX),

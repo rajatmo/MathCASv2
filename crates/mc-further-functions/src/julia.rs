@@ -201,7 +201,7 @@ impl Map {
     }
 }
 
-// ---------------------------------------------------------------- verified counts (round 36)
+// ---------------------------------------------------------------- verified counts
 
 /// A complex ball: real and imaginary parts.
 type CB = (Ball, Ball);
@@ -305,7 +305,7 @@ struct Mode {
     prec: Option<u64>,
 }
 
-/// `c30_julia_counts(num, den, points, max)`, `c30_julia_counts(num, den, points, max, working_precision)`: the
+/// `ff_julia_counts(num, den, points, max)`, `ff_julia_counts(num, den, points, max, working_precision)`: the
 /// counts of the points (a number or nested lists of numbers) under N/D given by coefficient lists, constant first.
 /// For a polynomial map, a point given exactly (or any point with a working precision in digits) is iterated in
 /// ball arithmetic with the precision raised until every decision is certain (machine arithmetic loses an orbit

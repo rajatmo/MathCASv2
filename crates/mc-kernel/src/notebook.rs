@@ -18,8 +18,8 @@ enum Line {
     Value(Option<u64>, String),
 }
 
-/// The output blocks of a run (gap G91): one per shown statement value. A cell that shows at most one value gets
-/// one block without attributes, its lines in order (the format before G91, so such notebooks are written as
+/// The output blocks of a run: one per shown statement value. A cell that shows at most one value gets
+/// one block without attributes, its lines in order (the older format, so such notebooks are written as
 /// before); with several values each value's block carries its statement's number (`out=N`) and holds the print
 /// output and warnings since the previous value; what follows the last value (and the stop line) goes in a block
 /// of its own. Reading keeps both layouts.
@@ -53,7 +53,7 @@ fn output_blocks(lines: &[Line], status: Status) -> Vec<OutputBlock> {
 
 /// Evaluate the code cells of `nb` in order in `engine`, every cell from `origin` (the notebook file: imports are
 /// looked up next to it) with its errors at their lines in the notebook, handing each cell's events (the value of
-/// every statement whose value is shown, gap G91) to `show` as they happen. Returns how the run ended: the status of the cell where it stopped (`interrupted`, `limit`), else
+/// every statement whose value is shown) to `show` as they happen. Returns how the run ended: the status of the cell where it stopped (`interrupted`, `limit`), else
 /// `error` if some cell did not read (the cells after it still run), else `failure` if some cell had a failure,
 /// else `ok`.
 ///
@@ -107,7 +107,6 @@ pub fn run(
             Status::Failure if overall == Status::Ok => overall = Status::Failure,
             Status::Failure => {}
             // a cell that does not read (a syntax error) is reported in its output; the following cells still run
-            // (gap G77)
             Status::Error => overall = Status::Error,
             Status::Interrupted | Status::Limit => {
                 if rewrite {

@@ -1,4 +1,4 @@
-//! Outputs drawn as the notebook draws them, for other windows (round 19: the documentation window shows its pages'
+//! Outputs drawn as the notebook draws them, for other windows (the documentation window shows its pages'
 //! outputs through this, so a page and a cell look alike). The printed text goes through `mc_typeset::math_text` (square
 //! roots, fractions and powers as boxes, every other character as printed), is laid out with the notebook's output
 //! options in the cell font, and painted by the notebook's painter.

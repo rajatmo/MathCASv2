@@ -935,7 +935,7 @@ fn pfq<'h>(sx: &mut Sx<'_, '_, '_, 'h>, a: &[T<'h>], b: &[T<'h>], z: T<'h>, term
         }
         ([x, y], [w]) if *x == one && *y == one && *w == sx.int(2) && z != one => {
             // 2F1(1, 1; 2; z) = -log(1 - z) / z, for |z| <= 1 only: the series diverges beyond the unit circle, and
-            // its analytic continuation is not the value of the sum (B23-7: sum(2^k/k) is not -im*pi)
+            // its analytic continuation is not the value of the sum (sum(2^k/k) is not -im*pi)
             if !terminating && abs_greater_one(sx, z)? {
                 return Ok(None);
             }

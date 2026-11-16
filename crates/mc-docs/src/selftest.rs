@@ -17,7 +17,7 @@
 //! - `typesearch <text>`: type a query one character at a time (a search per character, as typing does) and log
 //!   the median and largest search time; `copybutton <k>`: click the copy button of the `k`-th example input drawn
 //!   (from 1); `clip`: log the clipboard's text (run with `MCUI_CLIPBOARD=local`)
-//! - `place <name#anchor>`: go to a place as `mc-docs` and F1 name it (round 20: a page's part, an option's
+//! - `place <name#anchor>`: go to a place as `mc-docs` and F1 name it (a page's part, an option's
 //!   example); `clickvalue <k>`: click the `k`-th typeset value drawn (from 1); `copy`: the Copy key (Ctrl+C)
 //! - `wait <frames>`: let frames pass; `shot <name>`: a screenshot `<name>.png`; `log <text>`; `quit`
 use crate::app::DocsApp;

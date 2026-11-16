@@ -679,7 +679,7 @@ mod tests {
     use super::*;
 
     /// The grid of x^2 + y^2 on [-1, 1]^2 with n points per side.
-    /// Gap queue G40: a cell with a corner outside the domain is cut at the domain's edge, not dropped whole.
+    /// A cell with a corner outside the domain is cut at the domain's edge, not dropped whole.
     #[test]
     fn cells_are_cut_at_the_edge_of_the_domain() {
         // corners (0,0) (1,0) (1,1) (0,1); the point (1,1) has no value; the domain ends at x = 0.5 on the top

@@ -24,7 +24,7 @@
 //! polynomial atoms), the complex plane through the real and imaginary parts of the variables (`z -> zr + im zi`,
 //! `complex_expand`); a nonconstant polynomial or entire periodic template (`cos(u) == 0` with `u` a nonconstant
 //! polynomial) always has a complex zero; otherwise a numeric search for a witness, which is accepted only when
-//! proved (round 43): a sign change refined by bisection, with proved opposite signs at the exact ends of the
+//! proved: a sign change refined by bisection, with proved opposite signs at the exact ends of the
 //! bracket, an enclosure of the function over it (continuous there) and the other conjuncts true on its whole ball;
 //! or an exact point inside the inequalities. With parameters the condition under which
 //! the set misses the region is `resolve(for_all(vars, region implies not atoms))`, after dropping the
@@ -159,7 +159,7 @@ fn zero_of_zero_free<'h>(b: &Build<'h>, t: T<'h>) -> bool {
     }
 }
 
-/// The atoms of `piecewise([[v1, c1], ...], d)` of one real variable (F27.4): the atoms of each value inside its
+/// The atoms of `piecewise([[v1, c1], ...], d)` of one real variable: the atoms of each value inside its
 /// region (`c_i` and none of the earlier conditions), and the points where the pieces meet: a boundary of a
 /// condition is a jump when the one-sided values and the value there differ, a pole when they grow.
 #[allow(clippy::too_many_arguments)]
@@ -239,7 +239,7 @@ fn piecewise_atoms<'h>(
             }
         }
     }
-    // each boundary point by the one-sided limits of the piecewise function and its value there (round 43: values at
+    // each boundary point by the one-sided limits of the piecewise function and its value there (values at
     // points beside it prove nothing): an infinite limit is a pole; finite limits that differ, or a value that
     // differs from them, a jump; equal ones nothing; a limit or a comparison not decided leaves the call
     let infinite = |t: T<'h>| {
@@ -287,7 +287,7 @@ fn piecewise_atoms<'h>(
 }
 
 /// `tanh(log(u))` and the like as rational functions of `u` (`exp(log(u)) = u` on the whole plane): `(u^2 - 1)/(u^2 + 1)`
-/// is continuous at the points where `log` is not (B26-6).
+/// is continuous at the points where `log` is not.
 fn hyperbolic_of_log<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>) -> Res<T<'h>> {
     // shared subterms rewritten once
     hyperbolic_of_log_in(cx, b, t, &mut mc_api::walk::memo())
@@ -419,7 +419,7 @@ fn walk<'h>(
                     push(rel("equal", *base, zero), Kind::Branch);
                     push(log_cut(*base), Kind::Branch);
                 } else if positive_exponent(b, *ex) && nonneg(b, *base) {
-                    // a positive power of a quantity that is never negative: continuous at its zeros (B26-6); not
+                    // a positive power of a quantity that is never negative: continuous at its zeros; not
                     // analytic at a zero of order m unless m ex is an even integer (`(x^2)^(1/2)` is |x|, `(x^4)^(1/2)`
                     // is x^2)
                     if mode == Mode::Sing && !root_zeros(cx, b, *base, *ex, vars, &mut push)? {
@@ -498,7 +498,7 @@ fn walk<'h>(
         }
         ("acosh", false) if one_arg => push(rel("less_equal", a0.unwrap(), one), Kind::Branch),
         ("acot", false) if one_arg => push(rel("equal", a0.unwrap(), zero), Kind::Jump),
-        // the reciprocal inverse functions on the real line (F27.3): defined for `|u| > 1` (`acoth`), `|u| >= 1`
+        // the reciprocal inverse functions on the real line: defined for `|u| > 1` (`acoth`), `|u| >= 1`
         // (`acsc`, `asec`), `0 < u <= 1` (`asech`), `u != 0` (`acsch`)
         ("acsch", false) if one_arg => push(rel("equal", a0.unwrap(), zero), Kind::Pole),
         ("acoth", false) if one_arg => {
@@ -1432,7 +1432,7 @@ pub fn meets<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ato
         if cx.is_true(rr) {
             return Ok(Meet::No);
         }
-        // the set meets the region for every admissible value of the parameters (F27.6)
+        // the set meets the region for every admissible value of the parameters
         if cx.is_false(rr) {
             return Ok(if exact { Meet::Yes } else { Meet::Unknown });
         }

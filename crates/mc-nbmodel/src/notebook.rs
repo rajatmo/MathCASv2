@@ -616,7 +616,7 @@ impl Notebook {
                         self.cells[i].fix_content();
                     }
                     // an operation that itself changed the label (Divide, a style change to one without labels) puts it
-                    // back; otherwise the label is the evaluation's, never restored (B21-9)
+                    // back; otherwise the label is the evaluation's, never restored
                     if before.label == after.label {
                         self.cells[i].label = label;
                     }

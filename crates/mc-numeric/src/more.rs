@@ -4,7 +4,7 @@
 //! ramp, `heaviside_theta`, `dirac_delta`, real absolute value and sign, real roots (`surd`), and the part pairs
 //! `re_im` and `abs_arg`.
 //!
-//! Conventions (decision P6N.5): principal branches as the logarithm formulas give them (asinh(z) = log(z +
+//! Conventions: principal branches as the logarithm formulas give them (asinh(z) = log(z +
 //! sqrt(z^2 + 1)), acosh(z) = log(z + sqrt(z + 1) sqrt(z - 1)), atanh(z) = (log(1 + z) - log(1 - z))/2; acot(z) =
 //! atan(1/z), asec(z) = acos(1/z), ...); the reciprocal functions keep their own name for symbolic arguments
 //! (`sec(x)`) and become the reciprocal of the base function's value where that has one (`sec(pi/3)` is 2).
@@ -145,7 +145,7 @@ fn acosh_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if fx.is_int(x, -1) {
         return Ok(Some(i_pi(fx, 1, 1)));
     }
-    // on (-1, 1) the principal acosh is i acos (DLMF 4.37.19 with 4.23.22): acosh(1/2) = i pi/3 (round 44, so that
+    // on (-1, 1) the principal acosh is i acos (DLMF 4.37.19 with 4.23.22): acosh(1/2) = i pi/3 (so that
     // asech(2) = acosh(1/2) has its value)
     if let Some(Num::Real(r @ Real::Exact(_))) = fx.num(x) {
         let v = r.to_f64();
@@ -462,7 +462,7 @@ fn integer_part_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if fx.infinity(x).is_some() {
         return Ok(Some(x));
     }
-    // truncation toward zero is odd (round 44): integer_part(-x) = -integer_part(x)
+    // truncation toward zero is odd: integer_part(-x) = -integer_part(x)
     if fx.num(x).is_none() {
         if let Some(v) = odd(fx, "integer_part", x) {
             return Ok(Some(v));
@@ -491,7 +491,7 @@ fn fractional_part_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         Some(_) => return Ok(None),
         None => {}
     }
-    // odd as integer_part is (round 44)
+    // odd as integer_part is
     if fx.num(x).is_none() {
         if let Some(v) = odd(fx, "fractional_part", x) {
             return Ok(Some(v));
@@ -577,7 +577,7 @@ fn dirac_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 
 fn real_abs_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let x = a[0];
-    // even (round 44): real_abs(-x) = real_abs(x)
+    // even: real_abs(-x) = real_abs(x)
     if fx.num(x).is_none() {
         if let Some(y) = fx.negated(x) {
             return Ok(Some(fx.call("real_abs", &[y])));
@@ -592,7 +592,7 @@ fn real_abs_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 
 fn real_sign_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let x = a[0];
-    // odd (round 44): real_sign(-x) = -real_sign(x)
+    // odd: real_sign(-x) = -real_sign(x)
     if fx.num(x).is_none() {
         if let Some(v) = odd(fx, "real_sign", x) {
             return Ok(Some(v));

@@ -836,7 +836,7 @@ pub const RULES: &[(&str, usize, Rule)] = &[
             hyp1f1_z,
         ]),
     ),
-    // round 19: Struve functions (DLMF 11.4.27, 11.4.28), Tricomi's U (DLMF 13.3.22), the logistic
+    // Struve functions (DLMF 11.4.27, 11.4.28), Tricomi's U (DLMF 13.3.22), the logistic
     // function
     ("spheroidal_s1", 4, Rule::Partials(&[|b, a| opaque_partial(b, "spheroidal_s1", a, 0), |b, a| opaque_partial(b, "spheroidal_s1", a, 1), |b, a| opaque_partial(b, "spheroidal_s1", a, 2), |b, a| b.call("spheroidal_s1_prime", a)])),
     ("spheroidal_s1_prime", 4, Rule::Partials(&[|b, a| opaque_partial(b, "spheroidal_s1_prime", a, 0), |b, a| opaque_partial(b, "spheroidal_s1_prime", a, 1), |b, a| opaque_partial(b, "spheroidal_s1_prime", a, 2), spheroidal_s1_second])),
@@ -1048,7 +1048,7 @@ pub const RULES: &[(&str, usize, Rule)] = &[
     ("heaviside_theta", 1, Rule::Partials(&[|b, a| b.call("dirac_delta", &[a[0]])])),
     ("real_sign", 1, Rule::Constant),
     ("unit_box", ANY, Rule::Constant),
-    // round 28: the Heaviside shapes and the unit-period waves (lib/calculus.mc)
+    // the Heaviside shapes and the unit-period waves (lib/calculus.mc)
     (
         "heaviside_pi",
         1,
@@ -1213,7 +1213,7 @@ pub const RULES: &[(&str, usize, Rule)] = &[
     ),
     ("hankel_h1", 2, Rule::Partials(&[|b, a| opaque_partial(b, "hankel_h1", a, 0), |b, a| bessel_diff(b, "hankel_h1", a)])),
     ("hankel_h2", 2, Rule::Partials(&[|b, a| opaque_partial(b, "hankel_h2", a, 0), |b, a| bessel_diff(b, "hankel_h2", a)])),
-    // round 36: inverse gamma and beta in the probability, the inverse nome, the modular functions, the Bessel zeros
+    // inverse gamma and beta in the probability, the inverse nome, the modular functions, the Bessel zeros
     (
         "inverse_gamma_regularized",
         2,
@@ -1268,7 +1268,7 @@ pub const RULES: &[(&str, usize, Rule)] = &[
         2,
         Rule::Partials(&[|b, a| opaque_partial(b, "spherical_hankel_h2", a, 0), |b, a| spherical_d(b, "spherical_hankel_h2", a)]),
     ),
-    // the Barnes G function: G'/G = (z - 1) digamma(z) - z + (1 + log(2 pi))/2 (DLMF 5.17.4 differentiated); round 36
+    // the Barnes G function: G'/G = (z - 1) digamma(z) - z + (1 + log(2 pi))/2 (DLMF 5.17.4 differentiated)
     (
         "barnes_g",
         1,
@@ -1405,7 +1405,7 @@ pub const RULES: &[(&str, usize, Rule)] = &[
         let s = bessel_sum(b, "bessel_i_scaled", a);
         b.sub(b.mul(&[b.rat(1, 2), s]), b.call("bessel_i_scaled", a))
     }])),
-    // the round 28 special functions (mc-special). Scorer: Gi'' = z Gi - 1/pi, Hi'' = z Hi + 1/pi (DLMF 9.12.1-2)
+    // the further special functions (mc-special). Scorer: Gi'' = z Gi - 1/pi, Hi'' = z Hi + 1/pi (DLMF 9.12.1-2)
     ("scorer_gi", 1, Rule::Partials(&[|b, a| b.call("scorer_gi_prime", a)])),
     ("scorer_hi", 1, Rule::Partials(&[|b, a| b.call("scorer_hi_prime", a)])),
     (
@@ -1615,7 +1615,7 @@ fn spheroidal_s1_second<'h>(b: &Build<'h>, a: &[T<'h>]) -> T<'h> {
     b.mul(&[b.add(&[b.mul(&[coef, s]), b.neg(b.mul(&[b.int(2), z, sp]))]), b.pow(w, b.int(-1))])
 }
 
-/// The derivative of `meijer_g(as, bs, z)` (and `meijer_g(as, bs, z, r)`) in z (round 22): multiplying
+/// The derivative of `meijer_g(as, bs, z)` (and `meijer_g(as, bs, z, r)`) in z: multiplying
 /// the Mellin-Barnes integrand by s is one more gamma ratio, s = gamma(1 + s)/gamma(s), so
 /// z G'(z) = G^{m,n+1}_{p+1,q+1}(z | 0, a; b, 1) (Luke 1969, 5.4; PBM 3, 8.2.2.32); with r, the chain rule through
 /// z^(1/r) gives the same function at the same arguments divided by r z. The derivative row above calls it.
@@ -1646,7 +1646,7 @@ pub fn meijer_dz<'h>(b: &Build<'h>, a: &[T<'h>]) -> T<'h> {
     b.div(g, den)
 }
 
-/// The derivative of `fox_h([[an], [ap]], [[bm], [bq]], z)` in z (round 31): multiplying the Mellin-Barnes
+/// The derivative of `fox_h([[an], [ap]], [[bm], [bq]], z)` in z: multiplying the Mellin-Barnes
 /// integrand of H(z) = (1/2 pi i) int Theta(s) z^(-s) ds by the k-th falling power of -s and moving z^(-s-k) to z^(-s)
 /// (s -> s - k) shifts every parameter, a_j -> a_j - k A_j and b_j -> b_j - k B_j, and multiplies by
 /// (-1)^k gamma(s)/gamma(s - k) = gamma(1 + k - s)/gamma(1 - s) (reflection), which is the new pair (-k, 1) at the

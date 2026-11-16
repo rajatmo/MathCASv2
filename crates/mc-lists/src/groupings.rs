@@ -1,4 +1,4 @@
-//! `groupings(xs, spec)` (round 17): every way of grouping the elements of `xs`, in order, into a tree of
+//! `groupings(xs, spec)`: every way of grouping the elements of `xs`, in order, into a tree of
 //! calls whose heads and arities `spec` gives.
 //!
 //! - `spec`: an arity `k` (head `list`), a list of arities, `h -> k`, `h -> [k1, ...]`, `[h1, h2] -> k`, a list of

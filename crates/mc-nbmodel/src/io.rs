@@ -31,7 +31,7 @@ const NL: char = '\n';
 
 fn cell_from_file(nb: &mut Notebook, fc: &file::Cell) -> Cell {
     let style = Style::of_kind(fc.kind);
-    // blank lines after a cell without output beyond the one that separates cells are part of its text (ui B21-12)
+    // blank lines after a cell without output beyond the one that separates cells are part of its text
     let extra_breaks = if fc.outputs.is_empty() { fc.gap.saturating_sub(1) } else { 0 };
     let mut c = nb.new_cell(style, &format!("{}{}", fc.content(), NL.to_string().repeat(extra_breaks)));
     let a = &fc.attrs;

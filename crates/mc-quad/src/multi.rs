@@ -80,7 +80,7 @@ impl Kind {
         self != Kind::Cubature
     }
 
-    /// The default precision goal in digits for `d` variables (decision quad-1.4): cubature as one-dimensional
+    /// The default precision goal in digits for `d` variables: cubature as one-dimensional
     /// integration (half the machine digits) up to 3 variables, 6 digits from 4 (|I7 - I5| overstates the error
     /// of smooth integrands by orders of magnitude, and in 4 variables the 8-digit goal took the whole default
     /// budget of 10^7 points for errors actually near 10^-11).
@@ -121,7 +121,7 @@ pub(crate) fn goals(kind: Kind, o: &Options, d: usize) -> Goals {
     Goals { abs: pow10(o.accuracy_goal.unwrap_or(f64::INFINITY)), rel: pow10(pg) }
 }
 
-/// The method chosen automatically for `dims` variables (decision quad-1.2): one variable is not handled here;
+/// The method chosen automatically for `dims` variables: one variable is not handled here;
 /// 2 to 7 adaptive cubature; above, the lattice rule for integrands built from analytic functions only, VEGAS for
 /// the others (piecewise, `abs`, user functions, ...). When the automatic lattice rule misses its goal, VEGAS
 /// runs too and the smaller error estimate is kept; when the automatic cubature misses it in 2 or 3 variables,

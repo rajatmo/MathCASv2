@@ -504,7 +504,7 @@ impl Notebook {
                             fx.beep = true;
                             return None;
                         };
-                        // automatic closers after the alias move with the text (R32.2)
+                        // automatic closers after the alias move with the text
                         self.shift_closers(id, a, b, r.len());
                         self.replace_range(id, a, b, r);
                         Some(Run::Typing(id, false, env.now()))
@@ -653,7 +653,7 @@ impl Notebook {
                     } else {
                         let id = self.cells[j].id;
                         // a cell with boxes is entered at its start: its text is canonical box text, whose widths are
-                        // not the boxes' (round 19: Down from above landed in the exponent of a power)
+                        // not the boxes' (Down from above landed in the exponent of a power)
                         let pos = if m == Motion::Down {
                             let lines = env.lines(&self.cells[j]);
                             let x = self.goal_x.unwrap_or(0.0);
@@ -973,7 +973,7 @@ impl Notebook {
                             fx.beep = true;
                         }
                     } else if !t.is_empty() {
-                        // another program's line breaks and leading tabs (round 19): CR LF and a lone CR are line
+                        // another program's line breaks and leading tabs: CR LF and a lone CR are line
                         // breaks, and in code a tab at a line's start is the indentation Tab types
                         let t = if code { text::untab(&text::unix_lines(&t), INDENT) } else { text::unix_lines(&t) };
                         self.replace_range(id, a, b, &t);
@@ -1001,12 +1001,12 @@ impl Notebook {
             self.insert_cells(g, cells, true);
             self.select(Selection::Gap(g + n));
         } else if let Some(bx) = boxes.filter(|_| style.is_code()) {
-            // boxes at an insertion point: one Input cell holding them (round 13)
+            // boxes at an insertion point: one Input cell holding them
             self.create_cell(g, style, "");
             self.paste_tree(&bx, env);
         } else if let Some(t) = text.filter(|t| !t.trim().is_empty()) {
             // plain text at an insertion point: code splits at its blank lines outside brackets and strings, one
-            // cell per block (round 19: copied cells give their texts joined by blank lines, so cells copied out to
+            // cell per block (copied cells give their texts joined by blank lines, so cells copied out to
             // another program and back come back as those cells); prose is one cell
             let t = text::unix_lines(&t);
             let blocks = if style.is_code() {
@@ -1466,7 +1466,7 @@ mod tests {
         assert_eq!(nb.code_editor().map(|(_, e)| e.notation()), Some("(cos/▮2)".to_string()));
     }
 
-    /// Selection in typeset input and output by keys and clicks (round nb-ui: the bugs found by driving the window).
+    /// Selection in typeset input and output by keys and clicks.
     #[test]
     fn selections_in_typeset_cells_extend_by_lines_and_keep_their_anchor() {
         let text = "#! mathcas 2 notebook\n\n#% cell in=1 typeset\nfirst+line\nsecond+((z)^(3))\n#% output out=1\n#= a + x^2 + b\n";

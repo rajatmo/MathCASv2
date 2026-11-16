@@ -66,7 +66,7 @@ fn ordering_functions_and_properties() {
     );
 }
 
-/// The prelude's functions of this round, through the whole engine.
+/// These prelude functions, through the whole engine.
 #[test]
 fn prelude_functions() {
     let mut e = mc_engine::CoreEngine::new();

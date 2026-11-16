@@ -1,4 +1,4 @@
-//! Two moves of `simplify` on products of powers (round 17, decisions r17fix.1 and r17fix.2):
+//! Two moves of `simplify` on products of powers:
 //!
 //! - [`power_split`]: `b^(k + u)` as `b^k b^u` for an integer constant `k` of the exponent (`|k| <=` [`MAX_SHIFT`]).
 //!   The canonical arithmetic keeps `2*2^(1 + n)` and `2^(2 + n)` apart (a number times a power of a number is not

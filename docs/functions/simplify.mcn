@@ -34,7 +34,7 @@
 # Lists and equations are simplified element by element.
 
 #% item
-# Since round 19 also: denominators with square roots are made rational, powers of one base are collected, logarithms of rationals are written over primes, linear equations are normalised, `re` and `im_part` are split over sums, and identities of special functions are tried; forms found this way are checked numerically before they are returned.
+# Also: denominators with square roots are made rational, powers of one base are collected, logarithms of rationals are written over primes, linear equations are normalised, `re` and `im_part` are split over sums, and identities of special functions are tried; forms found this way are checked numerically before they are returned.
 
 #% item
 # Equations are proved from axioms given as facts `for_all(vars, s == t)` by rewriting.

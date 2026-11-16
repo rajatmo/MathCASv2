@@ -36,7 +36,7 @@ pub struct Exception {
 /// The accepted exceptions. Each is scoped to one crate, so a new crate under the same licence still fails the check.
 pub const EXCEPTIONS: &[Exception] = &[];
 // (egui's built-in Ubuntu-Light font, the one exception so far, left the graph when the windows dropped eframe's
-// `default_fonts` feature in round 11.)
+// `default_fonts` feature.)
 
 /// One package of the dependency graph.
 #[derive(Clone, Debug)]

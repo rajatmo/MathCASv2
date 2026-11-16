@@ -72,7 +72,7 @@ fn exact_reply<'h>(h: &'h Heap, t: T<'h>, e: Option<Exact<'h>>) -> Reply<'h> {
     match e {
         Some(Exact::Value(v)) => Reply::Again(v),
         Some(Exact::Pole) => {
-            // a pole with a signed limit from the real side is that infinity (P6N.2)
+            // a pole with a signed limit from the real side is that infinity
             if let View::App { head, args } = h.view(t) {
                 if let View::Sym(s) = h.view(head) {
                     let ar = Arith::new(h);
@@ -172,7 +172,7 @@ fn machine_by_balls(f: Special, zs: &[C64], all_complex: bool) -> Option<Mach> {
     let args: Option<Vec<CBall>> = zs.iter().map(|z| Some(CBall::new(ball(z.re)?, ball(z.im)?))).collect();
     let args = args?;
     let _ = all_complex;
-    // arguments beyond 1e12 need more than the 192-bit enclosures can give in reasonable time (X23-4, X23-6)
+    // arguments beyond 1e12 need more than the 192-bit enclosures can give in reasonable time
     if zs.iter().any(|z| z.re.abs().max(z.im.abs()) > 1e12) && !matches!(f, Special::JacobiSn | Special::JacobiCn | Special::JacobiDn) {
         return None;
     }
@@ -195,7 +195,7 @@ fn zs_by_balls(f: Special, nums: &[Option<Num>]) -> Option<Mach> {
 
 impl Native for Fun {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-        // a truncated power series: the series of the composition (gap G59)
+        // a truncated power series: the series of the composition
         if let Some(v) = mc_numeric::series_hook::apply(cx, &self.stop, self.fs[0].name(), args)? {
             return Ok(Reply::Done(v));
         }
@@ -330,7 +330,7 @@ impl Native for Fun {
             });
         };
         if reals.iter().any(|r| matches!(r, Real::Machine(_))) {
-            // the 192-bit fallbacks below honour the stop flag (X23-4)
+            // the 192-bit fallbacks below honour the stop flag
             let _scope = StopScope::enter(Some(&self.stop));
             let xs: Vec<f64> = reals.iter().map(Real::to_f64).collect();
             // outside the real domain: the principal complex value (as the elementary functions, decision L.9)
@@ -338,12 +338,12 @@ impl Native for Fun {
             // complex-ball enclosure rounded to a machine number
             let complex_value = |xs: &[f64]| {
                 if f == Special::EllipticF && xs.len() == 2 {
-                    if let Some(z) = crate::fast33::elliptic_f_beyond(xs[0], xs[1]) {
+                    if let Some(z) = crate::fast_elliptic::elliptic_f_beyond(xs[0], xs[1]) {
                         return Some(z);
                     }
                 }
                 if f == Special::EllipticK && xs.len() == 1 {
-                    if let Some(z) = crate::fast33::elliptic_k_above_one(xs[0]) {
+                    if let Some(z) = crate::fast_elliptic::elliptic_k_above_one(xs[0]) {
                         return Some(z);
                     }
                 }
@@ -426,7 +426,7 @@ impl Native for Fun {
 }
 
 /// Complex machine arguments without a complex algorithm of their own: the value as a formula in functions that
-/// have one (gap G62): the incomplete gamma and beta functions through the confluent and Gauss hypergeometric
+/// have one: the incomplete gamma and beta functions through the confluent and Gauss hypergeometric
 /// functions, E_n(z) through the incomplete gamma function.
 fn complex_formula<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, f: Special, a: &[T<'h>]) -> Option<T<'h>> {
     let call = |name: &str, xs: &[T<'h>]| h.call(h.sym(name), xs);
@@ -578,7 +578,7 @@ impl Native for Pfq {
             })
             .collect();
         let Some(reals) = reals else {
-            // complex machine numbers: the series in complex machine arithmetic (round 37), else unevaluated here
+            // complex machine numbers: the series in complex machine arithmetic, else unevaluated here
             let nums: Option<Vec<Num>> = all.iter().map(|&x| ar.num(x)).collect();
             if let Some(nums) = nums.filter(|ns| ns.iter().any(|n| n.kind() == mc_arith::Kind::Machine)) {
                 let cs: Option<Vec<C64>> = nums.iter().map(machine_c64).collect();
@@ -640,7 +640,7 @@ impl Native for Pfq {
         let (ra, rest) = reals.split_at(a.len());
         let (rb, rz) = rest.split_at(b.len());
         if reals.iter().any(|r| matches!(r, Real::Machine(_))) {
-            // the 192-bit fallbacks below honour the stop flag (X23-4)
+            // the 192-bit fallbacks below honour the stop flag
             let _scope = StopScope::enter(Some(&self.stop));
             let fa: Vec<f64> = ra.iter().map(Real::to_f64).collect();
             let fb: Vec<f64> = rb.iter().map(Real::to_f64).collect();
@@ -707,14 +707,14 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     mc_numeric::formula::install(k, h, crate::more::DEFS);
     mc_numeric::formula::install(k, h, crate::cover::DEFS);
     mc_numeric::formula::install(k, h, crate::meijer::DEFS);
-    mc_numeric::formula::install(k, h, crate::cover28::DEFS);
+    mc_numeric::formula::install(k, h, crate::scorer_lommel_coulomb::DEFS);
     mc_numeric::formula::install(k, h, crate::weierstrass::DEFS);
     mc_numeric::formula::install(k, h, crate::heun::DEFS);
     mc_numeric::formula::install(k, h, crate::appell::DEFS);
     mc_numeric::formula::install(k, h, crate::zeros::DEFS);
     mc_numeric::formula::install(k, h, crate::qhyper::DEFS);
     mc_numeric::formula::install(k, h, crate::mathieu::DEFS);
-    mc_numeric::formula::install(k, h, crate::round29::DEFS);
+    mc_numeric::formula::install(k, h, crate::stieltjes_siegel::DEFS);
     for f in &crate::more::SCALED {
         mc_numeric::library::register(f);
     }

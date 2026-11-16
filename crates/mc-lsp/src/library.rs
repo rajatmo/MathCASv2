@@ -60,8 +60,8 @@ impl Library {
     /// Every library list, the evaluator's natives and the prelude.
     pub fn new() -> Library {
         let mut entries = BTreeMap::new();
-        // the evaluator's natives, then every library's table from the registry (round 37: a list of its own here
-        // had missed `mc-jit` and `mc-geom`)
+        // the evaluator's natives, then every library's table from the registry (a list of its own here
+        // would miss libraries)
         let lists = std::iter::once(CORE).chain(mc_libraries::FUNCTIONS.iter().copied());
         for (name, desc) in lists.flat_map(|l| l.iter()) {
             let e = Entry { origin: Origin::Library, detail: desc.to_string(), doc: None, help: None };
@@ -92,7 +92,7 @@ impl Library {
         Library { entries }
     }
 
-    /// Whether a known name is a function (its usage has a bracket; round 35: `sin x` is then flagged as a product).
+    /// Whether a known name is a function (its usage has a bracket; `sin x` is then flagged as a product).
     pub fn is_function(&self, name: &str) -> bool {
         self.entries.get(name).is_some_and(|e| match e.help {
             Some(h) => h.is_function(),
@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn every_library_table_is_read() {
-        // round 37: the functions of `mc-jit` and `mc-geom` were missing; the registry's tables are the source now
+        // the registry's tables are the source, so the functions of every library are known
         let lib = Library::new();
         for (name, desc) in mc_libraries::FUNCTIONS.iter().flat_map(|l| l.iter()) {
             let e = lib.get(name).unwrap_or_else(|| panic!("{name} is not known"));

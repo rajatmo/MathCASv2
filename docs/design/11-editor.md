@@ -1,13 +1,13 @@
 # MathCAS v2: the input editor, rewritten (design)
 
-Status: design for round 34. It replaces the editing parts of design 08 sections 3 and 4.2
+Status: built. It replaces the editing parts of design 08 sections 3 and 4.2
 to 4.6; the box tree, the canonical text (4.4) and the layout engine stay.
 
 ## 1. Why
 
-The editor of rounds 9 to 33 works, but it is two editors joined by a text round trip, and users feel the joints.
+The first editor worked, but it was two editors joined by a text round trip, and users felt the joints.
 
-What is there now:
+What was there:
 
 | Part | Where | What it does |
 |---|---|---|
@@ -18,16 +18,16 @@ What is there now:
 Defects that follow from this shape (each seen by a user or a self-test):
 
 1. **Two sources of truth.** The view draws a tree read back from text while the caret lives in the editor's tree.
-   Whenever the text does not read back to the same tree, the drawing and the caret disagree (round 33: an unmatched
+   Whenever the text does not read back to the same tree, the drawing and the caret disagree (an unmatched
    bracket in a numerator was drawn outside the fraction).
 2. **Every command exists twice.** Insert, delete, move, select, Home/End, automatic closers, aliases and wrapping
-   are written once for strings and once for trees, and they drift apart (round 33: Backspace in `()` and wrapping a
+   are written once for strings and once for trees, and they drift apart (Backspace in `()` and wrapping a
    selection worked in plain cells only). A cell changes editor when its first box appears and when its last one
    goes, with a caret conversion each way.
 3. **Undo is text plus remembered carets.** The undo stack holds texts; carets are looked up in a side table keyed
-   by (cell, text) (`box_carets`), with special cases when the cell was plain in between (R32.1).
+   by (cell, text) (`box_carets`), with special cases when the cell was plain in between.
 4. **Caret geometry is the row's.** A caret stop has the extent of its whole row, so beside a fraction the caret was
-   as tall as the fraction (patched in the painter in round 33; the layout still has no per-position height).
+   as tall as the fraction (patched in the painter; the layout still has no per-position height).
 5. **Two ways to draw a character.** Text-font characters go through egui galleys, everything else through the
    notebook's glyph atlas, each with its own metrics. Small scripts and their carets do not line up exactly.
 
@@ -96,7 +96,7 @@ item its ink rectangle. Selection rectangles and hit tests use the ink rectangle
 - Caret: the stop's box, 2 px wide (1 px in rows smaller than 0.8 of the text size), drawn to the right of the
   boundary when the item on its left ends there, so it never covers a glyph.
 - Syntax colours come from the canonical text through the text map, as today.
-- Round 35: where white space between two operands multiplies (design 04, 3.1), a faint `×` in the theme's faint
+- Where white space between two operands multiplies (design 04, 3.1), a faint `×` in the theme's faint
   text colour is drawn centred in that space (after the first line's last character for a product across a line
   end); it is not an item: never selected, copied or a caret stop. The box editor inserts `*` only where a box
   touches an operand directly.
@@ -133,9 +133,9 @@ Changed (on purpose):
 5. The scripted checks, the equivalence script, latency; then delete `mc-boxes/src/edit.rs`, `boxed.rs` and the plain
    code-cell paths of `mc-nbmodel/src/edit.rs`.
 
-## 7. Long cells (round 37)
+## 7. Long cells
 
-The open item of round 34 (a keystroke still cost work linear in the cell: composing the line layouts into one, and
+The open item of the first version (a keystroke still cost work linear in the cell: composing the line layouts into one, and
 a colour for every character) is closed:
 
 - `mc_boxes::layout::layout_by_lines_shared`: the line cache keeps the layout it composed last and where each logical
@@ -150,7 +150,7 @@ a colour for every character) is closed:
   cell 11.0 and 11.5 ms before, 2.8 to 3.9 ms after; at its top 2.3 to 2.6 ms; a 300-line cell 4.4 ms before,
   2.2 ms after.
 
-## 8. A bracket at the top of a long cell (round 38)
+## 8. A bracket at the top of a long cell
 
 An opening bracket typed at the top of a long cell changes the bracket depth every following line starts at, and
 the line cache was keyed by depth: every line was laid out again. A logical line that fits on one line depends on

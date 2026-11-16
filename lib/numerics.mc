@@ -941,7 +941,7 @@ fn random_polygon(spec = automatic, shape = automatic) = {
   if shape === automatic then nl_rp_one(s, d) else nl_rp_many(s, d, if is_list(shape) then shape else [shape])
 }
 
-# --- piecewise functions of complex and symbolic arguments (round 36) ---
+# --- piecewise functions of complex and symbolic arguments ---
 
 # round, floor, ceiling, integer_part and fractional_part of an exact complex number whose parts are not rational
 # (1/2 + i sqrt(15)/3): part by part, as for Gaussian rationals

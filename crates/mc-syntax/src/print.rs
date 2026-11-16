@@ -125,11 +125,11 @@ impl<'h, S: Store + ?Sized> Printer<'h, S> {
         self
     }
 
-    /// This printer, writing for reading rather than for reading back (decision p6core.19): `a + -2*b` as
+    /// This printer, writing for reading rather than for reading back: `a + -2*b` as
     /// `a - 2*b`, `y*x^-2` as `y/x^2`, and powers of `e` as `exp(x)`. The text evaluates to the same value but may
     /// read back as a different unevaluated term.
     /// This printer, also shortening values whose full text is only noise in shown output (a long interpolation
-    /// as `interpolated([lo, hi], <n points>)`, gap G76). The text no longer reads back, so `to_string` and saved
+    /// as `interpolated([lo, hi], <n points>)`). The text no longer reads back, so `to_string` and saved
     /// values never use it.
     pub fn with_short_forms(mut self) -> Self {
         self.short = true;
@@ -265,7 +265,7 @@ struct Run<'p, 'h, S: Store + ?Sized> {
 }
 
 /// The display of machine reals inside `scientific_form` (always `m × 10^e`) or `number_form` (plain between
-/// 10^-5 and 10^6, else as `scientific_form`), with `digits` significant digits (gap G67).
+/// 10^-5 and 10^6, else as `scientific_form`), with `digits` significant digits.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct NumForm {
     scientific: bool,
@@ -554,7 +554,7 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
             View::Int(_) | View::BigInt { .. } => Some(self.int_text(t)),
             View::Real(x) if x.is_finite() => Some((format!("{:?}", x.abs()), x.is_sign_negative())),
             // a ball whose text is a number (the engine's digits; the default `ball_payload(...)` is not), so a
-            // negative one joins a sum as ` - 1.57...` and `complex(0, k)` as ` - 1.57...im` (P19-06)
+            // negative one joins a sum as ` - 1.57...` and `complex(0, k)` as ` - 1.57...im`
             View::Ball { neg, words } => {
                 let txt = self.p.numbers.ball(neg, words);
                 let (body, neg) = match txt.strip_prefix('-') {
@@ -748,8 +748,8 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
     }
 
     /// The wrappers and values that print only for reading (display mode): `scientific_form(x)`,
-    /// `number_form(x)` (with an optional number of digits, gap G67) and the short form of `interpolated(xs, ys,
-    /// ms)` with many points (gap G76).
+    /// `number_form(x)` (with an optional number of digits) and the short form of `interpolated(xs, ys,
+    /// ms)` with many points.
     fn display_form(&mut self, head: T<'h>, args: &[T<'h>], ctx: Ctx, v: &mut Vec<Task<'h>>) -> Option<(u8, bool)> {
         let st = self.store();
         let name = self.name(self.sym_of(head)?);
@@ -795,7 +795,7 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
                     }
                 }
             }
-            // `tree_form(x)`: the term drawn as an indented tree, one node a line (C9B.7)
+            // `tree_form(x)`: the term drawn as an indented tree, one node a line
             ("tree_form", [x]) => {
                 v.push(Task::Owned(self.tree_text(*x)));
                 Some((ATOM, false))
@@ -1124,7 +1124,7 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
             Head::Mul if args.len() >= 2 => self.mul_form(args, v),
             Head::Pow => {
                 let [a, b] = args else { return None };
-                // `(x(x - a))^(1/2)`, not `x(x - a)^(1/2)`, which a reader takes for x times a root (round 20)
+                // `(x(x - a))^(1/2)`, not `x(x - a)^(1/2)`, which a reader takes for x times a root
                 let force = self.confusable_call(*a);
                 v.push(Task::Expr(*a, Ctx { min: POSTFIX, force, ..Ctx::default() }));
                 v.push(Task::Text("^"));

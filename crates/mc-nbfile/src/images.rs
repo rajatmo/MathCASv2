@@ -2,7 +2,7 @@
 //! picture formats a notebook shows, the `size=WxH` attribute of an output block, and the sidecar folder that holds
 //! a saved notebook's pictures.
 //!
-//! While a session runs, plot files live in the system's temporary folder. Since round 13 saving embeds every
+//! While a session runs, plot files live in the system's temporary folder. Saving embeds every
 //! picture in the notebook's text ([`crate::embed`]); older notebooks name files in a `<notebook name>.files/`
 //! folder next to them (a relative path is relative to the notebook's folder). A PNG may mark a pixel density
 //! ([`png_density`]): it is shown at its pixel size divided by it.

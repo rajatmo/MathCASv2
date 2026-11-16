@@ -157,7 +157,7 @@ pub fn lexical_at(row: &Row, k: usize) -> Lexical {
 /// (`x((sqrt(Q)))` is `x(sqrt(Q))`) or not read at all (`((sqrt(Q)))x`). Left of a box: a box, a closing bracket, a
 /// prime, a string or an identifier (a number is left alone: `2((sqrt(2)))` already multiplies). Right of a box: a
 /// box, an identifier or number, `(` or a string (`[` after a box is an index). With white space between them none
-/// is needed (round 35: a space multiplies, and the editor shows a faint `×` there).
+/// is needed (a space multiplies, and the editor shows a faint `×` there).
 pub fn needs_times(row: &Row, j: usize) -> bool {
     if j == 0 || j >= row.len() {
         return false;

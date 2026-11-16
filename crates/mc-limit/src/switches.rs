@@ -4,8 +4,7 @@
 //! the switching expressions, found by `solve(g == 0, x, reals)`, at most 64), and their branches at a point.
 //!
 //! Definite integrals by cases (`mc-integrals`, `definite::split`) cut their interval at these points and integrate
-//! piece by piece; one-sided limits resolve the switches just beside the point ([`resolve_near`]). Moved here from
-//! the definite integrals in round 34, when limits and integration became crates of their own.
+//! piece by piece; one-sided limits resolve the switches just beside the point ([`resolve_near`]).
 use crate::bounds::{cmp, point, sign, subst, Pt};
 use mc_calculus::diff::piecewise_parts;
 use mc_calculus::common::{apply, is_free};

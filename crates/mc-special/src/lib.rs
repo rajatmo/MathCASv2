@@ -26,7 +26,7 @@
 //!   exact and ball paths at first use, not copied by hand.
 //! - **SF.6** log_gamma(x) for negative non-integers is the principal value ln|gamma(x)| - i pi ceil(-x) (the limit
 //!   from the upper half plane), exactly, as a ball and as a machine complex number.
-//! - **SF.7** Complex arguments stay unevaluated this round.
+//! - **SF.7** Complex arguments stay unevaluated.
 //! - **SF.8** K_nu of ball arguments with nonzero radii by monotonicity (decreasing in x, increasing in |nu|): the
 //!   hull of the values at two exact corners.
 //! - **SF.9** `n` reaches the functions through a registry in `mc-numeric` (the smallest correct change: one node
@@ -58,7 +58,7 @@ pub mod ball;
 pub mod bernoulli;
 mod cdd;
 pub mod cover;
-mod cover28;
+mod scorer_lommel_coulomb;
 mod weierstrass;
 mod heun;
 mod appell;
@@ -67,11 +67,11 @@ mod qhyper;
 mod rathyp;
 mod mathieu;
 mod modular;
-mod fast29;
-mod fast30;
-mod fast33;
+mod fast_dd;
+mod fast_coulomb;
+mod fast_elliptic;
 mod jshift;
-mod round29;
+mod stieltjes_siegel;
 pub mod dd;
 pub mod exact;
 mod exact_more;
@@ -82,7 +82,7 @@ pub mod machine;
 mod meijer;
 pub mod meijer_num;
 mod natives;
-mod series30;
+mod series_fallback;
 
 use functions::Special;
 use mc_core::Heap;
@@ -91,7 +91,7 @@ pub use natives::failure_tags;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-/// The special-function library (`lib/special.mc`, round 30): series expansions the `series`
+/// The special-function library (`lib/special.mc`): series expansions the `series`
 /// wrapper delegates to, and symbolic identities of the functions (rules tried when a native declines). Evaluated
 /// by the engine after the other libraries.
 pub const LIB_SOURCE: &str = include_str!("../../../lib/special.mc");
@@ -306,7 +306,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
 /// `stop` is the flag the long numeric loops poll (the engine's arithmetic stop flag).
 pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     natives::install(k, h, stop);
-    series30::install(k, h);
+    series_fallback::install(k, h);
 }
 
 #[cfg(test)]
@@ -319,14 +319,14 @@ mod tests {
         names.extend(super::more::DEFS.iter().map(|d| d.name));
         names.extend(super::cover::DEFS.iter().map(|d| d.name));
         names.extend(super::meijer::DEFS.iter().map(|d| d.name));
-        names.extend(super::cover28::DEFS.iter().map(|d| d.name));
+        names.extend(super::scorer_lommel_coulomb::DEFS.iter().map(|d| d.name));
         names.extend(super::weierstrass::DEFS.iter().map(|d| d.name));
         names.extend(super::heun::DEFS.iter().map(|d| d.name));
         names.extend(super::appell::DEFS.iter().map(|d| d.name));
         names.extend(super::zeros::DEFS.iter().map(|d| d.name));
         names.extend(super::qhyper::DEFS.iter().map(|d| d.name));
         names.extend(super::mathieu::DEFS.iter().map(|d| d.name));
-        names.extend(super::round29::DEFS.iter().map(|d| d.name));
+        names.extend(super::stieltjes_siegel::DEFS.iter().map(|d| d.name));
         let listed: Vec<&str> = super::FUNCTIONS.iter().map(|e| e.0).collect();
         assert_eq!(names, listed);
     }

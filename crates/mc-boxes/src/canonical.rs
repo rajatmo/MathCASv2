@@ -177,7 +177,7 @@ impl TextMap {
         'down: loop {
             let Some(offs) = self.rows.get(&path) else { return (path, 0) };
             let n = offs.len().saturating_sub(1);
-            // the items before `b` (the offsets increase: a binary search, round 38; a scan of a 2,000-line cell for
+            // the items before `b` (the offsets increase: a binary search; a scan of a 2,000-line cell for
             // each multiplication sign cost 20 ms a keystroke)
             let offset = offs[..n].partition_point(|&o| o < b);
             // the item `b` is strictly inside, if any: the last one starting before it
@@ -503,7 +503,7 @@ impl Reader<'_> {
         Some(match (name.as_str(), args.len()) {
             ("subscript", 2) => Node::Subscript { base: a(0, c)?, index: a(1, c)? },
             ("sqrt", 1) => Node::Radical { radicand: a(0, c)?, index: None },
-            // an n-th root is the real root `surd(x, n)` (round 19, U19.3: the radical sign of written mathematics,
+            // an n-th root is the real root `surd(x, n)` (the radical sign of written mathematics,
             // `surd(-8, 3)` is -2); `root` was its name before, kept for reading
             ("surd" | "root", 2) => Node::Radical { radicand: a(0, c)?, index: Some(a(1, c)?) },
             ("overscript", 2) => Node::Overscript { base: a(0, c)?, over: a(1, c)? },

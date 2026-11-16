@@ -1,4 +1,4 @@
-//! More complex-ball enclosures (round 22): the Kummer and Gauss hypergeometric functions with any complex
+//! More complex-ball enclosures: the Kummer and Gauss hypergeometric functions with any complex
 //! parameters and argument, the exponential, sine, cosine and logarithmic integrals, the incomplete gamma and beta
 //! functions, the beta function and the complete elliptic integrals K and E, all as sums of the series of
 //! [`super::cseries`] (whose truncation bounds are rigorous) so that `n(f(z), 30)` at an exact complex argument
@@ -69,7 +69,7 @@ pub fn hyp1f1(a: &CBall, b: &CBall, z: &CBall, p: u64) -> Option<CBall> {
     refine(p, g, |wp| pfq_sum(&aa, &bb, z, wp))
 }
 
-/// pFq(a; b; z) on complex balls by the series with its rigorous tail bound (round 37): any z for p <= q and the
+/// pFq(a; b; z) on complex balls by the series with its rigorous tail bound: any z for p <= q and the
 /// polynomial cases; p = q + 1 inside the disk where the series converges (`pfq_sum` declines otherwise).
 pub fn hyp_pfq(a: &[CBall], b: &[CBall], z: &CBall, p: u64) -> Option<CBall> {
     if b.iter().any(|x| nonpos_int(x).is_some()) {
@@ -134,7 +134,7 @@ fn pfq_inverse(a: &[CBall], b: &[CBall], z: &CBall, wp: u64) -> Option<CBall> {
 
 fn dist_to_int(x: &CBall) -> bool {
     // does the ball contain an integer? (an exact integer, or a ball such as 0 +- 2^-116 from the exact difference
-    // of two exact parameters converted to balls: B26-18)
+    // of two exact parameters converted to balls)
     if int_of(x).is_some() {
         return true;
     }
@@ -157,7 +157,7 @@ fn extrapolate(p: u64, wp: u64, f: impl Fn(&CBall) -> Option<CBall>) -> Option<C
     let f2 = f(&e2)?.add(&f(&e2.neg())?, wp);
     let g = f1.mul_real(&Ball::from_i64(4), wp).sub(&f2, wp).mul_real(&Ball::from_ratio(1, 6, wp), wp);
     // not rigorous: add 2^-(p + 8) of each part (the error of the step is O(e^4) = 2^-(p + 32); the old 2^-p of the
-    // modulus left a small imaginary part with 8 bits fewer than asked and `refine` doubled to its cap, B26-18)
+    // modulus left a small imaginary part with 8 bits fewer than asked and `refine` doubled to its cap)
     let rel = |b: &Ball| Mag::pow2(-(p as i64) - 8).mul(&super::mag_up(b));
     let (mr, mi) = (rel(&g.re), rel(&g.im));
     Some(CBall::new(super::widen(g.re, &mr), super::widen(g.im, &mi)))
@@ -172,7 +172,7 @@ fn pw(z: &CBall, e: &CBall, wp: u64) -> Option<CBall> {
         Some(n) => cball::pow_int(z, &mc_arith::num::Int::from_i64(n), wp),
         None => {
             // a real negative base z = -x (2F1 at a real argument above 1: (-z)^-a and (1 - z)^-a): the argument is the
-            // limit from below, i.e. arg = +pi and z^e = x^e e^(i pi e) (B26-18: the ball power refuses the cut)
+            // limit from below, i.e. arg = +pi and z^e = x^e e^(i pi e) (the ball power refuses the cut)
             if z.im.mid.is_zero() && z.im.rad.is_zero() && z.re.mid.neg && !z.re.contains_zero() {
                 let mag = cball::pow(&z.neg(), e, wp)?;
                 let phase = cball::exp(&e.mul_i().mul_real(&pi(wp)?, wp), wp)?;
@@ -312,7 +312,7 @@ pub fn hyp2f1(a: &CBall, b: &CBall, cc: &CBall, z: &CBall, p: u64) -> Option<CBa
     if degenerate && (!z.re.rad.is_zero() || !z.im.rad.is_zero()) {
         // a ball z: the shifted functions are of size 1/e and cancel only at the midpoint, so the radius of z, carried
         // through them, came back multiplied by 1/e = 2^(p/4 + 8) and grew with the precision asked for (2^102 at 811
-        // bits for 2F1(2, 2; 5; z), round 28 gap). The value at the midpoint, widened by twice |F'(z)| rad(z) with
+        // bits for 2F1(2, 2; 5; z)). The value at the midpoint, widened by twice |F'(z)| rad(z) with
         // F' = (a b/c) 2F1(a + 1, b + 1; c + 1; z) at the midpoint (first order, an estimate as below)
         let mid = |x: &CBall| CBall::new(Ball::exact(x.re.mid.clone()), Ball::exact(x.im.mid.clone()));
         // the singular point z = 1 inside (or next to) the ball: the function is unbounded or not analytic there, and
@@ -539,7 +539,7 @@ pub fn beta_regularized(z: &CBall, a: &CBall, b: &CBall, p: u64) -> Option<CBall
 /// K(m) = pi/2 2F1(1/2, 1/2; 1; m). A real m below 1 is the real function R_F(0, 1 - m, 1) of
 /// [`super::elliptic`]: the connection formulas of 2F1 at c - a - b = 0 are evaluated at shifted parameters and
 /// amplify the radius of a ball argument by 2^(p/4), so the radius grew with the working precision and every
-/// Jacobi function of a ball took seconds (round 24).
+/// Jacobi function of a ball took seconds.
 pub fn elliptic_k(m: &CBall, p: u64) -> Option<CBall> {
     if let Some(r) = real_below_one(m) {
         return super::elliptic::elliptic_k(&mc_arith::Real::Ball(r, p + 16), p);
@@ -823,7 +823,7 @@ pub(crate) fn nearest_int(f: &mc_arith::num::Float) -> mc_arith::num::Int {
 /// The theta series are summed with a rigorous geometric tail; `None` when |q| >= 0.9.
 pub fn jacobi(kind: u8, u: &CBall, m: &CBall, p: u64) -> Option<CBall> {
     // the guard covers the cancellation of the theta sums (|Im u|) and, for a real part beyond the period, the bits
-    // the reduction modulo 2K takes (log2 |Re u|); it was 3 |u|, which is 3e20 extra bits for u = 1e20 (D23-22)
+    // the reduction modulo 2K takes (log2 |Re u|); it was 3 |u|, which is 3e20 extra bits for u = 1e20
     let ua = super::cseries::up(u);
     let guard = 40 + (3.0 * ua.min(64.0)) as u64 + ua.max(1.0).log2() as u64;
     refine(p, guard, |wp| {

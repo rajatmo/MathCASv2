@@ -1,4 +1,4 @@
-//! The caret inside typeset output (round 11, decision NB6.4): an Output cell shown typeset is read-only boxes the
+//! The caret inside typeset output (decision NB6.4):an Output cell shown typeset is read-only boxes the
 //! caret walks through like typeset input (arrows enter boxes, Shift extends keeping the anchor, `Ctrl+.` grows the
 //! selection, a click puts the caret between items), so a part of an output can be selected and copied.
 //!
@@ -240,7 +240,7 @@ impl Notebook {
             }
             C::Copy | C::CopyPlain => {
                 let text = self.out_selected_text()?;
-                // a part with roots, fractions or powers also goes as boxes (round 13): the input boxes it
+                // a part with roots, fractions or powers also goes as boxes: the input boxes it
                 // stands for, pasted as boxes into cells
                 let part = if *cmd == C::Copy { self.out_selection() } else { None };
                 let boxes = part

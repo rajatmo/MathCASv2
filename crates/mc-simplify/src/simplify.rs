@@ -4,7 +4,7 @@
 //! equivalent forms, keep the cheapest. This is the first, search-based form of that idea (decision 2B.1); an
 //! e-graph (equality saturation) can replace the search behind the same function later.
 //!
-//! - **Cost**: the measure of [`crate::cost`] (decision s-cost.1): a leaf count in which integers weigh by their
+//! - **Cost**: the measure of [`crate::cost`]: a leaf count in which integers weigh by their
 //!   digits, with tie-breaks (fewer negative powers, then fewer distinct functions); ties beyond those keep the
 //!   order found (the input first, so `simplify` never trades a form for an equally simple one). One cache of
 //!   subterm sizes serves every candidate of the call. `complexity_function: f` replaces it by a user measure.
@@ -16,7 +16,7 @@
 //!   result are refined.
 //! - **Search**: breadth first to [`DEPTH`] moves, keeping the [`BEAM`] cheapest new forms per level; forms are
 //!   hash-consed, so duplicates are found by handle.
-//! - **Budgets** (gap G73), in units of work (fuel), so that the answer is the same on every machine: a polynomial
+//! - **Budgets**, in units of work (fuel), so that the answer is the same on every machine: a polynomial
 //!   move (`together`, `cancel`, `factor`, `expand`) runs with the internal `work_budget:` option of item K
 //!   ([`MOVE_WORK`]) and gives its input back past it; the search of one term ends between two levels once it
 //!   has spent [`SEARCH_WORK`], with the cheapest form found so far; a form more than [`GROWTH`] times the input's
@@ -37,7 +37,7 @@ use rustc_hash::FxHashSet;
 pub const DEPTH: usize = 3;
 /// Forms kept per level of the search.
 pub const BEAM: usize = 6;
-/// The work (fuel) one polynomial move may do (multivariate `factor` can be exponential in the degrees, gap G73).
+/// The work (fuel) one polynomial move may do (multivariate `factor` can be exponential in the degrees).
 pub const MOVE_WORK: u64 = 16_000;
 /// The work the whole search of one term may do; past it the cheapest form found so far is the answer.
 pub const SEARCH_WORK: u64 = 1_000_000;
@@ -63,15 +63,15 @@ enum Move {
     ExpCombine,
     Signs,
     LogCombine,
-    /// constant parts of exponents as coefficients (decision r17fix.1)
+    /// constant parts of exponents as coefficients
     PowerSplit,
-    /// `gamma(z + k)/gamma(z)` by the recurrence (decision r17fix.2)
+    /// `gamma(z + k)/gamma(z)` by the recurrence
     GammaRatio,
-    /// circular and hyperbolic functions as exponentials (`cosh(x) - sinh(x)` is `exp(-x)`; r17fix.2)
+    /// circular and hyperbolic functions as exponentials (`cosh(x) - sinh(x)` is `exp(-x)`)
     TrigToExp,
-    /// the special-function identities of [`crate::identities`] (round 19, phase 12C)
+    /// the special-function identities of [`crate::identities`] (roadmap item 12C)
     Identities,
-    /// round 19 moves of [`crate::moves`]
+    /// the moves of [`crate::moves`]
     Rationalize,
     PowerCollect,
     PythagorasOne,
@@ -121,13 +121,13 @@ const MOVES: [Move; 28] = [
 ];
 
 impl Move {
-    /// Is the move left out with `trig: false`? (Only the trigonometric rewriting of round 19: the earlier moves
-    /// stay, so `simplify(sin(x)^2 + cos(x)^2, trig: false)` is still 1 as before the option was read.)
+    /// Is the move left out with `trig: false`? (Only the trigonometric rewriting: the other moves
+    /// stay, so `simplify(sin(x)^2 + cos(x)^2, trig: false)` is still 1.)
     fn trig(self) -> bool {
         matches!(self, Move::PythagorasOne)
     }
 
-    /// Is a form found with this move spot-checked before it is returned (the identities of round 19)?
+    /// Is a form found with this move spot-checked before it is returned (the identities)?
     fn checked(self) -> bool {
         matches!(
             self,
@@ -363,7 +363,7 @@ fn identities<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, fx: &mut Facts<'_, '
 const LOG_BITS: u64 = 4096;
 
 /// The terms `k log(q)` of a sum (positive integers k, positive rationals q) as one logarithm of the product of
-/// the `q^k` (decision s-cost.6): `log(2) + log(3)` is `log(6)`; `100 log(2)` is `log(2^100)`, which only a measure
+/// the `q^k`: `log(2) + log(3)` is `log(6)`; `100 log(2)` is `log(2^100)`, which only a measure
 /// that does not weigh digits prefers. Valid for every value: the arguments are positive numbers.
 fn log_combine<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
     let h = b.heap();
@@ -428,7 +428,7 @@ fn searchable<'h>(b: &B<'h>, t: T<'h>) -> bool {
 
 /// The cheapest form of `t` the search finds (its arguments already simplified), `depth` moves deep at most.
 ///
-/// A form reached by a move of round 19 ([`Move::checked`]) is spot-checked against `t` before it is returned
+/// A form reached by a move that is checked ([`Move::checked`]) is spot-checked against `t` before it is returned
 /// ([`crate::verify`]); a refuted one gives way to the cheapest form reached by the other moves alone.
 fn search<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, '_, 'h>, depth: usize, t: T<'h>) -> Res<T<'h>> {
     if !searchable(b, t) {
@@ -464,7 +464,7 @@ fn search<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, '_, 
         // search is the same for any number of threads); a move not started before the deadline ends the search
         let pairs: Vec<(T<'h>, bool, Move)> = level.iter().flat_map(|&(u, f)| moves.iter().map(move |&m| (u, f, m))).collect();
         let found = cx.par_until(pairs.len(), &|r: &Option<T<'h>>| r.is_none(), &|cx, i| {
-            // the time budget of the search: the cheapest form so far (gap G73); the moves from a small term
+            // the time budget of the search: the cheapest form so far; the moves from a small term
             // itself always run, so a very short limit still gives the identities one move away, whatever part of
             // the limit the preparation took (a race with the clock before)
             if (round > 0 || !small) && user.is_some_and(|d| std::time::Instant::now() >= d) {
@@ -509,7 +509,7 @@ fn search<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, '_, 
 }
 
 /// `t` with `abs(u)` as `u` or `-u` and `sign(u)` as `1` or `-1` where the facts decide the sign of `u`, the
-/// arguments themselves left as they are (decision s-cost.5).
+/// arguments themselves left as they are.
 fn decide_signs<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, t: T<'h>) -> Res<T<'h>> {
     let h = b.heap();
     let (abs, sign) = (h.sym("abs"), h.sym("sign"));
@@ -663,7 +663,7 @@ fn run<'h>(
     if !has_facts {
         return inside_out(cx, b, &mut k, t0);
     }
-    // inside `assuming` (decisions A.6, s-cost.5): the search starts from the refined input and the result is
+    // inside `assuming` (decision A.6): the search starts from the refined input and the result is
     // refined again; the refined result is the answer unless the result before refining, the input, or the input
     // with only its signs decided (`abs`, `sign` of arguments of known sign) is strictly simpler. So
     // `simplify(abs(x), x < 0)` keeps `abs(x)` (2 against 4 for `-x`), `abs((q p^2)^(1/4))` for q > 0 is
@@ -740,7 +740,7 @@ fn inside_out<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, 
             changed |= r != a;
             out.push(r);
         }
-        // an equation whose difference of sides simplifies to 0 is true (round 19: `simplify(eqs /. sol)`)
+        // an equation whose difference of sides simplifies to 0 is true (`simplify(eqs /. sol)`)
         if let (true, [l, r]) = (s == equal, out.as_slice()) {
             if equation_holds(cx, b, k, depth, *l, *r)? {
                 return Ok(Some(cx.bool(true)));
@@ -894,7 +894,7 @@ fn prepare<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, '_,
                 if let Some(r) = denest_symbolic(cx, b, k.fx, args)? {
                     return Ok(Some(r));
                 }
-                // a compound exponent expanded when that is smaller (G51: mp^(-2 (4 - k) + 6 - k) is mp^(-2 + k))
+                // a compound exponent expanded when that is smaller (mp^(-2 (4 - k) + 6 - k) is mp^(-2 + k))
                 let [base, ex] = args else { return Ok(None) };
                 if b.call_of(*ex).is_some() && !b.is_number(*ex) {
                     let e2 = apply(cx, b, "expand", *ex)?;
@@ -909,7 +909,7 @@ fn prepare<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, '_,
     })?;
     let r = if r == t { t } else { cx.eval(r)? };
     // the identities that remove a special function (marked ALWAYS), whatever the cost, when the spot check
-    // does not refute them (round 19: `product_log(x e^x)` is `x` for `x >= -1`)
+    // does not refute them (`product_log(x e^x)` is `x` for `x >= -1`)
     let a = identities(cx, b, k.fx, r, true)?;
     if a != r && !crate::verify::refuted(cx, b, &k.cfg.facts, r, a)? {
         return Ok(a);

@@ -389,7 +389,7 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
                 truth = Some(false);
             }
             if truth.is_none() && !no_facts {
-                // decided by the facts of the context through the decision service (G51: -sqrt(positive) > 0 is
+                // decided by the facts of the context through the decision service (-sqrt(positive) > 0 is
                 // false; item F3)
                 if decider.is_none() {
                     decider = Some(mc_decide::Decider::of_context(cx, &flag)?);
@@ -907,7 +907,7 @@ pub fn reduce<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T
         }
     }
     // one variable over the rationals or the complexes: equations only, through solve with the domain; without a
-    // domain, equations alone are over the complexes too (the default, round 19 Q19-37: x^2 + 1 == 0
+    // domain, equations alone are over the complexes too (the default: x^2 + 1 == 0
     // has the roots -i and i, not none)
     let equations_only = || {
         let mut parts = vec![];

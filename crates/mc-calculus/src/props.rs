@@ -15,7 +15,7 @@
 //!   **analytic**: `true` when there are none (or the condition excludes them), `false` otherwise.
 //! - **Sign, monotonicity, convexity** of the function, its derivative, its second derivative: `1` when the value
 //!   is at least 0 everywhere on the domain, `-1` when at most 0, `0` when it vanishes, `indeterminate` otherwise.
-//!   An answer is given only when it is proved (round 43): by `refine` under the domain's facts, by the table, or,
+//!   An answer is given only when it is proved: by `refine` under the domain's facts, by the table, or,
 //!   for one variable without parameters on a domain of finitely many bounded intervals, by enclosures of the
 //!   function (its derivative, its second derivative) over the intervals ([`proof::sign_on`]); a bounded set of
 //!   integers by the exact values. Points refute only: values of both signs (of f, f' or f''; or of the first and
@@ -774,7 +774,7 @@ fn value_at<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>
         return Ok(None);
     }
     let rule = h.call(h.sym(names::RULE), &[x, h.real(v)]);
-    // no sample where a gamma-type function has a huge argument (`gamma(125000.)` takes minutes; F27.8)
+    // no sample where a gamma-type function has a huge argument (`gamma(125000.)` takes minutes)
     let mut growth = vec![];
     growth_args(b, f, x, &mut growth);
     for u in growth {
@@ -1022,7 +1022,7 @@ fn diff_witness<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T
 
 /// The sign of `f`, `f'` or `f''` on the domain (module comment): `1`, `-1`, `0`, `indeterminate`, or `None`.
 /// A convexity claim is checked against the chords of the function (cusps, where the second derivative has one sign
-/// on each side but the function is not convex or concave across the point: B26-3).
+/// on each side but the function is not convex or concave across the point).
 fn sign_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, order: usize) -> Res<Option<T<'h>>> {
     let r = sign_of_inner(cx, b, c, order)?;
     // undecided convexity: chords above and below the function refute both (a cusp, as x^(2/3) at 0)
@@ -1250,7 +1250,7 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
             return Ok(cx.is_true(r).then_some(indet));
         }
         // the gamma family (`u > 0 or u not an integer`) fails at the negative integers: no `reduce` of a
-        // trigonometric condition (F27.8: `gamma(x^3)` took minutes)
+        // trigonometric condition (`gamma(x^3)` takes minutes)
         if cs.iter().any(|&k| contains_call(b, k, "not_element")) {
             return Ok(Some(indet));
         }
@@ -1387,7 +1387,7 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
         }
     }
     // monotonicity and convexity from the sign of f' or f'' need a domain of one piece: tan on x > 0 and -1/x on
-    // x != 0 have f' > 0 on their domains and are not monotonic (round 44: both were 1); on a domain of several
+    // x != 0 have f' > 0 on their domains and are not monotonic; on a domain of several
     // pieces only the values themselves can answer (a refutation across the gaps)
     if order > 0 && !c.integers && !one_interval(cx, b, c, x, &cs)? {
         // convexity is inherited by a part of the line: the chord inequality holds between any two points of the
@@ -2015,7 +2015,7 @@ fn sampled_shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
         match y {
             Some(y) => {
                 // an isolated undefined sample is a pole (`max(4, 3/(2 x))` jumps up across it): the values on its
-                // two sides are compared; a longer gap (outside the domain) splits the run (B26-5)
+                // two sides are compared; a longer gap (outside the domain) splits the run
                 if gap >= 2 && runs.last().is_some_and(|r| !r.is_empty()) {
                     runs.push(vec![]);
                 }

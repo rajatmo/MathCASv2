@@ -1,4 +1,4 @@
-//! Functions defined by formulas (decision P6N.1): a function whose values are an expression in
+//! Functions defined by formulas: a function whose values are an expression in
 //! other functions gets a native from a [`Def`] instead of its own numerical algorithms.
 //!
 //! A [`Def`] has two rules. The **numeric** rule runs when every argument is a number and one of them is inexact
@@ -259,7 +259,7 @@ impl Native for FormulaNative {
             }
         }
         if crate::series_hook::any(h, args) {
-            // a truncated power series (gap G59); the evaluator's own interrupt is polled by the series algebra
+            // a truncated power series; the evaluator's own interrupt is polled by the series algebra
             let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
             if let Some(v) = crate::series_hook::apply(cx, &stop, d.name, args)? {
                 return Ok(Reply::Done(v));
@@ -298,7 +298,7 @@ pub fn install(k: &mut Kernel, h: &Heap, defs: &[Def]) {
     }
 }
 
-/// Contagion into function arguments (decision P6N.11): when one argument is an inexact number and others are closed
+/// Contagion into function arguments: when one argument is an inexact number and others are closed
 /// numeric terms that are not numbers (`pi/3`, `sqrt(2)`), those become numbers of the same kind (machine reals, or
 /// balls at the ball's precision), so `f(pi/3, 0.5)` evaluates like `f(1.0471975511965976, 0.5)`. `None` when
 /// nothing changes or a term does not become a number.
@@ -328,7 +328,7 @@ pub fn numeric_arguments<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> R
             continue;
         }
         // a list of exact numbers (the parameters of `meijer_g`) stays exact: its entries become balls inside the
-        // function at the precision its cancellation needs, not at the precision of the argument z (X26-6)
+        // function at the precision its cancellation needs, not at the precision of the argument z
         if cx.as_list(a).is_some_and(|l| l.iter().all(|&e| cx.as_list(e).is_some_and(|m| m.iter().all(|&x| ar.num(x).is_some_and(|v| v.is_exact()))) || ar.num(e).is_some_and(|v| v.is_exact()))) {
             out.push(a);
             continue;

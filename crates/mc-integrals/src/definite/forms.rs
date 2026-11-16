@@ -15,7 +15,7 @@
 //!   functions are written as gamma quotients. Integrands with only integer exponents are left to the residue and
 //!   Newton-Leibniz methods, whose answers are elementary, except `x^α/(A + B x^d)` with d odd, which the residue
 //!   method (over the whole line) does not take: `B(μ, 1 - μ) = π/sin(π μ)` (DLMF 5.5.3, 5.12.1).
-//! - (round 19, Q19-34) `∫_0^∞ x^(s-1)/sinh(a x) dx = 2 (1 - 2^-s) Γ(s) ζ(s)/a^s` for `s > 1` (DLMF 25.5.1 with
+//! - `∫_0^∞ x^(s-1)/sinh(a x) dx = 2 (1 - 2^-s) Γ(s) ζ(s)/a^s` for `s > 1` (DLMF 25.5.1 with
 //!   `1/sinh(t) = 2 Σ e^(-(2k+1) t)`); `∫_0^∞ e^(-a x) sin(b x)/x dx = atan(b/a)` for `a > 0` (the Laplace
 //!   transform of `sin(b x)/x`, `∫_a^∞ b/(t^2 + b^2) dt`); `∫_0^L log(1 + c x)/x dx = -Li_2(-c L)`
 //!   (DLMF 25.12.2) for `c L >= -1`.

@@ -160,7 +160,7 @@ impl Native for Print {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [x] = args else {
-            // `print(a, b, ...)`: one line, the texts of the arguments joined (decision p6core.24)
+            // `print(a, b, ...)`: one line, the texts of the arguments joined
             if args.len() < 2 {
                 return Ok(Reply::Decline);
             }
@@ -218,7 +218,7 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
 }
 
 /// `eval(x)`: `x`, evaluated (as every strict argument is). Inside a held argument it marks the part to evaluate
-/// first; elsewhere it is the identity (decision p6core.14).
+/// first; elsewhere it is the identity.
 struct EvalNow;
 
 impl Native for EvalNow {

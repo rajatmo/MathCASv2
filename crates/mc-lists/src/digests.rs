@@ -1,4 +1,4 @@
-//! Further message digests of `hash` (round 41), each implemented from its specification:
+//! Further message digests of `hash`, each implemented from its specification:
 //!
 //! - MD2 (RFC 1319), MD4 (RFC 1320);
 //! - RIPEMD-160 (Dobbertin, Bosselaers and Preneel, "RIPEMD-160: a strengthened version of RIPEMD", FSE 1996);

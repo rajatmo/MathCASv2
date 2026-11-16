@@ -7,7 +7,7 @@
 //! A `.svgz` file is an SVG drawing compressed with gzip (the documentation's plots): it is decompressed while
 //! parsing and drawn as an `.svg` is.
 //!
-//! Vector display (round nb-svg): a plot's PNG (`plot-N.png`) is drawn from its SVG sibling, and an SVG is
+//! Vector display: a plot's PNG (`plot-N.png`) is drawn from its SVG sibling, and an SVG is
 //! rasterised at exactly the device pixels it covers (picture size x magnification x display scale), so it is
 //! sharp at every scale; its chrome takes the window's theme through a style sheet ([`mc_graphics::theme`]). The
 //! worker keeps the last few parsed drawings, so a zoom step or a theme switch renders again without parsing, and

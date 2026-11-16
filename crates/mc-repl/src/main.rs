@@ -48,7 +48,7 @@ fn main() -> ExitCode {
         return ExitCode::from(code);
     }
     let mut repl = Repl::with_host(Box::new(engine), stop);
-    // stdout unlocked, as in cli::run_std (G93)
+    // stdout unlocked, as in cli::run_std
     match repl.run(&mut io::stdin().lock(), &mut io::stdout()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {

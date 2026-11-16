@@ -1,4 +1,4 @@
-//! Values at the directed infinities and at the poles with a signed limit (decision P6N.2): `erf(inf)` is 1,
+//! Values at the directed infinities and at the poles with a signed limit: `erf(inf)` is 1,
 //! `exp_integral_ei(im*inf)` is `im*pi`, `cos_integral(0)` is `-inf`, `inverse_erf(1)` is `inf`. Each is the limit of
 //! the function along the ray (or, at a pole on the real line, from the side where the function is real); the
 //! other infinities and the poles without a signed limit (gamma at 0, -1, ...) are left to the callers.

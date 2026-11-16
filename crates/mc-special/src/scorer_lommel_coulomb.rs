@@ -1,5 +1,5 @@
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
-//! Special functions added in round 28, on the working form of [`crate::cover`]: the
+//! The Scorer, modified Lommel and Coulomb wave functions, on the working form of [`crate::cover`]: the
 //! arguments as balls at the target precision plus the bits a series is expected to cancel, series summed in the
 //! canonical arithmetic, the value rounded back to the arguments' kind.
 //!
@@ -105,20 +105,20 @@ fn scorer<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Scorer) -> R<'h> 
     if !numeric(fx, a) {
         return Ok(None);
     }
-    // machine arguments: the double-double kernel (round 29), the ball path when it declines
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
+    // machine arguments: the double-double kernel, the ball path when it declines
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
         let w = match which {
-            Scorer::Gi => crate::fast29::Scorer::Gi,
-            Scorer::Hi => crate::fast29::Scorer::Hi,
-            Scorer::GiPrime => crate::fast29::Scorer::GiPrime,
-            Scorer::HiPrime => crate::fast29::Scorer::HiPrime,
+            Scorer::Gi => crate::fast_dd::Scorer::Gi,
+            Scorer::Hi => crate::fast_dd::Scorer::Hi,
+            Scorer::GiPrime => crate::fast_dd::Scorer::GiPrime,
+            Scorer::HiPrime => crate::fast_dd::Scorer::HiPrime,
         };
-        if let Some(v) = crate::fast29::scorer(ms[0], real, w) {
+        if let Some(v) = crate::fast_dd::scorer(ms[0], real, w) {
             // Hi and Hi' beyond the largest double (x > 104): the overflow, as airy_bi(1000.) gives
             if real && v.re == f64::INFINITY {
                 return Ok(Some(fx.inf()));
             }
-            return Ok(crate::fast29::machine_out(fx, v, real));
+            return Ok(crate::fast_dd::machine_out(fx, v, real));
         }
     }
     let m = mag(fx, z);
@@ -211,9 +211,9 @@ fn lommel_t1<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if !numeric(fx, a) {
         return Ok(None);
     }
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
-        if let Some(v) = crate::fast29::lommel_t1(ms[0], ms[1], ms[2]) {
-            return Ok(crate::fast29::machine_out(fx, v, real && ms[2].re.hi >= 0.0));
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
+        if let Some(v) = crate::fast_dd::lommel_t1(ms[0], ms[1], ms[2]) {
+            return Ok(crate::fast_dd::machine_out(fx, v, real && ms[2].re.hi >= 0.0));
         }
     }
     let extra = cancel_bits(fx, z, 1.0);
@@ -376,10 +376,10 @@ fn carlson_rf<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         }
         return Ok(symmetric_order(fx, "carlson_rf", a));
     }
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
-        if let Some(v) = crate::fast29::carlson_rf_cd(ms[0], ms[1], ms[2]) {
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
+        if let Some(v) = crate::fast_dd::carlson_rf_cd(ms[0], ms[1], ms[2]) {
             let real = real && ms.iter().all(|z| z.re.hi >= 0.0);
-            return Ok(crate::fast29::machine_out(fx, v.to_c64(), real));
+            return Ok(crate::fast_dd::machine_out(fx, v.to_c64(), real));
         }
     }
     let Some((wk, xs)) = work(fx, a, 16) else { return Ok(None) };
@@ -400,11 +400,11 @@ fn carlson_rk<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if !numeric(fx, a) {
         return Ok(symmetric_order(fx, "carlson_rk", a));
     }
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
-        if let Some(v) = crate::fast29::carlson_rf_cd(crate::cdd::CD::ZERO, ms[0], ms[1]) {
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
+        if let Some(v) = crate::fast_dd::carlson_rf_cd(crate::cdd::CD::ZERO, ms[0], ms[1]) {
             let v = v.scale(2.0) / crate::cdd::CD::real(crate::dd::PI);
             let real = real && ms.iter().all(|z| z.re.hi >= 0.0);
-            return Ok(crate::fast29::machine_out(fx, v.to_c64(), real));
+            return Ok(crate::fast_dd::machine_out(fx, v.to_c64(), real));
         }
     }
     let Some((wk, xs)) = work(fx, a, 16) else { return Ok(None) };
@@ -504,8 +504,8 @@ fn coulomb<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Coulomb) -> R<'h
         return Ok(None);
     }
     // machine reals, l >= 0, rho > 0: Steed's method in double-double
-    if let Some((ms, true)) = crate::fast29::machine_args(fx, a) {
-        if let Some((f, g)) = crate::fast30::coulomb_fg(ms[0].re.to_f64(), ms[1].re.to_f64(), ms[2].re.to_f64()) {
+    if let Some((ms, true)) = crate::fast_dd::machine_args(fx, a) {
+        if let Some((f, g)) = crate::fast_coulomb::coulomb_fg(ms[0].re.to_f64(), ms[1].re.to_f64(), ms[2].re.to_f64()) {
             use mc_numeric::machine::C64;
             let v = match which {
                 Coulomb::F => C64::new(f, 0.0),
@@ -513,16 +513,16 @@ fn coulomb<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Coulomb) -> R<'h
                 Coulomb::H1 => C64::new(g, f),
                 Coulomb::H2 => C64::new(g, -f),
             };
-            return Ok(crate::fast29::machine_out(fx, v, matches!(which, Coulomb::F | Coulomb::G)));
+            return Ok(crate::fast_dd::machine_out(fx, v, matches!(which, Coulomb::F | Coulomb::G)));
         }
     }
     // the regular function at a complex machine rho: the Maclaurin series in complex double-double numbers (plots of the
     // function over the plane need thousands of values; the ball path below takes about 30 ms each)
     if which == Coulomb::F {
-        if let Some((ms, false)) = crate::fast29::machine_args(fx, a) {
+        if let Some((ms, false)) = crate::fast_dd::machine_args(fx, a) {
             if ms[0].im.hi == 0.0 && ms[1].im.hi == 0.0 {
-                if let Some(v) = crate::fast30::coulomb_f_complex(ms[0].re.to_f64(), ms[1].re.to_f64(), ms[2]) {
-                    return Ok(crate::fast29::machine_out(fx, v, false));
+                if let Some(v) = crate::fast_coulomb::coulomb_f_complex(ms[0].re.to_f64(), ms[1].re.to_f64(), ms[2]) {
+                    return Ok(crate::fast_dd::machine_out(fx, v, false));
                 }
             }
         }

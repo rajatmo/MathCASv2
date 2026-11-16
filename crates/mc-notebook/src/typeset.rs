@@ -9,7 +9,7 @@
 //! our own, uploaded piecewise when a glyph is first drawn and never per frame. The atlas starts at 1024 x 1024
 //! (4 MB) and grows once to 2048 x 2048 (16 MB); when that is full it is cleared at the start of the next frame
 //! and refilled with what is drawn (so magnification steps and theme changes cannot make it grow without bound,
-//! the round 9 lesson of egui's own atlas). Each frame the visible glyphs of a layout become one mesh.
+//! as egui's own atlas can). Each frame the visible glyphs of a layout become one mesh.
 use crate::theme::Palette;
 use eframe::egui::{self, pos2, vec2, Color32, ColorImage, Mesh, Painter, Pos2, Rect, TextureHandle, TextureOptions};
 use eframe::epaint::text::{LayoutJob, TextFormat};
@@ -310,7 +310,7 @@ pub fn lay_out(row: &Row, opts: &LayoutOptions, font: &TextFont) -> Layout {
 
 /// Lay out `row` in the cell's text font line by line, the lines an edit did not change taken from `cache` (code
 /// cells: typing into a long cell lays out one line, design 11, section 5), the layout shared with the cache: let go
-/// of it before the next call and that call changes it in place where the row changed (round 37).
+/// of it before the next call and that call changes it in place where the row changed.
 pub fn lay_out_lines(row: &Row, opts: &LayoutOptions, font: &TextFont, cache: &mut mc_boxes::layout::LineCache) -> Arc<Layout> {
     let m = CellMetrics::for_row(row, font);
     mc_boxes::layout::layout_by_lines_shared(row, &m, opts, cache)
@@ -441,7 +441,7 @@ pub struct Ink<'a> {
     /// the cell's text face (characters of the text font are drawn in it by egui)
     pub face: Face,
     /// the colour of a character by layout row and item (syntax colouring of typeset input), asked for the
-    /// characters drawn only (round 37: a table of every character of a long cell cost 2.4 ms a keystroke); `None`
+    /// characters drawn only (a table of every character of a long cell cost 2.4 ms a keystroke); `None`
     /// from it, or no function, is `color`
     pub colours: Option<&'a dyn Fn(u32, u32) -> Option<Color32>>,
 }

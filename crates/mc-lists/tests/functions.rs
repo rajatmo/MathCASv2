@@ -259,7 +259,7 @@ fn sorting() {
             ("sort(3)", "failure(argument, sort, 1)"),
             ("sort([3, 1, 2], greater)", "[3, 2, 1]"),
             ("fn by_last(a, b) = last(a) < last(b)", "null"),
-            // elements for which neither comes first trade places (decision cov-core.7)
+            // elements for which neither comes first trade places
             ("sort([[1, 3], [2, 1], [3, 2], [4, 1]], by_last)", "[[4, 1], [2, 1], [3, 2], [1, 3]]"),
             ("sort([1, 2], same)", "[2, 1]"),
             ("fn boom(a, b) = 1/0", "null"),

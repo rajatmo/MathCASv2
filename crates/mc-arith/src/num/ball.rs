@@ -490,7 +490,7 @@ impl Ball {
     /// The ends `mid - rad` and `mid + rad`, exactly when the magnitudes of `mid` and `rad` are within
     /// [`Ball::ENDS_GAP`] bits of each other; otherwise the ends of a slightly wider ball, the smaller of the two
     /// replaced by the power of two `ENDS_GAP` bits below the larger, so that no mantissa is shifted by the whole
-    /// gap (round 44: the ball of exp(-1/x^2) near 0 has a midpoint near 2^-(10^12) and a radius near 2^-(10^12 +
+    /// gap (the ball of exp(-1/x^2) near 0 has a midpoint near 2^-(10^12) and a radius near 2^-(10^12 +
     /// 64), or a midpoint 0 and a tiny radius beside a large one; their exact ends took 180 GB). Every point of the
     /// ball lies between the ends.
     pub fn ends(&self) -> (Float, Float) {

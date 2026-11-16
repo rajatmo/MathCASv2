@@ -21,7 +21,7 @@ pub struct Parsed {
     pub program: Program,
     pub errors: Vec<Diagnostic>,
     /// The white space (with any comments and line ends in it) between two operands that a product joins with no
-    /// operator (`m c^2`, `2 pi r`, `(x + 1) (x - 1)`), in text order (round 35; the editor draws a faint `×` there).
+    /// operator (`m c^2`, `2 pi r`, `(x + 1) (x - 1)`), in text order (the editor draws a faint `×` there).
     /// Adjacent factors (`2x`) have none. Products the parser reached in a statement that later failed are kept.
     pub products: Vec<Span>,
 }
@@ -82,7 +82,7 @@ enum Infix {
     Add,
     Mul,
     Pow,
-    /// `x ∈ s`: the call `element(x, s)` (design 08 section 3.9; round 32)
+    /// `x ∈ s`: the call `element(x, s)` (design 08 section 3.9)
     Element,
 }
 
@@ -172,7 +172,7 @@ impl Parser<'_> {
     fn spaced(&self) -> bool {
         self.pos > 0 && self.toks[self.pos - 1].span.end < self.toks[self.pos].span.start
     }
-    /// Whether the current token can start an operand that juxtaposition multiplies (round 35): a name, a number, a
+    /// Whether the current token can start an operand that juxtaposition multiplies: a name, a number, a
     /// pattern, a slot, `(` (also a box form), `[`, `√` or `□`; never a sign, a keyword, a string, or the
     /// contextual words `where` and `except`.
     fn at_juxtaposed_operand(&self) -> bool {
@@ -558,7 +558,7 @@ impl Parser<'_> {
                             self.skip_newlines();
                             op
                         } else if items.last().is_some_and(|(_, e)| self.juxtaposed_after(e)) {
-                            // a space between two operands multiplies (round 35); `2x` has its `Juxt` token
+                            // a space between two operands multiplies; `2x` has its `Juxt` token
                             if self.spaced() {
                                 self.products.push(Span { start: self.prev_span().end, end: self.span().start });
                             }
@@ -595,7 +595,7 @@ impl Parser<'_> {
         Ok(lhs)
     }
 
-    /// Whether the current token starts a factor juxtaposed to `lhs` (round 35): an operand start
+    /// Whether the current token starts a factor juxtaposed to `lhs`: an operand start
     /// ([`Parser::at_juxtaposed_operand`]) after anything but a string.
     fn juxtaposed_after(&self, lhs: &Expr) -> bool {
         !matches!(lhs.kind, ExprKind::Str(_)) && self.at_juxtaposed_operand()
@@ -638,7 +638,7 @@ impl Parser<'_> {
             return Ok(e);
         }
         loop {
-            // a bracket after white space starts a factor of a product, not a call or index (round 35: `f (x)`)
+            // a bracket after white space starts a factor of a product, not a call or index (`f (x)`)
             if matches!(self.peek(), Tok::Punct(P::LParen | P::LBracket)) && self.spaced() {
                 return Ok(e);
             }
@@ -899,7 +899,7 @@ impl Parser<'_> {
                     args.push(Arg { name: Some((n, s)), value });
                 } else {
                     // a positional argument may follow named ones: a stored option list among the options
-                    // (`plot(f, r, plot_style: red, opts, frame: true)`, gap G82); the lowering keeps the order
+                    // (`plot(f, r, plot_style: red, opts, frame: true)`); the lowering keeps the order
                     let value = p.expr(prec::ASSIGN)?;
                     args.push(Arg { name: None, value });
                 }

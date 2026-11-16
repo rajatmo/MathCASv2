@@ -13,7 +13,7 @@
 # The q-factorial is the product of the q-numbers `(1 - q^k)/(1 - q) = 1 + q + ... + q^(k - 1)` for `k` from 1 to `n`; at `q = 1` it is `factorial(n)`.
 
 #% item
-# The count comes first, as in `factorial(n)`: `q_factorial(n, q)` (it was `q_factorial(q, n)` before round 19).
+# The count comes first, as in `factorial(n)`: `q_factorial(n, q)` (not `q_factorial(q, n)`).
 
 #% item
 # With a symbolic `q` and an integer `n` the result is a polynomial; machine numbers give numerical values.

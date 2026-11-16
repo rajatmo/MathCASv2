@@ -10,7 +10,7 @@
 //!   form of Burley 2020: in bit-reversed order, operations in which a bit depends only on lower bits).
 //!
 //! The estimate is the mean of [`REPLICATES`] independent randomisations, its error the standard error of that
-//! mean (decision quad-1.7). The number of points per replicate doubles from 2^10 until the error meets the goal
+//! mean. The number of points per replicate doubles from 2^10 until the error meets the goal
 //! or the next doubling would exceed `max_points`. Randomisations are drawn from `seed` only, points are generated
 //! in blocks by position, and sums are added in point order, so results do not depend on the number of threads.
 use crate::domain::{Sampler, CHUNK};

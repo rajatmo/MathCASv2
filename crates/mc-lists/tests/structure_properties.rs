@@ -99,7 +99,7 @@ fn orderings_are_stable_and_key_sorts_break_ties_by_the_elements() {
         ix.sort_by_key(|&i| xs[i]);
         let pos: Vec<usize> = ix.iter().map(|i| i + 1).collect();
         assert_eq!(env.eval(&format!("ordering({})", list(&xs))), list(&pos));
-        // equal keys: the elements in increasing order (decision cov-core.7)
+        // equal keys: the elements in increasing order
         let mut by = xs.clone();
         by.sort_by_key(|&x| (x.rem_euclid(7), x));
         assert_eq!(env.eval(&format!("sort_by({}, k => imod(k, 7))", list(&xs))), list(&by));

@@ -157,7 +157,7 @@ pub fn matching_open(row: &Row, close: usize) -> Option<usize> {
 /// Whether the base of a power is drawn in parentheses: it is not one operand. A name, a number, a call or a
 /// bracketed group, a string, a radical or a base with an index stand as they are; `2m`, `-x`, `a + b`, a fraction
 /// or another power would read as something else next to the exponent (`2m²` is `2(m²)`), so the layout puts the
-/// parentheses the linear text has (round 33).
+/// parentheses the linear text has.
 pub fn compound_base(base: &Row) -> bool {
     use crate::tree::Node;
     let n = base.len();

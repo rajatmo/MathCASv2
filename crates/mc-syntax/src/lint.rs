@@ -1,4 +1,4 @@
-//! Editor warnings that are not errors (round 20). [`lint_calls`]: `x(x - a)` is a call of `x` on `x - a`, never a
+//! Editor warnings that are not errors. [`lint_calls`]: `x(x - a)` is a call of `x` on `x - a`, never a
 //! product, but in typeset input (and to most readers) it looks like one. A call is flagged when its head is a
 //! plain name that has no definition (the editor's `known` says which names have one; the text's own `fn`, `rule`,
 //! `f(x) := ...`, `f = ...`, `sym` and `let` definitions count too), is not bound by a lambda, `fn` parameter,
@@ -59,7 +59,7 @@ pub fn lint_calls(src: &str, known: &(dyn Fn(&str) -> bool + Sync)) -> Vec<Lint>
 }
 
 /// [`lint_calls`], where `function(name)` also says which names are functions (the session's and the library's):
-/// such a name juxtaposed with an operand (`sin x`, `f (x)`) is a product that was likely meant as a call (round 35).
+/// such a name juxtaposed with an operand (`sin x`, `f (x)`) is a product that was likely meant as a call.
 pub fn lint_calls_with(
     src: &str,
     known: &(dyn Fn(&str) -> bool + Sync),
@@ -97,7 +97,7 @@ pub fn lint_program(src: &str, program: &Program, known: &dyn Fn(&str) -> bool, 
                 range,
             });
         }
-        // a function juxtaposed with an operand: a product (round 35)
+        // a function juxtaposed with an operand: a product
         for (name, head, operand, grouped) in &w.juxtaposed {
             let gap = head.end..operand.start;
             if !(function(name) || functions.contains(name)) || w.bound.contains(name) || !is_space(src, gap.clone()) {
@@ -239,7 +239,7 @@ struct Walk {
     bound: HashSet<String>,
     /// names written with a prime (`y'`): functions
     functions: HashSet<String>,
-    /// locals (`let`, `var`, parameters) named like a function the reader lowers syntax to (R24-06)
+    /// locals (`let`, `var`, parameters) named like a function the reader lowers syntax to
     shadows: Vec<(String, Range<usize>)>,
     /// inside arithmetic or a comparison (a name here is a variable), not a plain argument or list element
     arith: bool,
@@ -539,7 +539,7 @@ mod tests {
         assert!(lint_calls(&fixed, &|n: &str| n == "integrate" || n == "sqrt").is_empty());
     }
 
-    /// The round 35 lints: `known` and `function` as a session that knows `sin`, `f` as functions and `pi`, `a` as
+    /// The product lints: `known` and `function` as a session that knows `sin`, `f` as functions and `pi`, `a` as
     /// values.
     fn lint35(src: &str) -> Vec<Lint> {
         let known = |n: &str| ["sin", "f", "pi", "a", "integrate"].contains(&n);

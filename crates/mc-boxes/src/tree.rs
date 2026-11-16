@@ -138,7 +138,7 @@ pub enum Node {
         /// the path as written in the notebook (relative to it)
         path: String,
     },
-    /// a value shown with a label (typeset output of `labeled(x, l)` and `legended(x, l)`, round 13): the value as
+    /// a value shown with a label (typeset output of `labeled(x, l)` and `legended(x, l)`): the value as
     /// typeset, the label as plain text at `side` (a legend's entries one per line, each after its swatch); made by
     /// `mc_typeset::math_text` only, never by editing. Its linear and canonical text is the printed `text` (no box
     /// marks: it reads back as the call).

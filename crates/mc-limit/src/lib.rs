@@ -16,7 +16,7 @@
 //! numbers in `f` or `a` are rationalized first and the limit given numerically (decision C.3). A list `f` maps
 //! elementwise.
 //!
-//! A crate of its own since round 34 (split out of `mc-calculus`); [`bounds`] and [`switches`] hold the real
+//! A crate of its own (split out of `mc-calculus`); [`bounds`] and [`switches`] hold the real
 //! bounds and the functions defined by cases that limits share with definite integrals (`mc-integrals`).
 #![warn(missing_docs)]
 pub(crate) mod asym;

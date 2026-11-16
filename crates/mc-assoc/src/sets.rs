@@ -92,7 +92,7 @@ fn same<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: T<'h>, y: T<'
     Ok(Ok(cx.is_true(v)))
 }
 
-/// The set operations with `same_test: f` (decision io-core.7): the elements of the first argument (all
+/// The set operations with `same_test: f`: the elements of the first argument (all
 /// arguments for `union`) in canonical order, an element dropped when `f(y, x)` holds for an element y kept before
 /// it; then `intersection` keeps those with a match `f(x, z)` in every other argument and `complement` those with a
 /// match in none.

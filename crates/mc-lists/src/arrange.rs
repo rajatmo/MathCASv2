@@ -6,8 +6,8 @@ use mc_eval::{NativeCx, Reply, Res};
 
 /// `riffle(xs, s)`: `s` between consecutive elements; `riffle(xs, ys)` with a list `ys` of `n` or `n - 1`
 /// elements (`n` the length of `xs`): the elements of `xs` and `ys` alternating. A list `ys` of another length
-/// gives its elements in turn between consecutive elements (round 16; it was `failure(shape_mismatch, riffle)`,
-/// decision 1A.10); an empty `ys` still is.
+/// gives its elements in turn between consecutive elements; an empty `ys` is
+/// `failure(shape_mismatch, riffle)` (decision 1A.10).
 pub(crate) fn riffle<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     if let [xs, s, spec] = *args {
@@ -19,7 +19,7 @@ pub(crate) fn riffle<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
     let seps: Option<&[T<'h>]> = cx.as_list(s);
     if let Some(ys) = seps {
         if ys.len() != n && ys.len() + 1 != n {
-            // separators of another count are used in turn, between consecutive elements (round 16)
+            // separators of another count are used in turn, between consecutive elements
             if ys.is_empty() || n < 2 {
                 return Ok(Reply::Done(lib.shape(h, t)));
             }
@@ -46,7 +46,7 @@ pub(crate) fn riffle<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
 
 /// `riffle(xs, s, n)`, `riffle(xs, s, [i, j, k])`: `s` (or the elements of a list `s`, in turn) at the positions
 /// `i, i + k, ...` up to `j` of the result (negative positions count from its end; `n` is `[n, -2, n]`), the
-/// elements of `xs` in order at the others (round 16). The result's length `L = len(xs) + m` must give exactly
+/// elements of `xs` in order at the others. The result's length `L = len(xs) + m` must give exactly
 /// `m` positions: the largest such `m` up to `len(xs) + 1` is taken.
 fn riffle_at<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, xs: T<'h>, s: T<'h>, spec: T<'h>) -> Res<Reply<'h>> {
     let h = cx.heap();
@@ -122,7 +122,7 @@ pub(crate) fn catenate<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
     let xss = take!(lib.list_operand(h, t, xss, 1));
     let mut parts = Vec::with_capacity(xss.len());
     let mut total = 0usize;
-    // an association contributes its values (decision io-core.4)
+    // an association contributes its values
     let mut owned: Vec<Vec<T<'h>>> = vec![];
     for &xs in xss {
         if let Some(es) = crate::assocs::entries(lib, h, xs) {
@@ -159,8 +159,7 @@ pub(crate) fn catenate<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
 /// `partition(xs, n, d)`: runs starting every `d` elements (overlapping for `d < n`). `n` and `d` are positive.
 pub(crate) fn partition<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // `partition(xs, up_to(n))`, `partition(xs, up_to(n), d)`: pieces of n, the last ones shorter (decision
-    // cov-core.8)
+    // `partition(xs, up_to(n))`, `partition(xs, up_to(n), d)`: pieces of n, the last ones shorter
     if let (Some(&xs), Some(&n)) = (args.first(), args.get(1)) {
         if let (Some(xs), Some(k)) = (cx.as_list(xs), crate::more::up_to_count(h, n, usize::MAX)) {
             let d = match args.get(2).map(|&d| h.view(d)) {
@@ -191,7 +190,7 @@ pub(crate) fn partition<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
         _ => return Ok(Reply::Decline),
     };
     // the pieces of a term with another head have that head, as the whole does (partition(f(a, b, c, d), 2) is
-    // f(f(a, b), f(c, d)), decision r37.4)
+    // f(f(a, b), f(c, d)))
     let (head, xs) = take!(lib.elements_operand(h, t, xs, 1));
     let n = take!(count_operand(lib, h, t, n, 2));
     let d = take!(count_operand(lib, h, t, d, args.len()));
@@ -266,8 +265,7 @@ fn runs<'h>(xs: &[T<'h>], n: usize, d: usize, over: Option<(i64, i64)>, pad: &Pa
 }
 
 /// `partition` with dimension lists (`partition(m, [2, 2])`: blocks of a matrix), an overhang `k` or `[kl, kr]`
-/// (runs reaching beyond the ends, padded cyclically) and a padding `x` or `[x1, ...]` (`[]`: none). Decision
-/// p6core.8.
+/// (runs reaching beyond the ends, padded cyclically) and a padding `x` or `[x1, ...]` (`[]`: none).
 fn partition_general<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let ints = |x: T<'h>| -> Option<Vec<i64>> {
@@ -314,7 +312,7 @@ fn partition_general<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
         let out: Vec<T<'h>> = rs.iter().map(|r| cx.list(r)).collect();
         return Ok(Reply::Done(cx.list(&out)));
     }
-    // blocks of a deeper array without overhang (round 36): the block indices first, then the places in a block
+    // blocks of a deeper array without overhang: the block indices first, then the places in a block
     if ns.len() > 2 {
         if over.is_some() {
             return Ok(Reply::Decline);
@@ -469,7 +467,7 @@ fn pad<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], l
         _ => return Ok(Reply::Decline),
     };
     // one length: a negative one pads at the other end (pad_left(xs, -n) is pad_right(xs, n)), and a term with a
-    // head other than list is padded as the list of its arguments, keeping its head (decision r37.4)
+    // head other than list is padded as the list of its arguments, keeping its head
     if let Some(View::Int(k)) = n.map(|n| h.view(n)) {
         let list = h.sym_term(lib.s.list);
         let operand = match h.view(xs) {
@@ -556,7 +554,7 @@ fn pad<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], l
     }
 }
 
-/// `xs` padded or cut to `dims` (decision p6core.10: a list padding repeats cyclically, aligned with the result's
+/// `xs` padded or cut to `dims` (a list padding repeats cyclically, aligned with the result's
 /// positions, `pad_left` from the result's end; a scalar `x` fills; deeper levels padded with copies of `x`).
 /// `None` when a level to pad is not a list.
 fn padded<'h>(
@@ -616,7 +614,7 @@ fn padded<'h>(
 
 /// `pad_left(xs, n)`, `pad_left(xs, n, x)`: `xs` made `n` long by adding `x` (default 0) at the start, or
 /// keeping only its last `n` elements. A list `x` repeats cyclically (`[[u, v]]` pads with the list `[u, v]`);
-/// `n` may be a list of lengths per level; without `n`, a ragged list of lists is padded to a matrix (p6core.10).
+/// `n` may be a list of lengths per level; without `n`, a ragged list of lists is padded to a matrix.
 pub(crate) fn pad_left<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     pad(lib, cx, t, args, true)
 }

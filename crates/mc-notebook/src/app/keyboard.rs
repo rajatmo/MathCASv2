@@ -11,7 +11,7 @@ impl App {
         if events.iter().any(|e| matches!(e, egui::Event::Text(_))) {
             self.pointer_hidden = true;
         }
-        // the character an Alt chord may also deliver as text (only that text is dropped, round 19: dropping the next
+        // the character an Alt chord may also deliver as text (only that text is dropped: dropping the next
         // text whatever it was lost the first letter typed after Alt+1 where the system sends no text for the chord)
         let mut swallow_text: Option<String> = None;
         let mut copied = false;
@@ -118,7 +118,7 @@ impl App {
 
     /// The name being typed at the caret in a code cell: (cell, where, start, prefix). In typeset input the name is
     /// in the caret's row of boxes (`where` is that row; `start` an item offset), else in the text (`start` a byte).
-    /// A name starts with a letter or `_`: digits and dots before it are a number multiplying it (`2a`, round 38: the
+    /// A name starts with a letter or `_`: digits and dots before it are a number multiplying it (`2a`: the
     /// popup opened for `2a` and took the next Down).
     pub(super) fn word_at_caret(&self) -> Option<(mc_nbmodel::CellId, Option<mc_boxes::RowPath>, usize, String)> {
         let Selection::Caret { cell, anchor, pos } = *self.doc.nb.selection() else {

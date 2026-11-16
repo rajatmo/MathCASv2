@@ -72,7 +72,7 @@ fn small_ratio(h: &Heap, t: T<'_>) -> Option<(i64, i64)> {
 /// the machine reals in canonical order (for finite reals the IEEE total order), so the result is bit for bit what
 /// [`Arith`] gives, without setting it up. An exact rational part is converted as the arithmetic converts it, to
 /// the nearest machine real (one correctly rounded division of parts that are machine reals exactly; decision
-/// sp-core.6: `x/3` in loops). `None` for any other arguments (or an exact part that overflows).
+/// `x/3` in loops). `None` for any other arguments (or an exact part that overflows).
 fn machine_fold(h: &Heap, args: &[T<'_>], product: bool) -> Option<f64> {
     let mut exact: i128 = i128::from(product);
     // the denominator of the exact part (positive; 1 for an integer)
@@ -229,7 +229,7 @@ fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: &Consts, args: &[T<'h
         _ => false,
     };
     let machine = args.iter().any(|&a| matches!(h.view(a), View::Real(_)) || machine_complex(a));
-    // a ball, or a complex number with a ball part (`(2.0~40 + 1.0~40 im)*pi` stayed a product before round 36)
+    // a ball, or a complex number with a ball part (`(2.0~40 + 1.0~40 im)*pi` is evaluated, not left a product)
     let ball_complex = |a: T<'h>| match h.view(a) {
         View::App { head, args: [re, im] } => {
             head == h.sym_term(h.sym(names::COMPLEX))
@@ -324,7 +324,7 @@ fn cached_constant<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: &Consts, t: T<'h>) -> R
 }
 
 /// Is an argument an uncertain number of `mc_numeric::uncertain` (`around`, `interval`, `centered_interval`)? A
-/// cheap test on the heads before the arithmetic (decision P6N.10).
+/// cheap test on the heads before the arithmetic.
 fn uncertain(h: &Heap, args: &[T<'_>]) -> bool {
     args.iter().any(|&a| matches!(h.view(a), View::App { .. })) && mc_numeric::uncertain::any(h, args)
 }
@@ -724,7 +724,7 @@ impl Native for Equality {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [a, b] = args else {
             // `equal(x)`, `unequal(x)` and with no arguments (vacuously) are true; `equal(a, b, c, ...)`: every
-            // neighbour equal; `unequal(a, b, c, ...)`: no two equal (decision io-core.10)
+            // neighbour equal; `unequal(a, b, c, ...)`: no two equal
             if args.len() <= 1 {
                 return Ok(Reply::Done(cx.bool(true)));
             }
@@ -767,7 +767,7 @@ impl Native for Equality {
 
 impl Equality {
     /// `a == b` decided: numbers by value, identical terms, strings; lists element by element (lists of different
-    /// lengths are unequal, decision p6core.17). `None` when it is not decided.
+    /// lengths are unequal). `None` when it is not decided.
     fn decide<'h>(&self, cx: &NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>, depth: u32) -> Option<bool> {
         let h = cx.heap();
         if let Some((x, y)) = two_ints(h, a, b) {
@@ -877,7 +877,7 @@ impl Native for Not {
         } else if cx.is_false(*x) {
             Reply::Done(cx.bool(true))
         } else if let Some(u) = negated(cx.heap(), *x) {
-            // `not not a` is `a`; a negated two-sided comparison is the opposite comparison (p6core.1)
+            // `not not a` is `a`; a negated two-sided comparison is the opposite comparison
             Reply::Again(u)
         } else {
             Reply::Decline
@@ -975,7 +975,7 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Stop) {
     k.set_own(h.sym("im"), i);
 }
 
-/// One canonical form for the exponential function (decision p6core.5): `exp(x)` is `e^x` whenever `exp`'s own
+/// One canonical form for the exponential function: `exp(x)` is `e^x` whenever `exp`'s own
 /// native leaves it unevaluated, so `exp(a)*e^b` is `e^(a + b)`; and `e^x` gets `exp`'s exact values
 /// (`e^log(2)` is 2, `e^(im*pi)` is -1). Call after the library defining `exp` is installed; does nothing when
 /// `exp` or `pow` has no native. The wrapped natives keep no terms (`exp`'s and `pow`'s keep only symbols).
@@ -1108,7 +1108,7 @@ mod tests {
         let ints = [0i64, 1, -1, 3, i64::MAX, i64::MIN + 1];
         let mut terms: Vec<T<'_>> = reals.iter().map(|&x| h.real(x)).collect();
         terms.extend(ints.iter().map(|&v| h.int(v)));
-        // rationals (sp-core.6), small and with parts beyond 2^53
+        // rationals, small and with parts beyond 2^53
         for (p, q) in [(1i64, 3i64), (-2, 7), (5, 2), (1, 10), ((1 << 60) + 1, 3), (7, (1 << 55) + 1)] {
             terms.push(a.mul(&[h.int(p), a.pow(h.int(q), h.int(-1))]));
         }

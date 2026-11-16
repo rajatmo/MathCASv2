@@ -197,7 +197,7 @@ impl Native for DerivativeAt {
             if let Some(r) = user_derivative(cx, &b, f, &orders, Some(args))? {
                 return Ok(Reply::Again(r));
             }
-            // no rule: the numerical value at inexact numbers (round 37)
+            // no rule: the numerical value at inexact numbers
             return Ok(match crate::numdiff::value(cx, f, &orders, args)? {
                 Some(v) => Reply::Done(v),
                 None => Reply::Decline,

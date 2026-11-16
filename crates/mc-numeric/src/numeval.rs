@@ -611,7 +611,7 @@ pub enum Target {
     /// `n(e, d)`: balls with at least d correct digits.
     Digits(u64),
     /// `n(e, [p, a])`: balls with p correct significant digits or an absolute error at most 10^-a, whichever is
-    /// reached first (`None`: that goal is `inf`, not sought); at least one of the two is given (decision r37.1).
+    /// reached first (`None`: that goal is `inf`, not sought); at least one of the two is given.
     Goal {
         /// the precision goal p in decimal digits
         digits: Option<u64>,
@@ -672,7 +672,7 @@ pub fn numericize<'h, S: Store + ?Sized>(
                 stack.push((u, true));
                 // the parameter lists of `meijer_g` stay exact when every entry is an exact number: the function
                 // turns them into balls at the precision its cancellation needs (a ball of 30 digits makes a
-                // result 1e-130 times its terms undecidable, X26-6)
+                // result 1e-130 times its terms undecidable)
                 if head == st.sym_term(st.sym("meijer_g")) {
                     let list = st.sym_term(st.sym(names::LIST));
                     let exact = |e: T<'h>| ar.num(e).is_some_and(|x| x.is_exact());
@@ -740,7 +740,7 @@ fn island_value<'h, S: Store + ?Sized>(
         _ => {
             tick(is.order.len() as u64)?;
             let m = g.eval_machine(&is);
-            // `n(e)` of an exact expression is the correctly rounded value (round 24, B23-29): a sum evaluated in
+            // `n(e)` of an exact expression is the correctly rounded value: a sum evaluated in
             // machine arithmetic may cancel (n(polygamma(5, 981)) was 0.0), so a closed form with a sum is also
             // evaluated in balls to 17 digits (the first precision doubling up to the cap of `n(e, 17)`), and
             // that value replaces the machine one where they differ by more than a few units in the last place.
@@ -843,7 +843,7 @@ fn island_value<'h, S: Store + ?Sized>(
 
 /// A real ball that contains zero and lies within 10^-d of it, as the zero ball of that radius: the value of
 /// `n(e, d)` for an `e` that is (or is indistinguishable at the cap from) an exact zero, which no relative
-/// precision can describe. It is a zero with an absolute accuracy (round 19); before, residual checks `n(lhs - rhs, d)` of exact solutions failed with `precision_not_reached`.
+/// precision can describe. It is a zero with an absolute accuracy, so that residual checks `n(lhs - rhs, d)` of exact solutions do not fail with `precision_not_reached`.
 fn zero_ball(b: &Ball, d: u32) -> Option<Ball> {
     use mc_arith::num::{Float, Mag, Nat};
     if !b.contains_zero() {

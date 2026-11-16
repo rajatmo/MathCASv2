@@ -1,4 +1,4 @@
-//! Functions added in round 29: `stieltjes_gamma` and `siegel_theta`.
+//! The functions `stieltjes_gamma` and `siegel_theta`.
 //!
 //! - **Stieltjes constants** `stieltjes_gamma(n)`, `stieltjes_gamma(n, a)`: the coefficients of the Laurent series
 //!   zeta(s, a) = 1/(s - 1) + sum (-1)^n gamma_n(a) (s - 1)^n/n! (DLMF 25.11.?; Berndt 1972), from the limit

@@ -1,4 +1,4 @@
-//! Magnification by the wheel with Ctrl and by keys (user request, round 13: "ctrl+scroll is chaotic").
+//! Magnification by the wheel with Ctrl and by keys.
 //!
 //! The magnification moves along one fixed ladder, 50 % to 300 % in steps of 10 %. Ctrl+wheel events are taken out
 //! of egui's input before egui sees them (egui smooths wheel deltas over several frames, so one notch gave one or

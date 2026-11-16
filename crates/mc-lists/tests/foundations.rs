@@ -328,7 +328,7 @@ fn combinatorics() {
             ("outer(f, [a, b])", "[f(a), f(b)]"),
             ("outer(imul, [1, 2], [1, 2, 3])", "[[1, 2, 3], [2, 4, 6]]"),
             ("outer(f, [a], [], [b])", "[[]]"),
-            // every level by default; a final level count stops earlier (decision cov-core.12)
+            // every level by default; a final level count stops earlier
             ("outer(f, [[1, 2]], [x])", "[[[f(1, x)], [f(2, x)]]]"),
             ("outer(f, [[1, 2]], [x], 1)", "[[f([1, 2], x)]]"),
             ("outer(f)", "f()"),

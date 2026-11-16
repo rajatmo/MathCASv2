@@ -1,4 +1,4 @@
-//! Chrome marking (round nb-svg): the SVG marks background, frame, ticks, labels, grid lines, the legend box and
+//! Chrome marking: the SVG marks background, frame, ticks, labels, grid lines, the legend box and
 //! uncoloured primitives by class, data not at all; a style sheet made from a theme recolours exactly those when
 //! an independent renderer (resvg) reads the SVG, and the raster surface with the same theme draws the same
 //! picture.

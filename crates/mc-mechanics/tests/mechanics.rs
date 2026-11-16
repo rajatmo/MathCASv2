@@ -149,7 +149,7 @@ fn equilibria_and_normal_modes() {
         ),
         // the modes solve (K - w^2 M) v = 0
         (
-            "{ let Lc = m*(x1'(t)^2 + x2'(t)^2)/2 - k*x1(t)^2/2 - k*(x2(t) - x1(t))^2/2 - k*x2(t)^2/2; let nm = normal_modes(Lc, [x1, x2], t); let h = m31_hessians(Lc, [x1(t), x2(t)], [0, 0]); map(i => simplify(dot(h[2] - nm[1][i]^2*h[1], nm[2][i])), [1, 2]) }",
+            "{ let Lc = m*(x1'(t)^2 + x2'(t)^2)/2 - k*x1(t)^2/2 - k*(x2(t) - x1(t))^2/2 - k*x2(t)^2/2; let nm = normal_modes(Lc, [x1, x2], t); let h = mech_hessians(Lc, [x1(t), x2(t)], [0, 0]); map(i => simplify(dot(h[2] - nm[1][i]^2*h[1], nm[2][i])), [1, 2]) }",
             "[[0, 0], [0, 0]]",
         ),
         // the double pendulum of equal masses and lengths: w^2 = (2 -+ sqrt(2)) g/l

@@ -244,8 +244,8 @@ fn lap<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, st: &mut State<'h>, f
                     let mut rest = fs.clone();
                     rest.remove(i);
                     let rest = cx.eval(b.mul(&rest))?;
-                    // the inner transform in s itself (the table is bound to s), then s -> s - a (engine B21-15,
-                    // B21-16: with a fresh variable the table's values stayed in s and the shift was lost)
+                    // the inner transform in s itself (the table is bound to s), then s -> s - a (with a fresh
+                    // variable the table's values stay in s and the shift is lost)
                     let before = st.cond.take();
                     let Some(r) = lap(cx, tc, st, rest, t, s, depth + 1)? else { return Ok(None) };
                     let r = cx.eval(r)?;

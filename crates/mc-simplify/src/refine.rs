@@ -71,7 +71,7 @@ fn node_rule<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>
     let hd = &b.hd;
     let sy = f.syms();
     if let Some(c) = b.exp_arg(node).filter(|&c| !b.is_number(c) && !f.is_empty()) {
-        // exp(i pi k) = (-1)^k for an integer k (round 44: exp(2 pi i n) is 1 for an integer n)
+        // exp(i pi k) = (-1)^k for an integer k (exp(2 pi i n) is 1 for an integer n)
         let k = apply(cx, b, "expand", b.div(c, b.mul(&[b.i(), b.heap().sym_term(sy.pi)])))?;
         if !b.is_number(k) && f.info(cx, k)?.kind == Kind::Integer {
             return Ok(Some(b.pow(b.int(-1), k)));
@@ -214,8 +214,8 @@ fn node_rule<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>
 /// one has the contrary sign.
 fn element<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, x: T<'h>, d: T<'h>) -> Res<Option<T<'h>>> {
     use crate::facts::Sgn;
-    // the primes, the algebraic and the complex numbers (round 44): by the decision service's closure rules
-    // a comparison of two real values is true or false (round 44)
+    // the primes, the algebraic and the complex numbers: by the decision service's closure rules
+    // a comparison of two real values is true or false
     if b.sym_of(d).is_some_and(|s| b.heap().sym_name(s) == "booleans") {
         if let Some((rel, &[l, r])) = b.call_of(x) {
             if matches!(b.heap().sym_name(rel).as_str(), "less" | "less_equal" | "greater" | "greater_equal") && f.info(cx, l)?.is_real() && f.info(cx, r)?.is_real() {
@@ -584,9 +584,9 @@ fn modulus<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, 
     Ok(None)
 }
 
-/// Euler's theorem (round 19): `mod(a^(k euler_phi(m)), m) = 1` for integers `a`, `m > 1` with `coprime(a, m)`
+/// Euler's theorem: `mod(a^(k euler_phi(m)), m) = 1` for integers `a`, `m > 1` with `coprime(a, m)`
 /// and a nonnegative integer `k` (Hardy and Wright, Theorem 72); the same with Carmichael's function
-/// `carmichael_lambda(m)`, the exponent of the group of units mod m (round 44; Carmichael 1910, Ireland and Rosen
+/// `carmichael_lambda(m)`, the exponent of the group of units mod m (Carmichael 1910, Ireland and Rosen
 /// 4.1).
 fn euler<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, a: T<'h>, m: T<'h>) -> Res<Option<T<'h>>> {
     let Some((p, &[base, ex])) = b.call_of(a) else { return Ok(None) };
@@ -609,7 +609,7 @@ fn euler<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, a:
     Ok(ok.then(|| b.int(1)))
 }
 
-/// `mod(a, p)` for a prime `p` the facts state (round 44; Hardy and Wright, Theorems 71 and 80): Fermat's
+/// `mod(a, p)` for a prime `p` the facts state (Hardy and Wright, Theorems 71 and 80): Fermat's
 /// `mod(c^p, p) = mod(c, p)` for an integer `c`, and Wilson's `mod((p - 1)!, p) = p - 1` (the factorial is
 /// `gamma(p)` after evaluation).
 fn prime_modulus<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, a: T<'h>, p: T<'h>) -> Res<Option<T<'h>>> {
@@ -625,7 +625,7 @@ fn prime_modulus<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_,
     }
 }
 
-/// `quotient(a, m)` (round 44), `floor(a/m)`: the terms of `a` that the facts make integer multiples of `m` come out
+/// `quotient(a, m)`, `floor(a/m)`: the terms of `a` that the facts make integer multiples of `m` come out
 /// (`quotient(4 n + 5, 2)` is `2 n + 2` for an integer `n`, `quotient(c + k n, n)` is `k + quotient(c, n)`); for an
 /// integer number `m`, also `a = alpha k + beta` with numbers `alpha`, `beta` and a term `k` the facts make an
 /// integer, when `m` divides `alpha` (`quotient(2 n - 3, 7)` is `(2 n - 3)/7` when `(n + 2)/7` is an integer).
@@ -688,7 +688,7 @@ fn first_symbol<'h>(b: &B<'h>, t: T<'h>) -> Option<T<'h>> {
     }
 }
 
-/// `gcd(a, b) lcm(a, b) = abs(a b)` for integers `a`, `b` (round 44; Hardy and Wright, 1.2): the pair in a product.
+/// `gcd(a, b) lcm(a, b) = abs(a b)` for integers `a`, `b` (Hardy and Wright, 1.2): the pair in a product.
 fn gcd_lcm_product<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, fs: &[T<'h>]) -> Res<Option<T<'h>>> {
     let h = b.heap();
     let pair = |name: &str| fs.iter().position(|&t| matches!(b.call_of(t), Some((g, xs)) if h.sym_name(g) == name && xs.len() == 2));
@@ -741,13 +741,13 @@ fn coprime<'h>(b: &B<'h>, f: &Facts<'_, 'h>, a: T<'h>, m: T<'h>) -> bool {
     })
 }
 
-/// `fractional_part(a)` (round 19): `0` for an integer `a`; `c` or `c - 1` (by the sign of `a`) when the facts give
+/// `fractional_part(a)`: `0` for an integer `a`; `c` or `c - 1` (by the sign of `a`) when the facts give
 /// `mod(a, 1) == c` (the fractional part keeps the sign of `a`).
 fn fractional<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, a: T<'h>) -> Res<Option<T<'h>>> {
     if f.info(cx, a)?.kind == Kind::Integer {
         return Ok(Some(b.int(0)));
     }
-    // a - integer_part(a) where the bounds decide the integer part (round 44: fractional_part(x + 1/2) is x + 1/2
+    // a - integer_part(a) where the bounds decide the integer part (fractional_part(x + 1/2) is x + 1/2
     // for 0 < x < 1/3)
     let ia = f.info(cx, a)?;
     if f.nonneg(&ia) || f.nonpos(&ia) {

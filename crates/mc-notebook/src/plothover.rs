@@ -33,9 +33,9 @@ pub enum Scale {
     /// base-10 logarithm (positive values only)
     Log,
     /// `v/c` for `|v| <= c`, else `sign(v) (1 + log10(|v|/c))`: linear near 0, logarithmic far from it (plot
-    /// descriptions before round 13, which give only `c`)
+    /// descriptions that give only `c`)
     SignedLog(f64),
-    /// `sign(v) log10(a + k |v|)`, 0 at 0 (round 13: the description gives `a` and `k` as the renderer maps it)
+    /// `sign(v) log10(a + k |v|)`, 0 at 0 (the description gives `a` and `k` as the renderer maps it)
     SignedLogAk(f64, f64),
 }
 
@@ -489,7 +489,7 @@ mod tests {
         for v in [-50.0, -0.3, 0.0, 2.0, 99.0] {
             assert!((sl.value(sl.unit(v)) - v).abs() < 1e-9, "{v}");
         }
-        // round 13: sign(v) log10(a + k |v|) with the description's constants (threshold 1e-8: k = 1e8, a = 32)
+        // sign(v) log10(a + k |v|) with the description's constants (threshold 1e-8: k = 1e8, a = 32)
         let ak = axis(&serde_json::json!({"min": -1000.0, "max": 1000.0, "scale": "signed_log", "c": 1e-8, "a": 32.0, "k": 1e8}))
             .unwrap();
         assert!(matches!(ak.scale, Scale::SignedLogAk(..)));

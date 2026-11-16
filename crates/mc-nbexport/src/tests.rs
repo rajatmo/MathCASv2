@@ -350,7 +350,7 @@ fn plots(dir: &Path) -> Notebook {
     Notebook::parse(text).unwrap()
 }
 
-/// Round nb-svg: plots are exported as vector graphics in their light colours: inline SVG in HTML (ids made
+/// Plots are exported as vector graphics in their light colours: inline SVG in HTML (ids made
 /// unique per drawing), form XObjects in PDF; other pictures as before.
 #[test]
 fn plots_are_exported_as_vector_drawings() {
@@ -386,7 +386,7 @@ fn plots_are_exported_as_vector_drawings() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Round 37: a plot with a column twin (`plot-N.column.svg`, the plot laid out for this column) is drawn from the
+/// A plot with a column twin (`plot-N.column.svg`, the plot laid out for this column) is drawn from the
 /// twin at the column's width; a picture resized in the window (`size=`) and a plot without a twin as before.
 #[test]
 fn plots_with_a_column_twin_are_drawn_from_it_at_the_column_width() {

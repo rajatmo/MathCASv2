@@ -93,7 +93,7 @@ struct Fun {
     /// a pattern argument may be a failure pattern (one of [`PATTERNS`]): only a failure as the first argument
     /// (the data) is the result
     patterns: bool,
-    /// how an association as the first argument is seen (decision io-core.4)
+    /// how an association as the first argument is seen
     assoc: assocs::AssocMode,
 }
 
@@ -499,7 +499,7 @@ functions! {
         "subset_replace(xs, p -> r), subset_replace(xs, rules, n): each subset of xs matching a list pattern (disjoint, at most n) replaced by r, at the place of its first element";
     "split" => strings::split,
         "split(s), split(s, sep): the words of s, or the pieces between occurrences of sep; split(xs), split(xs, test): the runs of identical neighbours (or neighbours passing test(a, b)) of a list";
-    // --- blocks and slices of arrays, subset counts, tours, symbols by name, cleanup (round 38) ---
+    // --- blocks and slices of arrays, subset counts, tours, symbols by name, cleanup ---
     "array_filter" => arrays::array_filter,
         "array_filter(f, a, r): f applied to the block of radius r (a count, [r1, r2, ...] per level, or [[before, after], ...]) around every element of the array a; padding: fixed (the edge repeated), periodic, reflected or a value";
     "array_reduce" => arrays::array_reduce,
@@ -524,7 +524,7 @@ const HELD: &[&str] = &["quote", "inactivate", "table", "piecewise", "parallel_t
 const HELD_FIRST: &[&str] = &["sum", "product"];
 
 /// The functions taking a pattern after the data: the pattern may be a failure pattern (`failure(___)`), so a
-/// failure among the arguments is not their result, except as the data (decision p6core.21).
+/// failure among the arguments is not their result, except as the data.
 const PATTERNS: &[&str] = &[
     "cases",
     "count",

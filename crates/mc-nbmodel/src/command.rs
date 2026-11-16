@@ -146,7 +146,7 @@ pub enum Command {
     ReplaceWord(String),
     /// paste
     Paste,
-    /// paste text read as math (Ctrl+Shift+V, round 19): `x^2`, `a/b`, `sqrt(x)` and `surd(x, n)` in the clipboard's
+    /// paste text read as math (Ctrl+Shift+V): `x^2`, `a/b`, `sqrt(x)` and `surd(x, n)` in the clipboard's
     /// text become boxes, so a typeset cell copied to another program and back is the same cell
     PasteMath,
     /// evaluate the selected cells (Shift+Enter)
@@ -225,7 +225,7 @@ pub enum Command {
     /// set (`Some`) or remove (`None`) attributes of an Output cell's block, kept in the file: a 3D picture's view
     /// (`view`, `zoom`, `vertical`), a `manipulate` output's control values (`controls`); an undo unit
     SetOutputAttrs(CellId, Vec<(String, Option<String>)>),
-    /// move control `k` of a `manipulate` output to a value; `true` when the slider is let go (round 13). The
+    /// move control `k` of a `manipulate` output to a value; `true` when the slider is let go. The
     /// position is kept on the output and evaluated; not an undo unit
     SetControl(CellId, usize, f64, bool),
     /// a box key (NBUI.5: `Ctrl+2` square root, `Ctrl+/` fraction, `Ctrl+6` power); a plain code cell takes boxes

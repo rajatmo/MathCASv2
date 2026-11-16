@@ -16,7 +16,7 @@
 //! An answer that fails is dropped and the next method runs. A proof of non-elementarity from the decision
 //! procedure leaves the integral unevaluated when no special-function answer is found; `risch_integrate` reports it.
 //!
-//! **In parallel** (roadmap item 16A, decision n16a.4): with more than one thread the methods after the quick table
+//! **In parallel** (roadmap item 16A): with more than one thread the methods after the quick table
 //! run at once on the session's pool, each from a clean state (a fresh budget of the elementary rules, no
 //! deadline left over) and each checking its own answer, and their answers are combined exactly as the sequence
 //! above combines them: the same answer for any number of threads. The run is cut as soon as the answers in order
@@ -52,7 +52,7 @@ pub fn integrate<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: 
         return Ok(Some(b.mul(&[f, x])));
     }
     // x^(2^31) times a factor the table does not know: no method can expand it, and the quick table would try the
-    // tabular parts (a 240 GB allocation, X23-9; 60 s, X23-10); a monomial alone is the table's
+    // tabular parts (a 240 GB allocation; 60 s); a monomial alone is the table's
     if super::has_huge_power(b, f) && !is_monomial(b, f, x) {
         return Ok(None);
     }
@@ -151,7 +151,7 @@ fn run_method<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, m: Method, f: T<
     })
 }
 
-/// The methods after the quick table at once (decision n16a.4), combined as [`integrate`] combines them.
+/// The methods after the quick table at once (roadmap item 16A), combined as [`integrate`] combines them.
 fn in_parallel<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<Option<T<'h>>> {
     // computed in this order; the elementary rules before the rule table, which an answer of the first two
     // makes unnecessary

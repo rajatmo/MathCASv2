@@ -1,6 +1,6 @@
-//! What a front end's session needs from the engine beyond the library (round 13): `manipulate(expr, [a, lo, hi],
+//! What a front end's session needs from the engine beyond the library: `manipulate(expr, [a, lo, hi],
 //! ...)` stays as written, its arguments held (`hold_all`, no rules), so a notebook receives its printed form and
-//! evaluates `{ let a = v; ...; expr }` itself for each position of the controls (gap G81; no protocol message is
+//! evaluates `{ let a = v; ...; expr }` itself for each position of the controls (no protocol message is
 //! needed). Every session the kernel, `mc-repl` and the documentation runner make gets it.
 use mc_api::Store;
 use mc_engine::CoreEngine;

@@ -16,7 +16,7 @@ pub(crate) fn length<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a
     if let Some(p) = h.packed(x) {
         return Ok(Reply::Done(h.int(p.len() as i64)));
     }
-    // a complex number is an atom (decision p6core.3)
+    // a complex number is an atom
     if crate::measure::is_complex_number(h, x) {
         return Ok(Reply::Done(h.int(0)));
     }
@@ -146,8 +146,7 @@ fn part_at<'h>(
                     Err(s) => return Ok(Err(s)),
                 }
             }
-            // `span(i, j, step)`: every step-th argument from i towards j (a negative step runs backwards;
-            // C9B.6)
+            // `span(i, j, step)`: every step-th argument from i towards j (a negative step runs backwards)
             View::App { head: g, args: &[a, b, st] } if g == h.sym_term(lib.s.span) => {
                 match stepped(lib, h, a, b, st, args.len()) {
                     Ok(ps) => {
@@ -172,7 +171,7 @@ fn part_at<'h>(
                 }
                 out
             }
-            // `all`: every argument, the remaining indices applied to each (decision cov-core.10)
+            // `all`: every argument, the remaining indices applied to each
             View::Sym(a) if h.sym_name(a) == "all" => args.to_vec(),
             View::Sym(_) | View::App { .. } => return Ok(Err(Stop::Symbolic)),
             _ => return Ok(Err(Stop::Fail(lib.bad_index(h, i, args.len())))),
@@ -410,7 +409,7 @@ fn selected<'h>(h: &'h Heap, spec: T<'h>, len: usize) -> Result<Option<Vec<usize
 fn take_drop<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, x: T<'h>, specs: &[T<'h>], drop: bool) -> Res<Result<T<'h>, Reply<'h>>> {
     let h = cx.heap();
     let Some((&spec, rest)) = specs.split_first() else { return Ok(Ok(x)) };
-    // one specification of a contiguous run of a packed array: a slice of the payload, not unpacked (gap G48)
+    // one specification of a contiguous run of a packed array: a slice of the payload, not unpacked
     if let (Some(p), true) = (h.packed(x), rest.is_empty()) {
         if let Ok(Some(picked)) = selected(h, spec, p.len()) {
             let (lo, hi) = if drop {
@@ -497,8 +496,8 @@ pub(crate) fn take_<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     })
 }
 
-/// The specifications with `up_to(n)` as the first replaced by `n` capped at the length of `x` (decision
-/// cov-core.8), or `None` when there is none.
+/// The specifications with `up_to(n)` as the first replaced by `n` capped at the length of `x`,
+/// or `None` when there is none.
 fn up_to_specs<'h>(cx: &NativeCx<'_, '_, 'h>, x: T<'h>, specs: &[T<'h>]) -> Option<Vec<T<'h>>> {
     let h = cx.heap();
     let len = match h.packed(x) {

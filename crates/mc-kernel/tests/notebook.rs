@@ -93,7 +93,7 @@ fn rewriting_is_idempotent_and_positions_are_notebook_lines() {
     assert_eq!(lines[line - 1], "x +", "{written}");
     assert_eq!(err.column, Some(4));
     assert!(err.rendered.contains("t.mcn:"), "{}", err.rendered);
-    // the cell after the error still ran (gap G77) and replaced its stale output; the cells before got theirs
+    // the cell after the error still ran and replaced its stale output; the cells before got theirs
     assert_eq!(output(&nb.cells[3]).unwrap().last().unwrap().text, "5");
     assert_eq!(output(&nb.cells[0]).unwrap().len(), 2);
     assert!(written.contains("#% cell\nx + 1\n#% output\n#= 3\n\n"), "{written}");
@@ -138,7 +138,7 @@ fn without_rewriting_the_notebook_is_left_alone() {
     assert_eq!(nb.print(), src);
 }
 
-/// Gap G77: `%`, `%%` and `%n` are earlier results across cells, and a cell that does not read does not stop the
+/// `%`, `%%` and `%n` are earlier results across cells, and a cell that does not read does not stop the
 /// cells after it.
 #[test]
 fn history_shorthands_and_running_on_after_a_syntax_error() {
@@ -170,7 +170,7 @@ fn history_shorthands_and_running_on_after_a_syntax_error() {
 
 #[test]
 fn every_shown_statement_gets_its_own_output_block() {
-    // gap G91: a cell shows one output per top-level statement whose value is shown, as the window does
+    // A cell shows one output per top-level statement whose value is shown, as the window does
     let text = "#! mathcas 2 notebook\n\n#% cell\n1 + 2\nx = 4;\nprint(\"p\")\n2 + 3\nx\n\n#% cell\n6 * 7\n";
     let mut nb = Notebook::parse(text).unwrap();
     let (status, events) = run(&mut nb, &std::env::temp_dir(), &StopFlag::new());

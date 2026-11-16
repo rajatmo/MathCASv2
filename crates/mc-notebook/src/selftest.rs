@@ -12,7 +12,7 @@
 //! - `select <cell> <from> <to>`: select bytes `from..to` of the text of the cell at index `cell` (the caret where
 //!   they are equal), as a click and a drag would
 //! - `type <label> <text>`: type `text` one character per frame (as a hand types: each key gets its own frame) and
-//!   log the frame times of those frames under `label` (round 19: typing latency)
+//!   log the frame times of those frames under `label` (typing latency)
 //! - `theme light|dark|system`, `zoom <factor>`, `size <w> <h>`
 //! - `keys <keys>`: chords and quoted text as in the key scripts, sent as egui key and text events
 //! - `click <x> <y>` / `dblclick <x> <y>`: a primary click at window coordinates
@@ -41,19 +41,19 @@
 //! - `plainwheel <lines>`: one wheel event without Ctrl; `view3d`: the 3D views kept on outputs and the render
 //!   times so far (milliseconds: median and largest)
 //! - `export <file>`: File > Export to an `.html` or `.pdf` file
-//! - `warnings`: the warnings of the cell with the caret (round 20: `x(x - a)`); `fixwarning`: apply the first
-//!   one's quick fix; `products`: the faint multiplication signs of that cell (round 35: the gaps and where each
+//! - `warnings`: the warnings of the cell with the caret (`x(x - a)`); `fixwarning`: apply the first
+//!   one's quick fix; `products`: the faint multiplication signs of that cell (the gaps and where each
 //!   `×` is drawn)
-//! - math input checks (round 32, `tests/selftest/input-*.txt`): `formula <label>` starts a formula (the previous
+//! - math input checks (`tests/selftest/input-*.txt`): `formula <label>` starts a formula (the previous
 //!   one gets a `result <label>: pass` or `fail (<fields>)` line); `expect <field> "<value>"` compares a field and
 //!   logs `ok` or `FAIL` with both values; `show <field>` logs a field; `eval` evaluates the cell with the caret
 //!   and waits for the kernel (30 s at most); `roundtrip` selects the last evaluated cell's output, copies it,
 //!   pastes it as math into a new cell at the end, evaluates that cell and checks that its value prints as the
-//!   copied output did (`ok pasted` / `FAIL pasted`); `same` (round 38) compares what the cell with the caret
+//!   copied output did (`ok pasted` / `FAIL pasted`); `same` compares what the cell with the caret
 //!   shows (the tree the editor holds and the view lays out) with what it stores (its text read back): the same boxes
 //!   and the same linear text (`ok same` / `FAIL same` with both). Fields: `boxes` (box notation), `linear` (linear text: what
 //!   Copy gives), `canon` (the stored text), `output` (the printed output of the last `eval`), `messages` (the
-//!   other cells it made), `gaps` (round 35: the white space that multiplies, `|` between gaps); `linear` and
+//!   other cells it made), `gaps` (the white space that multiplies, `|` between gaps); `linear` and
 //!   `output` compare without spaces
 //! - the phone layout (`MCNB_LAYOUT=mobile`, Android): `calc` starts a new calculation as the Home screen's button
 //!   does; `mopen <file>` opens a notebook from Home; `mhome` goes back to Home (the notebook is written);
@@ -82,7 +82,7 @@ pub struct SelfTest {
     /// log the pointer shape after this frame (the `move` step)
     cursor_log: Option<String>,
     frame: u64,
-    /// the formula being checked (round 32, `formula`): its label and the checks that failed so far
+    /// the formula being checked (`formula`): its label and the checks that failed so far
     formula: Option<(String, Vec<String>)>,
     /// the Input cell the last `eval` evaluated
     evaluated: Option<CellId>,
@@ -526,7 +526,7 @@ impl SelfTest {
             "boxes" => {
                 let nb = app.notebook();
                 let line = match (nb.input_editor(), nb.output_caret()) {
-                    // a code cell without boxes has no box notation (as with the editor of rounds 9 to 33)
+                    // a code cell without boxes has no box notation
                     (Some((id, e)), _) if mc_boxes::has_boxes(e.root()) => format!("boxes: input {} {}", id.0, e.notation()),
                     (None, Some((id, e))) => format!("boxes: output {} {}", id.0, e.notation()),
                     _ => "boxes: none".to_string(),
@@ -544,7 +544,7 @@ impl SelfTest {
                 let images = app.images.borrow();
                 let (bytes, entries, uploads) = images.stats();
                 self.log.push(format!("images: {} MB in {entries} entries, {uploads} uploads", bytes >> 20));
-                // the drawings rasterised so far (round nb-svg): each time with its width in pixels
+                // the drawings rasterised so far: each time with its width in pixels
                 let times: Vec<String> = images.svg_times.iter().map(|(ms, w)| format!("{ms:.1} ms at {w} px")).collect();
                 self.log.push(format!("svg rasters: {}", times.join(", ")));
             }
@@ -712,14 +712,14 @@ fn output_of(nb: &Notebook, id: CellId) -> Option<(CellId, String)> {
 fn field(app: &App, evaluated: Option<CellId>, what: &str) -> String {
     let nb = app.notebook();
     match what {
-        // a cell without boxes is `none`, as with the editor of rounds 9 to 33 (it had no box editor then)
+        // a cell without boxes is `none`
         "boxes" => match nb.input_editor() {
             Some((_, e)) if mc_boxes::has_boxes(e.root()) => e.notation(),
             _ => "none".to_string(),
         },
         "linear" | "pasted" => current_linear(app),
         "canon" => nb.current_cell().and_then(|id| nb.cell(id)).map(|c| c.text.clone()).unwrap_or_default(),
-        // round 35: the white space that multiplies, `|` between gaps
+        // the white space that multiplies, `|` between gaps
         "gaps" => {
             let text = nb.current_cell().and_then(|id| nb.cell(id)).map(|c| c.text.clone()).unwrap_or_default();
             let gaps: Vec<String> =

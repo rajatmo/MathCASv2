@@ -7,7 +7,7 @@
 //! **The packing rule** (decision N4a.2), the same for every store that packs: `list(a1, ..., an)` is packed exactly
 //! when it is a rectangular array of rank `r` (1 to [`MAX_RANK`]) whose leaves are all machine reals, all machine
 //! integers (integers that fit `i64`), or all machine complex numbers (`complex(re, im)` with machine-real parts,
-//! decision sp-core.1), with at least [`PACK_MIN`] leaves. Ranks above 1 need every argument to be a
+//! as one kind), with at least [`PACK_MIN`] leaves. Ranks above 1 need every argument to be a
 //! list of the same shape; an empty level makes an array with no leaves, which is never packed. [`pack_shape`] is
 //! the rule written against views, the model the real store is tested against.
 use crate::{names, Store, View, T};

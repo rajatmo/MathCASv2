@@ -397,7 +397,7 @@ impl Solve {
         };
         let tt = h.sym_term(s.sys.t);
         let out = mc_numfn::replace(h, expr, &mut |u| {
-            // a bare unknown `y` (or `y'`, `derivative(n)(y)`) is its interpolating function (gap G70)
+            // a bare unknown `y` (or `y'`, `derivative(n)(y)`) is its interpolating function
             if let Some((i, d)) = bare_unknown(h, &ys, derivative, u) {
                 let un = &s.sys.unknowns[i];
                 return Some(if d < un.order { component(un.at + d) } else { function_term(h, &s.sol, s.key, &printed_name(h, un.sym, d)) });
@@ -796,7 +796,7 @@ fn bare_unknown<'h>(h: &'h Heap, ys: &[Sym], derivative: T<'h>, u: T<'h>) -> Opt
 }
 
 /// `domain(f)`: the interval `[lo, hi]` of an interpolating function (or of `t => f(t)`, the closure
-/// `n_dsolve_value` gives), where it has values (gap G70).
+/// `n_dsolve_value` gives), where it has values.
 pub(crate) struct DomainOf;
 
 impl Native for DomainOf {

@@ -39,10 +39,10 @@ fn q_hypergeometric_pfq<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>]) -> R<'h
     if !inexact_numbers(fx, &all) {
         return Ok(None);
     }
-    // machine arguments: the series in complex machine arithmetic (round 37), else the ball path
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, &all) {
-        if let Some(v) = crate::fast29::q_hyper(&ms[..r], &ms[r..r + s], ms[r + s], ms[r + s + 1]) {
-            if let Some(t) = crate::fast29::machine_out(fx, v, real) {
+    // machine arguments: the series in complex machine arithmetic, else the ball path
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, &all) {
+        if let Some(v) = crate::fast_dd::q_hyper(&ms[..r], &ms[r..r + s], ms[r + s], ms[r + s + 1]) {
+            if let Some(t) = crate::fast_dd::machine_out(fx, v, real) {
                 return Ok(Some(t));
             }
         }

@@ -11,7 +11,7 @@ use mc_boxes::ops::{closer_of, matching_open, primary_before};
 use mc_boxes::{from_text, linear_text, to_text, to_text_mapped, write_notation, Item, Node, Row, RowPath, Step, MAX_NESTING};
 use std::ops::Range;
 
-/// The box keys (decision NBUI.5: a cell has exactly these three boxes; round 19 gave the root an index).
+/// The box keys (decision NBUI.5: a cell has exactly these three boxes; the root has an index).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Structure {
     /// `Ctrl+/`: a fraction of the term before the caret (or the selection) over a new denominator
@@ -318,7 +318,7 @@ impl Editor {
         if !matches!(cmd, C::Move(Motion::Up | Motion::Down, _)) {
             self.goal_x = None;
         }
-        // a caret motion keeps the automatic closers the caret stays inside of (round 38: Down into a fraction's
+        // a caret motion keeps the automatic closers the caret stays inside of (Down into a fraction's
         // denominator inside `(` forgot its `)`, and the `)` typed after the fraction made a second one)
         let inside = matches!(cmd, C::Move(_, false));
         if !inside
@@ -1260,7 +1260,7 @@ impl Editor {
         self.settle();
         let range = match self.range() {
             Some((_, r)) => {
-                // spaces at the edges of a selection stay outside the box (round 32)
+                // spaces at the edges of a selection stay outside the box
                 let row = self.caret_row();
                 let blank = |j: usize| matches!(row.0.get(j), Some(Item::Char(' ' | '\t')));
                 let (mut a, mut b) = (r.start, r.end);
@@ -1270,7 +1270,7 @@ impl Editor {
                 while b > a && blank(b - 1) {
                     b -= 1;
                 }
-                // a power of the whole inside of a bracket pair takes the brackets as its base (round 33)
+                // a power of the whole inside of a bracket pair takes the brackets as its base
                 if s == Structure::Superscript
                     && a > 0
                     && matches!((row.0.get(a - 1), row.0.get(b)), (Some(Item::Char(o)), Some(Item::Char(c))) if closer_of(*o) == Some(*c))

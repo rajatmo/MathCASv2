@@ -59,7 +59,7 @@ pub(crate) fn group_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
         View::App { head, args: &[r] } if head == h.sym_term(h.sym("options")) => r,
         _ => f,
     };
-    // `group_by(xs, [f1, f2, ...])` (not a dataset's column list): groups by f1, each group grouped by the rest (decision cov-core.9)
+    // `group_by(xs, [f1, f2, ...])` (not a dataset's column list): groups by f1, each group grouped by the rest
     let of_dataset = crate::table::Table::of(&lib.d, h, xs).is_some();
     if let Some(fs) = cx.as_list(f).filter(|fs| !fs.is_empty() && !of_dataset) {
         if fs.len() == 1 {
@@ -80,7 +80,7 @@ pub(crate) fn group_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
         }
         return Ok(Reply::Done(lib.assoc(h, &out)));
     }
-    // `group_by(xs, f -> v)`: keys by f, the members mapped by v (decision cov-core.9)
+    // `group_by(xs, f -> v)`: keys by f, the members mapped by v
     let (f, fv) = match h.view(f) {
         View::App { head, args: &[a, b] } if head == h.sym_term(h.sym("rule")) || head == h.sym_term(h.sym("rule_delayed")) => {
             (a, Some(b))
@@ -91,7 +91,7 @@ pub(crate) fn group_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
     if let Some(tab) = crate::table::Table::of(&lib.d, h, xs) {
         return crate::aggregate::group_dataset(lib, cx, &tab, f, g);
     }
-    // an association groups its entries by `f` of their values, each group an association (decision io-core.12)
+    // an association groups its entries by `f` of their values, each group an association
     let entries = lib.as_assoc(h, xs).filter(|es| es.iter().all(|&e| lib.entry(h, e).is_some()));
     let (_, xs) = take!(lib.operand(h, t, xs, 1));
     let tested: Vec<T<'h>> = match entries {

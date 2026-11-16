@@ -22,7 +22,7 @@ pub(crate) struct Tick<'c, 'a, 'k, 'h> {
     pub abort: Option<Abort>,
 }
 
-/// A [`Tick`] with a budget of work (the internal `work_budget:` option, gap G73): past it the kernel stops and
+/// A [`Tick`] with a budget of work (the internal `work_budget:` option): past it the kernel stops and
 /// `expired` is set, so the native can give its fallback instead of an interrupt.
 pub(crate) struct Budgeted<'t, 'c, 'a, 'k, 'h> {
     pub tick: &'t mut Tick<'c, 'a, 'k, 'h>,
@@ -41,7 +41,7 @@ impl Work for Budgeted<'_, '_, '_, '_, '_> {
 }
 
 /// The trailing `options(work_budget: n)` of a polynomial function (units of fuel, a positive integer): the
-/// arguments without it and the budget. Internal: `simplify` bounds its moves with it (gap G73).
+/// arguments without it and the budget. Internal: `simplify` bounds its moves with it.
 fn work_budget_option<'a, 'h>(h: &'h Heap, args: &'a [T<'h>]) -> (&'a [T<'h>], Option<u64>) {
     let Some((&last, rest)) = args.split_last() else { return (args, None) };
     let View::App { head, args: &[r] } = h.view(last) else { return (args, None) };
@@ -267,7 +267,7 @@ impl Native for PolyNative {
             }
         }
         let args = modulus.as_ref().map_or(args, |(rest, _)| rest.as_slice());
-        // `work_budget: n` (internal, gap G73): past the budget the first argument comes back unchanged
+        // `work_budget: n` (internal): past the budget the first argument comes back unchanged
         let (args, budget) = work_budget_option(h, args);
         let env = Env { ar: Arith::new(h).with_stop(self.stop.clone()), hd: Heads::new(h), name: self.name };
         let _scope = StopScope::enter(Some(&self.stop));

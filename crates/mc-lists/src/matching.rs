@@ -3,8 +3,8 @@
 //! The pattern term (`mc-syntax`'s pattern shapes) is checked and lowered by `mc_eval::syntax::pattern` and
 //! compiled by the evaluator ([`NativeCx::compile_pattern`]) on first use, so these functions match exactly like
 //! rules do: modulo associativity and commutativity (`x_ + y_` against any sum of two or more terms, semantics 6.2),
-//! with runs (`repeated`), alternatives, conditions and the evaluator's enumeration order (decision C9B.10,
-//! replacing the local matcher of decision I.10). The bindings of a match are read by variable number and
+//! with runs (`repeated`), alternatives, conditions and the evaluator's enumeration order
+//! (replacing the local matcher of decision I.10). The bindings of a match are read by variable number and
 //! substituted into right sides by [`Matcher::substitute`]: a sequence variable stands for the list of its terms, or
 //! for the associative-commutative head applied to them when it took arguments of such a call (semantics 6.2).
 use crate::ctx::{Lib, Meter};

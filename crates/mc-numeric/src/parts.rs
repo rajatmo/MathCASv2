@@ -55,7 +55,7 @@ fn real_term<'h>(ar: &Arith<'h, Heap>, r: Real) -> T<'h> {
     ar.number(&Num::Real(r))
 }
 
-/// The exponent q of a complex unit (-1)^q with q a non-integer rational; also of `exp(q i pi)` (round 44: the
+/// The exponent q of a complex unit (-1)^q with q a non-integer rational; also of `exp(q i pi)` (the
 /// same unit, `exp(i pi q) = (-1)^q` on the principal branch).
 fn unit_exponent<'h>(env: &Env, h: &'h Heap, ar: &Arith<'h, Heap>, t: T<'h>) -> Option<Rat> {
     let exponent = match env.call_of(h, t)? {
@@ -245,7 +245,7 @@ fn part<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, which: Part, args: &[T<'h>
         }
     }
     cx.tick(1)?;
-    // a small integer power of a closed sum that decomposes (round 44): expanded first, so
+    // a small integer power of a closed sum that decomposes: expanded first, so
     // im_part((e + i pi)^3) = 3 pi e^2 - pi^3
     if let Some((s, &[base, k])) = env.call_of(h, x) {
         if s == env.s.pow && matches!(h.view(k), mc_api::View::Int(2..=6)) && env.call_of(h, base).is_some_and(|(a, _)| a == env.s.add) {
@@ -385,7 +385,7 @@ pub(crate) fn arg<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args:
     let [sm] = sms.as_slice() else { return Ok(Reply::Decline) };
     let Some(negative) = factor_signs(env, h, &ar, &sm.real) else { return Ok(Reply::Decline) };
     if let Some(q) = &sm.unit {
-        // c (-1)^q r with c and r real of decided sign (round 44): the angle q pi, plus pi for a negative c r,
+        // c (-1)^q r with c and r real of decided sign: the angle q pi, plus pi for a negative c r,
         // reduced into (-pi, pi]: arg(exp(9 i pi/8)) = -7 pi/8, arg((-5)^(1/5)) = pi/5
         let Num::Real(c) = &sm.c else { return Ok(Reply::Decline) };
         let neg = match real_sign(c) {
@@ -471,7 +471,7 @@ fn abs_closed<'h>(env: &Env, h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
     }
     let sms = decompose(env, h, &ar, x)?;
     if sms.len() > 1 {
-        // a closed sum of summands with units (round 44): sqrt(re^2 + im^2) with the parts distributed, so
+        // a closed sum of summands with units: sqrt(re^2 + im^2) with the parts distributed, so
         // abs(3 + (-5)^(1/3)) = sqrt((3 + 5^(1/3)/2)^2 + 3 5^(2/3)/4)
         let complex = sms.iter().any(|sm| sm.unit.is_some() || matches!(sm.c, Num::Complex(..)));
         if complex && sms.iter().all(|sm| sm.real.iter().all(|&f| real_valued_call(env, h, f).is_none())) {

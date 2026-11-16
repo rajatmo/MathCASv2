@@ -1,5 +1,5 @@
 //! `reduce` for conditions that hold one function of the unknown (`exp`, `b^x`, `log`, `sin`, `cos`, `tan` of `x`
-//! itself) next to polynomial and rational atoms (rounds 21 and 22: `exp(x) > 1`, `sin(x) > 1/2 and 0 < x < 2 pi`).
+//! itself) next to polynomial and rational atoms (`exp(x) > 1`, `sin(x) > 1/2 and 0 < x < 2 pi`).
 //!
 //! Every atom depends on `x` alone or on the function `y = F(x)` alone (a mixed atom such as `x < sin(x)` is not
 //! handled). The set of real `x` of an atom is
@@ -224,13 +224,13 @@ pub(crate) fn reduce<'h>(env: &Env<'h>, cond: &Cond, diffs: &[T<'h>], x: T<'h>, 
     if let Some(out) = reduce_kernel(env, cond, diffs, x, m)? {
         return Ok(Some(out));
     }
-    // what the kernel algorithm does not take: the sign chart (B23-15)
+    // what the kernel algorithm does not take: the sign chart
     crate::chart::chart(env, cond, diffs, x, m)
 }
 
 fn reduce_kernel<'h>(env: &Env<'h>, cond: &Cond, diffs: &[T<'h>], x: T<'h>, m: &mut Meter) -> WorkResult<Option<Out<'h>>> {
     // powers b^(c x) of one base with rational c (exp(-x), exp(2 x), 2^(x/2)) as integer powers of the one kernel
-    // b'^x with b' = b^(g/L) the smallest of them: exp(x) + exp(-x) has the one kernel exp(x) (D23-25)
+    // b'^x with b' = b^(g/L) the smallest of them: exp(x) + exp(-x) has the one kernel exp(x)
     let diffs_owned: Vec<T<'h>>;
     let diffs = match exponent_family(env, diffs, x, m)? {
         Some(v) => {

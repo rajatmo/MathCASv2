@@ -421,7 +421,7 @@ impl App {
                     };
                 }
                 Hit::Control(id, k) => {
-                    // a press on a slider moves it there; dragging moves it on; the release lets go (round 13)
+                    // a press on a slider moves it there; dragging moves it on; the release lets go
                     if let Some(i) = self.doc.nb.index_of(id) {
                         if let Some(v) = self.doc.view.control_value_at(&self.doc.nb, i, k, p.x) {
                             self.run(ctx, Command::SetControl(id, k, v, false));
@@ -605,7 +605,7 @@ impl App {
         let mut fire = None;
         let cells = matches!(self.doc.nb.selection(), Selection::Cells { .. });
         ui.set_min_width(super::chrome::MENU_MIN_WIDTH);
-        // the quick fix of the warning the menu was opened on (round 20)
+        // the quick fix of the warning the menu was opened on
         if let Some((id, w)) = self.help.menu_warning.clone().filter(|(_, w)| !w.fix.is_empty()) {
             let mut label = w.fix_label.clone();
             if let Some(first) = label.get(..1) {

@@ -35,7 +35,7 @@ pub fn power_expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, mut facts: Opt
         if let Some((s, [base, c])) = b.call_of(node) {
             if s == hd.pow {
                 if let Some((g, _)) = b.call_of(*base) {
-                    // a sum under a non-integer power: factored, so the law can split it (G51)
+                    // a sum under a non-integer power: factored, so the law can split it
                     if g == hd.add && !matches!(b.heap().view(*c), mc_api::View::Int(_)) {
                         let fac = crate::term::apply(cx, b, "factor", *base)?;
                         if fac != *base && b.call_of(fac).is_some_and(|(h2, _)| h2 == hd.mul || h2 == hd.pow) {

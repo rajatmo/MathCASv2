@@ -1,4 +1,4 @@
-//! `find_fit(data, model, params, vars)`: nonlinear least squares (gap queue G27, decision P6N.7).
+//! `find_fit(data, model, params, vars)`: nonlinear least squares.
 //!
 //! The data are `[x, y]` pairs, rows `[x1, ..., xk, y]` for k variables, or plain values y (x = 1, 2, ...). The
 //! parameters are symbols (start 1.0) or `[p, start]` pairs. The fit minimizes the sum of squared residuals by

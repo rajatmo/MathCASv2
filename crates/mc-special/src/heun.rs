@@ -370,8 +370,8 @@ fn heun<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>], kind: Kind) -> R<'h> {
     if !numeric_args(fx, args) {
         return Ok(None);
     }
-    // machine arguments: the double-double kernel (round 29), the ball path when it declines
-    if let Some((ms, real)) = crate::fast29::machine_args(fx, args) {
+    // machine arguments: the double-double kernel, the ball path when it declines
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, args) {
         let code = match kind {
             Kind::G => 0,
             Kind::C => 1,
@@ -380,8 +380,8 @@ fn heun<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>], kind: Kind) -> R<'h> {
             Kind::T => 4,
         };
         let n = ms.len();
-        if let Some((v, detour)) = crate::fast29::heun(code, &ms[..n - 1], ms[n - 1]) {
-            return Ok(crate::fast29::machine_out(fx, v, real && !detour));
+        if let Some((v, detour)) = crate::fast_dd::heun(code, &ms[..n - 1], ms[n - 1]) {
+            return Ok(crate::fast_dd::machine_out(fx, v, real && !detour));
         }
     }
     let Some(zf) = parts(fx, z) else { return Ok(None) };

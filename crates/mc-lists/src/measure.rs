@@ -10,7 +10,7 @@ use rustc_hash::FxHashMap;
 /// from `combine` or `finish` (overflow) ends the walk.
 struct Fold {
     with_head: bool,
-    /// the value of an atom (complex numbers are atoms, decision p6core.3)
+    /// the value of an atom (complex numbers are atoms)
     atom: fn(&Heap, T<'_>) -> u128,
     start: u128,
     combine: fn(u128, u128) -> Option<u128>,

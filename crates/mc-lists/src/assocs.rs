@@ -1,4 +1,4 @@
-//! Associations through the list functions (decision io-core.4): an association `assoc(k1 -> v1, ...)` as the first
+//! Associations through the list functions: an association `assoc(k1 -> v1, ...)` as the first
 //! argument stands for its values.
 //!
 //! - [`AssocMode::Values`]: the function sees the list of the values and its result is the answer (`total`, `max`,

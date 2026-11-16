@@ -12,14 +12,14 @@
 //! | `named(x, p)` | `x @ p` |
 //! | `condition(p, c)` | `p /; c`: `c` is a term evaluated with the bindings substituted; it may mention only variables bound in `p` |
 //! | `alternatives(p, q, ...)` | `p \| q \| ...` |
-//! | `key_value_pattern([p1, ...])`, `key_value_pattern(p)` | an association or list of rules with distinct entries matching `p1`, ... (C9B.11) |
-//! | `repeated(p)`, `repeated(p, n)`, `repeated(p, [n])`, `repeated(p, [m, n])` | a run of 1 to any, 1 to `n`, exactly `n`, `m` to `n` (`inf`: any number) arguments each matching `p` (C9B.4) |
+//! | `key_value_pattern([p1, ...])`, `key_value_pattern(p)` | an association or list of rules with distinct entries matching `p1`, ... |
+//! | `repeated(p)`, `repeated(p, n)`, `repeated(p, [n])`, `repeated(p, [m, n])` | a run of 1 to any, 1 to `n`, exactly `n`, `m` to `n` (`inf`: any number) arguments each matching `p` |
 //! | `held(p)` | `p` (the argument position is held: see the definitions below) |
-//! | `longest(r)`, `longest(r, k)`, `shortest(r)`, `shortest(r, k)` | the run pattern `r` (`xs__`, `xs___`, `repeated(...)`) tried longest / shortest first, before the unmarked runs, higher priority `k` first (decision r30.4); on another pattern, that pattern |
+//! | `longest(r)`, `longest(r, k)`, `shortest(r)`, `shortest(r, k)` | the run pattern `r` (`xs__`, `xs___`, `repeated(...)`) tried longest / shortest first, before the unmarked runs, higher priority `k` first; on another pattern, that pattern |
 //! | any other compound or atom | itself, with patterns inside |
 //!
 //! `optional(p, d)` as a direct argument of a definition's left side defines a rule per case (below); elsewhere,
-//! with `p` a named blank, it is an argument that may be missing, `x` then bound to `d` (C9B.13).
+//! with `p` a named blank, it is an argument that may be missing, `x` then bound to `d`.
 //!
 //! Definitions, as natives (effects, so ordered like every other effect; a malformed definition evaluates to
 //! `failure(definition, message)`):
@@ -170,7 +170,7 @@ fn symbols<'h>(h: &'h Heap, t: T<'h>, out: &mut Vec<Sym>) {
 }
 
 pub(crate) fn type_of(h: &Heap, t: T<'_>) -> Result<Ty, DefError> {
-    // `Head[f]`: a compound term with head `f` (the type language of 04 section 9; C9B.14)
+    // `Head[f]`: a compound term with head `f` (the type language of 04 section 9)
     if let Some((s, &[f])) = call_of(h, t) {
         if h.sym_name(s) == "Head" {
             return sym_of(h, f).map(Ty::Head).ok_or(DefError::UnknownType);
@@ -274,7 +274,7 @@ impl<'h> Lower<'_, 'h> {
                         None => Pat::Blank { var: None, ty: Some(ty) },
                     }
                 }
-                // `xs__: T`: a run of arguments each of type T (C9B2.3)
+                // `xs__: T`: a run of arguments each of type T
                 Pat::Seq { var, min, ty: None, mark } => Pat::Seq { var, min, ty: Some(type_of(h, args[1])?), mark },
                 _ => return Err(DefError::Unsupported("a type on a pattern other than a blank or a sequence variable")),
             },
@@ -304,7 +304,7 @@ impl<'h> Lower<'_, 'h> {
                 };
                 Pat::Repeat { p: Box::new(self.convert(args[0], depth + 1)?), min, max, mark: None }
             }
-            // a run that takes the longest / shortest run first, with a priority among the marked runs (r30.4); on a
+            // a run that takes the longest / shortest run first, with a priority among the marked runs; on a
             // single pattern the mark changes nothing (it takes one argument)
             1 | 2 if is(hd.longest) || is(hd.shortest) => {
                 let long = is(hd.longest);
@@ -329,11 +329,11 @@ impl<'h> Lower<'_, 'h> {
             }
             _ if is(hd.alternatives) => alt(args.iter().map(|&a| self.convert(a, depth + 1)).collect::<Result<_, _>>()?),
             // inside a pattern (a definition's direct arguments are expanded before, H.7): an argument that may be
-            // missing, its variable then bound to the default (C9B.13)
+            // missing, its variable then bound to the default
             2 if is(hd.optional) => {
                 let p = self.convert(args[0], depth + 1)?;
                 // an optional run `optional(xs__, d)`: the run when the arguments are there, else the run [d] (under an
-                // associative-commutative head, d itself) (r18c14.1)
+                // associative-commutative head, d itself) (decision 13.11 of design 01)
                 let run = match &p {
                     Pat::Seq { var: Some(v), .. } => Some(*v),
                     _ => None,
@@ -351,7 +351,7 @@ impl<'h> Lower<'_, 'h> {
                 let args: Vec<Pat> = args.iter().map(|&a| self.convert(a, depth + 1)).collect::<Result<_, _>>()?;
                 match hp {
                     Pat::Lit(head) if matches!(h.view(head.get(h)), View::Sym(_)) => Pat::App { head, args, info: Default::default() },
-                    // a compound or pattern head: `call$(head, args...)` (C9B2.4)
+                    // a compound or pattern head: `call$(head, args...)`
                     hp => {
                         let mut all = vec![hp];
                         all.extend(args);
@@ -665,7 +665,7 @@ fn define_now<'h>(
     checked: bool,
 ) -> Res<Result<(), DefError>> {
     let h = cx.heap();
-    // a protected target (decision r17fix.4): the left side's symbol or head, or the symbol a rule attaches to
+    // a protected target (decision 13.9 of design 01): the left side's symbol or head, or the symbol a rule attaches to
     let attach = Decorators::read(h, decs).ok().and_then(|d| d.attach);
     let target = match h.view(lhs) {
         View::Sym(s) => Some(s),
@@ -777,7 +777,7 @@ fn reply<'h>(cx: &NativeCx<'_, '_, 'h>, r: Result<(), DefError>) -> Reply<'h> {
     })
 }
 
-/// `failure(protected, s)`: a change to the definitions of a protected symbol (decision r17fix.4).
+/// `failure(protected, s)`: a change to the definitions of a protected symbol (decision 13.9 of design 01).
 pub(crate) fn protected_failure<'h>(h: &'h Heap, s: Sym) -> T<'h> {
     h.call(h.sym(mc_api::names::FAILURE), &[h.sym_term(h.sym("protected")), h.sym_term(s)])
 }
@@ -844,7 +844,7 @@ impl Native for Unset {
 
 /// `protect(f, ...)` (`on`) and `unprotect(f, ...)`: set or clear the `protected` attribute of each symbol (or each
 /// symbol of a list argument; a string naming an identifier stands for that symbol); the value is the list of the
-/// names, as strings, of the symbols whose attribute changed (decision r17fix.4).
+/// names, as strings, of the symbols whose attribute changed (decision 13.9 of design 01).
 struct Protect {
     on: bool,
 }
@@ -1308,7 +1308,7 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     k.register(h.sym("is_ground"), Attributes::default(), Box::new(IsGround));
     k.register(h.sym("assign_part"), Attributes { handles_failures: true, ..Attributes::default() }, Box::new(AssignPart));
     k.register(h.sym("set_delayed"), fx(Hold::All), Box::new(SetDef(Heads::new(h))));
-    // an assignment keeps a failure as the value it assigns (decision p6core.25: `r = find_root(...)` that fails
+    // an assignment keeps a failure as the value it assigns (`r =find_root(...)` that fails
     // leaves `r` the failure, not unassigned)
     k.register(h.sym("set"), Attributes { handles_failures: true, ..fx(Hold::First) }, Box::new(SetDef(Heads::new(h))));
     k.register(h.sym("define_rule"), fx(Hold::All), Box::new(DefineRule(Heads::new(h))));
@@ -1337,8 +1337,8 @@ mod tests {
         assert!(matches!(pattern(h, bad), Err(DefError::ConditionScope(_))));
         let good = c(h, "condition", &[c(h, "f", &[any("x"), any("y")]), c(h, "less", &[s("x"), s("y")])]);
         assert_eq!(pattern(h, good).expect("pattern").names.len(), 2);
-        // an optional argument inside a pattern (C9B.13) has a variable naming it: a named blank or a run
-        // (r18c14.1)
+        // an optional argument inside a pattern has a variable naming it: a named blank or a run
+        // (decision 13.11 of design 01)
         let opt = c(h, "f", &[c(h, "optional", &[any("x"), h.int(1)])]);
         assert!(pattern(h, opt).is_ok());
         let run = c(h, "f", &[c(h, "optional", &[c(h, "seq0", &[s("x")]), h.int(1)])]);

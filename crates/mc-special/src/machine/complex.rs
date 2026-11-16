@@ -1,4 +1,4 @@
-//! Complex machine values of the special functions (decision P6N.9): plain double precision
+//! Complex machine values of the special functions: plain double precision
 //! (relative accuracy about 1e-13 in the tested ranges, not the 0.5 ulp of the real paths).
 //!
 //! - log gamma: Stirling's series (Bernoulli terms to B_30) after shifting to Re z >= 16, with the shift as a sum of
@@ -191,7 +191,7 @@ fn int_pow_neg(k: f64, s: C64) -> C64 {
 }
 
 /// zeta(s) for Re s >= -1/2 and a large |s| by Euler-Maclaurin summation (DLMF 25.2.9 with N = |s| + 15 terms and 12
-/// Bernoulli corrections, DLMF 25.2.12) with the phases of k^-s in double-double (round 27, B26-21: zeta(8735 i) took
+/// Bernoulli corrections, DLMF 25.2.12) with the phases of k^-s in double-double (zeta(8735 i) took
 /// the 192-bit enclosure, 40 s). The cost is |s| terms of about a microsecond.
 fn zeta_em_large(s: C64) -> Option<C64> {
     let n = (15.0 + abs(s)).ceil();
@@ -259,7 +259,7 @@ pub fn polygamma(m: f64, z: C64) -> Option<C64> {
     }
     let v = scale(hurwitz_zeta(r(m + 1.0), w)?, sign * fact) + acc;
     // the upward recurrence adds terms as large as m!/|z|^(m+1) near the imaginary axis: give the value up (the
-    // caller falls back to balls) when more than about two digits cancel (B23-22)
+    // caller falls back to balls) when more than about two digits cancel
     if big > 1e2 * abs(v) && big > 1e-300 {
         return None;
     }
@@ -362,7 +362,7 @@ pub fn hyp2f1(a: C64, b: C64, cc: C64, z: C64) -> Option<C64> {
     hyp2f1_connection(a, b, cc, z)
 }
 
-/// pFq(a; b; z) at complex machine arguments by its power series (round 37): any z when p <= q, |z| < 0.9 when
+/// pFq(a; b; z) at complex machine arguments by its power series: any z when p <= q, |z| < 0.9 when
 /// p = q + 1, and the polynomial when a numerator parameter is a non-positive integer. `None` when a denominator
 /// parameter is a pole the series reaches, when it needs more than 5000 terms, or when the largest term exceeds the
 /// sum a thousandfold (the cancellation would leave fewer than 13 digits).
@@ -458,7 +458,7 @@ fn rgamma(z: C64) -> Option<C64> {
     Some(r(1.0) / gamma(z)?)
 }
 
-/// 2F1 beyond the disks of the series and of Pfaff's transformation (round 37): the connection formulas to 1/z
+/// 2F1 beyond the disks of the series and of Pfaff's transformation: the connection formulas to 1/z
 /// (DLMF 15.8.2), to 1/(1 - z) (15.8.3) and to 1 - z (15.8.4), whichever has its new argument inside |w| < 0.9.
 /// Each is a sum of two series; `None` (the ball path then) when the parameter difference that the formula divides
 /// by is an integer (the formulas are singular there), when the two terms cancel to fewer than 9 of the 16 digits,
@@ -677,7 +677,7 @@ fn integer_order_second_kind(n: u32, z: C64, modified: bool) -> Option<C64> {
 
 /// Gamma(a, z) for a large |z| (at least 40, |a| <= |z|/4, not near the negative axis) by the asymptotic series
 /// z^(a-1) e^-z sum_k (a - 1)(a - 2) ... (a - k)/z^k (DLMF 8.11.2; Temme, *Special Functions*, 1996, section 11.2),
-/// summed until a term is below 1e-17 of the sum (round 27, B26-20: the formula through 1F1 loses everything at
+/// summed until a term is below 1e-17 of the sum (the formula through 1F1 loses everything at
 /// z = 30000 i). The two exponentials are formed separately, so the phase of e^-z, a machine number times pi
 /// reduced exactly, is not rounded together with the small phase of z^(a-1).
 pub fn gamma_upper_large(a: C64, z: C64) -> Option<C64> {
@@ -795,7 +795,7 @@ pub fn bessel_y(nu: C64, z: C64) -> Option<C64> {
         return Some(if nu.re < 0.0 && (n as u32) % 2 == 1 { neg(v) } else { v });
     }
     // a real negative argument -x at a real order: Y_nu(x e^(i pi)) = e^(-i nu pi) Y_nu(x) + 2 i cos(nu pi) J_nu(x)
-    // (DLMF 10.11.2, the value above the cut), from the real functions of x > 0 (round 27, B26-22: the series through
+    // (DLMF 10.11.2, the value above the cut), from the real functions of x > 0 (the series through
     // J_nu and J_-nu took 5 s at x = 30510 and gave up)
     if nu.im == 0.0 && z.im == 0.0 && z.re < 0.0 {
         use crate::dd::{sin_cos_pi_any, DD};
@@ -821,7 +821,7 @@ pub fn bessel_y(nu: C64, z: C64) -> Option<C64> {
 
 /// K_nu(z) for a large |z| (at least 25 and 4 nu^2) by the Hankel expansion sqrt(pi/(2z)) e^-z sum_k a_k(nu)/z^k,
 /// a_k = (4nu^2 - 1)(4nu^2 - 9) ... (4nu^2 - (2k - 1)^2)/(k! 8^k) (DLMF 10.40.2, valid for |arg z| < 3 pi/2); the
-/// exponential is formed from e^-Re z and the exactly reduced phase of Im z (round 27, B26-22: K_1(9664 i) did not
+/// exponential is formed from e^-Re z and the exactly reduced phase of Im z (K_1(9664 i) did not
 /// return). `None` when the terms do not fall below 1e-17 of the sum.
 fn bessel_k_large(nu: C64, z: C64) -> Option<C64> {
     let az = abs(z);

@@ -168,7 +168,7 @@ it is a pattern.
 - `&(&1 + &2)` is a slot function: `&1`, `&2`, ... are its arguments. There is no "all arguments" slot (the core has
   no sequence splicing, semantics 1.3); write a named lambda with a rest parameter instead.
   A slot function ignores arguments past its highest slot (semantics 6.7), so `&(x)` with no slot takes one argument and
-  ignores it (round 36); `() => x` is the zero-argument closure.
+  ignores it; `() => x` is the zero-argument closure.
 
 ### 3.5 Blocks and local bindings
 

@@ -1,4 +1,4 @@
-//! Numerical values of derivatives that have no rule (round 37): `derivative(n1, ..., nk)(f)(x1, ..., xk)` at
+//! Numerical values of derivatives that have no rule: `derivative(n1, ..., nk)(f)(x1, ..., xk)` at
 //! inexact numbers, for a named function `f` that evaluates at numbers but whose derivative in one of the arguments
 //! has no closed form here (the order of a Bessel-type function, the parameter of a Mathieu characteristic value, the
 //! argument of `riemann_siegel_z` or `factorial2`).
@@ -238,7 +238,7 @@ pub fn value<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, orders: &[i64], args: 
         return Ok(None);
     }
     // the value at the target precision: a machine number, or the ball rounded to `digits` digits and claiming
-    // `digits - 3` digits (round 44: the ball's own radius bounds only the rounding of the arithmetic, not the
+    // `digits - 3` digits (the ball's own radius bounds only the rounding of the arithmetic, not the
     // truncation of the table, which the test above puts below 10^-(digits + 2) relative, nor the uncertainty of
     // the point itself, known to `digits` digits and taken exact here: zeta'(sqrt(5)) at 40 digits claimed 49 and
     // was right to 44)

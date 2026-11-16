@@ -1,4 +1,4 @@
-//! Turning 3D pictures (round 13): a `graphics3d` or `plot3d` picture whose scene travels with it
+//! Turning 3D pictures: a `graphics3d` or `plot3d` picture whose scene travels with it
 //! (`plot-N.scene3d`, `mc_graphics::view3d`) is drawn again from another view point without evaluating anything.
 //! Dragging the picture turns it, the wheel zooms it while it is selected, a double-click goes back to the view it
 //! was made with; the view is kept on the output (`view=x:y:z zoom=z vertical=x:y:z`) and saved with the notebook.
@@ -27,7 +27,7 @@ struct Job {
     scale: f32,
     /// a cheap render while the picture is being dragged (large scenes only)
     draft: bool,
-    /// the chrome's colours (round nb-svg: the window's theme)
+    /// the chrome's colours (the window's theme)
     theme: Option<Theme>,
 }
 

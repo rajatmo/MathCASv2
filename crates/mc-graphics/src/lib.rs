@@ -31,7 +31,7 @@
 //! This crate reads terms through the store contract (`mc-api`) only and has no evaluator, so front ends (the
 //! notebook) use the model, the colours, the themes and the 3D viewer without the kernel. The natives that make
 //! and check graphics terms (`graphics`, `show`, the primitives and directives, the colour functions, the
-//! transformations and the layouts of pictures) are `mc-graphics-kernel`'s (split in round 34).
+//! transformations and the layouts of pictures) are `mc-graphics-kernel`'s.
 #![warn(missing_docs)]
 
 pub mod color;

@@ -476,8 +476,8 @@ pub fn layout(row: &Row, metrics: &dyn Metrics, opts: &LayoutOptions) -> Layout 
 
 /// The layouts of the logical lines of a root row, kept between calls of [`layout_by_lines`]: an edit lays out again
 /// only the lines it changed (a long cell types as fast as a short one), and the layout the last call composed is
-/// changed in place where the row changed (round 37: composing every line again cost 3.5 ms a keystroke in a
-/// 2,000-line cell). A line that fits on one line is laid out once for every bracket depth it starts at (round 38: an
+/// changed in place where the row changed (composing every line again cost 3.5 ms a keystroke in a
+/// 2,000-line cell). A line that fits on one line is laid out once for every bracket depth it starts at (an
 /// opening bracket typed at the top of a long cell moves the lines after it right, it does not lay them out again).
 #[derive(Clone, Debug, Default)]
 pub struct LineCache {
@@ -1073,7 +1073,7 @@ mod tests {
         from_text(&t)
     }
 
-    /// Round 38: an opening bracket typed at the top of a long cell changes the bracket depth of every line after it;
+    /// An opening bracket typed at the top of a long cell changes the bracket depth of every line after it;
     /// those lines keep their own layouts (the same ones, not laid out again) and are drawn two ems further right,
     /// and the composed layout is still the one composed from the start, number for number.
     #[test]

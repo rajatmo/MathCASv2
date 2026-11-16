@@ -1,4 +1,4 @@
-//! Where evaluation time goes (decision sp-core.5): `profile(e)` and `timing(e, breakdown: true)`.
+//! Where evaluation time goes: `profile(e)` and `timing(e, breakdown: true)`.
 //!
 //! While a profiled evaluation runs (its task's [`Cx::prof`] is set; speculative tasks inherit it), the evaluator
 //! measures

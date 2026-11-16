@@ -73,7 +73,7 @@ impl Native for Elementary {
             return Ok(Reply::Decline);
         }
         let [x] = args else { return Ok(Reply::Decline) };
-        // a truncated power series: the series of the composition (gap G59)
+        // a truncated power series: the series of the composition
         if let Some(v) = crate::series_hook::apply(cx, &self.stop, self.f.name(), args)? {
             return Ok(Reply::Done(v));
         }
@@ -83,7 +83,7 @@ impl Native for Elementary {
                 return Ok(Reply::Again(v));
             }
         }
-        // a list of machine numbers: elementwise without the evaluator (gap queue G48)
+        // a list of machine numbers: elementwise without the evaluator
         if self.f != Fun::Sqrt {
             if let Some(zs) = crate::machine::machine_list(h, *x) {
                 cx.tick(zs.len() as u64 / 16)?;
@@ -179,7 +179,7 @@ impl Native for NumericN {
         };
         let x = args[0];
         // constants defined by series in the lists library: `khinchin` and
-        // `champernowne_number(b)` go to its helper `b29_n_constant(x, digits)` (digits 0: machine precision)
+        // `champernowne_number(b)` go to its helper `ls_n_constant(x, digits)` (digits 0: machine precision)
         let library_constant = match h.view(x) {
             View::Sym(s) => h.sym_name(s) == "khinchin",
             View::App { head, .. } => matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "champernowne_number"),
@@ -187,7 +187,7 @@ impl Native for NumericN {
         };
         if library_constant {
             let digits = d.unwrap_or_else(|| h.int(0));
-            return Ok(Reply::Again(h.call(h.sym("b29_n_constant"), &[x, digits])));
+            return Ok(Reply::Again(h.call(h.sym("ls_n_constant"), &[x, digits])));
         }
         let target = match d {
             None => Target::Machine,
@@ -225,7 +225,7 @@ impl Native for NumericN {
 }
 
 /// A number of decimal digits: a positive integer, or a positive finite machine real rounded up (a precision of
-/// 23.4 digits is met by 24; `machine_precision` is a real, decision r37.1).
+/// 23.4 digits is met by 24; `machine_precision` is a real).
 fn goal_digits(h: &Heap, d: T<'_>) -> Option<u64> {
     match h.view(d) {
         View::Int(d @ 1..) => Some(d as u64),

@@ -1,4 +1,4 @@
-//! String patterns as terms (round 29): `string_expression(p1, p2, ...)` concatenates its parts (literal strings
+//! String patterns as terms: `string_expression(p1, p2, ...)` concatenates its parts (literal strings
 //! join into one string; any other part, such as a pattern, keeps the expression symbolic), and `longest(p)`,
 //! `shortest(p)` mark a pattern as matching as much or as little as possible. The searching functions of this
 //! crate take literal search strings only (decision S.3), so the markers stay inert here; they are the names a

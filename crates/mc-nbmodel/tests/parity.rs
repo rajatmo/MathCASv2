@@ -1,8 +1,7 @@
-//! Plain-text agreement with the old editor (design 11, section 5): every key script in `tests/keys/*.keys` without boxes or aliases ends,
-//! with the editor of design 11, in the notebook, selection and clipboard the editor of rounds 9 to 33 gave. Those
-//! results were recorded from the old editor (before it was deleted) in `tests/parity/old-editor.txt`:
-//! typing, word and line motions, automatic closers, indentation and comments in cells without boxes give the texts
-//! the old editor gave.
+//! Plain-text agreement with the earlier plain-text editor (design 11, section 5): every key script in `tests/keys/*.keys` without boxes or aliases ends,
+//! with the editor of design 11, in the notebook, selection and clipboard listed for it in `tests/parity/old-editor.txt`:
+//! typing, word and line motions, automatic closers, indentation and comments in cells without boxes give those
+//! texts.
 use mc_nbmodel::script::{parse_scripts, run_final};
 
 /// Whether a script involves boxes or aliases (its keys or notebooks): the old box editor parked its caret at the

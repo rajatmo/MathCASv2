@@ -76,7 +76,7 @@ pub(crate) fn assoc<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
         }
         flat = false;
         // anything else than entries (a pattern `assoc(k_ -> v_, ___)`, a delayed rule) leaves the call as it is
-        // (decision io-core.12)
+        //
         let inner = match h.view(x) {
             View::App { head, args } if head == h.sym_term(lib.s.list) || head == h.sym_term(lib.s.assoc) => args,
             View::Str(_) | View::Int(_) | View::Real(_) => return Ok(Reply::Done(lib.bad_arg(h, t, i + 1))),
@@ -120,11 +120,11 @@ fn parts<'h>(
     let [a] = *args else {
         return Ok(Reply::Decline);
     };
-    // one rule: its key or value (decision io-core.12)
+    // one rule: its key or value
     if lib.is_rule(h, a) {
         return Ok(Reply::Done(part(lib, h, a)));
     }
-    // a list of rules is read like the entries of an association (decision p6core.12)
+    // a list of rules is read like the entries of an association
     let rules = cx.as_list(a).filter(|xs| xs.iter().all(|&x| lib.is_rule(h, x)));
     let es = match rules {
         Some(xs) => xs,
@@ -160,8 +160,7 @@ pub(crate) fn to_rules<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
 }
 
 /// `lookup(a, k)`: the value of key `k`, `failure(missing_key, k)` if there is none; `lookup(a, k, d)`: `d` if there
-/// is none. The key and the default are held: the key is evaluated first, the default only when the key is missing
-/// (decision p6core.23).
+/// is none. The key and the default are held: the key is evaluated first, the default only when the key is missing.
 pub(crate) fn lookup<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let (a, k, default) = match *args {
@@ -192,7 +191,7 @@ pub(crate) fn lookup<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
         Err(r) => return Ok(r),
     };
     let found = position(lib, cx, a, es, k, true)?;
-    // a list of keys that is not itself a key: the value of each (decision cov-core.4)
+    // a list of keys that is not itself a key: the value of each
     if found.is_none() {
         if let Some(ks) = cx.as_list(k) {
             cx.tick(ks.len() as u64)?;
@@ -217,7 +216,7 @@ pub(crate) fn lookup<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
     })
 }
 
-/// The association argument of `lookup` and `key_exists` (decision cov-core.4): a rule or a list of rules is read
+/// The association argument of `lookup` and `key_exists`: a rule or a list of rules is read
 /// as the association of those rules; a list of associations (or of lists of rules) gives the call on each element,
 /// as `Err` with the reply; anything else is passed on unchanged.
 fn rules_operand<'h>(
@@ -273,7 +272,7 @@ pub(crate) fn key_exists<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
         Ok(a) => a,
         Err(r) => return Ok(r),
     };
-    // a dataset has its columns as keys (G57)
+    // a dataset has its columns as keys
     let a = match h.view(a) {
         View::App { head, args: [cols] } if head == h.sym_term(lib.d.dataset) && lib.as_assoc(h, *cols).is_some() => *cols,
         _ => a,
@@ -338,17 +337,17 @@ fn filtered<'h>(
 /// `key_sort(a)`: the entries ordered by key in the canonical order.
 pub(crate) fn key_sort<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // key_sort(a, p): the keys in the order of the ordering function p (the prelude's r37_key_sort, round 37)
+    // key_sort(a, p): the keys in the order of the ordering function p (the prelude's pr_key_sort)
     if let [a, p] = *args {
         if lib.as_assoc(h, a).is_some() {
-            return Ok(Reply::Again(h.call(h.sym("r37_key_sort"), &[a, p])));
+            return Ok(Reply::Again(h.call(h.sym("pr_key_sort"), &[a, p])));
         }
         return Ok(Reply::Decline);
     }
     let [a] = *args else {
         return Ok(Reply::Decline);
     };
-    // a list of rules is the association of its entries (round 37), as in `merge`
+    // a list of rules is the association of its entries, as in `merge`
     if let View::App { head, args: rs } = h.view(a) {
         let rule = |r: T<'h>| match h.view(r) {
             View::App { head, args: &[_, _] } => matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "rule" | "rule_delayed")),
@@ -376,7 +375,7 @@ pub(crate) fn key_sort<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
 pub(crate) fn insert<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     // `insert(xs, x, n)`: `x` inserted into a list (any compound term) at position n, a path `[i, j, ...]` or several
-    // paths; `insert(a, k -> v, n)`: the entry at position n (or before the key n) of an association (decision io-core.16)
+    // paths; `insert(a, k -> v, n)`: the entry at position n (or before the key n) of an association
     if let [x, e, pos] = *args {
         // `key(k)` names a key; an integer is a position; any other term is taken as a key
         let key_sym = h.sym_term(h.sym("key"));
@@ -632,8 +631,8 @@ pub(crate) fn from_distinct<'h>(lib: &Lib, h: &'h Heap, keys: &[T<'h>], entries:
 
 /// Argument `k` of `t` as a list of associations.
 fn list_of_assocs<'h>(lib: &Lib, h: &'h Heap, t: T<'h>, x: T<'h>, k: usize) -> Result<Vec<T<'h>>, Reply<'h>> {
-    // a rule is the association of one entry, a list of rules the association of its entries (round 37:
-    // merge([a -> x, a -> y], f), merge([assoc(a -> x), [b -> z]], f))
+    // a rule is the association of one entry, a list of rules the association of its entries
+    // (merge([a -> x, a -> y], f), merge([assoc(a -> x), [b -> z]], f))
     let is_rule = |r: T<'h>| match h.view(r) {
         View::App { head, args: &[_, _] } => matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "rule" | "rule_delayed")),
         _ => false,

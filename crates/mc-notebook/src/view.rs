@@ -96,21 +96,21 @@ pub fn look(cell: &Cell, p: &Palette) -> Look {
     Look { face, size, color }
 }
 
-/// Cells with at least this many bytes keep their galley across frames (round 19): building the coloured layout job of
+/// Cells with at least this many bytes keep their galley across frames: building the coloured layout job of
 /// a long cell and hashing it into egui's cache cost 16 ms a frame for a 2,000-line cell, typing elsewhere included.
 const KEEP_GALLEY: usize = 2_000;
 
 /// What a kept galley depends on: the layout key, the matched brackets at the caret, the kernel's names, the style.
 type GalleyKey = ((u64, u32, u32, bool, u32), Option<(usize, usize)>, u64, Style, bool, bool, u64);
 
-/// Cells at least this long are not coloured again on every keystroke (round 20): their last colouring is moved
+/// Cells at least this long are not coloured again on every keystroke: their last colouring is moved
 /// over the edit ([`Colouring::shifted`]) and the cell is coloured again once typing pauses for [`RECOLOUR_PAUSE`].
 const SHIFT_COLOURING: usize = 20_000;
 const RECOLOUR_PAUSE: std::time::Duration = std::time::Duration::from_millis(350);
 
 /// A cell's colouring with what it was made for: the key (revision, names), the text (to find the next edit),
 /// whether it is a full colouring or one moved over edits since (and when), and a generation for kept galleys.
-/// A faint multiplication sign (round 35): where white space between two operands multiplies them, a `×` is drawn
+/// A faint multiplication sign: where white space between two operands multiplies them, a `×` is drawn
 /// centred in that space, in layout coordinates: its centre and its half size (the arms' reach from the centre).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ProductMark {
@@ -143,7 +143,7 @@ impl InputColours {
         if text.get(..o).is_some_and(|t| t.ends_with(mc_boxes::ESCAPE)) {
             return Some(self.unmatched);
         }
-        // a warning's name in the warning colour (round 20: no squiggle under boxes yet)
+        // a warning's name in the warning colour (no squiggle under boxes yet)
         if self.colouring.warnings.iter().any(|w| w.range.contains(&o)) {
             return Some(self.warning);
         }
@@ -259,7 +259,7 @@ enum Shown {
     Boxes,
     /// a typeset output (design 4.5, M5): one unit for the caret
     Typeset,
-    /// the sliders of a `manipulate` output (round 13)
+    /// the sliders of a `manipulate` output
     Controls,
 }
 
@@ -380,7 +380,7 @@ pub struct View {
     pub caret: Option<(CellId, usize)>,
     /// the names the kernel defines (`None`: no kernel, every global name is plain)
     defined: Option<Arc<HashSet<String>>>,
-    /// the names the kernel lists as functions (round 35: `f x` with such an `f` gets the product warning)
+    /// the names the kernel lists as functions (`f x` with such an `f` gets the product warning)
     functions: Arc<HashSet<String>>,
     /// the functions the notebook's code cells define in their text (`fn f(...)`, `rule f(...)`, `f(x_) := ...`),
     /// evaluated or not: the product warning knows them without a kernel; with the revisions they were read at
@@ -434,7 +434,7 @@ pub struct View {
     line_caches: HashMap<CellId, mc_boxes::layout::LineCache>,
     /// the colours of the characters of typeset input cells, per layout row and item (design 3.11 in boxes)
     box_colours: HashMap<CellId, (ColourKey, Colours)>,
-    /// the faint multiplication signs of code cells (round 35), with the layout and the gaps they were placed for
+    /// the faint multiplication signs of code cells, with the layout and the gaps they were placed for
     product_marks: HashMap<CellId, PlacedMarks>,
     /// the canonical text and text map of code cells, by revision
     text_maps: HashMap<CellId, (u64, Arc<(String, mc_boxes::TextMap)>)>,
@@ -528,7 +528,7 @@ impl View {
         }
     }
 
-    /// The kernel's names with their kinds: those of kind `function` (round 35, the product warning). Call after
+    /// The kernel's names with their kinds: those of kind `function` (the product warning). Call after
     /// [`View::set_defined`], which counts the revision.
     pub fn set_functions(&mut self, names: &[(String, String)]) {
         self.functions = Arc::new(names.iter().filter(|n| n.1 == "function").map(|n| n.0.clone()).collect());
@@ -615,7 +615,7 @@ impl View {
 
     /// Output cells are right-justified when the alignment is Right (NBUI.1; View > Output alignment): each line
     /// ends at the content's right edge. Print and Message cells (program output, read as a log) and an output
-    /// showing its source stay left-justified. With Left (the default since round 13, user decision) every cell
+    /// showing its source stay left-justified. With Left (the default) every cell
     /// starts at the content's left edge.
     fn right_justified(&self, c: &Cell) -> bool {
         self.outputs_right && c.style == Style::Output && !c.expr_view
@@ -792,7 +792,7 @@ impl View {
         let mut lay = if c.style == Style::Output {
             Arc::new(typeset::lay_out(row, &opts, &font))
         } else {
-            // the last layout is let go of first: the line cache then changes it in place (round 37)
+            // the last layout is let go of first: the line cache then changes it in place
             self.boxes.remove(&c.id);
             typeset::lay_out_lines(row, &opts, &font, self.line_caches.entry(c.id).or_default())
         };
@@ -1178,7 +1178,7 @@ impl View {
     }
 
     /// The colouring of a cell, cached by revision. A long cell being typed in ([`SHIFT_COLOURING`]) gets its last
-    /// colouring moved over the edit, and a full one once typing pauses (round 20: typing in a 2,000-line cell
+    /// colouring moved over the edit, and a full one once typing pauses (typing in a 2,000-line cell
     /// recoloured 100 KB a keystroke).
     pub fn colouring(&mut self, cell: &Cell) -> Arc<Colouring> {
         let key = (cell.rev, self.defined_rev);
@@ -1207,13 +1207,13 @@ impl View {
         }
         let defined = self.defined.clone();
         let check = move |n: &str| defined.as_ref().is_none_or(|d| d.contains(n));
-        // warnings in code cells (round 20): a call of a name used as a variable, `x(x - a)`; a name has a
+        // warnings in code cells: a call of a name used as a variable, `x(x - a)`; a name has a
         // definition when the kernel lists it or the library documents it. One parse for both.
         let c = if cell.style.is_code() && !cell.expr_view {
             let defined = self.defined.clone();
             let index = mc_help::Index::embedded();
             let known = move |n: &str| index.get(n).is_some() || defined.as_ref().is_some_and(|d| d.contains(n));
-            // round 35: a function juxtaposed with an operand (`sin x`) is a product, with a warning
+            // a function juxtaposed with an operand (`sin x`) is a product, with a warning
             let (functions, written) = (self.functions.clone(), self.text_functions.clone());
             let function =
                 move |n: &str| index.get(n).is_some_and(|e| e.is_function()) || functions.contains(n) || written.contains(n);
@@ -1575,7 +1575,7 @@ impl View {
     ) {
         self.origin = origin;
         let p = self.palette.clone();
-        // pictures' chrome in the window's theme (round nb-svg)
+        // pictures' chrome in the window's theme
         self.images.borrow_mut().set_theme(Some(p.plot_theme()));
         let z = self.zoom;
         let n = nb.cells().len();
@@ -1673,7 +1673,7 @@ impl View {
                 }
             }
             painter.galley(at, g.clone(), p.text);
-            // warnings (round 20): a wavy line under the text, in the warning colour
+            // warnings: a wavy line under the text, in the warning colour
             if c.style.is_code() && !c.expr_view {
                 let colouring = self.colouring(c);
                 for w in &colouring.warnings {
@@ -2031,7 +2031,7 @@ impl View {
         self.paint_box_caret(painter, &lay, &ed, content, time, line);
     }
 
-    /// Warnings in a code cell (round 20): a wavy line under the items each one covers, in the warning colour; the
+    /// Warnings in a code cell: a wavy line under the items each one covers, in the warning colour; the
     /// warning's range of the canonical text mapped to the items through the text map.
     fn paint_box_warnings(&mut self, ctx: &egui::Context, painter: &Painter, c: &Cell, content: Pos2) {
         let colouring = self.colouring(c);
@@ -2049,7 +2049,7 @@ impl View {
         }
     }
 
-    /// The faint multiplication signs of a code cell (round 35), placed on its layout: one per gap of
+    /// The faint multiplication signs of a code cell, placed on its layout: one per gap of
     /// `Colouring::products`, cached by layout key and gaps.
     pub fn product_marks(&mut self, ctx: &egui::Context, c: &Cell) -> Arc<Vec<ProductMark>> {
         let colouring = self.colouring(c);
@@ -2104,7 +2104,7 @@ impl View {
     }
 
     /// The canonical text of a code cell's tree and its text map, kept by revision (the colours, warnings and
-    /// multiplication signs read it; round 37: it was made again for each, every frame).
+    /// multiplication signs read it, so it is not made again for each, every frame).
     fn text_map(&mut self, c: &Cell) -> Arc<(String, mc_boxes::TextMap)> {
         if let Some((rev, m)) = self.text_maps.get(&c.id) {
             if *rev == c.rev {
@@ -2117,7 +2117,7 @@ impl View {
     }
 
     /// The colours of a typeset input cell's characters (design 3.11): the syntax colouring of its canonical text,
-    /// placed through the text map of the box tree; asked for the characters drawn only (round 37: the table of
+    /// placed through the text map of the box tree; asked for the characters drawn only (the table of
     /// every character it replaces cost 2.4 ms a keystroke in a 2,000-line cell).
     fn input_colours(&mut self, c: &Cell, lay: &Arc<Layout>) -> InputColours {
         let p = self.palette.clone();
@@ -2134,7 +2134,7 @@ impl View {
         }
     }
 
-    /// The colours of a typeset output's labels and legends (round 13), per layout row and item: label rows in the
+    /// The colours of a typeset output's labels and legends, per layout row and item: label rows in the
     /// theme's label colour, swatches in their own; `None` for an output without labels (all in its text colour).
     fn label_colours(&mut self, c: &Cell, lay: &Layout) -> Option<Arc<Vec<Vec<Color32>>>> {
         if !(c.text.contains("labeled(") || c.text.contains("legended(")) {
@@ -2362,7 +2362,7 @@ pub(crate) fn edit_between(old: &str, new: &str) -> Option<(usize, usize, usize)
     Some((pre, a.len() - suf - pre, b.len() - suf - pre))
 }
 
-/// Where the faint `×` of the product gap `gap` (bytes of the canonical `text`) goes on layout `lay` (round 35):
+/// Where the faint `×` of the product gap `gap` (bytes of the canonical `text`) goes on layout `lay`:
 /// centred in the run of spaces that starts the gap, at the height of the row's mathematical axis; when the gap
 /// starts with a line end or a comment (a product across lines inside brackets) or its spaces are broken over two
 /// visual lines, just after the last character before it.
@@ -2636,7 +2636,7 @@ mod tests {
         );
     }
 
-    /// Outputs start at the content's left edge by default (round 13, user decision; View > Output alignment), and
+    /// Outputs start at the content's left edge by default (View > Output alignment), and
     /// the caret, hits and clicks in boxes follow; switching to Right and back lays them out again.
     #[test]
     fn outputs_start_at_the_left_edge_by_default_and_switch() {
@@ -2723,7 +2723,7 @@ mod tests {
         });
     }
 
-    /// Round 13 (G80): a labeled output is right-justified as a whole with its label under the value, the label row
+    /// A labeled output is right-justified as a whole with its label under the value, the label row
     /// drawn in the label colour and a legend's swatches in theirs; a click on the value lands in the value.
     #[test]
     fn labeled_outputs_draw_their_labels_at_the_right_edge() {

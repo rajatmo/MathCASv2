@@ -163,7 +163,7 @@ fn probe_at<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, x: f64, log: bo
 /// - anything else (the exponent drifting, as for `1/(k ln k ln ln k)`, which diverges, or
 ///   `1/(k ln k (ln ln k)^2)`, which converges, both too slowly to be told apart numerically): too slow.
 ///
-/// Round 23: 1/k^1.0001 converges (it was called divergent), 1/(k ln^1.5 k) is summed instead of returning a
+/// 1/k^1.0001 converges, 1/(k ln^1.5 k) is summed instead of returning a
 /// value 2.6% off.
 fn boundary<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, log: bool) -> Res<Class> {
     let mut xs: Vec<(f64, f64)> = vec![];

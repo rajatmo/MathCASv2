@@ -57,7 +57,7 @@ rule bit_shift_left(k_, s_) := floor(k/2^(-s)) when is_integer(k) and is_integer
 # Massey (Massey, IEEE Trans. Inform. Theory 15 (1969)); a recurrence counts as found only when the list
 # also checks it beyond the 2 L terms that determine it, 2 L < length(xs); with d, only when L <= d. A failure
 # otherwise.
-fn r38_berlekamp_massey(s) = {
+fn sr_berlekamp_massey(s) = {
   var c = [1]
   var b = [1]
   var l = 0
@@ -81,14 +81,14 @@ fn r38_berlekamp_massey(s) = {
   }
   map(i => -(if i < length(c) then c[i + 1] else 0), range(l))
 }
-# r38_exact_terms(e): whether e contains no inexact number
-fn r38_exact_terms(e) = if is_number(e) then is_exact(e) else if is_atom(e) then true else every(apply(list, e), r38_exact_terms)
-fn find_linear_recurrence(xs) when is_list(xs) and length(xs) >= 2 and r38_exact_terms(xs) = {
-  let r = r38_berlekamp_massey(xs)
+# sr_exact_terms(e): whether e contains no inexact number
+fn sr_exact_terms(e) = if is_number(e) then is_exact(e) else if is_atom(e) then true else every(apply(list, e), sr_exact_terms)
+fn find_linear_recurrence(xs) when is_list(xs) and length(xs) >= 2 and sr_exact_terms(xs) = {
+  let r = sr_berlekamp_massey(xs)
   if length(r) >= 1 and 2*length(r) < length(xs) then r else failure(no_recurrence)
 }
-fn find_linear_recurrence(xs, d) when is_list(xs) and is_integer(d) and d >= 1 and length(xs) >= 2 and r38_exact_terms(xs) = {
-  let r = r38_berlekamp_massey(xs)
+fn find_linear_recurrence(xs, d) when is_list(xs) and is_integer(d) and d >= 1 and length(xs) >= 2 and sr_exact_terms(xs) = {
+  let r = sr_berlekamp_massey(xs)
   if length(r) >= 1 and length(r) <= d and 2*length(r) < length(xs) then r else failure(no_recurrence)
 }
 

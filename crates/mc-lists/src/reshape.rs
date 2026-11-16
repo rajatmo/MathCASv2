@@ -47,7 +47,7 @@ pub(crate) fn prepend<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
 pub(crate) fn join<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     // join(xs, ys, ..., n) with an integer n >= 2 after at least two operands: the joins of corresponding parts at
-    // level n (decision r37.2)
+    // level n
     if let [ops @ .., n] = args {
         if let (View::Int(n @ 2..), 2..) = (h.view(*n), ops.len()) {
             return Ok(match join_at(lib, cx, ops, n as usize)? {
@@ -114,7 +114,7 @@ fn join_at<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, ops: &[T<'h>], n: usize
 /// `reverse(xs)`: the arguments in reverse order.
 pub(crate) fn reverse<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // reverse(x, n), reverse(x, [n1, n2, ...]): the parts at those levels reversed (decision p6core.9)
+    // reverse(x, n), reverse(x, [n1, n2, ...]): the parts at those levels reversed
     if let [x, spec] = *args {
         let ns: Vec<i64> = match h.view(spec) {
             View::Int(n) => vec![n],
@@ -173,7 +173,7 @@ pub(crate) fn unique<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
         _ => return Ok(Reply::Decline),
     };
     let (head, xs) = take!(lib.operand(h, t, xs, 1));
-    // `unique(xs, f)`: an element is dropped when `f(y, x)` is true for an element y kept before it (decision io-core.7)
+    // `unique(xs, f)`: an element is dropped when `f(y, x)` is true for an element y kept before it
     if let Some(f) = test {
         return Ok(match crate::group::classes(lib, cx, xs, f)? {
             Ok(gs) => lib.rebuilt(h, head, &gs.iter().map(|g| g[0]).collect::<Vec<_>>()),
@@ -196,7 +196,7 @@ pub(crate) fn unique<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
 /// depth `d` (0 leaves `xs` unchanged). Iterative: nesting depth costs no stack.
 pub(crate) fn flatten<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // `flatten(xs, inf)`; `flatten(x, d, g)`: the arguments with head g spliced in (decision io-core.14)
+    // `flatten(xs, inf)`; `flatten(x, d, g)`: the arguments with head g spliced in
     let inf = |d: T<'h>| matches!(h.view(d), View::Sym(s) if h.sym_name(s) == "inf");
     let (xs, depth, splice) = match *args {
         [xs] => (xs, u64::MAX, None),
@@ -250,7 +250,7 @@ pub(crate) fn transpose<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
         return Ok(Reply::Decline);
     }
     let rows = take!(lib.list_operand(h, t, m, 1));
-    // a vector of numbers (a rank-1 array) is its own transpose (decision r37.4)
+    // a vector of numbers (a rank-1 array) is its own transpose
     if !rows.is_empty() && rows.iter().all(|&r| crate::measure::is_complex_number(h, r) || matches!(h.view(r), View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. })) {
         return Ok(Reply::Done(m));
     }
@@ -358,7 +358,7 @@ fn transpose_build<'h>(
 pub(crate) fn apply<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     // apply(f, x, levels, heads: true): the heads of the compound parts are parts too, one level below their call
-    // (as map's option, decision r37.7); heads: false is the plain apply
+    // (as map's option); heads: false is the plain apply
     let (args, heads) = crate::ctx::option(h, args, 2, "heads");
     if let Some(v) = heads {
         let on = matches!(h.view(v), View::Sym(s) if h.sym_name(s) == "true");
@@ -387,7 +387,7 @@ pub(crate) fn apply<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     let [f, xs] = *args else {
         return Ok(Reply::Decline);
     };
-    // an association's arguments are its values (decision io-core.4)
+    // an association's arguments are its values
     if let Some(es) = crate::assocs::entries(lib, h, xs) {
         let vs: Vec<T<'h>> = es.iter().map(|&(_, v)| v).collect();
         charge_copy(cx, vs.len())?;

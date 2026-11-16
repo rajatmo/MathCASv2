@@ -104,7 +104,7 @@ pub fn run_cell(
 }
 
 /// [`run_cell`] with the statements numbered by the session's line counter, so that `out(n)`, `%` and `%%` see
-/// the values of earlier statements and cells (the notebook runner; gap G77).
+/// the values of earlier statements and cells (the notebook runner).
 pub fn run_cell_numbered(
     engine: &mut CoreEngine,
     src: &str,
@@ -190,7 +190,7 @@ pub fn run_each(
 
 /// The calls of `src` that look like products (`x(x - a)`: a call of a name with no definition in the session that
 /// is also used as a variable, `mc_syntax::lint_calls`), with the note to show when a value still holds one: the
-/// value came back unevaluated because of it (round 20).
+/// value came back unevaluated because of it.
 fn call_notes(engine: &mut CoreEngine, src: &str) -> Vec<(String, String)> {
     // the cheap look first (every name unknown), the session's names only when something is found
     let found = mc_syntax::lint_calls(src, &|_: &str| false);

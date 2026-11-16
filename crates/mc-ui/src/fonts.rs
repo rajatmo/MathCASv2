@@ -269,7 +269,7 @@ pub struct GlyphBox {
 }
 
 /// The text fonts of one [`Face`] as egui uses them, without the math font and egui's emoji fonts at the end of
-/// its chain: what typeset cells need to draw a character in the cell's own font (design 4.10, round nb-ui). A
+/// its chain: what typeset cells need to draw a character in the cell's own font (design 4.10). A
 /// character no font of the chain has is left to the math font.
 #[derive(Clone)]
 pub struct FaceFonts {

@@ -1,5 +1,5 @@
 //! The sign chart of a condition on one real unknown whose atoms mix `x` with `exp`, `log`, `atan` and powers
-//! (round 25, B23-15: `x exp(x) > 1`, `exp(-x^2) > 1/2`, `exp(x) + exp(-x) < 5`, `exp(x) - x > 1`, `atan(x) < 1/100`),
+//! (`x exp(x) > 1`, `exp(-x^2) > 1/2`, `exp(x) + exp(-x) < 5`, `exp(x) - x > 1`, `atan(x) < 1/100`),
 //! for the conditions the kernel algorithm of [`crate::reduce_fn`] does not take.
 //!
 //! The real zeros of every atom are found by `solve` over the reals (closed forms: `product_log`, logarithms,

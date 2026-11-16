@@ -1,4 +1,4 @@
-//! Proofs and refutations of the property functions from enclosures (round 43): a property is answered only when a
+//! Proofs and refutations of the property functions from enclosures: a property is answered only when a
 //! proof stands behind it, never from values at sample points.
 //!
 //! - **Values at points** ([`closed_sign`], [`point_sign`]): a closed numeric term is evaluated exactly when it is a

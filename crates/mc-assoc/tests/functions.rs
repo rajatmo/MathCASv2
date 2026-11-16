@@ -288,7 +288,7 @@ fn group_by_is_the_association_form() {
     check(&mut engine(1, false), &[("is_assoc(group_by([1, 2, 3], k => k > 1))", "true")]);
 }
 
-/// An association applied to a key is the key's value, as `lookup` gives it (C9B.12).
+/// An association applied to a key is the key's value, as `lookup` gives it.
 #[test]
 fn associations_applied_to_keys() {
     check(

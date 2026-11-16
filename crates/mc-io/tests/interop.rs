@@ -50,7 +50,7 @@ fn matrices_into_linear_algebra() {
     assert_eq!(eval(&mut e, &format!(r#"inverse(import_data("{}"))"#, t.path())), "[[-5, 2], [3, -1]]");
 }
 
-/// G68: `interpolation_order: k`, the local polynomial through the k + 1 nearest points (the values of the
+/// `interpolation_order: k`, the local polynomial through the k + 1 nearest points (the values of the
 /// reference's default), and the derivatives of the spline and of the local scheme.
 #[test]
 fn local_interpolation_and_derivatives() {
@@ -81,7 +81,7 @@ fn local_interpolation_and_derivatives() {
     );
 }
 
-/// G75: `put(value, file)` and `get(file)`; a solution of `n_dsolve` comes back as an interpolation.
+/// `put(value, file)` and `get(file)`; a solution of `n_dsolve` comes back as an interpolation.
 #[test]
 fn values_saved_and_read_back() {
     let f = File::new("v.mx", "");
@@ -101,7 +101,7 @@ fn values_saved_and_read_back() {
     assert_eq!(eval(&mut e2, "put(1, 2)"), "failure(argument, put, 2)");
 }
 
-/// G61: a picture written by `export_data` reads back as its term (SVG files, and PNG files with the element
+/// A picture written by `export_data` reads back as its term (SVG files, and PNG files with the element
 /// `"graphics"`); a PNG without the element stays an image, a file without a term gives a failure.
 #[test]
 fn exported_graphics_read_back() {

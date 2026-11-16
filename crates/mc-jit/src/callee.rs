@@ -1,4 +1,4 @@
-//! Library calls from compiled code (round 13, decisions LC.1 to LC.6): functions of machine reals that compiled
+//! Library calls from compiled code (decisions LC.1 to LC.6): functions of machine reals that compiled
 //! code calls by number, each giving exactly the value the interpreter's native gives at the same machine reals,
 //! or nothing, and then the compiled call declines and the interpreter evaluates it.
 //!

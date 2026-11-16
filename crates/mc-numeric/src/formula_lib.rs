@@ -1,4 +1,4 @@
-//! The formula-defined functions of one real argument as library functions of numerical evaluation (gap queue G42):
+//! The formula-defined functions of one real argument as library functions of numerical evaluation:
 //! `n`, comparisons and the ODE and root solvers evaluate `sech(y)`, `atanh(y)`, `heaviside_theta(y)` inside their
 //! numeric islands, with machine values and ball enclosures composed from the elementary functions.
 use crate::cball::CBall;

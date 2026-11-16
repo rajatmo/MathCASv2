@@ -88,7 +88,7 @@ Remaining:
 
 | Step | Targets |
 |---|---|
-| 9B core and data (first part done in round 15: throw and catch, sow and reap, repeated and key-value patterns, one matcher, 31 functions) | the failing examples of core language and data pages (semantics edge cases, formatting, associations and datasets, import and export formats) |
+| 9B core and data (first part done: throw and catch, sow and reap, repeated and key-value patterns, one matcher, 31 functions) | the failing examples of core language and data pages (semantics edge cases, formatting, associations and datasets, import and export formats) |
 | 9C visualisation | the remaining plot types and options, graph layout, mesh regions |
 | 9D numerics | `10-integration.md` steps 3-5: 1D robustness (endpoint and interior singularities, oscillatory integrands), PSLQ and constant recognition, niche methods as packages |
 | 9E documentation | the remaining documentation pages, about 290 functions |
@@ -243,7 +243,7 @@ Two chains are sequential and set the pace: 11A → 11B → 11C → 12 → 13A, 
 and phase 15 proceeding beside them. The first estimates of this roadmap, in weeks and months, were far too slow:
 phase F was estimated at 3-5 weeks and took one day.
 
-Since round 20 rounds alternate: **A rounds** add features and fix bugs, **B rounds** write documentation and find
+Development rounds alternate: **A rounds** add features and fix bugs, **B rounds** write documentation and find
 bugs; a B round that finds more than about five wrong values is followed by a round of fixes only.
 
 ### 3.2 Quality goals (10 November 2026)
@@ -252,7 +252,7 @@ Quality means three things, measured separately:
 
 1. **Documented examples.** Every example on every documentation page evaluates to its stored output
    (`mc-docs-pages check`).
-2. **Robustness on undocumented input.** Measured by each B round's count of wrong values (26 in round 23); the goal
+2. **Robustness on undocumented input.** Measured by each B round's count of wrong values; the goal
    is that count near zero across the probes of the testing method.
 3. **Algorithmic depth and speed** (hard integrals, simplification quality, solving in several variables, special
    functions everywhere in the complex plane, the benchmark set). Open-ended; judged per workload, not as a whole.
@@ -261,15 +261,15 @@ Stages:
 
 | Stage | Work |
 |---|---|
-| A. Coverage | the most needed missing functions in batches of about 50 (as the visualisation batch of round 18, 178 functions at once), each in its own crate or module, with pages and tests |
+| A. Coverage | the most needed missing functions in batches of about 50 (the visualisation batch had 178 functions at once), each in its own crate or module, with pages and tests |
 | B. Depth | the wrong and unevaluated results of existing functions, grouped by engine (integration, simplification, solving, special functions, data), in rounds of fixes |
 | C. Long tail and forms | the remaining functions and output forms |
 
 Robustness (goal 2) runs through the B rounds and speed (goal 3) through the benchmark checks, alongside all three
 stages.
 
-Progress (11 November 2026): stage A added 1,709 functions in two rounds (rounds 28 and 29); stage B starts with
-round 30.
+Progress (11 November 2026): stage A added 1,709 functions in two rounds; stage B follows
+it.
 
 ### 3.3 Specialist areas (from November 2026)
 

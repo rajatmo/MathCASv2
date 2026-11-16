@@ -28,7 +28,7 @@ impl App {
         }
     }
 
-    /// Insert ▸ the box keys and the characters with aliases (round 32, discoverability): every item shows the key
+    /// Insert ▸ the box keys and the characters with aliases (for discoverability): every item shows the key
     /// or the `Esc` alias that does the same from the keyboard.
     pub(super) fn math_menu(&self, ui: &mut egui::Ui, fire: &mut Option<Command>) {
         use mc_nbmodel::Structure;
@@ -526,7 +526,7 @@ impl App {
     }
 }
 
-/// Insert ▸ Greek letter (round 32): the letters used most in formulas, each with its name.
+/// Insert ▸ Greek letter: the letters used most in formulas, each with its name.
 const GREEK: &[(&str, &str)] = &[
     ("α", "alpha"),
     ("β", "beta"),
@@ -559,7 +559,7 @@ const GREEK: &[(&str, &str)] = &[
     ("Ω", "Omega"),
 ];
 
-/// Insert ▸ Symbol (round 32): the characters the language reads as operators or constants (design 3.9).
+/// Insert ▸ Symbol: the characters the language reads as operators or constants (design 3.9).
 const SYMBOLS: &[(&str, &str)] = &[
     ("→", "rule"),
     ("≤", "less or equal"),

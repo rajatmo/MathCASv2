@@ -252,12 +252,12 @@ fn exp_mid(m: &Float, w: u64) -> Option<Ball> {
     Some(r.mul(&ek, w + 4))
 }
 
-/// exp(x) for a ball. A ball far below -2^EXP_TOP has no representable value (`None`). Round 20 tried
-/// [0 +- 2^-(2^24 + p)] there; its radius claimed millions of digits for sums like 100 - exp(-exp(100)), and the
-/// limit check then cancelled exp(exp(x)) terms exactly (bugs R20-17).
+/// exp(x) for a ball. A ball far below -2^EXP_TOP has no representable value (`None`): an enclosure
+/// [0 +- 2^-(2^24 + p)] there has a radius that claims millions of digits for sums like 100 - exp(-exp(100)), and the
+/// limit check then cancels exp(exp(x)) terms exactly.
 pub fn exp(x: &Ball, p: u64) -> Option<Ball> {
     let Some(r) = exp_mid(&x.mid, p + 8) else {
-        // the integrator's far tails (R20-17): inside a [`tail_safe`] scope e^x for a ball far below zero is the
+        // the integrator's far tails: inside a [`tail_safe`] scope e^x for a ball far below zero is the
         // ball 0 +- 2^-(2^24 + p), never a generic result
         if x.mid.neg && !stopped() && TAIL_SAFE.with(|t| t.get() > 0) {
             return Some(Ball { mid: Float::zero(), rad: Mag::pow2(-((1i64 << 24) + p as i64)) });
@@ -273,7 +273,7 @@ thread_local! {
 }
 
 /// A scope in which `exp` of a ball far below zero (beyond what a ball can represent) is the enclosure
-/// 0 +- 2^-(2^24 + p) instead of `None` (round 22, R20-17). For the quadrature rules only: a node of a
+/// 0 +- 2^-(2^24 + p) instead of `None`. For the quadrature rules only: a node of a
 /// tanh-sinh or Gauss rule in a far tail then contributes a vanishing value, while generic evaluation (sums,
 /// limits, comparisons) keeps `None` there, since that radius would claim millions of digits. The scope is per
 /// thread: a worker thread enters its own.
@@ -336,7 +336,7 @@ fn sin_cos_chunk(a: Nat, m: u64, w: u64) -> Option<(Ball, Ball)> {
 }
 
 /// (sin, cos) of an exact |r| < 1/8 at w bits by the Maclaurin series, with the relative accuracy of sin kept for a
-/// tiny r (R22-09: the bit-burst method below cuts the bits of r under 2^-w, so sin of a tiny ball had no relative
+/// tiny r (the bit-burst method below cuts the bits of r under 2^-w, so sin of a tiny ball had no relative
 /// radius): sin r = r sum (-r^2)^k/(2k+1)!, cos r = sum (-r^2)^k/(2k)!, alternating with decreasing terms, so the
 /// error is at most the first omitted term.
 fn sin_cos_small(r: &Float, w: u64) -> Option<(Ball, Ball)> {

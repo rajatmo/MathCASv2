@@ -172,7 +172,7 @@ fn machine_rank<S: Scalar>(a: &Mat<S>, m: &mut Meter) -> WorkResult<usize> {
     Ok(s.iter().filter(|&&x| x > tol).count())
 }
 
-/// An integer modulo a prime p (the field GF(p)) for elimination with `modulus: p` (round 37).
+/// An integer modulo a prime p (the field GF(p)) for elimination with `modulus: p`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct ModP {
     v: u64,
@@ -309,7 +309,7 @@ fn mod_entries<'h>(env: &Env<'h>, a: &Arr<'h>, p: u64) -> Option<Vec<ModP>> {
 }
 
 /// `rank(m)`; `rank(m, modulus: p)` over the integers modulo a prime p; `rank(m, tolerance: t)`: the singular
-/// values of a machine matrix above t times the largest (round 37).
+/// values of a machine matrix above t times the largest.
 pub fn rank<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
     let Some(opt) = elim_option(env, args) else { return Ok(Out::Decline) };
     let a = take!(matrix_arg(env, args, 0));
@@ -400,8 +400,7 @@ fn machine_rref<S: Scalar>(a: &Mat<S>, cols_pivot: usize, m: &mut Meter) -> Work
 }
 
 /// `row_reduce(m)`: the reduced row echelon form; `row_reduce(m, modulus: p)` over the integers modulo a prime p
-/// (entries 0 to p - 1); `row_reduce(m, tolerance: t)`: machine entries at most t times the largest are zero
-/// (round 37).
+/// (entries 0 to p - 1); `row_reduce(m, tolerance: t)`: machine entries at most t times the largest are zero.
 pub fn row_reduce<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
     let Some(opt) = elim_option(env, args) else { return Ok(Out::Decline) };
     let a = take!(matrix_arg(env, args, 0));

@@ -1921,7 +1921,7 @@ fn taylor_table_with<'h>(
         return Ok(table);
     }
     // the coefficients wanted: up to the order, plus the orders a pole of the expression lowers them by (the
-    // negative powers of terms in x: bessel_i(3, 2 x)/x^7 to order -4 needs bessel_i to order 3; round 37)
+    // negative powers of terms in x: bessel_i(3, 2 x)/x^7 to order -4 needs bessel_i to order 3)
     let mut extra = 0i64;
     {
         let mut stack = mc_api::walk::Walk::new(*e);
@@ -2239,7 +2239,7 @@ fn side_marker<'h>(cx: &mut mc_eval::NativeCx<'_, '_, 'h>, table: &mut TaylorTab
 /// between its jumps: an integer for `sawtooth_wave`, a multiple of 1/2 for `square_wave` (their last argument), a
 /// multiple of the modulus for `mod` (its first)? Their derivatives (1 for the sawtooth, 0 for the square wave) miss
 /// the jump, so the Taylor rules gave a series of one side only: `sawtooth_wave(x)` at 0 was `x` for both sides
-/// (round 44). No series is given there.
+/// No series is given there.
 fn periodic_jump<'h>(cx: &mut mc_eval::NativeCx<'_, '_, 'h>, f: &str, args: &[T<'h>], i: usize, u0: T<'h>) -> mc_eval::Res<bool> {
     let h = cx.heap();
     let q = match f {

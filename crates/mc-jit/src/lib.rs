@@ -1,4 +1,4 @@
-//! The MathCAS v2 numeric compiler (round 3, item 1b): typed functions to machine code through Cranelift, run as
+//! The MathCAS v2 numeric compiler (item 1b): typed functions to machine code through Cranelift, run as
 //! *compiled specialisations* of the evaluator, so a call whose arguments have the declared machine types runs
 //! compiled and every other call runs as before.
 //!
@@ -36,7 +36,7 @@
 //! the evaluator's control block and charges 1024 fuel to the calling task (a speculative task spends its own
 //! share). A stopped call declines, and the interpreter then stops at its first poll with the usual failure.
 //!
-//! Decisions are numbered 1b.1, 1b.2, ... (round 3), J.1, J.2, ... (round 4) and P.1, P.2, ... (round 7) in the
+//! Decisions are numbered 1b.1, 1b.2, ..., J.1, J.2, ... and P.1, P.2, ... in the
 //! comments where they apply.
 #![warn(missing_docs)]
 pub mod batch;

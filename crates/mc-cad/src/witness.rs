@@ -1,4 +1,4 @@
-//! Existential sentences over the reals that are not polynomial (round 44): `resolve(exists(x, f(x) == g(x)))` is
+//! Existential sentences over the reals that are not polynomial: `resolve(exists(x, f(x) == g(x)))` is
 //! `true` when a sign change of `h = f - g` is proved. Two points `u < v` (inside the bounds the sentence puts on
 //! `x`) where the signs of `h` are decided (exact closed values, refinement in `mc-numeric`) and opposite, and an
 //! enclosure of `h` over the whole interval `[u, v]` (interval arithmetic, `interval([u, v])`) that is a finite real

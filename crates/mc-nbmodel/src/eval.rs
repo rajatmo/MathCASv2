@@ -20,7 +20,7 @@ pub enum KernelRequest {
         /// the cell's first line in the notebook file
         line: u32,
     },
-    /// evaluate `src` for an interactive control (`manipulate`, round 13): a value per statement, not numbered (no
+    /// evaluate `src` for an interactive control (`manipulate`): a value per statement, not numbered (no
     /// labels, no `out` entries)
     Side {
         /// the request id
@@ -159,7 +159,7 @@ pub(crate) struct Running {
     pub line: u32,
 }
 
-/// The evaluation of a `manipulate` output's controls that runs (round 13).
+/// The evaluation of a `manipulate` output's controls that runs.
 #[derive(Clone, Debug)]
 pub(crate) struct ManipRun {
     /// the `manipulate` output
@@ -229,7 +229,7 @@ impl EvalState {
 }
 
 impl Notebook {
-    /// A message of the running cell with its positions in that cell (round 19): an untitled notebook's kernel names
+    /// A message of the running cell with its positions in that cell: an untitled notebook's kernel names
     /// the cell `<cell ID>` (an id the reader never sees) and counts lines from the cell's line in the notebook's
     /// text (`<cell c5>:18:2` for the fourth line of a cell); shown under the cell, `line 4, column 2` reads.
     fn cell_positions(&self, text: &str) -> String {
@@ -499,7 +499,7 @@ impl Notebook {
             KernelMsg::Value { id, printed, n } if mine(id) => {
                 let label = self.number(n);
                 self.add_generated(Style::Output, &printed, label, false, false);
-                // a `manipulate` value: its result at the initial positions is asked for at once (round 13)
+                // a `manipulate` value: its result at the initial positions is asked for at once
                 let made = self.eval.running.as_ref().filter(|r| !r.discard).and_then(|r| r.last_out);
                 if let Some(out) = made {
                     if let Some((_, values)) = self.manipulate_of(out) {
