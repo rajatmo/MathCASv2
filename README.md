@@ -203,7 +203,86 @@ example, the notebook, editor and export crates do not depend on the evaluator.
 Part of the library is written in MathCAS itself, in [lib/](lib). The design documents in
 [docs/design](docs/design) describe semantics, syntax, numbers, the evaluator, the notebook, the editor and the
 architecture ([12-architecture.md](docs/design/12-architecture.md) has the measured dependency graph). Each
-crate's `NOTES.md` records its decisions.
+crate has a `README.md` with its modules, its design decisions and how it is tested.
+
+### Crates
+
+**Foundation**
+- [mc-api](crates/mc-api/README.md): the interface contract, the `Store` and `Engine` traits
+- [mc-core](crates/mc-core/README.md): the term store, a concurrent hash-consed arena with a generational collector
+- [mc-arith](crates/mc-arith/README.md): the number tower, canonical arithmetic and the canonical order of terms
+- [mc-syntax](crates/mc-syntax/README.md): lexer, parser, lowering to terms and the printer
+- [mc-eval](crates/mc-eval/README.md): patterns, the matcher, rule indexes and the parallel evaluator
+- [mc-load](crates/mc-load/README.md): files, modules, imports, name resolution and the prelude
+- [mc-langlib](crates/mc-langlib/README.md): core-language functions written in MathCAS
+
+**Mathematics**
+- [mc-poly](crates/mc-poly/README.md): polynomials: GCD, factorisation, resultants, Groebner bases, root isolation
+- [mc-algebra](crates/mc-algebra/README.md): algebraic numbers and number fields
+- [mc-fields](crates/mc-fields/README.md): finite fields with Conway polynomials
+- [mc-groups](crates/mc-groups/README.md): permutation and finitely presented groups, posets, matroids
+- [mc-simplify](crates/mc-simplify/README.md): simplification, assumptions and rewriting
+- [mc-decide](crates/mc-decide/README.md): the decision service for signs, zeros and membership under assumptions
+- [mc-cad](crates/mc-cad/README.md): cylindrical algebraic decomposition and quantifier elimination
+- [mc-calculus](crates/mc-calculus/README.md): differentiation, partial fractions and properties of functions
+- [mc-limit](crates/mc-limit/README.md): limits by Gruntz's algorithm
+- [mc-integrals](crates/mc-integrals/README.md): the dispatcher of `integrate` and its base methods
+- [mc-integrate](crates/mc-integrate/README.md): integration over a differential tower (Risch, Risch-Norman)
+- [mc-integrate-rules](crates/mc-integrate-rules/README.md): rule-based indefinite integration
+- [mc-transforms](crates/mc-transforms/README.md): Laplace, Mellin, Fourier and Z transforms
+- [mc-dsolve](crates/mc-dsolve/README.md): symbolic differential equations and recurrences
+- [mc-diffalg](crates/mc-diffalg/README.md): symmetries and differential algebra, written in MathCAS
+- [mc-solve](crates/mc-solve/README.md): equations, `reduce` and root objects
+- [mc-sums](crates/mc-sums/README.md): sums, products and their convergence
+- [mc-linalg](crates/mc-linalg/README.md): linear algebra
+- [mc-lists](crates/mc-lists/README.md): lists and compound expressions
+- [mc-assoc](crates/mc-assoc/README.md): sets, associations and datasets
+- [mc-strings](crates/mc-strings/README.md): strings
+- [mc-special](crates/mc-special/README.md): special functions
+- [mc-numtheory](crates/mc-numtheory/README.md): number theory
+- [mc-combinat](crates/mc-combinat/README.md): number sequences and representations
+- [mc-geom](crates/mc-geom/README.md): regions and computational geometry
+- [mc-mechanics](crates/mc-mechanics/README.md): analytical mechanics, written in MathCAS
+- [mc-further-functions](crates/mc-further-functions/README.md): functions written against the other libraries
+- [mc-wavelets](crates/mc-wavelets/README.md): wavelet transforms, written in MathCAS
+
+**Numerics**
+- [mc-numeric](crates/mc-numeric/README.md): constants, elementary functions on exact, ball and machine numbers, `n`
+- [mc-numfn](crates/mc-numfn/README.md): the `NumFn` trait through which numeric solvers see a function
+- [mc-jit](crates/mc-jit/README.md): the numeric compiler
+- [mc-roots](crates/mc-roots/README.md): root finding, minimisation and optimisation
+- [mc-quad](crates/mc-quad/README.md): numerical integration
+- [mc-ode](crates/mc-ode/README.md): numerical differential equations
+- [mc-dist](crates/mc-dist/README.md): probability distributions and statistics
+- [mc-random](crates/mc-random/README.md): random numbers
+
+**Graphics**
+- [mc-graphics](crates/mc-graphics/README.md): the graphics model and the 2D and 3D renderers
+- [mc-graphics-kernel](crates/mc-graphics-kernel/README.md): the natives that build and check graphics terms
+- [mc-plot](crates/mc-plot/README.md): plots and charts
+- [mc-typeset](crates/mc-typeset/README.md): typesetting of outputs
+- [mc-mathfont](crates/mc-mathfont/README.md): the math font and its MATH table
+
+**Assembly**
+- [mc-libraries](crates/mc-libraries/README.md): the registry of libraries
+- [mc-engine](crates/mc-engine/README.md): the assembled core behind the `Engine` trait
+- [mc-kernel](crates/mc-kernel/README.md): the kernel process and its protocol
+- [mc-io](crates/mc-io/README.md): import and export of data files and images
+- [mc-bench](crates/mc-bench/README.md): the benchmark runner
+
+**Front ends**
+- [mc-notebook](crates/mc-notebook/README.md): the notebook window
+- [mc-notebook-android](crates/mc-notebook-android/README.md): the notebook as an Android app
+- [mc-ui](crates/mc-ui/README.md): window support shared by the notebook and the documentation window
+- [mc-edit](crates/mc-edit/README.md): the input editor of code cells
+- [mc-boxes](crates/mc-boxes/README.md): box trees and their layout
+- [mc-nbmodel](crates/mc-nbmodel/README.md): the document model of the notebook
+- [mc-nbfile](crates/mc-nbfile/README.md): the `.mcn` notebook file format
+- [mc-nbexport](crates/mc-nbexport/README.md): HTML and PDF export of notebooks
+- [mc-docs](crates/mc-docs/README.md): function pages, their checker and the documentation window
+- [mc-help](crates/mc-help/README.md): the help index
+- [mc-repl](crates/mc-repl/README.md): the REPL and script runner
+- [mc-lsp](crates/mc-lsp/README.md): the language server
 
 ## Author
 
