@@ -226,6 +226,8 @@ pub static TABLE: &[Entry] = &[
     Entry {
         name: "inverse_gamma_regularized",
         mono: &[("$a > 0", -1)],
+        // the value z has Q(a, z) = x and Q(a, 0) = 1, Q decreasing: z >= 0, and 0 only at x = 1
+        signs: &[("$a > 0", 2)],
         arity: 2,
         var: 1,
         joint: true,
@@ -366,6 +368,10 @@ pub static TABLE: &[Entry] = &[
         real: "$u != 1 and $a < 1",
         complex: "$u != 1 and $a != 1",
         sr: Some(&[("$u == 1", BR), ("$a >= 1", BR)]),
+        // in the plane, in the parameter m: the logarithmic branch point 1 (the integral diverges like log(1/sqrt(1 - m))
+        // for n < 1, DLMF 19.6.5) and the cut [1, inf) of 1/sqrt(1 - m sin(t)^2); the points in n are not listed
+        sc: Some(&[("$a == 1", BR), ("im_part($a) == 0 and re($a) >= 1", BR)]),
+        cpartial: true,
         refs: "DLMF 19.2.7, 19.6.5, 19.7.9",
         ..E
     },
@@ -388,7 +394,11 @@ pub static TABLE: &[Entry] = &[
         name: "inverse_elliptic_nome_q",
         mono: &[("", 1)],
         real: "-1 < $u and $u <= 1",
+        // theta_2(q)^4/theta_3(q)^4 inside the unit disc (DLMF 20.2.1-20.2.3; the circle is the natural boundary of the
+        // theta functions) and the value 1 at q = 1
+        complex: "abs($u) < 1 or $u == 1",
         sr: Some(&[("$u <= -1", BR), ("$u >= 1", BR)]),
+        sc: Some(&[("abs($u) >= 1", BR)]),
         ranges: &[("", "$y <= 1")],
         bound: Bound::Above,
         onto: &[("", false)],
@@ -440,7 +450,7 @@ pub static TABLE: &[Entry] = &[
         name: "dedekind_eta",
         real: "im_part($u) > 0 and element(re($u)/12, integers)",
         complex: "im_part($u) > 0",
-        sr: Some(&[("true", BR)]),
+        sr: Some(&[("im_part($u) <= 0", BR)]),
         sc: Some(&[("im_part($u) <= 0", BR)]),
         signs: &[("im_part($u) > 0 and element(re($u)/24, integers)", 1), ("im_part($u) > 0 and element((re($u) - 12)/24, integers)", -1)],
         // eta(tau + 24) = eta(tau)
@@ -452,7 +462,7 @@ pub static TABLE: &[Entry] = &[
         name: "klein_invariant_j",
         real: "im_part($u) > 0 and element(2*re($u), integers)",
         complex: "im_part($u) > 0",
-        sr: Some(&[("true", BR)]),
+        sr: Some(&[("im_part($u) <= 0", BR)]),
         sc: Some(&[("im_part($u) <= 0", BR)]),
         signs: &[("im_part($u) > 0 and element(re($u), integers)", 1)],
         // J(tau + 1) = J(tau)
@@ -464,7 +474,7 @@ pub static TABLE: &[Entry] = &[
         name: "modular_lambda",
         real: "im_part($u) > 0 and element(re($u), integers)",
         complex: "im_part($u) > 0",
-        sr: Some(&[("true", BR)]),
+        sr: Some(&[("im_part($u) <= 0", BR)]),
         sc: Some(&[("im_part($u) <= 0", BR)]),
         signs: &[("im_part($u) > 0 and element(re($u)/2, integers)", 1), ("im_part($u) > 0 and element((re($u) - 1)/2, integers)", -1)],
         // lambda(tau + 2) = lambda(tau)
@@ -537,8 +547,12 @@ pub static TABLE: &[Entry] = &[
     Entry { name: "bessel_y", arity: 2, var: 1, refs: "DLMF 10.2.3, 10.8.1", ..POSITIVE },
     Entry { name: "bessel_j", arity: 2, var: 1, when: "not_element($a, integers)", real: "$u > 0 or $u == 0 and $a > 0", complex: "$u != 0 or re($a) > 0", refs: "DLMF 10.2.2", ..POSITIVE },
     Entry { name: "bessel_i", arity: 2, var: 1, when: "not_element($a, integers)", real: "$u > 0 or $u == 0 and $a > 0", complex: "$u != 0 or re($a) > 0", refs: "DLMF 10.25.2", ..POSITIVE },
-    Entry { name: "hankel_h1", arity: 2, var: 1, real: "false", complex: "$u != 0", sr: Some(&[("true", BR)]), sc: Some(LOG_CUT), refs: "DLMF 10.4.3, 10.2.(ii)", ..E },
-    Entry { name: "hankel_h2", arity: 2, var: 1, real: "false", complex: "$u != 0", sr: Some(&[("true", BR)]), sc: Some(LOG_CUT), refs: "DLMF 10.4.3", ..E },
+    // not injective on the cut plane: H(z) = c z^(-1/2) e^(i z) (1 + eps(z)), c != 0, eps -> 0 in the sectors |arg z| <= pi
+    // - delta (H1; H2 with e^(-i z) in the mirror sectors), DLMF 10.17.5-10.17.6; for every w != 0 Rouche's theorem on the
+    // discs around the solutions z_k of c z^(-1/2) e^(i z) = w, e^(i z) = w z^(1/2)/c, z_k = 2 pi k - i log|w (2 pi k)^(1/2)/c| +
+    // O(1), gives infinitely many solutions of H(z) = w
+    Entry { name: "hankel_h1", arity: 2, var: 1, real: "false", complex: "$u != 0", sr: Some(&[("true", BR)]), sc: Some(LOG_CUT), cinj: &[("", false)], refs: "DLMF 10.4.3, 10.2.(ii), 10.17.5", ..E },
+    Entry { name: "hankel_h2", arity: 2, var: 1, real: "false", complex: "$u != 0", sr: Some(&[("true", BR)]), sc: Some(LOG_CUT), cinj: &[("", false)], refs: "DLMF 10.4.3, 10.17.5", ..E },
     Entry {
         name: "spherical_bessel_j",
         arity: 2,
@@ -915,6 +929,21 @@ pub static TABLE: &[Entry] = &[
     Entry { name: "binomial", arity: 2, var: 0, when: "element($a, integers) and $a >= 0", refs: "DLMF 1.2.6, 26.3.1", ..ENTIRE },
     Entry { name: "binomial", arity: 2, var: 1, when: "element($a, integers) and $a >= 0", refs: "DLMF 5.2.1, 26.3.1", ..ENTIRE },
     // Pochhammer, falling factorial and digamma by the gamma function (DLMF 5.2.5, 5.15.1, 26.1)
+    // (x)_(1/2) = Gamma(x + 1/2)/Gamma(x): continuous on (-1/2, inf), tending to -inf at -1/2+ (the pole of Gamma(x + 1/2)
+    // against 1/Gamma(-1/2) < 0) and to +inf at inf (Gamma(x + 1/2)/Gamma(x) ~ x^(1/2), DLMF 5.11.12), so by the
+    // intermediate value theorem every real value is taken
+    Entry {
+        name: "pochhammer",
+        arity: 2,
+        joint: true,
+        when: "$a == 1/2",
+        real: "$u + $a > 0 or not_element($u + $a, integers)",
+        complex: "re($u + $a) > 0 or not_element($u + $a, integers)",
+        ranges: &[("", "true")],
+        onto: &[("", true)],
+        refs: "DLMF 5.2.5, 5.11.12",
+        ..E
+    },
     Entry {
         name: "pochhammer",
         arity: 2,
@@ -1139,8 +1168,10 @@ pub static TABLE: &[Entry] = &[
     Entry { name: "inverse_jacobi_nc", arity: 2, joint: true, sr: Some(&[("$a == 1/2 and $u == 1", BR)]), partial: true, ..E },
     Entry { name: "inverse_jacobi_nd", arity: 2, joint: true, sr: Some(&[("$a == 1/2 and $u == 1", BR)]), partial: true, ..E },
     Entry { name: "inverse_jacobi_ns", arity: 2, joint: true, sr: Some(&[("$a == 1/2 and $u == 1", BR)]), partial: true, ..E },
-    Entry { name: "inverse_jacobi_sd", arity: 2, joint: true, sr: Some(&[("$a == 1/2 and $u == 2^(1/2)", BR)]), partial: true, ..E },
-    Entry { name: "inverse_jacobi_ds", arity: 2, joint: true, sr: Some(&[("$a == 1/2 and $u == 2^(-1/2)", BR)]), partial: true, ..E },
+    // sd and ds are not defined on the real plane (x, m) where x^2 (1 - m) >= 1 (sd, m < 1) and where x^2 <= 1 - m (ds,
+    // m < 1): the complements of the real domains of the entries above (DLMF 22.15.5, 22.15.12)
+    Entry { name: "inverse_jacobi_sd", arity: 2, joint: true, sr: Some(&[("$a < 1 and $u^2*(1 - $a) >= 1", BR)]), partial: true, ..E },
+    Entry { name: "inverse_jacobi_ds", arity: 2, joint: true, sr: Some(&[("$a < 1 and $u^2 <= 1 - $a", BR)]), partial: true, ..E },
     Entry { name: "inverse_jacobi_sc", arity: 2, joint: true, sr: Some(&[("$a == 2 and $u == 1", BR)]), partial: true, ..E },
     Entry { name: "inverse_jacobi_cs", arity: 2, joint: true, sr: Some(&[("$a == 2 and $u == 1", BR)]), partial: true, ..E },
     // steps, waves and the Cantor function (continuous, not analytic on the Cantor set, values in [0, 1])
@@ -1347,6 +1378,8 @@ struct Facts {
     signs: Vec<(String, i8)>,
     mono: Vec<(String, i8)>,
     convex: Vec<(String, i8)>,
+    /// the atoms are the singular points, not the discontinuities (the discontinuities are not decided)
+    singular_only: bool,
 }
 
 impl Facts {
@@ -1369,6 +1402,7 @@ impl Facts {
             ranges: e.ranges.iter().map(|(w, r)| (w.to_string(), r.to_string())).collect(),
             crange: e.crange.into(),
             bound: e.bound,
+            singular_only: false,
         }
     }
 }
@@ -1447,6 +1481,12 @@ pub fn lookup<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, vars: 
     if let Some(hit) = hypergeometric(cx, b, &name, args, vars)? {
         return Ok(Some(hit));
     }
+    if let Some(hit) = q_hypergeometric(cx, b, &name, args, vars)? {
+        return Ok(Some(hit));
+    }
+    if let Some(hit) = weierstrass_lattice(cx, b, &name, args, vars)? {
+        return Ok(Some(hit));
+    }
     for e in TABLE.iter().filter(|e| e.name == name && e.arity == args.len()) {
         let others: Vec<T<'h>> = args.iter().enumerate().filter(|&(i, _)| i != e.var).map(|(_, &a)| a).collect();
         if !e.joint && others.iter().any(|&o| depends(b, o, vars)) {
@@ -1465,6 +1505,95 @@ pub fn lookup<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, vars: 
         return Ok(Some(Hit { facts: Facts::of(e), rules, arg: args[e.var], pf: facts.to_vec() }));
     }
     Ok(None)
+}
+
+/// The basic hypergeometric series `r phi s(a; b; q, z)` of a rational nome `0 < |q| < 1` with `r <= s` and rational
+/// lower parameters that are not powers `q^(-k)`, in `z`: entire (DLMF 17.4.1). The terms are `(a; q)_n/((b; q)_n
+/// (q; q)_n) ((-1)^n q^(n (n - 1)/2))^(1 + s - r) z^n`; the denominators `(b_j; q)_n` stay away from 0 (they tend to
+/// `(b_j; q)_inf != 0` because no factor `1 - b_j q^k` vanishes and `q^k -> 0`), `(q; q)_n -> (q; q)_inf != 0`, the
+/// numerators are bounded, and the factor `q^(n (n - 1)/2 (1 + s - r))` with `1 + s - r >= 1` decays faster than any
+/// geometric sequence, so the series converges for every `z`; it is analytic as a locally uniform limit of
+/// polynomials.
+fn q_hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, args: &[T<'h>], vars: &[T<'h>]) -> Res<Option<Hit<'h>>> {
+    let h = b.heap();
+    let ("q_hypergeometric_pfq", &[la, lb, q, z]) = (name, args) else { return Ok(None) };
+    let (Some(a), Some(bs)) = (cx.as_list(la).map(<[T<'h>]>::to_vec), cx.as_list(lb).map(<[T<'h>]>::to_vec)) else { return Ok(None) };
+    if a.len() > bs.len() || [la, lb, q].iter().any(|&t| depends(b, t, vars)) {
+        return Ok(None);
+    }
+    let exact = |t: T<'h>| matches!(h.view(t), View::Int(_) | View::Rational { .. });
+    if !exact(q) || !bs.iter().all(|&t| exact(t)) {
+        return Ok(None);
+    }
+    let abs_q = cx.eval(b.call("abs", &[q]))?;
+    if b.ar.compare(q, b.zero()) == Some(mc_arith::Cmp3::Equal) || b.ar.compare(abs_q, b.one()) != Some(mc_arith::Cmp3::Less) {
+        return Ok(None);
+    }
+    // no lower parameter is a power q^(-k), k = 0, 1, ...: b q^k = 1 for no k (the products decrease in modulus
+    // once below 1, so the search stops there)
+    for &bj in &bs {
+        let mut v = bj;
+        let mut below = false;
+        for _ in 0..4096 {
+            if b.ar.compare(v, b.one()) == Some(mc_arith::Cmp3::Equal) {
+                return Ok(None);
+            }
+            let av = cx.eval(b.call("abs", &[v]))?;
+            if b.ar.compare(av, b.one()) == Some(mc_arith::Cmp3::Less) {
+                below = true;
+                break;
+            }
+            v = cx.eval(b.mul(&[v, q]))?;
+        }
+        if !below {
+            return Ok(None);
+        }
+    }
+    let rules = vec![h.call(h.sym(names::RULE), &[placeholder(b, "u"), z])];
+    Ok(Some(Hit { facts: Facts::of(&Entry { refs: "DLMF 17.4.1", ..ENTIRE }), rules, arg: z, pf: vec![] }))
+}
+
+/// The half-period `w2`, `w3`, the quasi-periods `eta2`, `eta3` and the root `e3` of the lattice with real invariants
+/// `[g2, g3]` (the argument a list of two terms), on the real plane of the invariants. With the roots `e1, e2, e3` of
+/// `4 t^3 - g2 t - g3` labelled as the numeric values have them (for three real roots `e1 > e2 > e3` when `g3 > 0` and
+/// `e1 < e2 < e3` when `g3 < 0`; for one real root it is `e1` when `g2 > 0` and `e2` when `g2 < 0`, the conjugate pair
+/// in the other two places: DLMF 23.3.(i), the roots of the cubic) the singular points are:
+///
+/// - the lines `g2 = 0` and `g3 = 0`, where the labelling of the roots (and with it of the half-periods, `w1 = int
+///   from e1 to inf dt/sqrt(4 t^3 - g2 t - g3)`, DLMF 23.2.2, 23.3.7) jumps; the half-periods and quasi-periods are
+///   sums of the root-labelled ones, `w2 = -w1 - w3`, `eta2 = -eta1 - eta3` (DLMF 23.2.1, 23.2.13);
+/// - the discriminant `g2^3 - 27 g3^2 = 0`, where two roots meet: `e2 = e3` (the middle and the last root in both
+///   orders), `e3` is continuous with a square-root branch there, and `w3 = i K'(k)/(e1 - e3)^(1/2)`, `w2 = -w1 - w3`
+///   (DLMF 23.6.1-23.6.2 with the modulus `k^2 = (e2 - e3)/(e1 - e3) -> 0`, `K'` growing like `log(4/k)`, DLMF
+///   19.12.1) and, by the Legendre relation `eta1 w3 - eta3 w1 = i pi/2` (DLMF 23.2.14) with `w1`, `eta1` finite there,
+///   `eta3 = (eta1 w3 - i pi/2)/w1` and `eta2 = -eta1 - eta3` grow without bound: discontinuities of `w2, w3, eta2, eta3`.
+///
+/// Elsewhere the three roots are simple and distinct, so they and the integrals are analytic in the invariants. The line
+/// `g2 = 0` (`g3 = 0`) is a singular atom when the invariant depends on the variables. `e1`, `e2`, `w1`, `eta1` are
+/// not covered: they are analytic at the discriminant (a simple root), and `e2` has no jump on `g3 = 0`.
+fn weierstrass_lattice<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, args: &[T<'h>], vars: &[T<'h>]) -> Res<Option<Hit<'h>>> {
+    let h = b.heap();
+    let root = match name {
+        "weierstrass_half_period_w2" | "weierstrass_half_period_w3" | "weierstrass_eta2" | "weierstrass_eta3" => false,
+        "weierstrass_e3" => true,
+        _ => return Ok(None),
+    };
+    let &[inv] = args else { return Ok(None) };
+    let Some(g) = cx.as_list(inv).map(<[T<'h>]>::to_vec) else { return Ok(None) };
+    let &[g2, g3] = g.as_slice() else { return Ok(None) };
+    let mut sr: Vec<(String, Kind)> = vec![];
+    if depends(b, g2, vars) {
+        sr.push(("first($u) == 0".into(), Kind::Jump));
+    }
+    if depends(b, g3, vars) {
+        sr.push(("last($u) == 0".into(), Kind::Jump));
+    }
+    sr.push(("first($u)^3 - 27*last($u)^2 == 0".into(), if root { Kind::Kink } else { Kind::Branch }));
+    let rules = vec![h.call(h.sym(names::RULE), &[placeholder(b, "u"), inv])];
+    let mut f = Facts::of(&E);
+    f.sr = Some(sr);
+    f.singular_only = root;
+    Ok(Some(Hit { facts: f, rules, arg: inv, pf: vec![] }))
 }
 
 /// The hypergeometric families (DLMF 16.2, 15.2, 13.2) and the orthogonal families of non-integer degree through
@@ -1562,6 +1691,7 @@ fn hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, 
             signs: vec![],
             mono: vec![],
             convex: vec![],
+            singular_only: false,
         }
     } else if p == q + 1 {
         Facts {
@@ -1585,6 +1715,7 @@ fn hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, 
             signs: vec![],
             mono: vec![],
             convex: vec![],
+            singular_only: false,
         }
     } else {
         // a divergent series unless it terminates
@@ -1609,6 +1740,7 @@ fn hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, 
             signs: vec![],
             mono: vec![],
             convex: vec![],
+            singular_only: false,
         }
     };
     let mut f = f;
@@ -1668,6 +1800,9 @@ impl<'h> Hit<'h> {
     /// when not known.
     pub fn atoms(&self, cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, complex: bool, mode: Mode) -> Res<Option<Atoms<'h>>> {
         let Some(v) = (if complex { &self.facts.sc } else { &self.facts.sr }).clone() else { return Ok(None) };
+        if self.facts.singular_only && mode == Mode::Disc {
+            return Ok(None);
+        }
         let mut out = vec![];
         for (a, k) in v {
             if k == Kind::Kink && mode == Mode::Disc {

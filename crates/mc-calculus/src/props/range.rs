@@ -46,7 +46,7 @@ pub fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
         },
         _ => return Ok(None),
     };
-    if !matches!(h.view(*x), View::Sym(_)) || !matches!(h.view(*y), View::Sym(_)) {
+    if !matches!(h.view(*y), View::Sym(_)) {
         return Ok(None);
     }
     let (f, cond) = match cx.as_list(*fc) {
@@ -54,7 +54,19 @@ pub fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
         Some(_) => return Ok(None),
         None => (*fc, None),
     };
-    let (f, x, y) = (f, *x, *y);
+    // several variables of which f depends on one only (the others range freely): the range in that variable
+    let x = match h.view(*x) {
+        View::Sym(_) => *x,
+        _ => {
+            let Some(vs) = cx.as_list(*x).map(<[T<'h>]>::to_vec) else { return Ok(None) };
+            let mut dep = vs.iter().copied().filter(|&v| !is_free(b, f, v) || cond.is_some_and(|k| !is_free(b, k, v)));
+            match (dep.next(), dep.next()) {
+                (Some(v), None) if vs.iter().all(|&u| matches!(h.view(u), View::Sym(_))) => v,
+                _ => return Ok(None),
+            }
+        }
+    };
+    let (f, y) = (f, *y);
     // binomial(u, k) and factorial_power(u, k) of an integer k >= 0: polynomials in u (binomial(x, 2) = x (x - 1)/2)
     let f = if (super::contains_call(b, f, "binomial") || super::contains_call(b, f, "factorial_power")) && integer_second_args(b, f) {
         let g = cx.eval(b.call("function_expand", &[f]))?;
@@ -99,6 +111,18 @@ pub fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
                 return Ok(Some(t));
             }
             table = Some((t, ok));
+        }
+    }
+    // the oscillating Bessel and Airy functions: extreme values at the first critical points (a decreasing envelope)
+    if r.is_none() && cond.is_none() && table.is_none() {
+        if let Some(t) = super::oscillate::osc_range(cx, b, f, x, y)? {
+            if checks_out_with(cx, b, f, cond, x, y, t, true)? {
+                return Ok(Some(t));
+            }
+        }
+        // checked at high precision inside (the elementary forms cancel at small x in machine arithmetic)
+        if let Some(t) = super::oscillate::struve_range(cx, b, f, x, y)? {
+            return Ok(Some(t));
         }
     }
     let r = match r {
@@ -180,7 +204,7 @@ fn integer_second_args<'h>(b: &Build<'h>, t: T<'h>) -> bool {
 
 /// `f = c g + d` with `c`, `d` free of `x` and `c` a nonzero real number: `(g, c, d)`; `(f, 1, 0)`
 /// otherwise.
-fn outer_affine<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<(T<'h>, T<'h>, T<'h>)> {
+pub(super) fn outer_affine<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<(T<'h>, T<'h>, T<'h>)> {
     let h = b.heap();
     let mut g = f;
     let mut d = b.zero();
@@ -310,6 +334,7 @@ fn complex_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: 
                 cx.eval(b.call("or", &[b.call("and", &[b.call("equal", &[re, b.zero()]), b.call("greater_equal", &[im, b.zero()])]), b.call("greater", &[re, b.zero()])]))?
             }
             Some((base, ex)) if base == h.sym_term(b.hd.e) && affine_in(cx, b, ex, x)? => cx.eval(b.call("unequal", &[yy, b.zero()]))?,
+            _ if trig_polynomial(cx, b, g, x)? => cx.bool(true),
             _ => match table_range(cx, b, f, x, y, true)? {
                 Some(r) => r,
                 None => return Ok(None),
@@ -334,6 +359,36 @@ fn complex_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: 
         }
     }
     Ok(Some(r))
+}
+
+/// Is `f` a nonconstant polynomial (no parameters) in `cos(u)` or in `sin(u)` for one affine `u`? Then it takes every
+/// complex value: `cos` and `sin` are onto the plane (`cos(z) = w` is solved by `e^(i z)` through `t^2 - 2 w t + 1 =
+/// 0`, DLMF 4.21.(i)), and a nonconstant polynomial is onto (the fundamental theorem of algebra).
+fn trig_polynomial<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<bool> {
+    let h = b.heap();
+    if !spec::params(b, &[f], &[x]).is_empty() {
+        return Ok(false);
+    }
+    let mut call = None;
+    let mut stack = mc_api::walk::Walk::new(f);
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if let ([w], Some(s)) = (args, b.sym_of(head)) {
+                if matches!(h.sym_name(s).as_str(), "cos" | "sin") && !is_free(b, *w, x) {
+                    call = Some((u, *w));
+                    break;
+                }
+            }
+            stack.extend(args.iter().copied());
+        }
+    }
+    let Some((c, w)) = call else { return Ok(false) };
+    if !affine_in(cx, b, w, x)? {
+        return Ok(false);
+    }
+    let t = h.sym_term(h.sym("t·trig"));
+    let g = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[c, t])]))?;
+    Ok(is_free(b, g, x) && !is_free(b, g, t) && poly_degree(b, g, &[t]).is_some_and(|d| d >= 1))
 }
 
 /// Rational functions by quantifier elimination.
@@ -985,7 +1040,7 @@ fn checks_out<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: 
 
 /// [`checks_out`]; `light`: fewer samples (a range read from the table, recorded from the literature).
 #[allow(clippy::too_many_arguments)]
-fn checks_out_with<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: Option<T<'h>>, x: T<'h>, y: T<'h>, r: T<'h>, light: bool) -> Res<bool> {
+pub(super) fn checks_out_with<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: Option<T<'h>>, x: T<'h>, y: T<'h>, r: T<'h>, light: bool) -> Res<bool> {
     let h = b.heap();
     if !spec::params(b, &[f, r], &[x, y]).is_empty() || cx.is_true(r) {
         return Ok(true);

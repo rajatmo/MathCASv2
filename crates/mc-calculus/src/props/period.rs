@@ -132,6 +132,21 @@ fn candidates<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, x: T<'
         "dedekind_eta" => Some(b.int(24)),
         _ => None,
     };
+    // the theta functions of a fixed kind: theta_1, theta_2 have the period 2 pi, theta_3, theta_4 the period pi in the
+    // argument (DLMF 20.2.1-20.2.4, 20.2.5-20.2.6), the nome fixed
+    if matches!(name.as_str(), "elliptic_theta" | "elliptic_theta_prime") {
+        if let &[k, w, q] = args {
+            if let View::Int(n @ 1..=4) = h.view(k) {
+                if is_free(b, q, x) {
+                    if let Some(a) = slope(cx, w)? {
+                        let base = if n <= 2 { b.mul(&[b.int(2), pi]) } else { pi };
+                        out.push(cx.eval(b.div(base, a))?);
+                        return Ok(true);
+                    }
+                }
+            }
+        }
+    }
     if let (Some(p), [w]) = (base, args) {
         let Some(a) = slope(cx, *w)? else {
             // a periodic function of a periodic one (sin(cos(x))): the periods of the inner function
@@ -374,8 +389,11 @@ fn refuted<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<
     let ps = super::spec::params(b, &s.comps, &s.vars);
     let imu = h.sym_term(h.sym("im"));
     let mut fixed = vec![];
+    let nomes = nome_symbols(b, &s.comps);
     for (i, &o) in others.iter().chain(ps.iter()).enumerate() {
-        fixed.push(h.call(h.sym(names::RULE), &[o, b.rat(37 + 11 * i as i64, 29)]));
+        // a nome of a theta function lies inside the unit disc
+        let v = if nomes.contains(&o) { b.rat(1, 3 + i as i64) } else { b.rat(37 + 11 * i as i64, 29) };
+        fixed.push(h.call(h.sym(names::RULE), &[o, v]));
     }
     let points: Vec<T<'h>> = if integers {
         (0..6).map(|k| b.int(3 * k - 7)).collect()
@@ -390,7 +408,11 @@ fn refuted<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<
     let fr = cx.list(&fixed);
     let p = cx.eval(h.call(h.sym("rewrite"), &[p, fr]))?;
     // a huge integer power underflows the samples: `g^N` has the period of `g` (N odd) or of `abs(g)` (N even)
-    let comps: Vec<T<'h>> = s.comps.iter().map(|&f| strip_big_power(b, f)).collect();
+    let mut comps: Vec<T<'h>> = vec![];
+    for &f in &s.comps {
+        let g = strip_big_power(b, f);
+        comps.push(exact_constants(cx, b, g)?);
+    }
     // a step function changes only at its jumps: samples spread over the periods
     let steps = !integers && comps.iter().any(|&f| has_steps(b, f));
     let points: Vec<T<'h>> = if steps {
@@ -426,6 +448,45 @@ fn refuted<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, x: T<
         }
     }
     Ok(false)
+}
+
+/// `t` with every machine real replaced by the rational it stands for (`0.2` is `1/5`): a shift is refuted by values
+/// that balls can prove different, which machine numbers cannot.
+fn exact_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>) -> Res<T<'h>> {
+    let h = b.heap();
+    match h.view(t) {
+        View::Real(v) if v.is_finite() => cx.eval(b.call("rationalize", &[t, b.zero()])),
+        View::App { head, args } => {
+            let mut new = Vec::with_capacity(args.len());
+            for &a in args {
+                new.push(exact_constants(cx, b, a)?);
+            }
+            Ok(h.app(head, &new))
+        }
+        _ => Ok(t),
+    }
+}
+
+/// The symbols that are the nome argument of a theta function in `ts`.
+fn nome_symbols<'h>(b: &Build<'h>, ts: &[T<'h>]) -> Vec<T<'h>> {
+    let h = b.heap();
+    let mut out = vec![];
+    let mut stack: Vec<T<'h>> = ts.to_vec();
+    let mut seen = rustc_hash::FxHashSet::default();
+    while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
+        if let View::App { head, args } = h.view(u) {
+            if let (Some(s), &[_, _, q]) = (b.sym_of(head), args) {
+                if matches!(h.sym_name(s).as_str(), "elliptic_theta" | "elliptic_theta_prime") && matches!(h.view(q), View::Sym(_)) {
+                    out.push(q);
+                }
+            }
+            stack.extend_from_slice(args);
+        }
+    }
+    out
 }
 
 /// `g` for `g^N`, `abs(g)` for an even `N`, when `N` is an integer of at least 64 in absolute value.

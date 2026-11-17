@@ -117,9 +117,22 @@ pub fn atoms_ext<'h>(
     // evaluate and tidy, drop the ones that never hold, deduplicate
     let mut out: Vec<Atom<'h>> = vec![];
     for a in raw {
-        let t = tidy_all(cx, b, a.t)?;
+        let mut t = tidy_all(cx, b, a.t)?;
         if cx.is_false(t) || zero_of_zero_free(b, t) {
             continue;
+        }
+        // a condition that no real value of the variables satisfies (`im_part(x + im) <= 0`)
+        if !complex && !vars.is_empty() && !is_free_of_parts(b, t) {
+            let h = b.heap();
+            let mut fs = facts.to_vec();
+            fs.push(b.call("element", &[cx.list(vars), h.sym_term(h.sym("reals"))]));
+            let r = cx.eval_assuming(&fs, b.call("refine", &[t]))?;
+            if cx.is_false(r) {
+                continue;
+            }
+            if cx.is_true(r) {
+                t = r;
+            }
         }
         if let Some(o) = out.iter_mut().find(|o| o.t == t) {
             if a.kind != Kind::Pole {
@@ -130,6 +143,15 @@ pub fn atoms_ext<'h>(
         out.push(Atom { t, kind: a.kind });
     }
     Ok(Some((out, partial)))
+}
+
+/// Does `t` contain no `re` or `im_part`? (Only conditions with those parts are tested for being never true.)
+fn is_free_of_parts<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    match h.view(t) {
+        View::App { head, args } => !b.sym_of(head).is_some_and(|s| matches!(h.sym_name(s).as_str(), "re" | "im_part")) && args.iter().all(|&a| is_free_of_parts(b, a)),
+        _ => true,
+    }
 }
 
 /// Is `t` the equation `g == 0` of a `g` that has no zero: gamma (1/gamma is entire with zeros only at the poles

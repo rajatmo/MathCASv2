@@ -1279,6 +1279,17 @@ pub const RULES: &[(&str, usize, Rule)] = &[
             b.mul(&[b.call("barnes_g", a), b.add(&[b.mul(&[b.sub(z, b.one()), psi]), b.neg(z), l])])
         }]),
     ),
+    // the hyperfactorial H(x) = K(x + 1) with K(z) = Gamma(z)^(z - 1)/G(z): log K' = log Gamma(z) + z - (1 + log(2 pi))/2
+    // from G'/G above (DLMF 5.17.4), so H'/H = log Gamma(x + 1) + x + 1/2 - log(2 pi)/2
+    (
+        "hyperfactorial",
+        1,
+        Rule::Partials(&[|b, a| {
+            let x = a[0];
+            let l = b.div(b.call("log", &[b.mul(&[b.int(2), pi(b)])]), b.int(2));
+            b.mul(&[b.call("hyperfactorial", a), b.add(&[b.call("log_gamma", &[b.add(&[x, b.one()])]), x, b.rat(1, 2), b.neg(l)])])
+        }]),
+    ),
     // log G(z): the same logarithmic derivative
     (
         "log_barnes_g",

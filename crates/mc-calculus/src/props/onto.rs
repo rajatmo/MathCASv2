@@ -493,6 +493,11 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
     if pts.is_empty() && !families && s.cond.is_none() && oscillates_unboundedly(cx, b, f, x)? {
         return Ok(Ans::Bool(true));
     }
+    // a continuous function with a positive period is bounded (it is continuous on a closed period interval), so it is
+    // not onto the line
+    if pts.is_empty() && !families && s.cond.is_none() && periodic_everywhere(cx, b, f, x)? {
+        return Ok(Ans::Bool(false));
+    }
     // values taken at the break points themselves (sqrt(x) at 0)
     let mut attained = vec![];
     for &(_, p) in &pts {
@@ -679,6 +684,23 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
         return Ok(Ans::Bool(false));
     }
     Ok(Ans::Unknown)
+}
+
+/// Is `f` real-valued with a positive real period (the caller has shown it continuous on the line)?
+fn periodic_everywhere<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<bool> {
+    let h = b.heap();
+    // (no break points were found, so the function is defined and continuous wherever the singular sets let it be:
+    // a real value at a sample point is the sanity check)
+    if value(cx, b, f, x, 0.4321)?.is_none() {
+        return Ok(false);
+    }
+    let p = cx.eval(b.call("function_period", &[f, x]))?;
+    let n = cx.eval(b.call("n", &[p]))?;
+    Ok(match h.view(n) {
+        View::Real(v) => v.is_finite() && v > 0.0,
+        View::Int(k) => k > 0,
+        _ => false,
+    })
 }
 
 /// `f = P sin(w)` or `P cos(w)` (`w` affine in `x` with a nonzero slope, `P` free of that factor) with `P^2 -> inf`

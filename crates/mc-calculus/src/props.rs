@@ -40,6 +40,7 @@ mod domain_form;
 mod inject;
 mod interval;
 mod onto;
+mod oscillate;
 mod period;
 mod poles;
 mod proof;
@@ -193,6 +194,11 @@ impl Native for PropNative {
             return Ok(range::range(cx, &b, args)?.map_or(Reply::Decline, Reply::Done));
         }
         let Some(mut sp) = spec::parse(cx, &b, args)? else { return Ok(Reply::Decline) };
+        // a list of one component is that component (`[f]` for a scalar `f` of one variable)
+        if self.p == Prop::Injective && sp.vector && sp.comps.len() == 1 && sp.vars.len() == 1 && sp.yvars.is_empty() && sp.ycond.is_none() {
+            sp.f = sp.comps[0];
+            sp.vector = false;
+        }
         let new = match self.p {
             Prop::Discontinuities => Some(smooth::set_of(cx, &b, &sp, sets::Mode::Disc)?),
             Prop::Singularities => Some(smooth::set_of(cx, &b, &sp, sets::Mode::Sing)?),
@@ -456,13 +462,16 @@ fn conditions_of<'h>(
         if s == b.hd.add || s == b.hd.mul || s == b.hd.list {
             continue;
         }
-        if name == "elliptic_theta" && args.len() == 3 && depends(args[2]) && !depends(args[0]) && !depends(args[1]) {
-            // the nome inside the unit disc
+        if matches!(name.as_str(), "elliptic_theta" | "elliptic_theta_prime") && args.len() == 3 && depends(args[2]) && !depends(args[0]) && (name == "elliptic_theta" && !depends(args[1]) || matches!(h.view(args[0]), View::Int(1..=4))) {
+            // the nome inside the unit disc (DLMF 20.2.1-20.2.4); theta_1 and theta_2 carry the factor q^(1/4), real
+            // for a real nome only when it is not negative
             let q = args[2];
             if complex {
-                out.push(rel("less", b.call("abs", &[q]), b.one()));
+                // |q| < 1 as re(q)^2 + im_part(q)^2 < 1
+                out.push(rel("less", b.add(&[b.powi(b.call("re", &[q]), 2), b.powi(b.call("im_part", &[q]), 2)]), b.one()));
             } else {
-                out.push(rel("greater", q, b.int(-1)));
+                let quarter = matches!(h.view(args[0]), View::Int(1 | 2));
+                out.push(if quarter { rel("greater_equal", q, b.zero()) } else { rel("greater", q, b.int(-1)) });
                 out.push(rel("less", q, b.one()));
             }
             continue;
@@ -1406,13 +1415,22 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
         }
     }
     if is_call(b, g, "d") {
+        // no closed form for the derivative: samples can still show that no monotonicity or convexity holds
+        if order > 0 && !c.integers && !c.complex {
+            return witness_only(cx, b, c, x, order);
+        }
         return Ok(None);
     }
     // a derivative with no closed form (its values would be numerical derivatives): the differences of the
     // function's samples can still show that it is not monotonic or convex
-    if order > 0 && !c.integers && contains_call(b, g, "derivative") {
+    if order > 0 && !c.integers && (contains_call(b, g, "derivative") || has_derivative_head(b, g)) {
         if let Some(t) = probe_differences(cx, b, c, x, order)? {
             return Ok(Some(t));
+        }
+        if !c.complex {
+            if let Some(t) = witness_only(cx, b, c, x, order)? {
+                return Ok(Some(t));
+            }
         }
     }
     // strict: a zero of f is a counterexample
@@ -2647,6 +2665,18 @@ fn parts_of_polynomials<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
 }
 
 /// Does `t` contain a call of `name`?
+/// Does `t` contain a call of a derivative of a function with no closed form, `derivative(0, 1)(f)(a, x)`?
+fn has_derivative_head<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    match h.view(t) {
+        View::App { head, args } => {
+            let inner = matches!(h.view(head), View::App { head: hh, .. } if b.sym_of(hh) == Some(h.sym("derivative")));
+            inner || has_derivative_head(b, head) || args.iter().any(|&a| has_derivative_head(b, a))
+        }
+        _ => false,
+    }
+}
+
 fn contains_call<'h>(b: &Build<'h>, t: T<'h>, name: &str) -> bool {
     // shared subterms are decided once (a term can be a tree exponentially larger than itself)
     contains_call_in(b, t, name, &mut mc_api::walk::memo())
