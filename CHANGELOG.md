@@ -1,5 +1,10 @@
 # Changelog
 
+## Not released yet
+
+**Linux.** The tarball and the AppImage are built against an older C library (glibc 2.35), so they run on
+Ubuntu 22.04, Debian 12 and other systems of that age; before, they needed the newest one.
+
 ## 0.16.1 (2026-11-17)
 
 **Packages for more stores.** A Flatpak manifest with its metadata (`packaging/flatpak/`); the texts and

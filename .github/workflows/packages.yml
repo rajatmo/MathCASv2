@@ -85,7 +85,9 @@ jobs:
 
   linux:
     name: Linux tarball and AppImage
-    runs-on: ubuntu-latest
+    # the oldest Ubuntu release still supported: a program runs on systems with the C library it was built
+    # against or a newer one, so the packages are built against an old one (glibc 2.35)
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -101,6 +103,11 @@ jobs:
         run: |
           mkdir smoke && tar -C smoke -xzf dist-linux/MathCAS-v2-*.tar.gz
           bash packaging/linux/smoke.sh smoke/MathCAS-v2-* smoke-work
+      - name: The programs need no newer C library than glibc 2.35
+        run: |
+          newest="$(for b in smoke/MathCAS-v2-*/bin/*; do objdump -T "$b" | grep -o 'GLIBC_[0-9.]*'; done | sort -uV | tail -n 1)"
+          echo "newest symbol version: $newest"
+          [ "$( (echo GLIBC_2.35; echo "$newest") | sort -V | tail -n 1)" = GLIBC_2.35 ]
       # the AppImage, from the folder the tarball was made of. The runner has no FUSE: appimagetool (itself an
       # AppImage) and the image under test unpack themselves to run (APPIMAGE_EXTRACT_AND_RUN)
       - name: Build the AppImage (packaging/linux/build-appimage.sh)
