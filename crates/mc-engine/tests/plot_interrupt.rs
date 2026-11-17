@@ -57,14 +57,15 @@ fn a_solution_solved_again_in_a_later_session_is_plotted() {
         let mut e = engine();
         eval(&mut e, SOLVE);
         let a = eval(&mut e, PLOT);
-        assert!(is_picture(&a), "{a}");
+        // read now: the files of a process are removed when its last session ends
+        let first = picture(&a);
         let v1 = eval(&mut e, "ysol(20.0)");
         drop(e);
         // a new session solves the same equation: an equal solution under the same key
         let mut e = engine();
         eval(&mut e, SOLVE);
         let b = eval(&mut e, PLOT);
-        assert!(picture(&a) == picture(&b), "both sessions draw the same picture");
+        assert!(first == picture(&b), "both sessions draw the same picture");
         assert_eq!(eval(&mut e, "ysol(20.0)"), v1, "the solution solved again has the same values");
         // the residual of the equation at a few points, by the solution's own derivative
         for x in ["3.5", "11.0", "27.25"] {
