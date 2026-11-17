@@ -893,26 +893,25 @@ fn nl_by_angle(ps) = {
 }
 # a random convex polygon with k vertices in the unit square (Valtr 1995): random vectors from the sorted
 # coordinates, ordered by angle and chained, then shifted into the square
+# (each inner coordinate joins one of two chains from the least to the greatest at random; the steps of the first
+# chain and the negated steps of the second; whole-list operations: linear memory in k)
 fn nl_convex(k) = {
   let parts = xs => {
     let s = sort(xs)
-    let lo = s[1]
-    let hi = s[-1]
-    var a = lo
-    var b = lo
-    var out = []
-    for x in drop(drop(s, 1), -1) {
-      if random_real() < 1/2 then { out = append(out, x - a); a = x } else { out = append(out, b - x); b = x }
-    }
-    append(append(out, hi - a), b - hi)
+    let inner = drop(drop(s, 1), -1)
+    let side = map(u => u < 1/2, random_real(1, length(inner)))
+    let ca = join([s[1]], pick(inner, side), [s[-1]])
+    let cb = join([s[1]], pick(inner, map(b => not b, side)), [s[-1]])
+    join(differences(ca), -differences(cb))
   }
-  let dx = parts(map(i => random_real(), range(k)))
-  let dy = random_sample(parts(map(i => random_real(), range(k))))
-  let vs = sort_by(map(i => [dx[i], dy[i]], range(k)), v => atan(v[1], v[2]))
-  let pts = fold_list((p, v) => p + v, [0, 0], drop(vs, -1))
-  let lo = [min(map(p => p[1], pts)), min(map(p => p[2], pts))]
-  let w = max(max(map(p => p[1], pts)) - lo[1], max(map(p => p[2], pts)) - lo[2])
-  map(p => (p - lo)/w, pts)
+  let dx = parts(random_real(1, k))
+  let dy = random_sample(parts(random_real(1, k)))
+  let ord = ordering(arg(dx + im*dy))
+  let px = join([0], accumulate(drop(dx[ord], -1)))
+  let py = join([0], accumulate(drop(dy[ord], -1)))
+  let lo = [min(px), min(py)]
+  let w = max(max(px) - lo[1], max(py) - lo[2])
+  transpose([(px - lo[1])/w, (py - lo[2])/w])
 }
 # a random star-shaped polygon with k vertices about the centre of the unit square: sorted random angles, random radii
 fn nl_star(k) = {

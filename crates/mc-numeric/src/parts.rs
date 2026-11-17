@@ -372,6 +372,12 @@ pub(crate) fn arg<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args:
     if let Some(s) = real_valued_call(env, h, x) {
         return Ok(if s == env.s.abs { Reply::Done(h.int(0)) } else { Reply::Decline });
     }
+    // a closed real term of decided sign (`1 - sqrt(2)`): 0 or pi, as for a real number
+    match numeval::sign(h, &ar, &env.nm, x) {
+        Some(Ordering::Less) => return Ok(Reply::Done(pi)),
+        Some(Ordering::Greater) => return Ok(Reply::Done(h.int(0))),
+        _ => {}
+    }
     // arg(c y) = arg(y) for a positive real number c (a scaling does not turn the point); a negative or complex c
     // turns it, and the sum of the angles may leave (-pi, pi]
     if let Some((Num::Real(c), y)) = numeric_coefficient(env, h, &ar, x) {
@@ -453,6 +459,14 @@ fn abs_closed<'h>(env: &Env, h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
     if let Some((s, &[y])) = env.call_of(h, x) {
         if s == env.s.conjugate {
             return Some(h.call(env.s.abs, &[y]));
+        }
+    }
+    // |e^z| = e^re(z) for a non-real number z (exp(2 + im) has the modulus e^2)
+    if let Some((s, &[base, ex])) = env.call_of(h, x) {
+        if s == env.s.pow && matches!(h.view(base), mc_api::View::Sym(e) if h.sym_name(e) == "e") {
+            if let Some(Num::Complex(re, _)) = ar.num(ex) {
+                return Some(h.call(env.s.pow, &[base, ar.number(&Num::Real(re))]));
+            }
         }
     }
     // a closed real term of decided sign

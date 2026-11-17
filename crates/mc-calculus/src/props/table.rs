@@ -824,8 +824,9 @@ pub static TABLE: &[Entry] = &[
         name: "gamma_regularized",
         arity: 2,
         var: 1,
-        real: "$u > 0 or $u == 0 and $a > 0 or element($a, integers)",
-        complex: "$u != 0 or re($a) > 0 or element($a, integers)",
+        // at 0 Gamma(a, 0) is infinite for re(a) <= 0 while 1/Gamma(a) = 0 at a = 0, -1, ...: undefined there
+        real: "$u > 0 or $u == 0 and $a > 0 or element($a, integers) and ($a > 0 or $u != 0)",
+        complex: "$u != 0 or re($a) > 0",
         sr: Some(&[("not_element($a, integers) and $u <= 0", BR)]),
         sc: Some(&[("not_element($a, integers) and $u == 0", BR), ("not_element($a, integers) and im_part($u) == 0 and re($u) <= 0", BR)]),
         ranges: &[("$a > 0 and not_element($a, integers)", "0 < $y and $y <= 1")],
@@ -1460,7 +1461,12 @@ fn hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, 
             join(dm.iter().map(|m| format!("(re({m}) > 0 or not_element({m}, integers))")).collect(), " and ", "true"),
         )
     };
-    let poly = join(nm.iter().map(|a| format!("element({a}, integers) and {a} <= 0")).collect(), " or ", "false");
+    let mut poly = join(nm.iter().map(|a| format!("element({a}, integers) and {a} <= 0")).collect(), " or ", "false");
+    // U_nu = (nu + 1) 2F1(-nu, nu + 2; 3/2; w) at nu = -1 is 0 everywhere (U_(-n) = -U_(n - 2), DLMF 18.6.1 with
+    // the series of sin((n + 1) t)/sin(t)): a polynomial for every integer degree
+    if name == "chebyshev_u" {
+        poly = format!("element({}, integers)", nm[0]);
+    }
     let excess = format!("re(({}) - ({})) > 0", join(dm.clone(), " + ", "0"), join(nm.clone(), " + ", "0"));
     let f = if p <= q {
         Facts {

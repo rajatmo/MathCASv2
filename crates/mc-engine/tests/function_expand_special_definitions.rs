@@ -55,8 +55,9 @@ fn expanded_forms_agree_with_the_functions() {
         holds(&mut e, "full_simplify(function_expand(beta(z, 3, b)) - (2 - (1 - z)^b*(2 + 2*b*z + b*z^2 + b^2*z^2))/(b*(1 + b)*(2 + b))) == 0");
         // integer orders keep their other forms
         holds(&mut e, "free_of(function_expand(q_factorial(3, q)), q_pochhammer) and not free_of(function_expand(weber_e(2, x)), struve_h)");
-        // a negative base off the integers has no expansion here (the powers q^(z + 1) need a branch)
-        holds(&mut e, "function_expand(q_factorial(7/3, -1/2)) === q_factorial(7/3, -1/2)");
+        // a negative base off the integers: the quotient with the principal power q^(z + 1), the definition the
+        // numeric value takes (complex there)
+        agrees(&mut e, "q_factorial(7/3, -1/2)", "10^-25");
     });
 }
 

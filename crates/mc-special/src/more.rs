@@ -1852,6 +1852,26 @@ fn dawson_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 fn dawson_n<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     // sqrt(pi)/2 e^(-x^2) erfi(x)
     let x = a[0];
+    // a machine real beyond 20: the factors under- and overflow (beyond 26.6), so the asymptotic series
+    // F(x) = 1/(2 x) sum (2k - 1)!!/(2 x^2)^k (DLMF 7.12.1 through 7.5.1), whose terms fall by (2k + 1)/(2 x^2) <=
+    // 1/10 while k < 40: summed to the first term below 2^-60 of the sum
+    if let Some(v) = fx.machine_of(x) {
+        if v.is_infinite() {
+            return Ok(Some(fx.real(0.0)));
+        }
+        if v.abs() > 20.0 {
+            let w = 2.0 * v * v;
+            let (mut term, mut sum) = (1.0f64, 1.0f64);
+            for k in 0..40 {
+                term *= (2 * k + 1) as f64 / w;
+                sum += term;
+                if term.abs() < sum.abs() * 8.7e-19 {
+                    break;
+                }
+            }
+            return Ok(Some(fx.real(sum / (2.0 * v))));
+        }
+    }
     let e = fx.call("exp", &[fx.neg(fx.pow(x, fx.int(2)))]);
     Ok(Some(fx.mul(&[fx.rat(1, 2), fx.sqrt(fx.sym("pi")), e, fx.call("erfi", &[x])])))
 }

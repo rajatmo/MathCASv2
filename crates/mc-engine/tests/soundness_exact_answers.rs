@@ -1694,7 +1694,10 @@ fn moduli_and_extremes_of_balls() {
 fn continued_fractions_of_quadratic_irrationals() {
     let mut e = CoreEngine::new();
     // (1 + sqrt(5))/2 is held as a rational multiple of a sum: it stayed unevaluated
-    assert_eq!(timed(&mut e, "[continued_fraction((1 + sqrt(5))/2), continued_fraction((1 + sqrt(7))/3)]"), "[[[1]], [[1, 4, 1, 1]]]");
+    assert_eq!(timed(&mut e, "[continued_fraction((1 + sqrt(5))/2), continued_fraction((1 + sqrt(7))/3)]"), "[[1, [1]], [1, [4, 1, 1, 1]]]");
+    // the integer part stands before the period also for a purely periodic expansion: [1, 4, 1, 1] repeated is
+    // 1 followed by the period [4, 1, 1, 1]
+    assert!(holds(&mut e, "v = (1 + sqrt(7))/3; abs(n(from_continued_fraction(continued_fraction(v)) - v, 40)) < 10^-35"));
     // independent: the periodic form gives the number back
     assert!(holds(&mut e, "v = -(2 + sqrt(3))/5; abs(n(from_continued_fraction(continued_fraction(v)) - v, 40)) < 10^-35"));
     assert_eq!(timed(&mut e, "continued_fraction((3 - sqrt(2))/4, 6)"), "[0, 2, 1, 1, 10, 1]");

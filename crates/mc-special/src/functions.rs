@@ -474,6 +474,8 @@ impl Special {
             S::EllipticE => cx::elliptic_e(a[0]),
             S::EllipticEInc => cx::elliptic_e_inc(a[0], a[1]),
             S::EllipticF => cx::elliptic_f(a[0], a[1]),
+            // F(asin v | m), the definition, for the complex values off [-1, 1]
+            S::InverseJacobiSn => cx::elliptic_f(a[0].asin(), a[1]),
             _ => None,
         }
     }
@@ -628,7 +630,14 @@ impl LibraryFn for Special {
         if args.len() != self.arity() || !self.real_domain(args) {
             return Mach::Real(f64::NAN);
         }
-        self.machine_value(args)
+        let v = self.machine_value(args);
+        // inverse_jacobi_sn beyond its real values (|v| > 1 or m v^2 > 1): the complex value F(asin v | m)
+        if *self == Special::InverseJacobiSn && matches!(v, Mach::Real(r) if r.is_nan()) && args.iter().all(|x| x.is_finite()) {
+            if let Some(z) = Special::machine_complex(*self, &[C64::real(args[0]), C64::real(args[1])]) {
+                return Mach::Complex(z);
+            }
+        }
+        v
     }
     fn machine_complex(&self, args: &[C64]) -> Option<C64> {
         if args.len() != self.arity() {

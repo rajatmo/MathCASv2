@@ -1568,7 +1568,23 @@ fn calc_scale_gc(e, c, assm, times, gc) = if gc === calc_no_gc then calc_scale(e
   else calc_sides(e, f)
 }
 fn calc_multiply_sides(e, c, assumptions, gc) =
-  if head(c) === equal and length(c) == 2 and length(e) == 2 then apply(head(e), [e[1]*c[1], e[2]*c[2]]) else calc_scale_gc(e, c, assumptions, true, gc)
+  if head(c) === equal and length(c) == 2 and length(e) == 2 then calc_multiply_eq(e, c, assumptions) else calc_scale_gc(e, c, assumptions, true, gc)
+# e multiplied by the sides of the equation c1 == c2: an equation stays one; an inequation or inequality holds
+# multiplied by a nonzero (a positive, or a negative with the direction reversed) c1 = c2, and at c1 = 0 both
+# products are 0
+fn calc_multiply_eq(e, c, assm) = {
+  let r = apply(head(e), [e[1]*c[1], e[2]*c[2]])
+  let z = equal(e[1]*c[1], e[2]*c[2])
+  let ineq = some([less, greater, less_equal, greater_equal], h => head(e) === h)
+  # c1 = c2: the sign of either side that is decided
+  let sg1 = calc_sign_of(c[1], assm)
+  let sg = if sg1 != 0 then sg1 else calc_sign_of(c[2], assm)
+  let nz = if sg != 0 then true else if assm === automatic then simplify(c[1] != 0) else simplify(c[1] != 0, assm)
+  if head(e) === equal or sg == 1 or (not ineq and nz === true) then r
+  else if ineq and sg == -1 then apply(calc_flip(head(e)), [e[1]*c[1], e[2]*c[2]])
+  else if ineq then piecewise([[r, c[1] > 0], [apply(calc_flip(head(e)), [e[1]*c[1], e[2]*c[2]]), c[1] < 0]], z)
+  else piecewise([[r, c[1] != 0]], z)
+}
 fn calc_divide_sides1(e, assumptions, gc) = calc_scale_gc(e, last(apply(list, e)), assumptions, false, gc)
 fn calc_divide_sides(e, c, assumptions, gc) = {
   if head(c) === equal and length(c) == 2 and length(e) == 2 then {
@@ -2363,7 +2379,22 @@ fn calc_mconv_mb(f, g, x, y, gc) = {
 # re(a) > 0 for a decay exp(-a r), and s >= 0, attached as conditional_expression)
 fn calc_hk_cond(f, x, p) = {
   let a = simplify(-limit(d(f, x)/f, x -> inf))
-  if free_of(a, x) and not (a === 0) and not (head(a) === limit) then (re(a) > 0 and p >= 0) else p >= 0
+  let c = if free_of(a, x) and not (a === 0) and not (head(a) === limit) then (re(a) > 0 and p >= 0) else p >= 0
+  let pc = calc_hk_pcond(f, x)
+  if pc === true then c else (pc and c)
+}
+# the parameters the Mellin transform needed positive (calc_hk_mellin): the value holds for them positive; for
+# f = c (x^2 + p^2)^k, by continuation in p^2 over re(p^2) > 0, where re(x^2 + p^2) > 0 on the half-line keeps the
+# power analytic (the reals p^2 <= 0 put its branch point or pole on the half-line)
+fn calc_hk_pcond(f, x) = {
+  let ps = select(calc_syms(f), p => not (p === x))
+  let mf = if length(ps) == 0 then null else mellin_transform(f, x, calc_mb_z, generate_conditions: true)
+  if length(ps) == 0 or head(mf) === conditional_expression then true
+  else apply(`and`, map(p => if calc_hk_sqform(f, x, p) then re(p^2) > 0 else p > 0, ps))
+}
+fn calc_hk_sqform(f, x, p) = {
+  let g = simplify(f/(x^2 + p^2)^exponent(simplify(f), x^2 + p^2))
+  free_of(g, x) and free_of(g, p)
 }
 fn calc_hk_run(f, x, p, nu, asm, gc) = {
   # an option read in a condition of the definition arrives as its own name (not yet its default): no assumptions
@@ -4343,8 +4374,10 @@ fn cb_first_order(eqs, ys, t, disc) = {
 # cb_stability(eqs, vs, t, pts, disc): [[point, condition], ...]: at each equilibrium the eigenvalues of the
 # Jacobian of the first-order system, the condition Re(lambda) < 0 (continuous) or |lambda| < 1 (discrete) for all of
 # them, decided for numbers (Lyapunov's indirect method; boundary cases count as not stable)
+# (an eigenvalue that is a root object or holds a fractional power may be complex for real parameters: |l| < 1)
 fn cb_stab_cond(l, disc) = {
-  let v = if disc then (if free_of(l, im) then -1 < l and l < 1 else abs(l) < 1) else re(l) < 0
+  let real = free_of(l, im) and free_of(l, root) and every(cases([l], pow(_, q_) :> q, inf), q => is_integer(q))
+  let v = if disc then (if real then -1 < l and l < 1 else abs(l) < 1) else re(l) < 0
   if is_numeric(l) then (if disc then n(abs(l)) < 1 else n(re(l)) < 0) else v
 }
 # cb_jury(jp): the conditions for all roots of the characteristic polynomial of the 1 x 1 or 2 x 2 matrix jp to lie in

@@ -662,6 +662,21 @@ fn imel<'h>(
 fn default_strip<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, s: T<'h>) -> Res<Option<T<'h>>> {
     let mut best: Option<T<'h>> = None;
     for g in factors(b, f) {
+        // a pole of a rational factor (a s + c)^-k: the residue series sums it, so the strip lies to its right
+        if let Some((n, [u, k])) = call_of(b, g) {
+            if n == "pow" && b.ar.num(*k).is_some_and(|k| k.as_rat().is_some_and(|q| q.is_int() && q.num.neg)) {
+                if let Some((a, c)) = super::linear(cx, b, *u, s)? {
+                    if b.ar.num(a).is_some() && sign(cx, b, a)?.is_some() {
+                        let p = cx.eval(b.call("re", &[b.neg(b.div(c, a))]))?;
+                        best = match best {
+                            None => Some(p),
+                            Some(q) => Some(if sign(cx, b, b.sub(p, q))? == Some(1) { p } else { q }),
+                        };
+                    }
+                }
+            }
+            continue;
+        }
         if let Some((n, [u])) = call_of(b, g) {
             if n == "gamma" {
                 if let Some((a, c)) = super::linear(cx, b, *u, s)? {

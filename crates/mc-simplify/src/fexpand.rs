@@ -442,9 +442,10 @@ fn special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
             let t2 = b.div(b.mul(&[*z, s, f12(b.rat(3, 2))]), b.mul(&[pi, b.sub(one, b.powi(*n, 2))]));
             b.add(&[t1, t2])
         }
-        // [n]_q! = (q; q)_n/(1 - q)^n = (q; q)_inf/((q^(n + 1); q)_inf (1 - q)^n) for a rational 0 < q < 1 (for
-        // -1 < q < 0 the q-gamma function of a non-integer n is not this quotient: the power q^(n + 1) is complex)
-        ("q_factorial", [n, q]) if matches!(small_fraction(b.heap(), *q), Some((k, d)) if 0 < k && k < d) => {
+        // [n]_q! = (q; q)_n/(1 - q)^n = (q; q)_inf/((q^(n + 1); q)_inf (1 - q)^n) for a rational 0 < |q| < 1 (for
+        // q < 0 with the principal power q^(n + 1), complex at a non-integer n: the definition the numeric value
+        // takes)
+        ("q_factorial", [n, q]) if matches!(small_fraction(b.heap(), *q), Some((k, d)) if k != 0 && k.abs() < d) => {
             let num = b.call_named("q_pochhammer", &[*q, *q]);
             let den = b.mul(&[b.call_named("q_pochhammer", &[b.pow(*q, b.add(&[*n, one])), *q]), b.pow(b.sub(one, *q), *n)]);
             b.div(num, den)

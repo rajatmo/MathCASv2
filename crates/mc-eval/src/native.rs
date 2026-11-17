@@ -200,6 +200,10 @@ impl<'h> NativeCx<'_, '_, 'h> {
     pub fn effect(&mut self) -> Res<()> {
         self.ev.effect(self.cx)
     }
+    /// Whether the evaluation runs inside a rule's condition, where an effect (a message) fails the condition.
+    pub fn in_condition(&self) -> bool {
+        self.cx.in_cond > 0
+    }
     /// Append `t` to the session output (an effect).
     pub fn emit(&mut self, t: T<'h>) -> Res<()> {
         self.ev.emit(self.cx, t)

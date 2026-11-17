@@ -668,7 +668,11 @@ fn walk<'h>(
                 _ => (lo, hi),
             };
             for (at, v) in [(lo, vlo), (hi, vhi)] {
-                if v != at {
+                let numbers = b.ar.num(v).is_some() && b.ar.num(at).is_some();
+                if v != at && !numbers && mode == Mode::Disc {
+                    // symbolic: a jump only where the value differs from the bound
+                    push(b.call("and", &[rel("equal", u, at), rel("unequal", v, at)]), Kind::Jump);
+                } else if v != at {
                     push(rel("equal", u, at), Kind::Jump);
                 } else if mode == Mode::Sing {
                     push(rel("equal", u, at), Kind::Kink);

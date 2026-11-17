@@ -260,6 +260,11 @@ impl<'a, 'h> More<'a, 'h> {
     /// The rule for `f` at `args` (exact numbers or symbolic terms), if any.
     pub fn rule(&self, f: Special, a: &[T<'h>]) -> Option<Exact<'h>> {
         let pi = || self.sym("pi");
+        // |log_gamma(z)| -> inf as |z| -> inf in every direction (Stirling's series off the negative axis, DLMF 5.11.1;
+        // on it the imaginary part is -pi k for the k-th interval of negative z, DLMF 5.4.(i)): complex_infinity
+        if f == S::LogGamma && a.last() == Some(&self.sym("complex_infinity")) {
+            return self.val(self.sym("complex_infinity"));
+        }
         // indeterminate arguments, and the gamma family at complex_infinity, give indeterminate
         if a.iter().any(|&t| t == self.sym("indeterminate"))
             || (matches!(f, S::Gamma | S::LogGamma | S::Digamma | S::Polygamma) && a.last() == Some(&self.sym("complex_infinity")))
@@ -581,12 +586,29 @@ impl<'a, 'h> More<'a, 'h> {
                 if self.is(a[0], 0) {
                     return self.val(self.call("elliptic_k", &[a[1]]));
                 }
-                // Pi(n | 0) = pi/(2 sqrt(1 - n)) (DLMF 19.6.1)
+                // Pi(n | 0) = pi/(2 sqrt(1 - n)) (DLMF 19.6.1) off the cut n >= 1; for real n > 1 the integral is a
+                // principal value, Pi(n | 0) = K(0) - Pi(0 | 0) = 0 (DLMF 19.6.5 with m = 0, the value the numeric
+                // path takes), and n = 1 is a pole
                 if self.is(a[1], 0) {
                     let one = self.n(1);
                     let root = self.ar.pow(self.ar.sub(one, a[0]), self.ar.rational(self.h.int(1), self.h.int(2)));
                     let pi = self.h.sym_term(self.h.sym("pi"));
-                    return self.val(self.ar.div(pi, self.ar.mul(&[self.n(2), root])));
+                    let value = self.ar.div(pi, self.ar.mul(&[self.n(2), root]));
+                    if let Some(q) = self.rat(a[0]) {
+                        return match q.cmp_value(&Rat::from_i64(1)) {
+                            std::cmp::Ordering::Equal => Some(Exact::Pole),
+                            std::cmp::Ordering::Greater => self.val(self.n(0)),
+                            std::cmp::Ordering::Less => self.val(value),
+                        };
+                    }
+                    let off = self.ar.sub(one, a[0]);
+                    let on_plane = self.call(
+                        "and",
+                        &[self.call("less", &[self.ar.neg(pi), self.call("arg", &[off])]), self.call("less", &[self.call("arg", &[off]), pi]), self.call("unequal", &[a[0], one])],
+                    );
+                    let pole = self.call("equal", &[a[0], one]);
+                    let pieces = self.call("list", &[self.call("list", &[value, on_plane]), self.call("list", &[self.sym("complex_infinity"), pole])]);
+                    return self.val(self.call("piecewise", &[pieces, self.n(0)]));
                 }
                 None
             }

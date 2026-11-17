@@ -501,7 +501,15 @@ fn fractional_part_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     Ok(ip.map(|ip| fx.sub(x, ip)))
 }
 
+/// Is one of the arguments a non-real number (the step functions of real arguments stay unevaluated there)?
+fn any_non_real<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> bool {
+    a.iter().any(|&x| matches!(fx.num(x), Some(Num::Complex(..))))
+}
+
 fn unit_box_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if any_non_real(fx, a) {
+        return Ok(None);
+    }
     // the product of the boxes: 1 for |x| <= 1/2, else 0
     let mut open = vec![];
     for &x in a {
@@ -523,6 +531,9 @@ fn unit_box_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 }
 
 fn unit_triangle_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if any_non_real(fx, a) {
+        return Ok(None);
+    }
     let mut vals = vec![];
     for &x in a {
         let ax = fx.eval(fx.call("abs", &[x]))?;

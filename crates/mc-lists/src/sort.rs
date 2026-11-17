@@ -272,6 +272,22 @@ pub(crate) fn sort<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
             return Ok(lib.rebuilt(h, head, &v));
         }
     }
+    // finite machine reals only: the canonical order is the numeric one, compared as floats (equal values by the
+    // canonical order, which separates the signed zeros)
+    if by.is_none() && xs.len() > 1 {
+        let fs: Option<Vec<f64>> = xs.iter().map(|&x| match h.view(x) {
+            View::Real(f) if f.is_finite() => Some(f),
+            _ => None,
+        }).collect();
+        if let Some(fs) = fs {
+            cx.tick(1 + xs.len() as u64 / 16)?;
+            let order = Canonical::new(h);
+            let mut ix: Vec<usize> = (0..xs.len()).collect();
+            ix.sort_by(|&a, &b| fs[a].partial_cmp(&fs[b]).unwrap_or(Ordering::Equal).then_with(|| order.cmp(xs[a], xs[b])));
+            let v: Vec<T<'h>> = ix.iter().map(|&i| xs[i]).collect();
+            return Ok(lib.rebuilt(h, head, &v));
+        }
+    }
     let mut v = xs.to_vec();
     let r = match by {
         None => {
@@ -352,6 +368,17 @@ fn order_by_pred<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>], by
 
 fn order_by_keys<'h>(cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>]) -> Res<Vec<usize>> {
     let mut ix: Vec<usize> = (0..key.len()).collect();
+    // finite machine reals: compared as floats, equal values by the canonical order (as `sort`)
+    let h = cx.heap();
+    let fs: Option<Vec<f64>> = key.iter().map(|&x| match h.view(x) {
+        View::Real(f) if f.is_finite() => Some(f),
+        _ => None,
+    }).collect();
+    if let Some(fs) = fs {
+        cx.tick(1 + key.len() as u64 / 16)?;
+        ix.sort_by(|&a, &b| fs[a].partial_cmp(&fs[b]).unwrap_or(Ordering::Equal).then_with(|| cx.cmp(key[a], key[b])));
+        return Ok(ix);
+    }
     let mut m = Meter::default();
     match merge_sort(&mut ix, &mut |b, a| {
         m.step(cx)?;
@@ -376,6 +403,39 @@ pub(crate) fn sort_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
         _ => return Ok(Reply::Decline),
     };
     let (head, xs) = take!(lib.operand(h, t, xs, 1));
+    // `sort_by(xs, [f1, f2, ...])`: ordered by the keys f1(x), then f2(x), ... in turn; elements equal in every key
+    // keep their order
+    if let (Some(fs), None) = (cx.as_list(f).map(<[T<'h>]>::to_vec), by) {
+        if fs.is_empty() {
+            return Ok(Reply::Decline);
+        }
+        let mut cols: Vec<Vec<T<'h>>> = Vec::with_capacity(fs.len());
+        for &g in &fs {
+            match keys(lib, cx, g, xs)? {
+                Ok(k) => cols.push(k),
+                Err(e) => return Ok(Reply::Done(e)),
+            }
+        }
+        let mut ix: Vec<usize> = (0..xs.len()).collect();
+        let mut m = Meter::default();
+        match merge_sort(&mut ix, &mut |b, a| {
+            for col in &cols {
+                m.step(cx)?;
+                match cx.cmp(col[b], col[a]) {
+                    Ordering::Less => return Ok(true),
+                    Ordering::Greater => return Ok(false),
+                    Ordering::Equal => {}
+                }
+            }
+            Ok(false)
+        }) {
+            Ok(()) => {}
+            Err(Halt::Abort(a)) => return Err(a),
+            Err(Halt::Fail(f)) => return Ok(Reply::Done(f)),
+        }
+        let v: Vec<T<'h>> = ix.iter().map(|&i| xs[i]).collect();
+        return Ok(lib.rebuilt(h, head, &v));
+    }
     let key = match keys(lib, cx, f, xs)? {
         Ok(k) => k,
         Err(e) => return Ok(Reply::Done(e)),
@@ -410,7 +470,12 @@ pub(crate) fn ordering<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
         [xs, n, p] => (xs, Some(n), Some(p)),
         _ => return Ok(Reply::Decline),
     };
-    let (_, xs) = take!(lib.operand(h, t, xs, 1));
+    // an association: the positions of its values in order
+    let vals: Option<Vec<T<'h>>> = crate::levels::assoc_entries(h, xs).map(|es| es.iter().map(|e| e.1).collect());
+    let xs: &[T<'h>] = match &vals {
+        Some(v) => v,
+        None => take!(lib.operand(h, t, xs, 1)).1,
+    };
     // up_to(k): at most k positions; [m, k]: the positions m to k of the ordering (negative counts from the end)
     let len = xs.len() as i64;
     let mut span: Option<(i64, i64)> = None;

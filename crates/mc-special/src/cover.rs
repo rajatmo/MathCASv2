@@ -927,9 +927,13 @@ fn q_pochhammer<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if !numeric(fx, a) {
         return Ok(None);
     }
+    // (x; q)_n for a negative q and a non-integer n holds the principal power q^n, not real: the value is complex
+    // for real arguments
+    let complex_power = a.len() == 3 && fx.num(a[1]).and_then(|v| v.as_real().map(|r| r.is_negative())) == Some(true) && fx.int_of(a[2]).is_none();
     // machine arguments: the product in complex machine arithmetic with its cancellation bound (the
     // contour plots of q_pochhammer and q_factorial would time out on the ball path), else the ball path
     if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
+        let real = real && !complex_power;
         let (x, q) = if a.len() == 1 { (ms[0], ms[0]) } else { (ms[0], ms[1]) };
         // Euler's function of a real q near -1 or 1 (the product there needs thousands of factors)
         let near_one = || (a.len() == 1 && real).then(|| crate::fast_dd::euler_near_one(q.re.hi)).flatten().map(mc_numeric::machine::C64::real);
@@ -956,7 +960,7 @@ fn q_pochhammer<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         let Some(d) = q_product(fx, xn, q, wk.w)? else { return Ok(None) };
         v = fx.div(v, d);
     }
-    Ok(wk.out(fx, v, wk.real))
+    Ok(wk.out(fx, v, wk.real && !complex_power))
 }
 
 /// `q_factorial(n, q)` (the count first).

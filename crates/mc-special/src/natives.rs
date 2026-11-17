@@ -337,6 +337,10 @@ impl Native for Fun {
             }
             // indeterminate arguments, and the gamma family at complex_infinity
             let undefined = |n: &str| h.sym_term(h.sym(n));
+            // (log_gamma tends to complex_infinity in every direction: the rule of `exact_more`)
+            if f == Special::LogGamma && args.last() == Some(&undefined("complex_infinity")) {
+                return Ok(exact_reply(h, t, more.rule(f, args)));
+            }
             if args.contains(&undefined("indeterminate"))
                 || (matches!(f, Special::Gamma | Special::LogGamma | Special::Digamma | Special::Polygamma)
                     && args.last() == Some(&undefined("complex_infinity")))

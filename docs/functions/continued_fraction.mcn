@@ -13,7 +13,7 @@
 # Details
 
 #% item
-# A rational number has a finite continued fraction. A quadratic irrational, such as `sqrt(2)`, has a periodic one: its period forms a final sublist.
+# A rational number has a finite continued fraction. A quadratic irrational, such as `sqrt(2)`, has a periodic one: the integer part comes first and the period forms a final sublist (`[1, [1]]` for the golden ratio, also when the expansion is purely periodic).
 
 #% item
 # Other exact irrationals need a count `n`; machine numbers and balls give the terms their precision supports.
@@ -42,7 +42,7 @@ continued_fraction(pi, 10)
 #% cell
 continued_fraction(1/2 + sqrt(5)/2)
 #% output
-#= [[1]]
+#= [1, [1]]
 
 #% subsection
 # Scope
@@ -101,16 +101,13 @@ v = from_continued_fraction(continued_fraction(sqrt(13)))
 #% output
 #= [3.605551275463989293119221, 3.605551275463989293119221]
 
-#% subsection
-# Possible issues
-
 #% text
-# A quadratic irrational over a common denominator is not recognized; split the fraction:
+# A quadratic irrational over a common denominator:
 
 #% cell
 continued_fraction((1 + sqrt(5))/2)
 #% output
-#= [[1]]
+#= [1, [1]]
 
 #% section
 # See also

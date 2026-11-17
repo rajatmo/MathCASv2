@@ -92,7 +92,9 @@ fn clip_with_values_outside_its_bounds() {
     assert_eq!(ev("piecewise_expand(clip(x, [0, 4], [0, 2]))"), "piecewise([[2, x > 4], [x, 0 <= x and x <= 4]], 0)");
     assert_eq!(ev("piecewise_expand(clip(x, [-1, 1], [-5, 7]))"), "piecewise([[-5, x < -1], [7, x > 1]], x)");
     assert_eq!(ev("[clip(5, [0, 4], [0, 2]), clip(-1, [0, 4], [-3, 2])]"), "[2, -3]");
-    assert_eq!(ev("function_discontinuities(clip(x, [min_u, max_u], [vmin, max_u]), x)"), "x == min_u");
+    // the value vmin left of min_u jumps to min_u only when vmin != min_u (at vmin == min_u the function is x
+    // there, continuous): the condition is part of the set
+    assert_eq!(ev("function_discontinuities(clip(x, [min_u, max_u], [vmin, max_u]), x)"), "x == min_u and vmin != min_u");
     assert_eq!(ev("function_discontinuities(clip(x, [0, 1], [-1, 2]), x)"), "x == 0 or x == 1");
     assert_eq!(ev("function_discontinuities(clip(x, [0, 1]), x)"), "false");
 }

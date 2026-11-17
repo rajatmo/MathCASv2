@@ -1390,7 +1390,9 @@ rule conjugate_transpose(a_, p_) := conjugate(transpose(a, p)) when is_list(a) a
 
 # reverse_sort_by(xs, f): the elements of xs in decreasing order of f(x); reverse_sort_by(xs, f, p): the order of
 # sort_by(xs, f, p) reversed
-fn reverse_sort_by(xs, f) = reverse(sort_by(xs, f))
+# with a list of key functions, elements equal in every key keep their order (the input reversed, sorted stably
+# and reversed back)
+fn reverse_sort_by(xs, f) = if is_list(f) and is_list(xs) then reverse(sort_by(reverse(xs), f)) else reverse(sort_by(xs, f))
 fn reverse_sort_by(xs, f, p) = reverse(sort_by(xs, f, p))
 
 # ordering_by(xs, f), ordering_by(xs, f, n): the positions of the elements of xs in the canonical order of f(x)

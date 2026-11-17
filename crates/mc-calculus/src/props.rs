@@ -164,6 +164,9 @@ const CONTINUOUS: &[&str] = &[
     "fractional_part", "clip", "ramp", "real_abs", "real_sign", "unit_box", "unit_triangle", "heaviside_theta", "arg",
 ];
 
+/// Functions of real arguments only: a non-real argument leaves the call unevaluated.
+const REAL_ONLY: &[&str] = &["clip", "max", "min", "ramp", "real_abs", "real_sign", "unit_box", "unit_step", "unit_triangle"];
+
 /// The call's pieces.
 struct Call<'h> {
     f: T<'h>,
@@ -468,17 +471,29 @@ fn conditions_of<'h>(
             out.push(rel("unequal", b.add(&[b.powi(args[0], 2), b.powi(args[1], 2)]), b.zero()));
             continue;
         }
+        // functions of real arguments only (they stay unevaluated at a non-real one): over the complexes, defined
+        // where their arguments are real (`clip`: the clipped value; `max`, `min`: every item of a list)
+        if complex && REAL_ONLY.contains(&name.as_str()) {
+            let take = if name == "clip" { &args[..args.len().min(1)] } else { args };
+            for &a in take {
+                let items: Vec<T<'h>> = match cx.as_list(a) {
+                    Some(v) => v.to_vec(),
+                    None => vec![a],
+                };
+                for u in items {
+                    if depends(u) {
+                        out.push(b.call("element", &[u, h.sym_term(h.sym("reals"))]));
+                    }
+                }
+            }
+            continue;
+        }
         let [a] = args else {
             // floor(u, m), ceiling(u, m), round(u, m) = m floor(u/m), ...: undefined at m == 0
             if matches!(name.as_str(), "floor" | "ceiling" | "round") && args.len() == 2 {
                 if depends(args[1]) {
                     out.push(rel("unequal", args[1], zero));
                 }
-                continue;
-            }
-            // clip of a non-real argument stays unevaluated
-            if name == "clip" && complex {
-                out.push(b.call("element", &[args[0], h.sym_term(h.sym("reals"))]));
                 continue;
             }
             if CONTINUOUS.contains(&name.as_str()) {
@@ -488,7 +503,11 @@ fn conditions_of<'h>(
                 let fixed = params.iter().all(|&p| !depends(p));
                 // a non-negative order for j_n (a negative one is a multiple of y: DLMF 10.47.10); 0F1 not at a pole of b
                 let integer_order = matches!(params, [n] if matches!(h.view(*n), View::Int(k) if k >= 0 || name != "spherical_bessel_j"));
-                let pole = name == "hypergeometric_0f1" && matches!(params, [n] if matches!(h.view(*n), View::Int(k) if k <= 0));
+                // (for the domain, a symbolic b may be such a pole: the table's condition; analyticity keeps the
+                // singular sets' reading, entire in z for a parameter that is not a pole)
+                let pole = name == "hypergeometric_0f1"
+                    && (matches!(params, [n] if matches!(h.view(*n), View::Int(k) if k <= 0))
+                        || !analytic && !matches!(params, [n] if matches!(h.view(*n), View::Int(k) if k > 0) || matches!(h.view(*n), View::Rational { .. })));
                 // the Chebyshev functions of a non-integer degree have a branch point at -1 (the table)
                 let polynomial = !matches!(name.as_str(), "chebyshev_t" | "chebyshev_u") || matches!(params, [n] if matches!(h.view(*n), View::Int(_)));
                 if fixed && !pole && depends(*last) && (ENTIRE_LAST.contains(&name.as_str()) && polynomial || ENTIRE_INTEGER_ORDER.contains(&name.as_str()) && integer_order) {
@@ -541,7 +560,6 @@ fn conditions_of<'h>(
                     out.push(rel("unequal", *a, zero));
                 }
             }
-            "unit_step" | "clip" if complex => out.push(b.call("element", &[*a, h.sym_term(h.sym("reals"))])),
             n if ENTIRE.contains(&n) || CONTINUOUS.contains(&n) => {}
             "log" if complex && analytic => out.push(branch_cut(b, *a)),
             "log" => out.push(rel(if complex { "unequal" } else { "greater" }, *a, zero)),

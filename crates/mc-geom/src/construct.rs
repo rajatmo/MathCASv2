@@ -341,15 +341,27 @@ pub fn ring_simple(r: &[Vec<f64>]) -> bool {
 fn ring_convex(r: &[Vec<f64>]) -> bool {
     let n = r.len();
     let mut sign = 0.0f64;
+    let mut strict = n >= 3;
+    let mut turning = 0.0f64;
     for i in 0..n {
         let (a, b, c) = (&r[i], &r[(i + 1) % n], &r[(i + 2) % n]);
         let z = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+        let dot = (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1]);
+        turning += z.atan2(dot);
         if z != 0.0 {
             if sign != 0.0 && z.signum() != sign {
                 return false;
             }
             sign = z.signum();
+        } else {
+            strict = false;
         }
+    }
+    // every turn strictly one way: the closed polygon is simple exactly when it winds once (total turning +-2 pi,
+    // each turn in (0, pi) or (-pi, 0): a locally convex closed polygon of total turning 2 pi is convex, the
+    // converse of the turning tangent theorem); collinear corners: the segment test
+    if strict {
+        return turning.abs() < 3.0 * std::f64::consts::PI;
     }
     ring_simple(r)
 }

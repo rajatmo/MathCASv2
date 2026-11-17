@@ -1505,7 +1505,13 @@ fn continued_fraction<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     }
     // quadratic irrationals: the periodic form, or its first terms
     if let Some((qa, qb, qc, qd)) = quadratic(fx, x) {
-        if let Some((pre, period)) = quadratic_cf(qa, qb, qc, qd) {
+        if let Some((mut pre, mut period)) = quadratic_cf(qa, qb, qc, qd) {
+            // the integer part always stands before the period: a purely periodic expansion [a1, ..., ak]
+            // repeated is written a1 followed by the period [a2, ..., ak, a1]
+            if pre.is_empty() && !period.is_empty() {
+                pre.push(period[0]);
+                period.rotate_left(1);
+            }
             let to_t = |fx: &Fx<'_, '_, '_, 'h>, v: i128| fx.integer(&Int::from_i64(v as i64));
             if let Some(l) = limit {
                 let mut out = vec![];

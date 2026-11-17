@@ -414,7 +414,12 @@ fn trace<S: Scalar>(method: &str, dims: usize, calls: u64, o: &Outcome<S>) {
 
 /// Print `text` as a message of `n_integrate` (the engine's `message`: scripts print `n_integrate: text`,
 /// notebooks a message).
+/// Inside a rule's condition (a numeric check under `when`) the warning is left out: a message there is an effect
+/// that would fail the condition, while the value and its error estimate say what the caller needs.
 fn message<'h>(cx: &mut NativeCx<'_, '_, 'h>, text: &str) -> Res<()> {
+    if cx.in_condition() {
+        return Ok(());
+    }
     let h = cx.heap();
     cx.eval(h.call(h.sym("message"), &[h.sym_term(h.sym(NAME)), h.string(text)]))?;
     Ok(())
