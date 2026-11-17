@@ -1,0 +1,1 @@
+The Linux packages run on older systems, and a Flatpak bundle is attached to each release. No change to the Android app since 0.16.1.

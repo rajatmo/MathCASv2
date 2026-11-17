@@ -1,6 +1,6 @@
 # Changelog
 
-## Not released yet
+## 0.16.2 (2026-11-17)
 
 **Linux.** The tarball and the AppImage are built against an older C library (glibc 2.35), so they run on
 Ubuntu 22.04, Debian 12 and other systems of that age; before, they needed the newest one.

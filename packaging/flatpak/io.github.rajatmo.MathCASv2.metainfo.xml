@@ -49,6 +49,12 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.16.2" date="2026-11-17">
+      <url type="details">https://github.com/rajatmo/MathCASv2/blob/v0.16.2/CHANGELOG.md</url>
+      <description>
+        <p>The Linux packages run on older systems (glibc 2.35), and a Flatpak bundle is attached to each release.</p>
+      </description>
+    </release>
     <release version="0.16.1" date="2026-11-17">
       <url type="details">https://github.com/rajatmo/MathCASv2/blob/v0.16.1/CHANGELOG.md</url>
       <description>
