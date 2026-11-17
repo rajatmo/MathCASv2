@@ -5,6 +5,32 @@
 **Linux.** The AppImage carries update information, and each release has its `.zsync` file: AppImageUpdate and
 similar tools can bring an installed AppImage to the newest release.
 
+**Printed forms that changed.** `max`, `min`, `gcd`, `lcm`, `bit_and`, `bit_or`, `bit_xor` and `xor` flatten
+and sort their arguments (`lcm(x, y, 2)` is `lcm(2, x, y)`); `indexed(x, 1)` is `indexed(x, [1])`; a
+`piecewise` drops cases that cannot be reached and joins neighbours with one value; unions and differences of
+segments of the line are disjoint segments. `together` and `cancel` keep a denominator factored as written,
+`apart` writes each fraction as a rational times a primitive numerator, `expand_all` expands denominators
+too, `trig_reduce` and `simplify` put the rational content outside (`(1/2)*(1 - cos(2*x))`), `factor` reads
+powers with one symbolic exponent as a variable, `trig_factor` merges Pythagorean pairs. Each docs page states
+the form its function guarantees.
+
+**Corrected answers.** `spherical_bessel_j(0, x)` is `sinc(x)` (defined at 0);
+`reduce(1 + product_log(x) == 0, x, reals)` gives `x == -1/e`; `solve(y^3 - x*y == 2, y, reals)` gives real
+roots only; `lommel_s1` and `lommel_t1` at 0; `q_factorial`, `q_gamma` and `q_binomial` at q = 1;
+`logical_expand(not unequal(x, y, z))`; `replace_at` inside `quote` does not evaluate; `region_member` of a
+polygon with symbolic edges stays unevaluated. `numerical_sort`, `sort_by`, `reverse_sort` and `ordering`
+follow one documented order.
+
+**New.** `reduce` over the complexes with order relations, `re`, `im_part` and `conjugate`; `eliminate` with
+radicals and invertible functions; `find_root` at a working precision with inexact coefficients;
+`dirichlet_l` and `prime_zeta_p` of intervals; property sets (domains, periods, singularities) of theta,
+Hankel, q-hypergeometric, Weierstrass and modular functions; exact ranges of Bessel, Airy and Struve functions
+at certified roots of the derivative; monomial orders in `coefficient_rules` and `monomial_list`;
+`distance_matrix` with nominal features; `ball(n)` is the unit ball of n dimensions.
+
+**Faster.** Elliptic K and E above 1 on enclosures (inputs with `elliptic_k` in `reduce` and
+`function_domain` went from 20 s and more to under 1 s).
+
 ## 0.16.3 (2026-11-17)
 
 **Linux.** The AppImage carries the keyboard libraries the window needs under X11 (`libxkbcommon-x11` and

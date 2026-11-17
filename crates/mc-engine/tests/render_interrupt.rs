@@ -43,9 +43,9 @@ fn run(src: &str, raise: Option<Duration>) -> (Duration, String) {
 /// Heavy pictures of every stage: many samples, fine meshes in 2D and 3D, contours, and graphics with many
 /// primitives whose writing to the three formats dominates.
 const HEAVY: &[&str] = &[
-    "plot3d(sin(x*y) + bessel_j(0, x^2 + y^2), [x, -6, 6], [y, -6, 6], plot_points: 160, max_recursion: 2)",
+    "plot3d(sin(x*y) + bessel_j(0, x^2 + y^2), [x, -6, 6], [y, -6, 6], plot_points: 260, max_recursion: 2)",
     "contour_plot(sin(x^2 + y^3) * cos(x*y), [x, -4, 4], [y, -4, 4], plot_points: 200, contours: 40)",
-    "graphics(table(disk([k, sin(k)], 0.3), k, range(60000)))",
+    "graphics(table(disk([k, sin(k)], 0.3), k, range(100000)))",
     "list_plot(table([k, sin(k/100.0)], k, range(200000)))",
     "graphics3d(table(sphere([k, sin(k), cos(k)], 0.2), k, range(1200)))",
 ];

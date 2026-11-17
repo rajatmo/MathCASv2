@@ -1,4 +1,4 @@
-//! Relations of regions of the line given by a radius, and of regions with symbolic parameters (as conditions).
+//! Relations of unit balls given by their dimension, and of regions with symbolic parameters (as conditions).
 use mc_api::{Engine, StopFlag};
 use mc_engine::CoreEngine;
 
@@ -8,9 +8,11 @@ fn ev(src: &str) -> String {
 }
 
 #[test]
-fn ball_of_the_line_from_its_radius() {
+fn unit_ball_from_its_dimension() {
     assert_eq!(ev("region_disjoint(ball(1), interval([2, 3]))"), "true");
-    assert_eq!(ev("region_disjoint(ball(2), interval([2, 3]))"), "false");
+    assert_eq!(ev("region_measure(ball(1))"), "2");
+    assert_eq!(ev("region_measure(ball(2))"), "pi");
+    assert_eq!(ev("region_measure(ball(3))"), "(4/3)*pi");
     assert_eq!(ev("region_equal(ball(1), interval([-1, 1]))"), "true");
     assert_eq!(ev("region_within(interval([-2, 0]), ball(1))"), "false");
     assert_eq!(ev("region_within(interval([-2, 2]), ball(1))"), "true");

@@ -64,8 +64,8 @@ fn refine_decides_membership_and_comparisons() {
         ("refine(ceiling(x), 2 < x and x <= 3)", "3"),
         ("refine(floor(x), 0 < x and x <= 1)", "floor(x)"),
         ("refine(max(a, b), a > b)", "a"),
-        ("refine(max(x, x + 1, 3))", "max(1 + x, 3)"),
-        ("refine(min(1 - x, x, 1 + x), x > 0)", "min(1 - x, x)"),
+        ("refine(max(x, x + 1, 3))", "max(3, 1 + x)"),
+        ("refine(min(1 - x, x, 1 + x), x > 0)", "min(x, 1 - x)"),
         // closed constants as bounds; sin and cos positive on their intervals
         ("refine(cos(x) > 0, -pi/2 < x and x < pi/2)", "true"),
         ("refine(sin(x) > 0, 0 < x and x < 1)", "true"),

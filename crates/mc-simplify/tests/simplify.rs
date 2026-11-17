@@ -9,7 +9,7 @@ fn huge_trig_powers_are_left_alone() {
     check(&[
         ("trig_reduce(sin(x)^(2^31))", "sin(x)^2147483648"),
         ("simplify(64*sin(x)^(2^31)*cos(x)^65 + 4*sin(x)*cos(x) + 1)", "1 + 4*cos(x)*sin(x) + 64*cos(x)^65*sin(x)^2147483648"),
-        ("trig_reduce(sin(x)^3*cos(x)^2)", "(-1/16)*sin(5*x) + (1/16)*sin(3*x) + (1/8)*sin(x)"),
+        ("trig_reduce(sin(x)^3*cos(x)^2)", "(1/16)*(-sin(5*x) + 2*sin(x) + sin(3*x))"),
     ]);
 }
 
@@ -62,9 +62,9 @@ fn transforms() {
         ("trig_expand(sinh(x + y))", "cosh(x)*sinh(y) + cosh(y)*sinh(x)"),
         ("trig_expand(tan(2*x))", "2*cos(x)/(-sin(x)^2 + cos(x)^2)*sin(x)"),
         ("trig_expand(sin(x))", "sin(x)"),
-        ("trig_reduce(sin(x)^2)", "1/2 + (-1/2)*cos(2*x)"),
-        ("trig_reduce(sin(x)^3)", "(-1/4)*sin(3*x) + (3/4)*sin(x)"),
-        ("trig_reduce(cos(x)*cos(y))", "(1/2)*cos(x + y) + (1/2)*cos(x - y)"),
+        ("trig_reduce(sin(x)^2)", "(1/2)*(1 - cos(2*x))"),
+        ("trig_reduce(sin(x)^3)", "(1/4)*(-sin(3*x) + 3*sin(x))"),
+        ("trig_reduce(cos(x)*cos(y))", "(1/2)*(cos(x + y) + cos(x - y))"),
         ("trig_reduce(sin(x)*cos(y) + cos(x)*sin(y))", "sin(x + y)"),
         ("trig_to_exp(cosh(x))", "(1/2)*exp(x) + (1/2)*exp(-x)"),
         ("trig_to_exp(cos(x) + im*sin(x))", "exp(1im*x)"),

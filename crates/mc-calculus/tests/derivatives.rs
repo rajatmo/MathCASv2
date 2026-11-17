@@ -43,8 +43,8 @@ fn piecewise_and_complex_parts() {
         ("d(mod(x, m), m)", "-floor(x/m)"),
         ("d(mod(a, x, c), x)", "-floor((a - c)/x)"),
         ("d(mod(a, m, x), x)", "0"),
-        ("d(max(x, 2), x)", "if x >= 2 then 1 else 0"),
-        ("d(min(x^2, y), y)", "if x^2 <= y then 0 else 1"),
+        ("d(max(x, 2), x)", "if 2 >= x then 0 else 1"),
+        ("d(min(x^2, y), y)", "if y <= x^2 then 1 else 0"),
         ("d(if x > 0 then x^2 else -x, x)", "if x > 0 then 2*x else -1"),
         // re, im_part, conjugate and abs take a numeric factor out: re(c y) = c re(y) for real c, conjugate(c y)
         // = conj(c) conjugate(y)
