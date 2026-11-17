@@ -49,6 +49,12 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.16.3" date="2026-11-17">
+      <url type="details">https://github.com/rajatmo/MathCASv2/blob/v0.16.3/CHANGELOG.md</url>
+      <description>
+        <p>The AppImage carries the keyboard libraries its window needs under X11.</p>
+      </description>
+    </release>
     <release version="0.16.2" date="2026-11-17">
       <url type="details">https://github.com/rajatmo/MathCASv2/blob/v0.16.2/CHANGELOG.md</url>
       <description>

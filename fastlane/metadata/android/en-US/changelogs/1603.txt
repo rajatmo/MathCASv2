@@ -1,0 +1,1 @@
+A change to the Linux AppImage only. No change to the Android app since 0.16.1.
