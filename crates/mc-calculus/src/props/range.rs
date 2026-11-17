@@ -4,6 +4,10 @@
 //! - **Rational functions** (parameters allowed): `resolve(exists(x, cond and den != 0 and num == y den))`
 //!   by quantifier elimination (Collins; the `mc-cad` decomposition), reduced in `y`: `1/x` gives `y != 0`,
 //!   `1/(1 + x^2)` gives `0 < y <= 1`, `x^2 + a` gives `y >= a`.
+//! - **Special functions of the table** (an affine image of one applied to an affine function of x): the range the
+//!   table records, checked against samples; it answers before the critical points below (the zeros of their
+//!   derivatives are slow to settle) when it is one interval (a union is written by the critical points as they
+//!   write it: `y != c` for two rays).
 //! - **Other continuous functions** (no parameters): the domain (`cond` with the definedness conditions of
 //!   [`super::conditions`]) is reduced to intervals; on each interval the extreme values are among the values
 //!   at the critical points (`solve(f' == 0)`), the zeros of the arguments of `abs` (kinks), the closed finite
@@ -72,11 +76,34 @@ pub fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
         Some(r) => Some(r),
         None => match harmonic(cx, b, f, cond, x, y)? {
             Some(r) => Some(r),
-            None => match circular(cx, b, f, cond, x, y)? {
-                Some(r) => Some(r),
-                None => intervals(cx, b, f, cond, x, y, false)?,
-            },
+            None => circular(cx, b, f, cond, x, y)?,
         },
+    };
+    // a special function of the variable: its range from the table (proved there), checked against samples. It
+    // answers before the search for critical points (the zeros of a derivative such as W(x)/(x (1 + W(x))) can be
+    // slow to settle) when it is one interval, whose form is the one that search gives (it writes the two rays
+    // `y < c or y > c` as `y != c`).
+    let mut table = None;
+    if r.is_none() && cond.is_none() {
+        if let Some(t) = table_range(cx, b, f, x, y, false)? {
+            let mut t = t;
+            if !cx.is_true(t) && !cx.is_false(t) && spec::params(b, &[t], &[y]).is_empty() {
+                let tt = cx.eval(b.call("reduce", &[t, y, h.sym_term(h.sym("reals"))]))?;
+                if !is_head(b, tt, "reduce") && !is_head(b, tt, names::FAILURE) {
+                    t = tt;
+                }
+            }
+            let t = super::sets::tidy_cond_split(cx, b, t)?;
+            let ok = checks_out_with(cx, b, f, cond, x, y, t, true)?;
+            if ok && !contains_or(b, t) {
+                return Ok(Some(t));
+            }
+            table = Some((t, ok));
+        }
+    }
+    let r = match r {
+        Some(r) => Some(r),
+        None => intervals(cx, b, f, cond, x, y, false)?,
     };
     if let Some(r) = r {
         if checks_out(cx, b, f, cond, x, y, r)? {
@@ -84,22 +111,8 @@ pub fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
         }
         return Ok(None);
     }
-    // a special function of the variable: its range from the table, checked against samples
-    if cond.is_none() {
-        if let Some(r) = table_range(cx, b, f, x, y, false)? {
-            let mut r = r;
-            if !cx.is_true(r) && !cx.is_false(r) && spec::params(b, &[r], &[y]).is_empty() {
-                let rr = cx.eval(b.call("reduce", &[r, y, h.sym_term(h.sym("reals"))]))?;
-                if !is_head(b, rr, "reduce") && !is_head(b, rr, names::FAILURE) {
-                    r = rr;
-                }
-            }
-            let r = super::sets::tidy_cond_split(cx, b, r)?;
-            if checks_out_with(cx, b, f, cond, x, y, r, true)? {
-                return Ok(Some(r));
-            }
-            return Ok(None);
-        }
+    if let Some((t, ok)) = table {
+        return Ok(ok.then_some(t));
     }
     // last: critical points not found but f monotonic on the pieces of its domain
     if let Some(r) = intervals(cx, b, f, cond, x, y, true)? {
@@ -362,6 +375,22 @@ fn qe<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: Option<T
 
 fn is_free<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
     crate::common::is_free(b, t, x)
+}
+
+/// Does the condition `t` have a disjunction (a union of pieces)?
+fn contains_or<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    let or = h.sym("or");
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if b.sym_of(head) == Some(or) {
+                return true;
+            }
+            stack.extend(args.iter().copied());
+        }
+    }
+    false
 }
 
 /// A rational function of the circular functions of one affine `w = a x + b` (`a != 0`, no parameters) over the whole
