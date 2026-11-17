@@ -49,6 +49,12 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.16.1" date="2026-11-17">
+      <url type="details">https://github.com/rajatmo/MathCASv2/blob/v0.16.1/CHANGELOG.md</url>
+      <description>
+        <p>Packaging for more stores; no change to the calculations.</p>
+      </description>
+    </release>
     <release version="0.16.0" date="2026-11-17">
       <url type="details">https://github.com/rajatmo/MathCASv2/blob/v0.16.0/CHANGELOG.md</url>
       <description>
