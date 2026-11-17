@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.rajatmo.MathCASv2</id>
+  <name>MathCAS v2</name>
+  <summary>A free computer algebra system with notebooks</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="io.github.rajatmo">
+    <name>Rajat Mandal</name>
+  </developer>
+  <description>
+    <p>
+      MathCAS v2 is a computer algebra system: exact and arbitrary-precision arithmetic, algebra, calculus,
+      differential equations, linear algebra, special functions, number theory, and 2D and 3D plots, in a
+      notebook with typeset output.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Symbolic integration, limits, series, sums, transforms and equation solving, with answers that are
+        checked before they are returned</li>
+      <li>Numbers to any precision, with proved enclosures of special functions</li>
+      <li>Plots that can be turned, zoomed and exported as PNG, SVG and PDF</li>
+      <li>A documentation window with a page of examples for each of about 1,900 functions</li>
+      <li>A terminal REPL, a Jupyter kernel and a language server in the same package</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.rajatmo.MathCASv2.desktop</launchable>
+  <url type="homepage">https://github.com/rajatmo/MathCASv2</url>
+  <url type="bugtracker">https://github.com/rajatmo/MathCASv2/issues</url>
+  <url type="vcs-browser">https://github.com/rajatmo/MathCASv2</url>
+  <provides>
+    <binary>mc-notebook</binary>
+    <mediatype>application/x-mathcas-notebook</mediatype>
+  </provides>
+  <categories>
+    <category>Education</category>
+    <category>Science</category>
+    <category>Math</category>
+  </categories>
+  <branding>
+    <color type="primary" scheme_preference="light">#dbe7f6</color>
+    <color type="primary" scheme_preference="dark">#22344d</color>
+  </branding>
+  <content_rating type="oars-1.1"/>
+  <screenshots>
+    <screenshot type="default">
+      <caption>A notebook with a calculation and a plot</caption>
+      <image>https://raw.githubusercontent.com/rajatmo/MathCASv2/main/docs/media/flatpak/notebook.png</image>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="0.16.0" date="2026-11-17">
+      <url type="details">https://github.com/rajatmo/MathCASv2/blob/v0.16.0/CHANGELOG.md</url>
+      <description>
+        <p>Limits onto branch cuts, real roots of analytic equations proved complete, faster plots and special
+          functions, a build for Intel Macs, and many corrections.</p>
+      </description>
+    </release>
+  </releases>
+</component>
