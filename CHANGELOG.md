@@ -135,6 +135,29 @@ functions; spheroidal eigenvalues of any degree and order; extrema on the whole 
 proved bounds on the tails; Hankel transforms of oscillating products, Casoratians, series coefficients with a
 symbolic index; `to_radicals` up to degree 32.
 
+**More corrections.** The real-only functions (`clip`, `max`, `min`, `ramp`, `real_abs`, `real_sign`,
+`unit_box`, `unit_step`, `unit_triangle`) are defined over the complexes only at real arguments; domains at
+special parameters of `hypergeometric_0f1`, `gamma_regularized` and Chebyshev functions; the conditions of
+Hankel and inverse Mellin transforms; `multiply_sides` at zero; `elliptic_pi(n, 0)`; `sort_by` with a list of
+keys and `ordering` of an association; `continued_fraction(golden_ratio)` is `[1, [1]]`; `solve` keeps the
+conditions of solution families; random convex polygons use memory linear in the number of vertices. The order
+of a series at infinity is stated on the `series` page and every expansion follows it.
+
+**Closed forms and real roots.** `simplify` takes a conjugate through sums, products and powers and knows the
+mirror symmetry of real entire functions; special values of `barnes_g`, `hyperfactorial`, the Neville theta
+functions and `elliptic_e`; one-sided limits of step functions; `function_expand` of more functions. `solve`,
+`n_solve` and `count_roots` find every real root of one analytic equation on a line or half-line, with a proof
+that none is missed, and split piecewise equations into branches; `reduce` takes cubics and quartics.
+Confluent Heun equations in `d_solve`; conic optimizers with parameter equations; property tables of Lommel,
+q-factorial and parabolic cylinder functions; `table` with a count bound by an earlier iterator.
+
+**Faster again.** Machine values of `log_barnes_g`, `hyperfactorial`, `lerch_phi` and `q_pochhammer(q)`;
+interpolating functions and long Fourier transforms in one native call; `nest`, `nest_list`, `fold` and
+`fold_list` over machine numbers compile; Khinchin's constant. The notebook asks for a picture's column twin
+when it saves.
+
+**Linux.** The desktop entries declare version 1.0 of the desktop entry specification.
+
 **Android.** Screens fade in, the sheet and the bars at the bottom slide, and a page that is scrolled runs on when
 the finger is lifted. A long press on a plot opens the share sheet with it; a shared plot is a sharp picture
 (1600 pixels wide) whatever its size on the page. Interface text is a little larger, and plots made in the app
