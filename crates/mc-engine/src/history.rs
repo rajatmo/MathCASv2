@@ -134,14 +134,14 @@ impl Native for Out {
 }
 
 /// Display forms that only change how a value is shown: an output read back through `out` is the value inside one
-/// of them at the top (`short(list)` shows a shortened list, `out()` is the list).
-const DISPLAY_WRAPPERS: [&str; 18] = [
+/// of them at the top (`short(list)` shows a shortened list, `out()` is the list). `base_form` and `full_form` are
+/// kept: the output read back is still the form.
+const DISPLAY_WRAPPERS: [&str; 16] = [
     "short",
     "shallow",
     "matrix_form",
     "table_form",
     "tree_form",
-    "full_form",
     "input_form",
     "output_form",
     "standard_form",
@@ -153,7 +153,6 @@ const DISPLAY_WRAPPERS: [&str; 18] = [
     "accounting_form",
     "padded_form",
     "percent_form",
-    "base_form",
 ];
 
 fn without_display_wrapper<'h>(h: &'h Heap, v: T<'h>) -> T<'h> {

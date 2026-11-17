@@ -198,7 +198,7 @@ function_expand(lucas_l(n + 2), assumptions: element(n, integers))
 #% cell
 function_expand(lucas_l(n + 2))
 #% output
-#= lucas_l(2 + n)
+#= 2^(-2 - n)*(1 + 5^(1/2))^(2 + n) + cos(pi*(2 + n))*2^(2 + n)*(1 + 5^(1/2))^(-2 - n)
 
 #% subsection
 # Properties and relations

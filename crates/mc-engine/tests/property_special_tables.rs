@@ -81,7 +81,7 @@ fn q_factorial_and_euler_function() {
     for (z, q) in [("2", "-1/2"), ("-1/2", "1/2")] {
         assert_eq!(timed(&mut e, &format!("rewrite({sing}, [z -> {z}, q -> {q}])"), 5), "false", "{sing} at {z}, {q}");
     }
-    let near = num(&mut e, "q_factorial(-1.0001, -0.5)");
+    let near = num(&mut e, "abs(q_factorial(-1.0001, -0.5))");
     assert!(near.abs() > 500.0, "{near}");
     assert_eq!(timed(&mut e, "function_surjective(q_pochhammer(x), x)", 5), "false");
     assert_eq!(timed(&mut e, "function_surjective(factorial2(z), z)", 5), "false");
