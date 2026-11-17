@@ -178,6 +178,31 @@ give `failure(indeterminate, ...)`. Products multiply the directions (`(im*inf)^
 a directed infinity is 0, and `complex_infinity` absorbs every directed infinity in a product and is indeterminate
 beside one in a sum. Comparisons order only `inf` and `-inf` (2.5).
 
+### 3.2 Tidy forms of calls that stay
+
+A call that has no value still leaves the evaluator in one form, so that two ways of writing the same call print
+the same and compare identical. Each rule is cheap (read off the terms, no search) and holds for every value of the
+symbols in it:
+
+- the associative and commutative built-ins (7.4) are flattened and their arguments sorted: `max(x, y, max(x, z))`
+  is `max(x, y, z)`, `bit_or(y, x)` is `bit_or(x, y)`, `xor(xor(x, y), z)` is `xor(x, y, z)`;
+- a tower of powers groups to the right: `pow(x, y, z)` is `x^y^z`;
+- a function even in its argument drops a negative coefficient: `unit_box(-x)`, `unit_triangle(-x)`,
+  `dirac_delta(-x)`, `heaviside_pi(-x)`, `heaviside_lambda(-x)` are the calls on `x` (as `cos(-x)` is `cos(x)`);
+- a function drops whole periods that are written out: `jacobi_zn(u + 2*elliptic_k(m), m)` is `jacobi_zn(u, m)`,
+  `modular_lambda(tau + 2)` is `modular_lambda(tau)`, `inverse_gudermannian(x + 2*pi)` is `inverse_gudermannian(x)`;
+- `piecewise` drops the cases decided `false`, ends at a case whose condition is `true` (its value becomes the
+  default), drops a case whose condition implies an earlier one (it is never reached) and joins neighbouring cases
+  of the same value by `or`: `piecewise([[a, c], [b, d], [b, e], [f, true], [g, h]])` is
+  `piecewise([[a, c], [b, d or e]], f)`;
+- `dot` multiplies out the arrays that lead a chain with a symbolic factor: `dot(a, b, v)` is `dot(a.b, v)`;
+- regions of the line are disjoint segments in increasing order: `region_union`, `region_intersection` and
+  `region_difference` of segments are `line([[[a1], [b1]], [[a2], [b2]], ...])`; `implicit_region(c, [[x, a, b],
+  y])` is `implicit_region(c and a <= x and x <= b, [x, y])`;
+- an index of `indexed` is a path: `indexed(x, i)` is `indexed(x, [i])`;
+- `around(x, scaled(s))` is `around(x, s*abs(x))`, and `around(d)` of a distribution is `around(mean(d),
+  std_dev(d))`.
+
 ## 4. Evaluation
 
 ### 4.1 The evaluator
@@ -424,6 +449,14 @@ functions (`dot`), not `*`.
 `associative`, `commutative`, `identity(e)` and `idempotent` may be declared on a symbol. They affect matching (6.2)
 and the symbol's own canonicalisation (flattening, sorting arguments, removing identity elements), using the same
 procedure as section 3 but without number folding. They are visible through `properties(f)`.
+
+### 7.4 Built-in operator properties
+
+Besides `add` and `mul`, these built-ins are associative and commutative (`attributes(f)` shows `flat` and
+`orderless`): `max`, `min`, `gcd`, `lcm`, `bit_and`, `bit_or`, `bit_xor` and `xor`. Their calls are flattened and
+their arguments put in the canonical order (section 8) before the function runs, and matching against them is
+modulo AC (6.2). `and` and `or` are not: they evaluate their arguments in order (5). `equivalent` is commutative
+but not associative: its arguments are sorted, its calls not flattened.
 
 ## 8. Canonical order
 

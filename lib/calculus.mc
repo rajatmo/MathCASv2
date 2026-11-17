@@ -63,6 +63,9 @@ rule heaviside_lambda(xs__) := {
 # heaviside_pi(x): 1 for |x| < 1/2, 0 for |x| > 1/2, undefined at |x| = 1/2; heaviside_pi(x, y, ...) the product
 rule heaviside_pi(x_) := map(heaviside_pi, x) when is_list(x)
 rule heaviside_pi(x_) := heaviside_pi(-x) when calc_real(x) and x === -1/2
+# both shapes are even: the form with the negated argument is the one without the sign
+rule heaviside_pi(-x_) := heaviside_pi(x)
+rule heaviside_lambda(-x_) := heaviside_lambda(x)
 rule heaviside_pi(xs__) := {
   let ys = xs
   if some(ys, x => abs(x) > 1/2) then 0 else if every(ys, x => abs(x) < 1/2) then 1 else apply(heaviside_pi, select(ys, x => abs(x) == 1/2))

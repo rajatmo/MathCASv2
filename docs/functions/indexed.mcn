@@ -32,7 +32,7 @@ indexed([a, b], 1)
 #% cell
 indexed(x, 1)
 #% output
-#= indexed(x, 1)
+#= indexed(x, [1])
 
 #% cell
 indexed([[a, b, c], [d, e, f]], [1, 2])

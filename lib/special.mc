@@ -846,6 +846,12 @@ rule gudermannian(-inf) := -pi/2
 rule jacobi_amplitude(elliptic_k(m_), m_) := pi/2
 rule jacobi_epsilon(elliptic_k(m_), m_) := elliptic_e(m)
 rule jacobi_zn(elliptic_k(m_), m_) := 0
+# whole periods drop: Z(u + 2 j K | m) = Z(u | m) (E(am(u + 2K)) = E(am u) + 2 E(m), DLMF 22.16.29), lambda(tau + 2 j)
+# = lambda(tau) (lambda is invariant under the level-2 congruence group, DLMF 23.15.3), and the inverse Gudermannian
+# 2 atanh(tan(x/2)) has the period 2 pi of tan(x/2)
+rule jacobi_zn(u_ + c_*elliptic_k(m_), m_) := jacobi_zn(u, m) when is_integer(c/2)
+rule modular_lambda(tau_ + c_) := modular_lambda(tau) when is_integer(c/2) and c != 0
+rule inverse_gudermannian(x_ + c_*pi) := inverse_gudermannian(x) when is_integer(c/2)
 rule jacobi_zn(c_*elliptic_k(m_), m_) := m/(2 + 2*sqrt(1 - m)) when c == 1/2
 rule jacobi_epsilon(c_*elliptic_k(m_), m_) := elliptic_e(m)/2 + m/(2 + 2*sqrt(1 - m)) when c == 1/2
 

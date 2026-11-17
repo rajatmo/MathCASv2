@@ -1200,7 +1200,17 @@ fn centered_apply<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>]) 
 fn around_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
     if a.len() == 1 {
         // around(list): the mean and the standard deviation
-        let Some(xs) = fx.as_list(a[0]) else { return Ok(None) };
+        let Some(xs) = fx.as_list(a[0]) else {
+            // around(distribution): its mean and standard deviation, when both are numbers
+            let is_dist = matches!(fx.h.view(a[0]), View::App { head, .. }
+                if matches!(fx.h.view(head), View::Sym(s) if fx.h.sym_name(s).ends_with("_distribution")));
+            if !is_dist {
+                return Ok(None);
+            }
+            let m = fx.eval(fx.call("mean", &[a[0]]))?;
+            let s = fx.eval(fx.call("std_dev", &[a[0]]))?;
+            return Ok((fx.num(m).is_some() && fx.num(s).is_some()).then(|| fx.call("around", &[m, s])));
+        };
         if xs.len() < 2 {
             return Ok(None);
         }
@@ -1216,6 +1226,13 @@ fn around_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> 
             _ => x,
         };
         d = fx.eval(fx.mul(&[s, fx.call("abs", &[base])]))?;
+        // a dimensionless quantity (`scaled(quantity(5, "Percent"))`) is its number
+        if fx.call_of(d, "quantity").is_some() {
+            let v = fx.eval(fx.call("unit_convert", &[d]))?;
+            if fx.num(v).is_some() {
+                d = v;
+            }
+        }
     }
     // a quantity with an uncertainty: the uncertain magnitude in its unit (the uncertainty converted to that unit)
     if let Some(&[m, u]) = fx.call_of(x, "quantity") {
@@ -1233,7 +1250,9 @@ fn around_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> 
     }
     let (Some(xm), Some(dm)) = (machine(fx, x)?, machine(fx, d)?) else { return Ok(None) };
     let (xr, dr) = (fx.real(xm), fx.real(dm.abs()));
-    if xr == x && dr == d {
+    // the call as given (a relative uncertainty `scaled(s)` is replaced by the absolute one even when that is the
+    // machine number already)
+    if xr == x && dr == a[1] {
         return Ok(None);
     }
     Ok(Some(fx.call("around", &[xr, dr])))

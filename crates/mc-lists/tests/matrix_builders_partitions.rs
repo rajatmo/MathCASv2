@@ -111,7 +111,8 @@ fn numbers_names_and_strings() {
     assert_eq!(ev("integer_name(-544)"), "\"negative five hundred forty\u{2010}four\"");
     assert_eq!(ev("integer_name(10990089, words)"), "\"ten million, nine hundred ninety thousand, eighty\u{2010}nine\"");
     assert_eq!(ev("indexed([[a, b, c], [d, e, f]], [1, 2])"), "b");
-    assert_eq!(ev("indexed(x, 1)"), "indexed(x, 1)");
+    // unevaluated for a symbol, its index as a path (semantics 3.2)
+    assert_eq!(ev("indexed(x, 1)"), "indexed(x, [1])");
 }
 
 #[test]

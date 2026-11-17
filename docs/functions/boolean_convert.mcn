@@ -60,7 +60,7 @@ boolean_convert(xor(x, y, z), dnf, x and (y or z))
 #% cell
 boolean_convert(implies(a, b), anf)
 #% output
-#= xor(true, a, a and b)
+#= xor(a, true, a and b)
 
 #% text
 # A check of equivalence:

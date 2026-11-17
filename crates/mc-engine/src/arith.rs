@@ -409,6 +409,20 @@ impl Native for Pow {
     }
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        // a tower groups to the right, as `^` does: `pow(x, y, z)` is `x^(y^z)`; `pow(x)` is `x`
+        if args.len() != 2 {
+            let h = cx.heap();
+            return Ok(match args {
+                [x] => Reply::Done(*x),
+                [] => Reply::Decline,
+                _ => {
+                    let pow = h.sym_term(h.sym(names::POW));
+                    let n = args.len();
+                    let top = args[..n - 1].iter().rev().fold(args[n - 1], |acc, &b| h.app(pow, &[b, acc]));
+                    Reply::Again(top)
+                }
+            });
+        }
         let [b, e] = args else { return Ok(Reply::Decline) };
         if uncertain(cx.heap(), args) {
             if let Some(v) = mc_numeric::uncertain::arith(cx, mc_numeric::uncertain::Op::Pow, args)? {

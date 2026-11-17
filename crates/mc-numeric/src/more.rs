@@ -73,6 +73,23 @@ fn i_pi<'h>(fx: &Fx<'_, '_, '_, 'h>, n: i64, d: i64) -> T<'h> {
     fx.mul(&[fx.i(), fx.rat(n, d), fx.sym("pi")])
 }
 
+/// For a function even in each argument: f(.., -x, ..) = f(.., x, ..) for the symbolic arguments with a negative
+/// coefficient (numbers are left to the function's values), so that `f(-x)` and `f(x)` have one form.
+fn even<'h>(fx: &Fx<'_, '_, '_, 'h>, me: &str, a: &[T<'h>]) -> Option<T<'h>> {
+    let mut changed = false;
+    let v: Vec<T<'h>> = a
+        .iter()
+        .map(|&x| match fx.num(x).is_none().then(|| fx.negated(x)).flatten() {
+            Some(y) => {
+                changed = true;
+                y
+            }
+            None => x,
+        })
+        .collect();
+    changed.then(|| fx.call(me, &v))
+}
+
 /// For an odd function: f(-x) = -f(x).
 fn odd<'h>(fx: &Fx<'_, '_, '_, 'h>, me: &str, x: T<'h>) -> Option<T<'h>> {
     fx.negated(x).map(|y| fx.neg(fx.call(me, &[y])))
@@ -537,6 +554,9 @@ fn unit_box_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if any_non_real(fx, a) {
         return Ok(None);
     }
+    if let Some(v) = even(fx, "unit_box", a) {
+        return Ok(Some(v));
+    }
     // the product of the boxes: 1 for |x| <= 1/2, else 0
     let mut open = vec![];
     for &x in a {
@@ -560,6 +580,9 @@ fn unit_box_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 fn unit_triangle_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if any_non_real(fx, a) {
         return Ok(None);
+    }
+    if let Some(v) = even(fx, "unit_triangle", a) {
+        return Ok(Some(v));
     }
     let mut vals = vec![];
     for &x in a {
@@ -605,6 +628,10 @@ fn heaviside_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 }
 
 fn dirac_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    // the unit mass is even: dirac_delta(-x) = dirac_delta(x)
+    if let Some(v) = even(fx, "dirac_delta", a) {
+        return Ok(Some(v));
+    }
     for &x in a {
         if matches!(sign_of(fx, x)?, Some(1 | -1)) {
             return Ok(Some(fx.int(0)));

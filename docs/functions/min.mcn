@@ -118,7 +118,7 @@ min(max(-4, 0), 10)
 #% cell
 min(1, 2im)
 #% output
-#= min(1, 2im)
+#= min(2im, 1)
 
 #% text
 # A closed numeric expression is not compared until it is a number:

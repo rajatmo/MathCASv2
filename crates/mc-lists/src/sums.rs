@@ -10,7 +10,7 @@
 //! evaluator, so this module depends on no other crate.
 use crate::ctx::Lib;
 use mc_api::names;
-use mc_core::{Store, Sym, View, T};
+use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{NativeCx, Reply, Res};
 
 /// Terms added one by one at most.
@@ -378,8 +378,10 @@ fn zeta_like<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, kv: T<'h>, a: T<'h>) -
 }
 
 /// `piecewise([[v1, c1], [v2, c2], ...])`, `piecewise(cases, default)` (held): the value of the first case whose
-/// condition is `true`, the default (0 without one) when all are `false`; while a condition is undecided, the
-/// call with the cases decided `false` dropped and the rest evaluated.
+/// condition is `true`, the default (0 without one) when all are `false`. While a condition is undecided, the call
+/// in its tidy form (semantics 3.2): the cases decided `false` dropped, a case whose condition is `true` ending the
+/// cases as the default, a case that cannot be reached (its condition implies an earlier one) dropped, and
+/// neighbouring cases of the same value joined by `or`.
 pub(crate) fn piecewise<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let (cases, default) = match *args {
@@ -390,41 +392,68 @@ pub(crate) fn piecewise<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
     // the cases are held: evaluate the list structure, not its contents
     let Some(cs) = cx.as_list(cases) else { return Ok(Reply::Decline) };
     let fals = h.sym_term(h.sym(names::FALSE));
-    let mut rest: Vec<T<'h>> = vec![];
+    let list = h.sym(names::LIST);
+    // the undecided cases as (value, condition)
+    let mut rest: Vec<(T<'h>, T<'h>)> = vec![];
+    let mut default_v: Option<T<'h>> = None;
     for &case in cs {
         let Some(&[v, c]) = cx.as_list(case) else { return Ok(Reply::Decline) };
         cx.tick(1)?;
-        if rest.is_empty() {
-            let cv = cx.eval(c)?;
-            if is_true(cx, cv) {
+        let cv = cx.eval(c)?;
+        if is_true(cx, cv) {
+            if rest.is_empty() {
                 return Ok(Reply::Done(cx.eval(v)?));
             }
-            if cv == fals {
-                continue;
-            }
-            let vv = cx.eval(v)?;
-            rest.push(h.call(h.sym(names::LIST), &[vv, cv]));
-        } else {
-            let cv = cx.eval(c)?;
-            if cv == fals {
-                continue;
-            }
-            let vv = cx.eval(v)?;
-            rest.push(h.call(h.sym(names::LIST), &[vv, cv]));
+            // the cases after it are never reached: its value is the default
+            default_v = Some(cx.eval(v)?);
+            break;
+        }
+        if cv == fals || rest.iter().any(|&(_, earlier)| implies(h, cv, earlier)) {
+            continue;
+        }
+        let vv = cx.eval(v)?;
+        match rest.last_mut() {
+            // the same value as the case before: one case on either condition
+            Some(last) if last.0 == vv => last.1 = cx.eval(h.call(h.sym("or"), &[last.1, cv]))?,
+            _ => rest.push((vv, cv)),
+        }
+    }
+    if default_v.is_none() {
+        if let Some(d) = default {
+            default_v = Some(cx.eval(d)?);
         }
     }
     if rest.is_empty() {
-        return Ok(Reply::Done(match default {
-            Some(d) => cx.eval(d)?,
-            None => h.int(0),
-        }));
+        return Ok(Reply::Done(default_v.unwrap_or_else(|| h.int(0))));
     }
-    let mut out = vec![h.call(h.sym(names::LIST), &rest)];
-    if let Some(d) = default {
-        out.push(cx.eval(d)?);
-    }
+    let rows: Vec<T<'h>> = rest.iter().map(|&(v, c)| h.call(list, &[v, c])).collect();
+    let mut out = vec![h.call(list, &rows)];
+    out.extend(default_v);
     let u = h.call(h.sym("piecewise"), &out);
     Ok(if u == t { Reply::Decline } else { Reply::Done(u) })
+}
+
+/// Does condition `c` imply `d`, read off the terms: `c` is `d`, every conjunct of `d` is a conjunct of `c`, or `c`
+/// implies one of the alternatives of an `or` `d`. Cheap and incomplete: `false` means "not shown".
+fn implies<'h>(h: &'h Heap, c: T<'h>, d: T<'h>) -> bool {
+    if c == d {
+        return true;
+    }
+    let parts = |t: T<'h>, name: &str| -> Vec<T<'h>> {
+        match h.view(t) {
+            View::App { head, args } if head == h.sym_term(h.sym(name)) => args.to_vec(),
+            _ => vec![t],
+        }
+    };
+    let cs = parts(c, "and");
+    let ds = parts(d, "and");
+    if ds.iter().all(|x| cs.contains(x)) {
+        return true;
+    }
+    match h.view(d) {
+        View::App { head, args } if head == h.sym_term(h.sym("or")) => args.iter().any(|&a| a != d && implies(h, c, a)),
+        _ => false,
+    }
 }
 
 /// `product(f, [k, a, b])`, `product(f, [k, n])`, `product(f, [k, [x1, ...]])`: the product of the terms, for

@@ -27,7 +27,8 @@ fn bitwise_laws_on_symbols() {
     assert_eq!(ev("bit_not(bit_not(x))"), "x");
     // variations: constants folded with a symbol left, a non-integer number declines
     assert_eq!(ev("bit_xor(5, x, 3, y)"), "bit_xor(6, x, y)");
-    assert_eq!(ev("bit_and(x, 1.5)"), "bit_and(x, 1.5)");
+    // (bit_and is orderless: its arguments in the canonical order, numbers first)
+    assert_eq!(ev("bit_and(x, 1.5)"), "bit_and(1.5, x)");
     // the laws hold for every integer value of the symbols
     for (x, y) in [(13, -7), (0, 255), (-1, 1_i64 << 40)] {
         let s = format!("[x -> {x}, y -> {y}]");

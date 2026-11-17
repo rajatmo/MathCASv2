@@ -846,6 +846,8 @@ rule equivalent(xs___) := {
   else if member(u, false) then (if length(others) == 0 then true else apply(`and`, map(x => not x, others)))
   else if length(u) < 2 then true else apply(equivalent, u)
 } when length(xs) < 2 or length(unique(xs)) < length(xs) or member(xs, true) or member(xs, false)
+# commutative (not associative): the arguments in the canonical order
+rule equivalent(xs___) := apply(equivalent, sort(xs)) when sort(xs) !== xs
 
 
 # probability(c, x, d): the probability that the condition c on x holds when x has the distribution d. The condition
@@ -1374,9 +1376,10 @@ fn integer_string(m, b, len: Int) when is_integer(m) and is_integer(b) = {
 }
 
 # indexed(x, i), indexed(x, [i1, i2, ...]): the part of the list x at the index (the part along the path of
-# indices); it stays indexed(x, i) for a symbol x or a symbolic index
+# indices); otherwise it stays, with its index as a path: indexed(x, i) is indexed(x, [i])
 rule indexed(x_, i_) := x[i] when is_list(x) and is_integer(i) and abs(i) >= 1 and abs(i) <= length(x)
 rule indexed(x_, i_) := extract(x, i) when is_list(x) and is_list(i) and length(i) > 0 and every(i, k => is_integer(k) and k != 0) and length(dimensions(x)) >= length(i) and is_valid_path(x, i)
+rule indexed(x_, i_) := indexed(x, [i]) when not is_list(i) and not is_list(x)
 fn is_valid_path(x, path) = if length(path) == 0 then true else is_list(x) and abs(path[1]) <= length(x) and is_valid_path(x[path[1]], rest(path))
 
 # integer_name(n): the English name of the integer n: words below 1000 ("one hundred twenty-three"), digits and

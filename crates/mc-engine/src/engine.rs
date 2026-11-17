@@ -170,6 +170,11 @@ pub const MAPS_LISTS: &[&str] = &[
         "subfactorial", "tan", "tanh", "unit_box", "unit_step", "unit_triangle", "zeta",
 ];
 
+/// The built-in functions that are associative and commutative besides `add` and `mul` (semantics 7.4): their
+/// calls are flattened (`max(x, max(y, z))` is `max(x, y, z)`) and their arguments put in the canonical order
+/// (`bit_or(y, x)` is `bit_or(x, y)`) before the function runs, and matching against them is modulo AC.
+pub const ORDERLESS: &[&str] = &["max", "min", "bit_and", "bit_or", "bit_xor", "xor", "gcd", "lcm"];
+
 /// The functions with an operator form `f(a..)(x..)` and where its outer arguments go.
 pub const OPERATOR_FORMS: &[(&str, OperatorForm)] = {
     use OperatorForm::{DataFirst as F, DataLast as L};
@@ -218,6 +223,11 @@ impl CoreEngine {
             let list = h.sym(names::LIST);
             let a = k.attributes(list);
             k.set_attributes(list, mc_eval::Attributes { handles_failures: true, ..a });
+            for &name in ORDERLESS {
+                let s = h.sym(name);
+                let a = k.attributes(s);
+                k.set_attributes(s, mc_eval::Attributes { ac: true, ..a });
+            }
             // attributes as values
             crate::attrs::install(&mut k, h);
             crate::compose::install(&mut k, h);

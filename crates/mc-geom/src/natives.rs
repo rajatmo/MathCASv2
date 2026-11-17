@@ -23,9 +23,10 @@ impl Native for Fun {
 pub fn install(k: &mut Kernel, h: &Heap) {
     let a = Attributes::default;
     let mut reg = |name: &str, f: Body| k.register(h.sym(name), a(), Box::new(Fun(f)));
-    for inert in ["region", "implicit_region", "parametric_region", "tetrahedron", "empty_region"] {
+    for inert in ["region", "parametric_region", "tetrahedron", "empty_region"] {
         reg(inert, |_, _| Ok(Reply::Decline));
     }
+    reg("implicit_region", implicit_region);
     // a simplex of one point is that point
     reg("simplex", |cx, a| {
         let h = cx.heap();
@@ -1197,11 +1198,10 @@ fn boolean<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], op: Op) -> Res<Reply<
     if let Some(t) = crate::csg::combine(cx, a, |_, bits| Ok(Some(crate::csg::op_truth(op, bits))))? {
         return Ok(Reply::Done(t));
     }
-    // the common part of segments of the line (a union of segments stays as it is: it is already a region)
-    if op == Op::Intersection {
-        if let Some(t) = crate::csg::line_segments(cx, a, op)? {
-            return Ok(Reply::Done(t));
-        }
+    // segments of the line: the result as disjoint segments in increasing order (overlapping and touching ones
+    // joined), the canonical form of a region of the line
+    if let Some(t) = crate::csg::line_segments(cx, a, op)? {
+        return Ok(Reply::Done(t));
     }
     // two exact disks: kept as the intersection (its area is the exact lens, `measure_of`; `discretize_region` takes
     // the polygon), not replaced by the intersection of two 256-gons, whose area is off by 2e-4
@@ -1512,4 +1512,29 @@ fn region_integrate<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply
         Region::Implicit { .. } | Region::Torus { .. } | Region::Affine { .. } | Region::Union(_) | Region::Revolved { .. } => return Ok(Reply::Decline),
     };
     Ok(Reply::Again(term))
+}
+
+/// `implicit_region(cond, vars)`: kept, with a variable given with a range, `[z, a, b]`, written as the variable and
+/// `a <= z and z <= b` joined to the condition (one form for one region).
+fn implicit_region<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [cond, vars] = *a else { return Ok(Reply::Decline) };
+    let Some(vs) = cx.as_list(vars) else { return Ok(Reply::Decline) };
+    let mut conj = vec![cond];
+    let mut names = Vec::with_capacity(vs.len());
+    for &v in vs {
+        match cx.as_list(v) {
+            Some(&[z, lo, hi]) if matches!(h.view(z), View::Sym(_)) => {
+                conj.push(h.call(h.sym("less_equal"), &[lo, z]));
+                conj.push(h.call(h.sym("less_equal"), &[z, hi]));
+                names.push(z);
+            }
+            _ => names.push(v),
+        }
+    }
+    if conj.len() == 1 {
+        return Ok(Reply::Decline);
+    }
+    let cond = cx.eval(h.call(h.sym("and"), &conj))?;
+    Ok(Reply::Done(h.call(h.sym("implicit_region"), &[cond, cx.list(&names)])))
 }

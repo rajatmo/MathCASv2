@@ -219,6 +219,20 @@ pub fn dot<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'
     if args.is_empty() {
         return Ok(Out::Decline);
     }
+    // a chain with a factor that is no array: the arrays before it multiplied out (`dot` is associative), so that
+    // `dot(a, b, v)` for a symbolic `v` is `dot(a.b, v)`
+    let is_array = |t: T<'h>| env.h().packed(t).is_some() || env.as_list(t).is_some();
+    if args.len() > 2 {
+        if let Some(k) = args.iter().position(|&t| !is_array(t)) {
+            if k >= 2 {
+                let h = env.h();
+                let lead = h.call(h.sym("dot"), &args[..k]);
+                let mut rest = vec![lead];
+                rest.extend_from_slice(&args[k..]);
+                return Ok(Out::Again(h.call(h.sym("dot"), &rest)));
+            }
+        }
+    }
     let mut acc = take!(tensor_arg(env, args, 0));
     let mut val = args[0];
     for k in 1..args.len() {
