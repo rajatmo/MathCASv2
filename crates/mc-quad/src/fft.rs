@@ -134,6 +134,90 @@ impl Native for Fft {
     }
 }
 
+/// The name of the whole transform of a long machine vector (private to the numerics library).
+pub(crate) const WHOLE: &str = "nl_fourier_machine";
+
+/// The entries of a vector of finite machine numbers (packed or a list), `None` for anything else.
+fn machine_vector<'h>(cx: &NativeCx<'_, '_, 'h>, u: T<'h>) -> Option<Vec<C>> {
+    let h = cx.heap();
+    if let Some(p) = h.packed(u) {
+        if p.rank() != 1 {
+            return None;
+        }
+        return match p {
+            mc_core::Packed::Reals { data, .. } => data.iter().all(|x| x.is_finite()).then(|| data.iter().map(|&x| (x, 0.0)).collect()),
+            mc_core::Packed::Complexes { data, .. } => {
+                data.iter().all(|x| x.is_finite()).then(|| data.chunks(2).map(|c| (c[0], c[1])).collect())
+            }
+            _ => None,
+        };
+    }
+    let ar = Arith::new(h);
+    let mut v = Vec::new();
+    for &t in cx.as_list(u)? {
+        match ar.num(t) {
+            Some(Num::Real(Real::Machine(x))) if x.is_finite() => v.push((x, 0.0)),
+            Some(Num::Complex(Real::Machine(a), Real::Machine(b))) if a.is_finite() && b.is_finite() => v.push((a, b)),
+            _ => return None,
+        }
+    }
+    Some(v)
+}
+
+/// `nl_fourier_machine(u, s, scale)`: what the library's `fourier` and `inverse_fourier` give for a vector `u` of
+/// more than 128 finite machine numbers (whose transform is [`Fft`]'s), with the exponent sign and step of the
+/// integer `s` and the machine factor `scale`, done here instead of entry by entry in the language: each entry of the
+/// transform times `scale` (the language's product of the two numbers), the real parts when `u` equals the
+/// conjugate of its cyclic flip to rounding (|u[k] - conj(u[n - k])| <= 10^-14 max(1, |u|), as the language's test).
+/// The call stays for anything else.
+pub(crate) struct FourierWhole;
+
+impl Native for FourierWhole {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [u, s, scale] = args else { return Ok(Reply::Decline) };
+        let View::Int(s) = h.view(*s) else { return Ok(Reply::Decline) };
+        let ar = Arith::new(h);
+        let Some(Num::Real(Real::Machine(scale))) = ar.num(*scale) else { return Ok(Reply::Decline) };
+        let Some(v) = machine_vector(cx, *u) else { return Ok(Reply::Decline) };
+        let n = v.len();
+        if s == 0 || n <= 128 {
+            return Ok(Reply::Decline);
+        }
+        cx.tick(n as u64)?;
+        let f = dft(&v, if s > 0 { 1.0 } else { -1.0 });
+        let step = (s.unsigned_abs() % n as u64) as usize;
+        let size = v.iter().map(|&(a, b)| a.hypot(b)).fold(1.0f64, f64::max);
+        let flip = (0..n).map(|k| {
+            let (a, b) = v[k];
+            let (c, d) = v[(n - k) % n];
+            (a - c).hypot(b + d)
+        });
+        let even = flip.fold(0.0f64, f64::max) <= 1e-14 * size;
+        let sc = Num::Real(Real::Machine(scale));
+        let mut parts = Vec::with_capacity(if even { n } else { 2 * n });
+        for k in 0..n {
+            let (re, im) = f[(step * k) % n];
+            match Num::product(vec![sc.clone(), Num::Complex(Real::Machine(re), Real::Machine(im))]) {
+                Num::Complex(Real::Machine(a), Real::Machine(b)) => {
+                    parts.push(a);
+                    if !even {
+                        parts.push(b);
+                    }
+                }
+                Num::Real(Real::Machine(a)) => {
+                    parts.push(a);
+                    if !even {
+                        parts.push(0.0);
+                    }
+                }
+                _ => return Ok(Reply::Decline),
+            }
+        }
+        Ok(Reply::Done(if even { h.real_array(&[n], &parts) } else { h.complex_array(&[n], &parts) }))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

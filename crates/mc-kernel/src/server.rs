@@ -346,6 +346,8 @@ fn handle(
         }
         Request::Reset { .. } => {
             *engine = crate::front_end::session(config);
+            // the files of the old session's pictures that wait to be asked for are not written any more
+            mc_graphics::deferred::forget_all();
             w.done(&id, &None, Status::Ok, start)?;
         }
         Request::Shutdown { .. } => {

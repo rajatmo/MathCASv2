@@ -164,3 +164,24 @@ fn sparse_array_pattern_rules_are_not_defaults() {
     // `[i_, i_]` has named blanks: a rule for the diagonal, not the rule for all other positions
     assert_eq!(ev("sparse_array([[i_, i_] -> 2, [i_, j_] when abs(i - j) == 1 -> -1], [3, 3])"), "[[2, -1, 0], [-1, 2, -1], [0, -1, 2]]");
 }
+
+/// Disks and diamonds in two dimensions add per-axis terms in a nested map: the same entries as the general shape
+/// (an index list and the test per entry), for radii and dimensions of every form, and fast.
+#[test]
+fn disk_and_diamond_matrices_agree_with_the_general_shape() {
+    for (r, d) in [("2", "5"), ("3", "[4, 9]"), ("[2, 5]", "[7, 11]"), ("5/2", "6"), ("all", "[6, 9]"), ("[1, all]", "[3, 8]"), ("4", "all")] {
+        for (f, test) in [("disk_matrix", "total(map(t => t^2, x)) <= 1"), ("diamond_matrix", "total(map(abs, x)) <= 1")] {
+            let src = format!("{f}({r}, {d}) === ls_shape({r}, {d}, (x, rs) => {test})");
+            assert_eq!(ev(&src), "true", "{src}");
+        }
+    }
+    // one argument, radii as lists, and the forms left to the general shape (three dimensions, a zero radius)
+    assert_eq!(ev("disk_matrix(3) === ls_shape(3, 7, (x, rs) => total(map(t => t^2, x)) <= 1)"), "true");
+    assert_eq!(ev("diamond_matrix([2, 3]) === ls_shape([2, 3], [5, 7], (x, rs) => total(map(abs, x)) <= 1)"), "true");
+    assert_eq!(ev("dimensions(disk_matrix([1, 2, 1]))"), "[3, 5, 3]");
+    assert_eq!(ev("disk_matrix(0, 3)"), "[[0, 0, 0], [0, 1, 0], [0, 0, 0]]");
+    let t0 = std::time::Instant::now();
+    assert_eq!(ev("total(flatten(disk_matrix(50, 201)))"), "7845");
+    // the general shape took 2.5 s (the bound includes starting a session)
+    assert!(t0.elapsed() < std::time::Duration::from_secs(2), "took {:?}", t0.elapsed());
+}

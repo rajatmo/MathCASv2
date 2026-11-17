@@ -85,6 +85,7 @@ impl App {
                 (mc_nbfile::images::image_value(&p), mc_nbfile::images::image_value(&abs))
             })
             .collect();
+        self.column_twins(&f, base.as_deref());
         let side = mc_nbfile::embed::embed(&mut f, base.as_deref());
         let text = f.print();
         match mc_nbfile::write_atomic(path, &text) {
@@ -186,6 +187,9 @@ impl App {
             }
         }
         let ext = path.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+        if ext == "pdf" {
+            self.column_twins(&f, Some(&base));
+        }
         let bytes = if ext == "pdf" {
             mc_nbexport::to_pdf(&f, &base)
         } else {
@@ -200,6 +204,23 @@ impl App {
                 self.error = Some(format!("Cannot export {}: {e}", path.display()));
                 false
             }
+        }
+    }
+
+    /// Have the kernel write the column twins of the pictures `f` shows (the saved notebook keeps them, the PDF
+    /// export draws from them): the kernel writes them only when asked. A busy kernel is waited for a moment; a
+    /// twin it has not written by then is left out (the export then lays out the picture's own SVG).
+    fn column_twins(&mut self, f: &mc_nbfile::Notebook, base: Option<&Path>) {
+        let pictures: Vec<PathBuf> = f
+            .cells
+            .iter()
+            .flat_map(|c| c.output_lines())
+            .filter(|l| l.kind == mc_nbfile::OutputKind::Value)
+            .filter_map(|l| mc_nbfile::images::image_path(&l.text))
+            .map(|p| mc_nbfile::images::resolve(&p, base))
+            .collect();
+        if !pictures.is_empty() {
+            self.doc.kernel.write_column_twins(&pictures, std::time::Duration::from_secs(2));
         }
     }
 

@@ -350,11 +350,18 @@ fn nl_fourier_vec(u, a, b, sgn, prec) = {
 # 1)/n) with fourier_parameters [a, b] (default [0, 1]), along every level of an array; numeric, at the precision
 # of the data
 fn fourier(u; fourier_parameters = [0, 1]) when is_list(u) and length(u) > 0 and every(flatten([u]), is_numeric) =
-  nl_fourier(u, fourier_parameters[1], fourier_parameters[2], 1)
+  nl_fourier_any(u, fourier_parameters[1], fourier_parameters[2], 1)
 
 # inverse_fourier(list): the inverse of fourier with the same fourier_parameters
 fn inverse_fourier(u; fourier_parameters = [0, 1]) when is_list(u) and length(u) > 0 and every(flatten([u]), is_numeric) =
-  nl_fourier(u, fourier_parameters[1], fourier_parameters[2], -1)
+  nl_fourier_any(u, fourier_parameters[1], fourier_parameters[2], -1)
+
+# a long vector of machine numbers with an integer b: the native, which gives what nl_fourier gives without the
+# work per entry in the language
+fn nl_fourier_any(u, a, b, sgn) = {
+  let fast = if is_integer(b) and length(u) > 128 and not is_list(u[1]) then nl_fourier_machine(u, sgn*b, n(1/length(u)^((1 - sgn*a)/2))) else false
+  if is_list(fast) then fast else nl_fourier(u, a, b, sgn)
+}
 
 # --- find_peaks ---
 
@@ -774,9 +781,14 @@ fn nl_li_1d(vals, coords, k, x) = {
   else total(map(j => vals[j]*product(map(m => if m == j then 1 else (x - coords[m])/(coords[j] - coords[m]), idx)), idx))
 }
 # the value at the point xs of the tensor-product interpolation of the array vals on the coordinate lists grids
+# (a point of machine reals on an array of real numbers: the native, which computes the same value)
 fn nl_li_eval(vals, grids, ks, xs) when every(xs, is_number) = {
+  let fast = nl_li_machine(vals, grids, ks, xs)
+  if is_number(fast) then fast else nl_li_lang(vals, grids, ks, xs)
+}
+fn nl_li_lang(vals, grids, ks, xs) = {
   let v = nl_li_1d(vals, grids[1], ks[1], xs[1])
-  if length(xs) == 1 then v else nl_li_eval(v, drop(grids, 1), drop(ks, 1), drop(xs, 1))
+  if length(xs) == 1 then v else nl_li_lang(v, drop(grids, 1), drop(ks, 1), drop(xs, 1))
 }
 # the coordinate list of one dimension of length len from a domain spec: [lo, hi] (equally spaced) or the
 # coordinates themselves

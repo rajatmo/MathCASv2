@@ -143,6 +143,15 @@ pub fn forget(png: &Path) {
     pending().retain(|w| w.png != png);
 }
 
+/// Drop the waiting files of every plot (a kernel's `reset`: the session that made them is gone); the number of
+/// plots whose files were dropped.
+pub fn forget_all() -> usize {
+    let mut p = pending();
+    let n = p.len();
+    p.clear();
+    n
+}
+
 /// Whether files of the plot whose PNG is at `png` wait.
 pub fn is_pending(png: &Path) -> bool {
     pending().iter().any(|w| w.png == png)

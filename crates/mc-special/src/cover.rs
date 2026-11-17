@@ -931,7 +931,9 @@ fn q_pochhammer<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     // contour plots of q_pochhammer and q_factorial would time out on the ball path), else the ball path
     if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
         let (x, q) = if a.len() == 1 { (ms[0], ms[0]) } else { (ms[0], ms[1]) };
-        let v = crate::fast_dd::q_product(x, q).and_then(|v| {
+        // Euler's function of a real q near -1 or 1 (the product there needs thousands of factors)
+        let near_one = || (a.len() == 1 && real).then(|| crate::fast_dd::euler_near_one(q.re.hi)).flatten().map(mc_numeric::machine::C64::real);
+        let v = crate::fast_dd::q_product(x, q).or_else(near_one).and_then(|v| {
             if a.len() < 3 {
                 return Some(v);
             }
@@ -2545,6 +2547,17 @@ fn lerch_phi<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         }
         return Ok(None);
     }
+    // machine arguments with a real s and a > 0: the series in double-double numbers (about a thousand times faster
+    // than the balls below; plots of lerch_phi took seconds)
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
+        if ms[1].im.hi == 0.0 && ms[2].im.hi == 0.0 {
+            if let Some(v) = crate::fast_dd::lerch(ms[0], ms[1].re, ms[2].re) {
+                if let Some(t) = crate::fast_dd::machine_out(fx, v, real) {
+                    return Ok(Some(t));
+                }
+            }
+        }
+    }
     let Some((wk, xs)) = work(fx, a, 8) else { return Ok(None) };
     let (z, s, x) = (xs[0], xs[1], xs[2]);
     let ns = fx.neg(s);
@@ -2867,6 +2880,12 @@ fn log_barnes_g<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     }
     if !numeric(fx, a) || gamma_pole(fx, a[0]) {
         return Ok(None);
+    }
+    // a machine real x > 0: the double-double evaluation (microseconds, where the balls below take milliseconds)
+    if let Some(x) = fx.machine_of(a[0]) {
+        if let Some(v) = crate::machine::gamma::ln_barnes_g(x) {
+            return Ok(Some(fx.real(v)));
+        }
     }
     let Some((wk, xs)) = work(fx, a, 16) else { return Ok(None) };
     let Some(c) = zeta_prime_m1(fx, wk.w)? else { return Ok(None) };

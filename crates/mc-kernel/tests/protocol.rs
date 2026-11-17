@@ -372,6 +372,12 @@ fn pictures_are_written_as_the_client_asks() {
     // a picture the kernel does not know
     let rs = k.ask(json!({"type": "picture", "id": 5, "path": "no/such/picture.png"}));
     assert_eq!((rs[0]["type"].as_str(), rs[1]["status"].as_str()), (Some("error"), Some("error")), "{rs:?}");
+    // a reset drops the files that wait: a picture of the old session is not written any more
+    let rs = k.ask(json!({"type": "reset", "id": 7}));
+    assert_eq!(rs.last().unwrap()["status"], "ok", "{rs:?}");
+    let rs = k.ask(json!({"type": "picture", "id": 8, "path": png, "formats": ["png"]}));
+    assert_eq!(rs.last().unwrap()["status"], "error", "{rs:?}");
+    assert!(!exists(&png, "png"));
     // a client without the field: every file of the picture at once, as before
     let rs = k.ask(cell(6, "plot(sin(t), [t, 0, 2])"));
     let png = rs[0]["path"].as_str().unwrap();

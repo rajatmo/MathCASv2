@@ -7,6 +7,8 @@
 #    parallel step. A binary starts only when the machine has free memory for it.
 # 3. Prints [k/N pct%] as each binary finishes, a heartbeat every 15 s with what is running and the time left, keeps
 #    the job's status file current for tools/status.ps1 (job name -Job), and ends with a summary and the failures.
+#    The output of each binary that failed is kept in the status folder, `<Job>-failures/<binary>.txt`, until the
+#    job runs again.
 # Exit code 1 when anything failed.
 #
 #   tools/test.ps1 [-Package mc-io,mc-docs] [-Job suite] [-Owner main] [-MemMB 3072] [-TimeoutSec 1200]
@@ -27,6 +29,10 @@ $cores = [Environment]::ProcessorCount
 if ($Jobs -le 0) { $Jobs = [math]::Max(1, [math]::Floor($cores / [math]::Max(1, $Threads))) }
 if (-not $Log) { $Log = Join-Path ([IO.Path]::GetTempPath()) "mc-test-$Job.log" }
 "" | Set-Content $Log -Encoding utf8
+# the whole output of every binary that fails, one file each, beside the job's status file (the log above is
+# rewritten by the next run; these stay until the same job runs again)
+$failDir = Join-Path (Get-StatusDir) "$Job-failures"
+if (Test-Path $failDir) { Remove-Item -Recurse -Force $failDir -ErrorAction SilentlyContinue }
 $target = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $root "target" }
 New-Item -ItemType Directory -Force $target | Out-Null
 $scope = if ($Package.Count) { ($Package | Sort-Object) -join '+' } else { 'workspace' }
@@ -149,6 +155,9 @@ while ($queue.Count -gt 0 -or $running.Count -gt 0) {
             $names = [regex]::Matches("$text", '(?m)^test (\S+) \.\.\. FAILED') | ForEach-Object { $_.Groups[1].Value }
             $failures += "$($r.Bin.Name) : $verdict$(if ($names) { ' : ' + ($names -join ', ') })"
             if ($f -eq 0) { $failed++ }
+            New-Item -ItemType Directory -Force $failDir | Out-Null
+            $keep = Join-Path $failDir ((($r.Bin.Name -replace '[^A-Za-z0-9_.-]+', '_').Trim('_')) + ".txt")
+            "verdict: $verdict`nbinary: $($r.Bin.Exe) $($r.Bin.Args)`n`n$text" | Set-Content $keep -Encoding utf8
         }
         $mark = if ($bad) { "FAIL" } else { "ok" }
         Write-Host ("[{0}/{1} {2,5:N1}%] {3,-4} {4,-45} {5,4} passed {6,2} failed {7,6:N1}s" -f $k, $steps, (100.0 * $k / $steps), $mark, $r.Bin.Name, $p, $f, $secs)
@@ -180,4 +189,8 @@ $summary = "$passed passed, $failed failed, $ignored ignored in $([math]::Round(
 Set-JobStatus -Job $Job -Done $steps -Total $steps -Current "" -State $(if ($failures) { "failed" } else { "done" }) -Message $summary
 Write-Host ""
 Write-Host $summary
-if ($failures) { Write-Host "failures:"; $failures | ForEach-Object { Write-Host "  $_" }; Write-Host "full output: $Log"; exit 1 }
+if ($failures) {
+    Write-Host "failures:"; $failures | ForEach-Object { Write-Host "  $_" }
+    Write-Host "full output: $Log; each failed binary's output: $failDir"
+    exit 1
+}

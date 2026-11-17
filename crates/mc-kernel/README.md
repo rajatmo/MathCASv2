@@ -22,7 +22,8 @@ streams, the messages it speaks, the `.mcn` notebook format and its runner.
   documentation.
 - A client says in `eval`'s `pictures` which files of a picture it reads (`png`, `svg`, `json`, ...): those are
   written before the response that names the picture, the others when a `picture` request asks for them. A client
-  that does not say gets every picture's PNG, SVG and the files beside them when the picture is made.
+  that does not say gets every picture's PNG, SVG and the files beside them when the picture is made. A `reset`
+  drops the files that still wait.
 - Depends on `mc-engine`, `mc-eval`, `mc-api`, `mc-syntax`, `mc-nbfile`, `mc-plot`, `mc-graphics`, `serde` and
   `serde_json`.
 

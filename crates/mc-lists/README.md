@@ -23,6 +23,8 @@ and sorting lists and other compound terms, plus grouping, combinatorics, hashin
   expected leaves the call unevaluated, other wrong arguments give `failure(argument, f, k)`, and an index outside a
   term gives `failure(index, i, n)`.
 - Walks over terms (`depth`, `leaf_count`) use an explicit stack, so any depth is handled.
+- `table`, `map`, `array`, `nest`, `nest_list`, `fold` and `fold_list` over many machine numbers compile their
+  function once (`mc-jit`, which gives the interpreter's values exactly or declines, and then the interpreter runs).
 - Depends on `mc-eval`, `mc-arith`, `mc-jit` (compiled maps), `mc-numfn` and `mc-syntax` (the printer for `to_string`).
 
 ## Tests

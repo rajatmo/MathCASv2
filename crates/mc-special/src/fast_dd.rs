@@ -1337,6 +1337,71 @@ pub(crate) fn q_product(x: CD, q: CD) -> Option<C64> {
     None
 }
 
+/// The Lerch transcendent Phi(z, s, a) = sum_(k >= 0) z^k (k + a)^-s (DLMF 25.14.1) for |z| <= 0.95, a real
+/// s and a real a > 0, summed in double-double numbers ((k + a)^-s = exp(-s log(k + a))) until the tail, bounded
+/// by the geometric series of the term ratio |z| ((k + 1 + a)/(k + a))^max(0, -s) once that ratio is below 1,
+/// falls below 2^-66 of the sum (integer s: reciprocal powers). The rounding of a term is about U (1 + |s| log(k + a)) of it; `None` when the
+/// largest term leaves fewer than the machine digits of the sum, or after 200000 terms.
+pub(crate) fn lerch(z: CD, s: DD, a: DD) -> Option<C64> {
+    let r = z.abs();
+    if !(r <= 0.95) || !(a.hi > 0.0) || !s.hi.is_finite() || !a.hi.is_finite() {
+        return None;
+    }
+    let (mut zk, mut sum) = (CD::ONE, CD::ZERO);
+    let mut err = 0.0f64;
+    // a small integer s: (k + a)^-s as a reciprocal power (a few products, no exp and log)
+    let small = (s.lo == 0.0 && s.hi.fract() == 0.0 && s.hi.abs() <= 16.0).then_some(s.hi as i64);
+    for k in 0..200_000u32 {
+        let b = a.add_f(k as f64);
+        let (w, lb) = match small {
+            Some(n) if n >= 0 => (b.powi(n as u64).recip(), b.hi.ln()),
+            Some(n) => (b.powi((-n) as u64), b.hi.ln()),
+            None => {
+                let lb = crate::dd::log(b);
+                (crate::dd::exp(-(s * lb)), lb.hi)
+            }
+        };
+        let t = zk.mul_dd(w);
+        sum = sum + t;
+        let at = t.abs();
+        err += at * (1.0 + s.hi.abs() * lb.abs());
+        let rho = if s.hi < 0.0 { r * (1.0 + 1.0 / b.hi).powf(-s.hi) } else { r };
+        // the tail below 2^-66 of the sum: far inside the quarter ulp the result is allowed
+        if rho < 1.0 && at * rho / (1.0 - rho) <= 1.4e-20 * sum.abs() {
+            let size = sum.abs();
+            return (sum.finite() && err * U * 1e2 <= TOL * size).then(|| sum.to_c64());
+        }
+        if !at.is_finite() {
+            return None;
+        }
+        zk = zk * z;
+    }
+    None
+}
+
+/// Euler's function (q; q)_inf for a real q with 0.9 <= |q| < 1, where the product needs thousands of factors:
+/// by the modular transformation of the Dedekind eta function, eta(-1/tau) = sqrt(-i tau) eta(tau) (DLMF 27.14.7,
+/// 23.15.5), with q = e^-t, t > 0: (q; q)_inf = sqrt(2 pi/t) exp(t/24 - pi^2/(6 t)) (q'; q')_inf, q' = e^(-4 pi^2/t)
+/// (at most e^-375 here, so the last factor is 1 to far beyond double-double). A negative q = -p by
+/// (-p; -p)_inf = (p^2; p^2)_inf^3/((p; p)_inf (p^4; p^4)_inf) (the even factors 1 - p^n and the odd ones 1 + p^n,
+/// with (1 + p^n)(1 - p^n) = 1 - p^(2n)), every term again of that form (t, 2t, 4t; q' at most e^-94). The
+/// exponent is a double-double of size at most pi^2/(6 t) with a relative error near 2^-100, so the value keeps
+/// its last bit while it is a normal double; `None` outside the range, on underflow (|q| near 1) or overflow.
+pub(crate) fn euler_near_one(q: f64) -> Option<f64> {
+    let p = q.abs();
+    if !(0.9..1.0).contains(&p) {
+        return None;
+    }
+    let t = -crate::dd::log(DD::new(p));
+    let pi2 = crate::dd::PI.sqr();
+    // ln of sqrt(2 pi/t) exp(t/24 - pi^2/(6 t))
+    let ln_e = |t: DD| (crate::dd::LN_2PI - crate::dd::log(t)).mul_f(0.5) + t.div_f(24.0) - pi2 / t.mul_f(6.0);
+    let l = if q > 0.0 { ln_e(t) } else { ln_e(t.mul_f(2.0)).mul_f(3.0) - ln_e(t) - ln_e(t.mul_f(4.0)) };
+    let v = crate::dd::exp_scaled(l).to_f64();
+    // a subnormal result has lost bits: the slow path then
+    (v.is_finite() && v >= f64::MIN_POSITIVE).then_some(v)
+}
+
 /// The basic hypergeometric series r phi s (DLMF 17.4.1) in double-double numbers by the term ratio prod (1 - a_i
 /// q^n)/prod (1 - b_j q^n)/(1 - q^(n+1)) ((-1) q^n)^(1 + s - r) z, |q| < 1. `None` after 20000 terms, at
 /// a zero denominator, or when the largest term leaves fewer than the machine digits of the sum.

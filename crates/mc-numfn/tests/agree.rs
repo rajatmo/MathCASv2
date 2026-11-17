@@ -329,3 +329,69 @@ fn compiled_maps_agree_with_the_interpreter() {
     }
     assert!(started.elapsed() < std::time::Duration::from_secs(60), "took {:?}", started.elapsed());
 }
+
+#[test]
+fn compiled_nests_and_folds_agree_with_the_interpreter() {
+    let started = std::time::Instant::now();
+    let mut e = engine();
+    eval(&mut e, "xs = join(range(-3, 3, 0.001), [0.0, -0.0, 1.0e308, -1.0e308, 5.0e-324, -5.0e-324, 2.2250738585072014e-308]);");
+    eval(&mut e, "ks = range(-3000, 3000);");
+    // nest and nest_list: the compiled lambda against the same body as a named function (never compiled)
+    for (body, start, n) in [
+        ("3.7*x*(1 - x)", "0.2", 5000),
+        // signed zeros: -0.0 stays -0.0 under the halving, 0.0 under the negated product
+        ("x/2", "-0.0", 2000),
+        ("-(x*0.0)", "1.5", 2000),
+        // overflow to infinity and a NaN after it
+        ("x*2.0", "1.0", 1500),
+        ("x*2.0 - x*2.0", "1.0e307", 1500),
+        // the subnormals down to zero
+        ("x/2.0", "1.0e-300", 1200),
+        ("x - 1.0e-310", "1.0e-307", 1100),
+        // machine integers, and an overflow (the compiled code declines, the interpreter goes on exactly)
+        ("mod(31*x + 7, 1000003)", "5", 5000),
+        ("2*x", "1", 1100),
+        // a real start with an integer-valued body: the types differ (declined)
+        ("floor(x)", "2.5", 1100),
+    ] {
+        eval(&mut e, &format!("clear(g); fn g(x) = {body}"));
+        for f in ["nest_list", "nest"] {
+            let compiled = format!("{f}(x => {body}, {start}, {n})");
+            let interpreted = format!("{f}(g, {start}, {n})");
+            assert_eq!(eval(&mut e, &format!("to_string({compiled}) == to_string({interpreted})")), "true", "{compiled}");
+            assert_eq!(eval(&mut e, &format!("({compiled}) === ({interpreted})")), "true", "{compiled}");
+        }
+    }
+    // fold and fold_list, with and without a start
+    for (body, start, over) in [
+        ("a + x^2", Some("0.0"), "xs"),
+        ("a*0.999 + x", Some("-0.0"), "xs"),
+        ("max(a, x) - 1.0e-3", None, "xs"),
+        ("a*2.0 + x", Some("1.0"), "xs"),
+        ("mod(a*31 + x, 1000003)", Some("7"), "ks"),
+        ("a*x", Some("1"), "ks"),
+        ("a + x", None, "ks"),
+        // an integer accumulator over reals: the types differ (declined)
+        ("a + x", Some("0"), "xs"),
+    ] {
+        eval(&mut e, &format!("clear(g); fn g(a, x) = {body}"));
+        let st = start.map(|s| format!("{s}, ")).unwrap_or_default();
+        for f in ["fold_list", "fold"] {
+            let compiled = format!("{f}((a, x) => {body}, {st}{over})");
+            let interpreted = format!("{f}(g, {st}{over})");
+            assert_eq!(eval(&mut e, &format!("to_string({compiled}) == to_string({interpreted})")), "true", "{compiled}");
+            assert_eq!(eval(&mut e, &format!("({compiled}) === ({interpreted})")), "true", "{compiled}");
+        }
+    }
+    assert!(started.elapsed() < std::time::Duration::from_secs(60), "took {:?}", started.elapsed());
+}
+
+#[test]
+fn compiled_nests_and_folds_are_fast() {
+    let mut e = engine();
+    let t0 = std::time::Instant::now();
+    assert_eq!(eval(&mut e, "length(nest_list(x => 3.7*x*(1 - x), 0.2, 200000))"), "200001");
+    assert_eq!(eval(&mut e, "is_real(fold((a, x) => a + x^2, 0., range(0, 1, 0.000005)))"), "true");
+    // the interpreter took about 2 s and 1.2 s
+    assert!(t0.elapsed() < std::time::Duration::from_secs(1), "took {:?}", t0.elapsed());
+}

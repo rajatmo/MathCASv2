@@ -12,7 +12,10 @@ integrals, at machine and arbitrary precision.
   arbitrary precision.
 - `domain`, `multi`, `cubature`, `mc`, `qmc`, `qmc_tables`: multidimensional integration on the unit cube, with the
   integrand evaluated in parallel blocks: Genz-Malik cubature, VEGAS and plain Monte Carlo, randomised lattice rules.
-- `fft`: the fast Fourier transform of long machine vectors.
+- `fft`: the fast Fourier transform of long machine vectors, and the whole of `fourier`/`inverse_fourier` (scale,
+  real parts of conjugate-even data) for them.
+- `interp`: the grid interpolations of `list_interpolation` and `function_interpolation` at points of machine reals,
+  with the language definition's values.
 - `regions`, `options`, `natives`: symbolic preparation of integrands, options, argument forms, results and failures.
 
 ## Design

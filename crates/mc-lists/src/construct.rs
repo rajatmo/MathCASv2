@@ -856,6 +856,9 @@ pub(crate) fn nest<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
         return Ok(Reply::Decline);
     };
     let n = take!(times(lib, cx, t, n));
+    if let Some(v) = compiled_nest(lib, cx, f, x, n, false)? {
+        return Ok(Reply::Done(v));
+    }
     let r = iterate(lib, cx, f, x, n, |_| {})?;
     Ok(Reply::Done(r.unwrap_or_else(|e| e)))
 }
@@ -869,6 +872,9 @@ pub(crate) fn nest_list<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
     if n >= MAX_LEN as u64 {
         return Ok(Reply::Done(lib.too_large(cx.heap(), t)));
     }
+    if let Some(v) = compiled_nest(lib, cx, f, x, n, true)? {
+        return Ok(Reply::Done(v));
+    }
     let mut out = Vec::with_capacity(n as usize + 1);
     Ok(Reply::Done(match iterate(lib, cx, f, x, n, |v| out.push(v))? {
         Ok(_) => cx.list(&out),
@@ -881,6 +887,9 @@ pub(crate) fn fold<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
     if let Some(v) = packed_fold(cx, args, false)? {
         return Ok(Reply::Done(v));
     }
+    if let Some(v) = compiled_fold(lib, cx, args, false)? {
+        return Ok(Reply::Done(v));
+    }
     let r = take!(fold_with(lib, cx, t, args, &mut None, |_| {})?);
     Ok(Reply::Done(r))
 }
@@ -888,6 +897,9 @@ pub(crate) fn fold<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
 /// `fold_list(f, x, xs)`: `[x, f(x, xs[1]), ...]`, every intermediate value.
 pub(crate) fn fold_list<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     if let Some(v) = packed_fold(cx, args, true)? {
+        return Ok(Reply::Done(v));
+    }
+    if let Some(v) = compiled_fold(lib, cx, args, true)? {
         return Ok(Reply::Done(v));
     }
     let h = cx.heap();
@@ -1063,6 +1075,142 @@ fn packed_fold<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], list: bool) ->
             }))
         }
     }
+}
+
+/// The fewest steps of `nest`, `nest_list`, `fold` and `fold_list` that are compiled (below, compiling costs more than
+/// the interpreter's steps).
+const COMPILED_STEPS_MIN: usize = 1024;
+
+/// The symbols and the body of a function `(x, ...) => body` with `arity` parameters.
+fn lambda<'h>(lib: &Lib, cx: &NativeCx<'_, '_, 'h>, f: T<'h>, arity: usize) -> Option<(Vec<mc_core::Sym>, T<'h>)> {
+    let h = cx.heap();
+    let View::App { head, args: &[params, body] } = h.view(f) else { return None };
+    if !matches!(h.view(head), View::Sym(s) if s == lib.s.fn_) {
+        return None;
+    }
+    let ps = cx.as_list(params)?;
+    if ps.len() != arity {
+        return None;
+    }
+    let syms: Option<Vec<mc_core::Sym>> = ps.iter().map(|&p| if let View::Sym(s) = h.view(p) { Some(s) } else { None }).collect();
+    let syms = syms?;
+    // distinct parameters (a repeated one is bound once by the interpreter)
+    (arity < 2 || syms[0] != syms[1]).then_some((syms, body))
+}
+
+/// A machine number as the compiler's word and type.
+fn machine_word<'h>(h: &'h mc_core::Heap, x: T<'h>) -> Option<(u64, mc_jit::Arg)> {
+    match h.view(x) {
+        View::Real(r) => Some((r.to_bits(), mc_jit::Arg::Real)),
+        View::Int(i) => Some((i as u64, mc_jit::Arg::Int)),
+        _ => None,
+    }
+}
+
+/// The packed vector of words of one type, or the machine number of the last.
+fn words_out<'h>(h: &'h mc_core::Heap, ty: mc_jit::Arg, out: &[u64], list: bool) -> Option<T<'h>> {
+    let last = *out.last()?;
+    Some(match (ty, list) {
+        (mc_jit::Arg::Real, true) => h.reals(&out.iter().map(|&w| f64::from_bits(w)).collect::<Vec<_>>()),
+        (mc_jit::Arg::Int, true) => h.ints(&out.iter().map(|&w| w as i64).collect::<Vec<_>>()),
+        (mc_jit::Arg::Real, false) => h.real(f64::from_bits(last)),
+        (mc_jit::Arg::Int, false) => h.int(last as i64),
+        _ => return None,
+    })
+}
+
+/// Whether the compiled code takes and gives one type: the body's value has the type of its argument `ty` (the state
+/// of a nest or the accumulator of a fold), so each step feeds the next.
+fn keeps_type(code: &mc_jit::ExprFn, ty: mc_jit::Arg) -> bool {
+    matches!((code.output_types(), ty), ([mc_jit::ir::Ty::Real], mc_jit::Arg::Real) | ([mc_jit::ir::Ty::Int], mc_jit::Arg::Int))
+}
+
+/// `nest(x => e, x0, n)` and `nest_list` with a machine number x0 and at least [`COMPILED_STEPS_MIN`] steps, with a
+/// body the numeric compiler takes (exactly the interpreter's value, or a decline) whose value has the type of x0:
+/// the body compiled once and called n times; `nest_list` gives the packed vector of the n + 1 values (the term the
+/// interpreter's list of them is). `None` (nothing evaluated: the body is pure) when any of this does not hold or a
+/// call declines (an overflow of an integer, a complex value, ...): the interpreter then iterates.
+fn compiled_nest<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: T<'h>, n: u64, list: bool) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    if (n as usize) < COMPILED_STEPS_MIN {
+        return Ok(None);
+    }
+    let Some((ps, body)) = lambda(lib, cx, f, 1) else { return Ok(None) };
+    let Some((w0, ty)) = machine_word(h, x) else { return Ok(None) };
+    let Ok(code) = mc_jit::compile_expr(cx, &[(ps[0], ty)], body, false, mc_jit::Backend::Cranelift) else { return Ok(None) };
+    // (a body that draws random numbers draws them in its own order: left to the interpreter)
+    if code.outputs() != 1 || code.inputs() != 1 || code.draws() || !keeps_type(&code, ty) {
+        return Ok(None);
+    }
+    let mut out = Vec::with_capacity(if list { n as usize + 1 } else { 1 });
+    let mut w = w0;
+    out.push(w);
+    let mut one = [0u64];
+    for _ in 0..n {
+        cx.tick(1)?;
+        if code.call_words(cx, &[w], &mut one) != mc_jit::Call::Done {
+            return Ok(None);
+        }
+        w = one[0];
+        if list {
+            out.push(w);
+        } else {
+            out[0] = w;
+        }
+    }
+    Ok(words_out(h, ty, &out, list))
+}
+
+/// `fold((a, x) => e, a0, xs)` and `fold_list` (and the forms without a0, which start from xs[1]) over a packed
+/// vector xs of at least [`COMPILED_STEPS_MIN`] machine numbers, a0 a machine number, with a body the numeric compiler
+/// takes whose value has the type of the accumulator: the body compiled once and called for each element;
+/// `fold_list` gives the packed vector of the values. `None` (nothing evaluated) when any of this does not hold or a
+/// call declines: the interpreter then folds.
+fn compiled_fold<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], list: bool) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let (f, start, xs) = match *args {
+        [f, x, xs] => (f, Some(x), xs),
+        [f, xs] => (f, None, xs),
+        _ => return Ok(None),
+    };
+    let Some(p) = h.packed(xs) else { return Ok(None) };
+    if p.rank() != 1 || p.count() < COMPILED_STEPS_MIN {
+        return Ok(None);
+    }
+    let (words, xty): (Vec<u64>, mc_jit::Arg) = match (p.reals(), p.ints()) {
+        (Some(r), _) => (r.iter().map(|x| x.to_bits()).collect(), mc_jit::Arg::Real),
+        (_, Some(i)) => (i.iter().map(|&x| x as u64).collect(), mc_jit::Arg::Int),
+        _ => return Ok(None),
+    };
+    let (w0, aty, rest) = match start {
+        Some(x) => match machine_word(h, x) {
+            Some((w, t)) => (w, t, &words[..]),
+            None => return Ok(None),
+        },
+        None => (words[0], xty, &words[1..]),
+    };
+    let Some((ps, body)) = lambda(lib, cx, f, 2) else { return Ok(None) };
+    let Ok(code) = mc_jit::compile_expr(cx, &[(ps[0], aty), (ps[1], xty)], body, false, mc_jit::Backend::Cranelift) else { return Ok(None) };
+    if code.outputs() != 1 || code.inputs() != 2 || code.draws() || !keeps_type(&code, aty) {
+        return Ok(None);
+    }
+    let mut out = Vec::with_capacity(if list { rest.len() + 1 } else { 1 });
+    let mut acc = w0;
+    out.push(acc);
+    let mut one = [0u64];
+    for &x in rest {
+        cx.tick(1)?;
+        if code.call_words(cx, &[acc, x], &mut one) != mc_jit::Call::Done {
+            return Ok(None);
+        }
+        acc = one[0];
+        if list {
+            out.push(acc);
+        } else {
+            out[0] = acc;
+        }
+    }
+    Ok(words_out(h, aty, &out, list))
 }
 
 /// The fold of `fold` and `fold_list`; `each` sees every value. An argument error, or a failure value (which ends

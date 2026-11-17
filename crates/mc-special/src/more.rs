@@ -1597,6 +1597,12 @@ fn hyperfactorial_numeric<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>]) -> R<
     if !re.is_finite() || !im.is_finite() {
         return Ok(None);
     }
+    // a machine real z > -1: the double-double evaluation (microseconds, where the balls below take milliseconds)
+    if let Some(z) = fx.machine_of(args[0]) {
+        if let Some(v) = crate::machine::gamma::hyperfactorial(z) {
+            return Ok(Some(fx.real(v)));
+        }
+    }
     let re = re + 1.0;
     // log H is about |z|^2 log|z|/2: that many more bits keep the digits of H after exp
     let size = (re * re + im * im).sqrt() + 2.0;

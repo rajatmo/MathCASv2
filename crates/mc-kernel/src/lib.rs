@@ -52,7 +52,7 @@
 //!   (decision 2.4). It is answered after a running evaluation (decision 2.2).
 //! - **`modules`** lists the loaded modules.
 //! - **`reset`** replaces the session with a fresh one: definitions, modules and imports are gone, the prelude
-//!   is evaluated again.
+//!   is evaluated again; the files of pictures that wait to be asked for (`pictures`) are dropped.
 //! - **`shutdown`** answers `done` and ends the process (exit code 0). The end of standard input does the same
 //!   once the requests read before it are answered (decision 2.3).
 //!

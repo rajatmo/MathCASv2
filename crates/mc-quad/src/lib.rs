@@ -25,6 +25,7 @@ mod domain;
 mod fft;
 mod gk;
 mod hp;
+mod interp;
 mod machine;
 mod mc;
 mod multi;
@@ -95,4 +96,6 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     k.register(h.sym("n_integrate"), Attributes::default(), Box::new(natives::NIntegrate { stop: stop.clone() }));
     k.register(h.sym(natives::TAIL_EXP), Attributes::default(), Box::new(natives::TailExp));
     k.register(h.sym(fft::NAME), Attributes::default(), Box::new(fft::Fft));
+    k.register(h.sym(fft::WHOLE), Attributes::default(), Box::new(fft::FourierWhole));
+    k.register(h.sym(interp::NAME), Attributes::default(), Box::new(interp::LiMachine));
 }

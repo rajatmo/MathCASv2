@@ -13,7 +13,7 @@ fn ls_small(x, scale) = abs(x) <= 1.0e-10*max(1, scale)
 
 # unit_vector(n, k): the vector of length n with a 1 at position k and zeros elsewhere; unit_vector(k) is the
 # 2-vector (k = 1 or 2)
-fn unit_vector(n: Int, k: Int) when n >= 1 and k >= 1 and k <= n = map(i => boole(i == k), range(n))
+fn unit_vector(n: Int, k: Int) when n >= 1 and k >= 1 and k <= n = join(constant_array(0, k - 1), [1], constant_array(0, n - k))
 fn unit_vector(k: Int) when k == 1 or k == 2 = unit_vector(2, k)
 
 # normalized(v): v divided by its norm (a vector, a matrix with its 2-norm, a number z as z/abs(z)); v itself when
@@ -367,6 +367,20 @@ fn ls_shape(r, d, test) = {
   let rs = map(i => if rs0[i] === all then (ds[i] - 1)/2 else rs0[i], range(length(rs0)))
   ls_nd(ds, [], idx => boole(test(map(i => ls_scaled(idx[i] - (ds[i] + 1)/2, rs[i]), range(length(ds))), rs)))
 }
+# a disk (kind = 2: squares) or a diamond (kind = 1: magnitudes) in two dimensions with positive radii: the same
+# entries as ls_shape, the per-axis terms computed once and added in a nested map (the general shape builds an
+# index list and calls the test for every entry: 2.5 s for a 201 x 201 disk)
+fn ls_shape_sum(r, d, test, kind) = {
+  let rs0 = if is_list(r) then r else (if is_list(d) then constant_array(r, length(d)) else [r, r])
+  let ds = if is_list(d) then map(i => if d[i] === all then 2*rs0[i] + 1 else d[i], range(length(d))) else constant_array(d, length(rs0))
+  let rs = map(i => if rs0[i] === all then (ds[i] - 1)/2 else rs0[i], range(length(rs0)))
+  if length(ds) == 2 and length(rs) == 2 and every(rs, t => is_real(t) and t > 0) and every(ds, t => is_integer(t) and t >= 1) then {
+    let axis = i => map(t => if kind == 2 then t^2 else abs(t), map(j => (j - (ds[i] + 1)/2)/rs[i], range(ds[i])))
+    let a = axis(1)
+    let b = axis(2)
+    map(u => map(v => boole(u + v <= 1), b), a)
+  } else ls_shape(r, d, test)
+}
 # the offset o in units of the radius r: o/r; for r = 0 the shape holds only the offset 0 (|o| <= r), so any other
 # offset is infinitely far
 fn ls_scaled(o, r) = if r == 0 then (if o == 0 then 0 else inf) else o/r
@@ -374,12 +388,12 @@ fn ls_size(r) = if is_list(r) then map(t => 2*t + 1, r) else 2*r + 1
 
 # disk_matrix(r), disk_matrix(r, d): the array of 1 where (x1/r1)^2 + ... <= 1 (a disk, ball or ellipsoid of
 # radii r around the centre of an array of 2 r + 1 entries or of the dimensions d), else 0
-fn disk_matrix(r) = ls_shape(r, ls_size(r), (x, rs) => total(map(t => t^2, x)) <= 1)
-fn disk_matrix(r, d) = ls_shape(r, d, (x, rs) => total(map(t => t^2, x)) <= 1)
+fn disk_matrix(r) = ls_shape_sum(r, ls_size(r), (x, rs) => total(map(t => t^2, x)) <= 1, 2)
+fn disk_matrix(r, d) = ls_shape_sum(r, d, (x, rs) => total(map(t => t^2, x)) <= 1, 2)
 
 # diamond_matrix(r), (r, d): 1 where |x1/r1| + ... <= 1, else 0
-fn diamond_matrix(r) = ls_shape(r, ls_size(r), (x, rs) => total(map(abs, x)) <= 1)
-fn diamond_matrix(r, d) = ls_shape(r, d, (x, rs) => total(map(abs, x)) <= 1)
+fn diamond_matrix(r) = ls_shape_sum(r, ls_size(r), (x, rs) => total(map(abs, x)) <= 1, 1)
+fn diamond_matrix(r, d) = ls_shape_sum(r, d, (x, rs) => total(map(abs, x)) <= 1, 1)
 
 # box_matrix(r), (r, d): 1 where every |xi/ri| <= 1, i.e. the whole array when it is 2 r + 1 entries wide
 fn box_matrix(r) = ls_shape(r, ls_size(r), (x, rs) => every(x, t => abs(t) <= 1))

@@ -263,6 +263,48 @@ pub fn barnes_g(x: f64) -> Option<f64> {
     (r.is_finite() && r != 0.0).then_some(r)
 }
 
+/// ln G(x) for a double-double x > 0: ln G(x + m) by the asymptotic series (x + m >= 21) less ln prod_(j < m)
+/// Gamma(x + j) (the product built as in [`barnes_g`]). The absolute error is about 2^-100 of the size of the terms
+/// (at most about 700), so values near the zeros of ln G (x = 1, 2) are left to the caller.
+fn ln_barnes_dd(x: DD) -> Option<DD> {
+    if !x.hi.is_finite() || x.hi <= 0.0 {
+        return None;
+    }
+    let m = (21.0 - x.hi).max(0.0).ceil();
+    let lg = ln_barnes_asymptotic(x.add_f(m - 1.0)).add(zeta_prime_m1_dd());
+    if m == 0.0 {
+        return Some(lg);
+    }
+    let mut g = gamma_scaled(x);
+    let mut p = g;
+    for j in 1..(m as i64) {
+        g = g.mul_dd(x.add_f((j - 1) as f64));
+        p = p.mul(g);
+    }
+    Some(lg.sub(p.ln_abs()))
+}
+
+/// ln G(x) for a machine real x > 0; `None` for other x and where the value is too close to a zero of ln G
+/// (|ln G| < 2^-30, the neighbourhoods of 1 and 2) for the double-double sum to give its last bit.
+pub fn ln_barnes_g(x: f64) -> Option<f64> {
+    let r = ln_barnes_dd(DD::new(x))?.to_f64();
+    (r.is_finite() && r.abs() >= 2f64.powi(-30)).then_some(r)
+}
+
+/// The hyperfactorial H(z) = K(z + 1) of a machine real z > -1: exp(z ln Gamma(z + 1) - ln G(z + 1)) (DLMF 5.17;
+/// the K-function as in `hyperfactorial`), z + 1 a double-double; the exponent has an absolute error near
+/// 2^-95, so the value is good to its last bit. `None` for other z and where H overflows or underflows.
+pub fn hyperfactorial(z: f64) -> Option<f64> {
+    if !z.is_finite() || z <= -1.0 {
+        return None;
+    }
+    let a = DD::new(z).add_f(1.0);
+    let lg = ln_barnes_dd(a)?;
+    let l = DD::new(z).mul(lgamma_re(a)).sub(lg);
+    let r = exp_scaled(l).to_f64();
+    (r.is_finite() && r != 0.0).then_some(r)
+}
+
 /// psi(x) as a double-double, x not a pole.
 pub fn digamma_dd(x: DD) -> DD {
     if x.hi < 0.0 {

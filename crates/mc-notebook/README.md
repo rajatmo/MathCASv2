@@ -9,6 +9,8 @@ notebook.
   tab bar, About page, colours and settings kept between sessions.
 - `input`, `touch`, `zoom`: egui keys mapped to the model's chords, touch-screen gestures, magnification.
 - `kernel`: the kernel process started on the first evaluation, with a reader thread turning its output into messages.
+  Pictures are shown from their PNG, SVG, description and scene; their column twins (the PDF export's layout, kept
+  in the saved file) are asked for when the notebook is saved or exported and before the kernel stops.
 - `typeset`, `highlight`, `images`, `outputs`: painting typeset boxes, syntax colouring, pictures decoded on a worker
   thread, and outputs drawn for other windows.
 - `plothover`, `rotate3d`: coordinates under the pointer on plots, turning 3D pictures.
