@@ -432,6 +432,11 @@ impl<'h> Decider<'h> {
                 [x, d] => self.element(cx, *x, *d),
                 _ => Ok(None),
             },
+            // not_element(x, d) is the negation of element(x, d) (`not element(x, d)` evaluates to it)
+            "not_element" => match args {
+                [x, d] => Ok(self.element(cx, *x, *d)?.map(|v| !v)),
+                _ => Ok(None),
+            },
             _ if args.len() >= 2 => {
                 let mut all = Some(true);
                 for w in args.windows(2) {

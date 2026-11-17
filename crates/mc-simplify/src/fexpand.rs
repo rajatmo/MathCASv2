@@ -15,6 +15,8 @@
 //! | `catalan_number(n)` (symbolic n), `factorial_power(x, n[, h])` | gamma functions |
 //! | `dirac_delta(x, y, ...)` | `dirac_delta(x) dirac_delta(y) ...` |
 //! | `elliptic_nome_q(m)` | `exp(-pi elliptic_k(1 - m)/elliptic_k(m))` |
+//! | `logistic_sigmoid(x)`, `factorial2(n)` (symbolic n), `gamma_regularized(n + 1/2, z)` | exponentials, gamma functions, erf |
+//! | `spherical_hankel_h1(n, z)`, `spherical_hankel_h2(n, z)` (0 <= n <= 20) | `exp(+-i z)` times a polynomial in `1/z` |
 //!
 //! Gamma ratios whose arguments differ by an integer are then written as rising factorials (`powers::gamma_ratio`).
 //!
@@ -51,7 +53,22 @@ pub fn function_expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Fac
         if let Some((r, _)) = node(cx, b, f, EXPAND, n)? {
             return Ok(Some(r));
         }
-        family(cx, b, EXPAND, n)
+        if let Some(r) = family(cx, b, EXPAND, n)? {
+            return Ok(Some(r));
+        }
+        // Fibonacci and Lucas numbers of a symbolic order (after the index shifts under integrality) as the
+        // polynomials at x = 1, which have Binet's forms
+        // (an order the facts make an integer keeps the numbers: the shifts give their closed forms)
+        Ok(match b.call_of(n) {
+            Some((s, &[k])) if matches!(b.heap().sym_name(s).as_str(), "fibonacci" | "lucas_l") && b.ar.num(k).is_none() => {
+                if crate::identities::is_integer(cx, f, k)? {
+                    None
+                } else {
+                    Some(b.call(s, &[k, b.int(1)]))
+                }
+            }
+            _ => None,
+        })
     })?;
     // gamma ratios whose arguments differ by an integer as rising factorials (`factorial_power(i, -3)`)
     let r = crate::powers::gamma_ratio(cx, b, r)?;
@@ -625,6 +642,61 @@ fn more_special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>>
             }
             let w = b.div(b.sub(*x, *y), b.sub(one, *y));
             b.mul(&[b.pow(b.sub(one, *y), b.neg(*a)), b.call_named("hypergeometric_2f1", &[*a, *b1, *c, w])])
+        }
+        _ => return last_special_rule(b, name, args),
+    })
+}
+
+/// Definitions that complete the table:
+/// - the logistic sigmoid 1/(1 + e^-x);
+/// - the regularized incomplete gamma function of a half-integer a = n + 1/2 > 1 as Gamma(a, z)/Gamma(a) (and the
+///   generalized Q(a, z0) - Q(a, z1)), whose numerator has the closed form above (DLMF 8.2.4);
+/// - the double factorial of a symbolic order by its continuation
+///   2^((1 - cos(pi n))/4 + n/2) pi^((cos(pi n) - 1)/4) Gamma(1 + n/2), which is n!! at every integer n >= -1
+///   (Meserve, Amer. Math. Monthly 55, 1948; the form our numerical `factorial2` evaluates);
+/// - the spherical Hankel functions of an integer order 0 <= n <= 20, h1_n(z) = e^(iz) sum_(k <= n)
+///   i^(k - n - 1) a_k z^-(k + 1), a_k = (n + k)!/(2^k k! (n - k)!), and h2_n the same with -i (DLMF 10.49.6).
+fn last_special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
+    let h = b.heap();
+    let one = b.int(1);
+    let pi = h.sym_term(h.sym("pi"));
+    let g = |x: T<'h>| b.call_named("gamma", &[x]);
+    // a = n + 1/2 with 1 <= n <= 40 (the range of the closed form of Gamma(a, z))
+    let half_order = |a: T<'h>| {
+        b.ar.num(b.mul(&[b.int(2), a]))
+            .and_then(|n| n.as_rat().cloned())
+            .filter(|d| d.is_int())
+            .and_then(|d| d.num.to_i64())
+            .is_some_and(|n2| n2 % 2 != 0 && (3..=81).contains(&n2))
+    };
+    Some(match (name, args) {
+        ("logistic_sigmoid", [x]) => b.powi(b.add(&[one, b.call_named("exp", &[b.neg(*x)])]), -1),
+        ("gamma_regularized", [a, z]) if half_order(*a) => b.div(b.call_named("gamma", &[*a, *z]), g(*a)),
+        ("gamma_regularized", [a, z0, z1]) if half_order(*a) => {
+            b.div(b.sub(b.call_named("gamma", &[*a, *z0]), b.call_named("gamma", &[*a, *z1])), g(*a))
+        }
+        ("factorial2", [n]) if b.ar.num(*n).is_none() => {
+            let c = b.call_named("cos", &[b.mul(&[pi, *n])]);
+            let two = b.pow(b.int(2), b.add(&[b.mul(&[b.rat(1, 4), b.sub(one, c)]), b.mul(&[b.rat(1, 2), *n])]));
+            let p = b.pow(pi, b.mul(&[b.rat(1, 4), b.sub(c, one)]));
+            b.mul(&[two, p, g(b.add(&[one, b.mul(&[b.rat(1, 2), *n])]))])
+        }
+        ("spherical_hankel_h1" | "spherical_hankel_h2", [n, z]) => {
+            let mc_api::View::Int(n) = h.view(*n) else { return None };
+            if !(0..=20).contains(&n) {
+                return None;
+            }
+            let i = h.sym_term(h.sym("im"));
+            let s = if name == "spherical_hankel_h1" { i } else { b.neg(i) };
+            let mut terms = vec![];
+            for k in 0..=n {
+                // a_k = binomial(n + k, k) n!/(n - k)! 2^-k (each factor below 2^63 for n <= 20)
+                let binom = (1..=k).fold(1i64, |c, j| c * (n + j) / j);
+                let falling = (0..k).fold(1i64, |c, j| c * (n - j));
+                let a = b.mul(&[b.int(binom), b.int(falling), b.pow(b.int(2), b.int(-k))]);
+                terms.push(b.mul(&[a, b.pow(s, b.int(k - n - 1)), b.pow(*z, b.int(-(k + 1)))]));
+            }
+            b.mul(&[b.call_named("exp", &[b.mul(&[s, *z])]), b.add(&terms)])
         }
         _ => return None,
     })

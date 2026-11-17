@@ -746,7 +746,7 @@ fn pick_in<'l, 'h>(
 }
 
 /// `min_max(xs)`: `[min(xs), max(xs)]`; `min_max(xs, d)`: widened by `d` on each side (`[d1, d2]`: by `d1` below,
-/// `d2` above).
+/// `d2` above); `scaled(s)` as a width is `s` times the range.
 pub(crate) fn min_max<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let sym = |s: &str| h.sym_term(h.sym(s));
@@ -764,6 +764,13 @@ pub(crate) fn min_max<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, 
                 Some(&[a, b]) => (a, b),
                 _ => (d, d),
             };
+            // scaled(s): s times the range max - min
+            let range = h.app(sym("add"), &[hi, h.app(sym("mul"), &[h.int(-1), lo])]);
+            let resolve = |d: T<'h>| match h.view(d) {
+                View::App { head, args } if head == sym("scaled") && args.len() == 1 => h.app(sym("mul"), &[args[0], range]),
+                _ => d,
+            };
+            let (d1, d2) = (resolve(d1), resolve(d2));
             let neg = h.app(sym("mul"), &[h.int(-1), d1]);
             (h.app(sym("add"), &[lo, neg]), h.app(sym("add"), &[hi, d2]))
         }

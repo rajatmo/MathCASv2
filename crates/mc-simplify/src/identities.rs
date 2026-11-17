@@ -21,6 +21,7 @@
 //! | `log(sqrt w)` | `log(w)/2`; `log(a^2 - u^2) = log(a - u) + log(a + u)` (`a > 0`; the imaginary parts of the two factors have opposite signs, so their arguments add without wrapping) | none | expand |
 //! | `sqrt(-u^2)` | `sqrt(u) sqrt(-u)` (both sides have argument in `(-pi/2, pi/2]`) | none | expand |
 //! | `exp_integral_e` | `E_p(x) = x^(p - 1) Gamma(1 - p, x)` (DLMF 8.19.1) | none | simplify |
+//! | Bessel of order `-n` | `J_-n = (-1)^n J_n`, the same for `Y`, `H1`, `H2`; `I_-n = I_n`, `K_-n = K_n` (DLMF 10.4.1, 10.4.6, 10.27.1, 10.27.3) | `n` a positive integer | both, always |
 //! | Bessel at `-x` | `J_nu(-x) = J_nu(x) x^-nu (-x)^nu`, the same for `I`; `K_nu(-x)` by DLMF 10.27.4 with 10.11.? (continuation), its integer-order limit | `nu` an integer for the limit form | expand |
 //! | Airy rotations | `Ai(z e^(-+2 pi i/3)) = e^(-+pi i/3) (Ai(z) +- i Bi(z))/2` (DLMF 9.2.11) | the coefficient a primitive cube root of 1 | expand |
 //! | Jacobi | the twelve functions by `sn`, `cn`, `dn` (DLMF 22.2.10) | none | expand |
@@ -79,6 +80,14 @@ pub static TABLE: &[Rule] = &[
     Rule { head: "cosh", priority: 21, uses: EXPAND | SIMPLIFY, name: "trig of inverse trig", f: trig_inverse },
     Rule { head: "tanh", priority: 21, uses: EXPAND | SIMPLIFY, name: "trig of inverse trig", f: trig_inverse },
     Rule { head: "exp_integral_e", priority: 30, uses: SIMPLIFY, name: "E_p as incomplete gamma", f: exp_integral_e },
+    Rule { head: "bessel_j", priority: 39, uses: EXPAND | SIMPLIFY | ALWAYS, name: "Bessel of order -n", f: bessel_negative_order },
+    Rule { head: "bessel_y", priority: 39, uses: EXPAND | SIMPLIFY | ALWAYS, name: "Bessel of order -n", f: bessel_negative_order },
+    Rule { head: "bessel_i", priority: 39, uses: EXPAND | SIMPLIFY | ALWAYS, name: "Bessel of order -n", f: bessel_negative_order },
+    Rule { head: "bessel_k", priority: 39, uses: EXPAND | SIMPLIFY | ALWAYS, name: "Bessel of order -n", f: bessel_negative_order },
+    Rule { head: "hankel_h1", priority: 39, uses: EXPAND | SIMPLIFY | ALWAYS, name: "Bessel of order -n", f: bessel_negative_order },
+    Rule { head: "hankel_h2", priority: 39, uses: EXPAND | SIMPLIFY | ALWAYS, name: "Bessel of order -n", f: bessel_negative_order },
+    Rule { head: "spherical_bessel_j", priority: 39, uses: EXPAND | SIMPLIFY, name: "spherical Bessel at -z", f: spherical_parity },
+    Rule { head: "spherical_bessel_y", priority: 39, uses: EXPAND | SIMPLIFY, name: "spherical Bessel at -z", f: spherical_parity },
     Rule { head: "bessel_j", priority: 40, uses: EXPAND, name: "Bessel at -x", f: bessel_negative },
     Rule { head: "bessel_i", priority: 40, uses: EXPAND, name: "Bessel at -x", f: bessel_negative },
     Rule { head: "bessel_k", priority: 40, uses: EXPAND, name: "Bessel at -x", f: bessel_negative },
@@ -146,8 +155,13 @@ pub fn family<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, mask: u8, t: T<'h>) 
             return Ok(Some(r));
         }
     }
-    if has("polygamma") {
+    if has("polygamma") || has("digamma") {
         if let Some(r) = shift_family(cx, b, t, "polygamma")? {
+            return Ok(Some(r));
+        }
+    }
+    if has("harmonic_number") || has("zeta") {
+        if let Some(r) = sum_shift_family(b, t) {
             return Ok(Some(r));
         }
     }
@@ -216,7 +230,7 @@ fn pi<'h>(b: &B<'h>) -> T<'h> {
     h.sym_term(h.sym("pi"))
 }
 
-fn is_integer<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: &mut Facts<'_, 'h>, t: T<'h>) -> Res<bool> {
+pub(crate) fn is_integer<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: &mut Facts<'_, 'h>, t: T<'h>) -> Res<bool> {
     if matches!(f.b.heap().view(t), View::Int(_) | View::BigInt { .. }) {
         return Ok(true);
     }
@@ -462,6 +476,36 @@ fn exp_integral_difference<'h>(b: &B<'h>, t: T<'h>) -> Option<T<'h>> {
         })
         .collect();
     Some(b.add(&out))
+}
+
+/// A negative integer order -n: J_-n = (-1)^n J_n, Y_-n = (-1)^n Y_n (DLMF 10.4.1), H1_-n = (-1)^n H1_n,
+/// H2_-n = (-1)^n H2_n (DLMF 10.4.6 with e^(+-n pi i) = (-1)^n), I_-n = I_n (DLMF 10.27.1), K_-n = K_n (10.27.3).
+fn bessel_negative_order<'h>(_cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, _f: &mut Facts<'_, 'h>, head: &str, args: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let [nu, z] = args else { return Ok(None) };
+    let View::Int(k) = b.heap().view(*nu) else { return Ok(None) };
+    if !(-1000..0).contains(&k) {
+        return Ok(None);
+    }
+    let n = b.int(-k);
+    let f = b.call_named(head, &[n, *z]);
+    let odd = k % 2 != 0;
+    Ok(Some(match head {
+        "bessel_i" | "bessel_k" => f,
+        _ if odd => b.neg(f),
+        _ => f,
+    }))
+}
+
+/// `j_n(-z) = (-1)^n j_n(z)`, `y_n(-z) = (-1)^(n + 1) y_n(z)` for an integer n (DLMF 10.47.14; both are z^n or
+/// z^(-n-1) times an even entire function).
+fn spherical_parity<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, head: &str, args: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let [n, a] = args else { return Ok(None) };
+    let Some((m, fs)) = b.call_of(*a) else { return Ok(None) };
+    if m != b.hd.mul || fs.first() != Some(&b.int(-1)) || !is_integer(cx, f, *n)? {
+        return Ok(None);
+    }
+    let e = if head == "spherical_bessel_j" { *n } else { b.add(&[*n, b.int(1)]) };
+    Ok(Some(b.mul(&[b.pow(b.int(-1), e), b.call_named(head, &[*n, b.neg(*a)])])))
 }
 
 /// `J_nu(-x)`, `I_nu(-x)`, `K_nu(-x)` by the values at `x` (analytic continuation, DLMF 10.11.1, 10.34.1 with
@@ -755,16 +799,20 @@ fn shift_family<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, which: &
     let h = b.heap();
     let g = h.sym(which);
     let poly = which == "polygamma";
+    let digamma = h.sym("digamma");
     // (term index, coefficient, order n for polygamma, argument)
     let terms = b.terms(t);
     let mut items: Vec<(usize, T<'h>, T<'h>, T<'h>)> = vec![];
     for (i, &u) in terms.iter().enumerate() {
         let fs = b.factors(u);
-        let pos: Vec<usize> = fs.iter().enumerate().filter(|(_, &x)| matches!(b.call_of(x), Some((s, _)) if s == g)).map(|(j, _)| j).collect();
+        let ours = |s: mc_api::Sym| s == g || poly && s == digamma;
+        let pos: Vec<usize> = fs.iter().enumerate().filter(|(_, &x)| matches!(b.call_of(x), Some((s, _)) if ours(s))).map(|(j, _)| j).collect();
         let [j] = pos.as_slice() else { continue };
         let Some((_, gargs)) = b.call_of(fs[*j]) else { continue };
         let (n, arg) = match (poly, gargs) {
             (false, [a]) => (b.int(0), *a),
+            // digamma(a) is polygamma(0, a)
+            (true, [a]) => (b.int(0), *a),
             (true, [n, a]) if int_of(b, *n).is_some_and(|n| (0..=20).contains(&n)) => (*n, *a),
             _ => continue,
         };
@@ -815,6 +863,62 @@ fn shift_family<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, which: &
         return Ok(Some(b.add(&out)));
     }
     Ok(None)
+}
+
+/// `harmonic_number(u + k, r)` (or the Hurwitz `zeta(s, u + k)`) terms of a sum whose arguments differ by integers,
+/// all written by the lowest argument z: H(z + k, r) = H(z, r) + sum_(1 <= j <= k) (z + j)^-r (the recurrence of the
+/// continuation H(z, r) = zeta(r) - zeta(r, z + 1)) and zeta(s, z + k) = zeta(s, z) - sum_(0 <= j < k) (z + j)^-s
+/// (DLMF 25.11.4); the coefficients of the function at z are collected.
+fn sum_shift_family<'h>(b: &B<'h>, t: T<'h>) -> Option<T<'h>> {
+    let h = b.heap();
+    let (hn, zeta) = (h.sym("harmonic_number"), h.sym("zeta"));
+    let terms = b.terms(t);
+    // (term index, coefficient, is zeta, order, argument)
+    let mut items: Vec<(usize, T<'h>, bool, T<'h>, T<'h>)> = vec![];
+    for (i, &u) in terms.iter().enumerate() {
+        let fs = b.factors(u);
+        let pos: Vec<usize> = fs.iter().enumerate().filter(|(_, &x)| matches!(b.call_of(x), Some((s, _)) if s == hn || s == zeta)).map(|(j, _)| j).collect();
+        let [j] = pos.as_slice() else { continue };
+        let Some((s, args)) = b.call_of(fs[*j]) else { continue };
+        let (is_zeta, order, arg) = match (s == zeta, args) {
+            (false, [a]) => (false, b.int(1), *a),
+            (false, [a, r]) => (false, *r, *a),
+            (true, [s, a]) if *s != b.int(1) => (true, *s, *a),
+            _ => continue,
+        };
+        let coef = b.mul(&fs.iter().enumerate().filter(|(k, _)| k != j).map(|(_, &x)| x).collect::<Vec<_>>());
+        items.push((i, coef, is_zeta, order, arg));
+    }
+    for a in 0..items.len() {
+        let same = |c: usize| items[c].2 == items[a].2 && items[c].3 == items[a].3;
+        let group: Vec<usize> = (0..items.len())
+            .filter(|&c| same(c) && crate::powers::int_difference(b, items[c].4, items[a].4).is_some_and(|k| k.abs() <= 32))
+            .collect();
+        if group.len() < 2 {
+            continue;
+        }
+        let low = *group.iter().min_by_key(|&&c| crate::powers::int_difference(b, items[c].4, items[a].4).unwrap_or(0))?;
+        let (is_zeta, order, base) = (items[low].2, items[low].3, items[low].4);
+        let mut out: Vec<T<'h>> = terms.iter().enumerate().filter(|(i, _)| !group.iter().any(|&c| items[c].0 == *i)).map(|(_, &x)| x).collect();
+        let mut coef = vec![];
+        for &c in &group {
+            let k = crate::powers::int_difference(b, items[c].4, base)?;
+            coef.push(items[c].1);
+            if k > 0 {
+                let sum: Vec<T<'h>> = if is_zeta {
+                    (0..k).map(|j| b.pow(b.add(&[base, b.int(j)]), b.neg(order))).collect()
+                } else {
+                    (1..=k).map(|j| b.pow(b.add(&[base, b.int(j)]), b.neg(order))).collect()
+                };
+                let sign = if is_zeta { -1 } else { 1 };
+                out.push(b.mul(&[items[c].1, b.int(sign), b.add(&sum)]));
+            }
+        }
+        let f = if is_zeta { b.call(zeta, &[order, base]) } else { b.call(hn, &[base, order]) };
+        out.push(b.mul(&[b.add(&coef), f]));
+        return Some(b.add(&out));
+    }
+    None
 }
 
 /// `c Li2(z) + c Li2(1 - z) = c (pi^2/6 - log(z) log(1 - z))` (DLMF 25.12.6).

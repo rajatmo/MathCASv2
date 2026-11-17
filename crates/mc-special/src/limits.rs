@@ -102,6 +102,18 @@ pub fn at_infinity<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, f: Special, args: &[T<
         (S::AiryAi | S::AiryAiPrime, Some(0)) => b.int(0),
         (S::AiryBi | S::AiryBiPrime, Some(0)) => b.inf(),
         (S::BesselK, Some(0)) => b.int(0),
+        // log Gamma along the negative axis has no limit (its real part follows ln|Gamma|, which has poles and
+        // zeros-like dips between them); along the imaginary axis |log Gamma(i y)| grows like y log y (DLMF 5.11.1)
+        (S::LogGamma, Some(2)) => h.sym_term(h.sym("indeterminate")),
+        (S::LogGamma, Some(1 | -1)) => h.sym_term(h.sym("complex_infinity")),
+        // the complete E(m) = sqrt(1 - m) E(m/(m - 1)) (the imaginary-modulus transformation, DLMF 19.7.5) with
+        // E(1) = 1: E(m) ~ sqrt(1 - m) as |m| -> inf in every direction, +inf along the negative axis; along the
+        // positive axis the value lies on the cut and only its modulus has a limit
+        (S::EllipticE, Some(2)) if args.len() == 1 => b.inf(),
+        (S::EllipticE, Some(0)) if args.len() == 1 => h.sym_term(h.sym("complex_infinity")),
+        _ if matches!(f, S::EllipticE) && args.len() == 1 && last == h.sym_term(h.sym("complex_infinity")) => {
+            h.sym_term(h.sym("complex_infinity"))
+        }
         _ => match (f, first) {
             (S::EllipticPi, Some(0 | 2)) => b.int(0),
             _ => return None,

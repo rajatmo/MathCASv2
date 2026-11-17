@@ -46,6 +46,14 @@ min_max(assoc(a -> 2, b -> 7))
 #% output
 #= [2, 7]
 
+#% text
+# `scaled(s)` as a width is `s` times the range `max - min`:
+
+#% cell
+min_max([1, 2, 3, 4], scaled(1/4))
+#% output
+#= [1/4, 19/4]
+
 #% section
 # See also
 

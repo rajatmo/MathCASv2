@@ -2810,12 +2810,56 @@ fn barnes_half<'h>(fx: &mut Fx<'_, '_, '_, 'h>, m: i64) -> Res<T<'h>> {
     fx.eval(p)
 }
 
+/// (r, m) for z = r/4 + m with r = 1 or 3 and |m| <= 50.
+fn quarter_integer<'h>(fx: &Fx<'_, '_, '_, 'h>, z: T<'h>) -> Option<(i64, i64)> {
+    let q = fx.rat_of(z)?;
+    if q.den != mc_arith::num::Nat::from_u64(4) {
+        return None;
+    }
+    [1, 3].into_iter().find_map(|r| fx.int_of(fx.sub(z, fx.rat(r, 4))).filter(|m| m.abs() <= 50).map(|m| (r, m)))
+}
+
+/// G(r/4 + m) from G(1/4) = A^(-9/8) e^(3/32 - G/(4 pi)) Gamma(1/4)^(-3/4) and G(3/4) = A^(-9/8) e^(3/32 + G/(4 pi))
+/// Gamma(3/4)^(-1/4) (A Glaisher's, G Catalan's constant; Adamchik, "Contributions to the theory of the Barnes
+/// function", 2003) by G(z + 1) = Gamma(z) G(z).
+fn barnes_quarter<'h>(fx: &mut Fx<'_, '_, '_, 'h>, r: i64, m: i64) -> Res<T<'h>> {
+    let s = if r == 1 { -1 } else { 1 };
+    let e = fx.add(&[fx.rat(3, 32), fx.mul(&[fx.int(s), fx.div(fx.sym("catalan"), fx.mul(&[fx.int(4), fx.sym("pi")]))])]);
+    let base = fx.mul(&[
+        fx.call("exp", &[e]),
+        fx.pow(fx.sym("glaisher"), fx.rat(-9, 8)),
+        fx.pow(fx.call("gamma", &[fx.rat(r, 4)]), fx.rat(-(4 - r), 4)),
+    ]);
+    // Gamma(r/4 + k) = Gamma(r/4) times the rational (r/4)(r/4 + 1)...(r/4 + k - 1), or divided by
+    // (r/4 + k)...(r/4 - 1) for k < 0
+    let gamma_at = |fx: &Fx<'_, '_, '_, 'h>, k: i64| {
+        let g = fx.call("gamma", &[fx.rat(r, 4)]);
+        if k >= 0 {
+            fx.mul(&std::iter::once(g).chain((0..k).map(|j| fx.rat(4 * j + r, 4))).collect::<Vec<_>>())
+        } else {
+            fx.div(g, fx.mul(&(k..0).map(|j| fx.rat(4 * j + r, 4)).collect::<Vec<_>>()))
+        }
+    };
+    let gammas: Vec<T<'h>> = if m >= 0 {
+        (0..m).map(|k| gamma_at(fx, k)).collect()
+    } else {
+        (m..0).map(|k| fx.pow(gamma_at(fx, k), fx.int(-1))).collect()
+    };
+    let mut fs = vec![base];
+    fs.extend(gammas);
+    let p = fx.mul(&fs);
+    fx.eval(p)
+}
+
 fn barnes_g<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if let Some(v) = barnes_exact(fx, a[0]) {
         return Ok(Some(v));
     }
     if let Some(m) = half_integer(fx, a[0]) {
         return Ok(Some(barnes_half(fx, m)?));
+    }
+    if let Some((r, m)) = quarter_integer(fx, a[0]) {
+        return Ok(Some(barnes_quarter(fx, r, m)?));
     }
     if !numeric(fx, a) {
         return Ok(None);

@@ -100,6 +100,14 @@ quantity([1, 2, 3], "Seconds")
 #% output
 #= [quantity(1, "Seconds"), quantity(2, "Seconds"), quantity(3, "Seconds")]
 
+#% text
+# `normal` of a quantity in a ratio unit is the number:
+
+#% cell
+normal(quantity(8, "PartsPerMillion"))
+#% output
+#= 1/125000
+
 #% subsection
 # Possible issues
 

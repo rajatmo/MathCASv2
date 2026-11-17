@@ -1212,6 +1212,51 @@ impl<'h> Facts<'h> {
             }
             return self.algebraic(cx, *base, d + 1);
         }
+        // root(&(p(&1)), k): a root of a polynomial with algebraic coefficients is algebraic
+        if let (true, [f, k]) = (h.sym_name(s) == "root", args) {
+            if !matches!(h.view(*k), View::Int(_)) {
+                return Ok(None);
+            }
+            let Some((g, [params, body])) = b.call_of(*f) else { return Ok(None) };
+            if h.sym_name(g) != "fn" {
+                return Ok(None);
+            }
+            let Some((_, ps)) = b.call_of(*params) else { return Ok(None) };
+            if ps.len() != 1 || b.free_of(*body, ps[0]) {
+                return Ok(None);
+            }
+            return self.polynomial_with_algebraic_coefficients(cx, *body, ps[0], d + 1);
+        }
+        Ok(None)
+    }
+
+    /// Is `t` a polynomial in `x` whose coefficients are algebraic numbers?
+    fn polynomial_with_algebraic_coefficients(&mut self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, x: T<'h>, d: u32) -> Res<Option<bool>> {
+        if d > MAX_DEPTH {
+            return Ok(None);
+        }
+        let b = self.b.clone();
+        let h = b.heap();
+        if t == x {
+            return Ok(Some(true));
+        }
+        if b.free_of(t, x) {
+            return self.algebraic(cx, t, d + 1);
+        }
+        let Some((s, args)) = b.call_of(t) else { return Ok(None) };
+        if s == b.hd.add || s == b.hd.mul {
+            for &a in args {
+                if self.polynomial_with_algebraic_coefficients(cx, a, x, d + 1)? != Some(true) {
+                    return Ok(None);
+                }
+            }
+            return Ok(Some(true));
+        }
+        if let (true, [base, ex]) = (s == b.hd.pow, args) {
+            if matches!(h.view(*ex), View::Int(n) if n > 0) {
+                return self.polynomial_with_algebraic_coefficients(cx, *base, x, d + 1);
+            }
+        }
         Ok(None)
     }
 

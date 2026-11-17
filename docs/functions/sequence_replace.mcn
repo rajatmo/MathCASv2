@@ -39,6 +39,14 @@ rewrite([1, 2, 3], 2 -> x)
 #% output
 #= [1, x, 3]
 
+#% text
+# `sequence_replace(rule)(xs)` is `sequence_replace(xs, rule)`:
+
+#% cell
+sequence_replace([a, e_u_] :> e_u)([a, b, x, x, a, c])
+#% output
+#= [b, x, x, c]
+
 #% section
 # See also
 

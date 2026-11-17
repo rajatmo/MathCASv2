@@ -117,7 +117,7 @@ pub mod series_hook;
 pub mod value;
 
 pub use fun::Fun;
-pub use natives::{failure_tags, install, install_with_stop};
+pub use natives::{failure_tags, install, install_late, install_with_stop};
 
 /// The functions and constants of this crate, each with a one-line description.
 pub const FUNCTIONS: &[(&str, &str)] = &[

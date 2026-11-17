@@ -44,6 +44,14 @@ replace_repeated([a, b], [a -> b, b -> c])
 #% output
 #= [c, c]
 
+#% text
+# `replace_repeated(rules)(e)` is the operator form of `replace_repeated(e, rules)`:
+
+#% cell
+replace_repeated(f(x_) -> x)([f(f(x)), f(g(f(x)))])
+#% output
+#= [x, g(x)]
+
 #% section
 # See also
 

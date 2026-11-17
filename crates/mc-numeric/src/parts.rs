@@ -191,6 +191,10 @@ fn part<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, which: Part, args: &[T<'h>
     let &[x] = args else { return Ok(Reply::Decline) };
     let h = cx.heap();
     let ar = env.arith(h);
+    // a part of an undetermined value is undetermined
+    if x == h.sym_term(h.sym("indeterminate")) {
+        return Ok(Reply::Done(x));
+    }
     if let Some(z) = ar.num(x) {
         let (a, b) = parts(&z);
         return Ok(Reply::Done(match which {

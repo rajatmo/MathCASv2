@@ -455,6 +455,8 @@ pub fn resolve<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<
 /// for -1; an infinity from its finite side), for one-sided limits; `None` when `f` has no switches or the branches
 /// there are not decided.
 pub fn resolve_near<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, pt: Pt<'h>, side: i8) -> Res<Option<T<'h>>> {
+    // boxes and triangles as products of unit steps: a limit does not see the value on a jump
+    let f = as_steps(b, f, x).unwrap_or(f);
     // the step functions stay (their jumps are not cut points here)
     let switches: Vec<T<'h>> = switches_of(b, f, x).into_iter().filter(|&s| !matches!(switch(b, s), Some((Switch::Step, _)))).collect();
     if switches.is_empty() {

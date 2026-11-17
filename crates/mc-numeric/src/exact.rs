@@ -257,6 +257,27 @@ impl<'a, 'h, S: Store + ?Sized> Exact<'a, 'h, S> {
             if inverse {
                 return Some(*y);
             }
+            // sinh, cosh, tanh of log(y) for an exact rational y != 0: (y - 1/y)/2, (y + 1/y)/2, (y^2 - 1)/(y^2 + 1)
+            // (exp(log y) = y and exp(-log y) = 1/y for every y != 0)
+            if inner == Some(Fun::Log) && matches!(f, Fun::Sinh | Fun::Cosh | Fun::Tanh) {
+                if let Some(Num::Real(r)) = self.ar.num(*y) {
+                    if matches!(r, mc_arith::Real::Exact(_)) && !r.is_zero() {
+                        let inv = self.ar.pow(*y, self.st.int(-1));
+                        let half = self.ar.rational(self.st.int(1), self.st.int(2));
+                        return Some(match f {
+                            Fun::Sinh => self.ar.mul(&[half, self.ar.add(&[*y, self.ar.neg(inv)])]),
+                            Fun::Cosh => self.ar.mul(&[half, self.ar.add(&[*y, inv])]),
+                            _ => {
+                                let y2 = self.ar.mul(&[*y, *y]);
+                                let one = self.st.int(1);
+                                let num = self.ar.add(&[y2, self.ar.neg(one)]);
+                                let den = self.ar.add(&[y2, one]);
+                                self.ar.mul(&[num, self.ar.pow(den, self.st.int(-1))])
+                            }
+                        });
+                    }
+                }
+            }
             // sin, cos, tan of asin, acos, atan: algebraic in y for every complex y (principal square roots; the
             // cosine of asin y and atan y, the sine of acos y have a nonnegative real part)
             if let Some(v) = inner.and_then(|g| self.trig_of_inverse(f, g, *y)) {

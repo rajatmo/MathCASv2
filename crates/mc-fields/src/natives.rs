@@ -587,7 +587,19 @@ fn is_irreducible_polynomial<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: &Syms, _t: T<
     let Some(x) = named.or_else(|| single_variable(h, s, &[*f])) else {
         return match q_constant(h, s, &k, *f, cx)? {
             Some(_) => done(cx.bool(false)),
-            None => decline(),
+            None => {
+                // several variables: a binomial, or over F_p the factors of the Kronecker image
+                if let Some(r) = binomial_irreducible(cx, *f)? {
+                    return done(cx.bool(r));
+                }
+                let prime = option(h, s, args, "modulus").and_then(|m| small_prime(h, m));
+                let mut vs = vec![];
+                variables(h, s, *f, &mut vs);
+                match prime {
+                    Some(p) if vs.len() > 1 && polynomial_shape(h, s, *f) => kronecker(cx, *f, &vs, Some(p), sym(h, "null")),
+                    _ => decline(),
+                }
+            }
         };
     };
     let Some(poly) = q_poly_of(h, s, &k, *f, x, cx)? else { return decline() };
@@ -630,6 +642,16 @@ fn rational_irreducible<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, ext: Option
         if ws.is_empty() && is_rational(h, g) && g != h.int(0) {
             return done(cx.bool(true));
         }
+        // a common factor g of positive degree: f = g (f / g) with f / g of degree 1 in y, two non-units
+        if !ws.is_empty() && g != h.int(0) {
+            return done(cx.bool(false));
+        }
+    }
+    if let Some(r) = binomial_irreducible(cx, f)? {
+        return done(cx.bool(r));
+    }
+    if ext.is_some_and(|e| matches!(h.view(e), View::Sym(x) if h.sym_name(x) == "all")) {
+        return absolute_irreducible(cx, f, &vs);
     }
     let g = match ext {
         Some(e) => {
@@ -642,6 +664,10 @@ fn rational_irreducible<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, ext: Option
     // no factorisation (a failure, or the call left as it is): no answer
     let head_is = |t: T<'h>, name: &str| matches!(h.view(t), View::App { head, .. } if head == h.sym_term(h.sym(name)));
     if head_is(g, mc_api::names::FAILURE) || head_is(g, "factor") {
+        // several variables over a number field: the factorisation of one variable through a substitution
+        if let (Some(e), true) = (ext, vs.len() > 1) {
+            return kronecker(cx, f, &vs, None, e);
+        }
         return decline();
     }
     // a product of a constant and one non-constant factor, or that factor alone
@@ -656,6 +682,106 @@ fn rational_irreducible<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, ext: Option
     };
     let ok = factors.len() == 1 && call_of(h, factors[0], s.pow).is_none();
     done(cx.bool(ok))
+}
+
+/// `irr_kronecker(f, vars, p, ext)` of the library: irreducibility of a polynomial in several variables over F_p
+/// (`p`) or over a number field (`ext`) from the factors of its Kronecker image; no answer when it declines.
+fn kronecker<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, vs: &[T<'h>], p: Option<u64>, ext: T<'h>) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let null = sym(h, "null");
+    let p = match p {
+        Some(p) => h.int(p as i64),
+        None => null,
+    };
+    let e = if p == null { ext } else { null };
+    let vlist = h.call(h.sym(names::LIST), vs);
+    let r = cx.eval(h.call(h.sym("irr_kronecker"), &[f, vlist, p, e]))?;
+    match h.view(r) {
+        View::Sym(x) if h.sym_name(x) == "true" => done(cx.bool(true)),
+        View::Sym(x) if h.sym_name(x) == "false" => done(cx.bool(false)),
+        _ => decline(),
+    }
+}
+
+/// The exponent vectors of the terms of `f` in `vs` (None unless all are small integers).
+fn exponent_vectors<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, vs: &[T<'h>]) -> Res<Option<Vec<Vec<i64>>>> {
+    let h = cx.heap();
+    let s = Syms::new(h);
+    let vlist = h.call(h.sym(names::LIST), vs);
+    let rules = cx.eval(h.call(h.sym("coefficient_rules"), &[f, vlist]))?;
+    let Some(items) = call_of(h, rules, s.list) else { return Ok(None) };
+    let mut out = vec![];
+    for &r in items {
+        let Some(&[k, _]) = call_of(h, r, s.rule) else { return Ok(None) };
+        let Some(es) = call_of(h, k, s.list) else { return Ok(None) };
+        let mut v = vec![];
+        for &e in es {
+            match h.view(e) {
+                View::Int(n) if n >= 0 => v.push(n),
+                _ => return Ok(None),
+            }
+        }
+        out.push(v);
+    }
+    Ok(Some(out))
+}
+
+/// A binomial `c1 X^u + c2 X^v` (nonzero coefficients) is irreducible over every field when no variable divides
+/// it and the exponents of `u - v` have greatest common divisor 1: a unimodular change of the exponent lattice
+/// takes `X^(u - v) + c` to a polynomial of degree 1 in one variable of the Laurent ring. Some(true) then, else None.
+fn binomial_irreducible<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>) -> Res<Option<bool>> {
+    let h = cx.heap();
+    let s = Syms::new(h);
+    let mut vs = vec![];
+    variables(h, &s, f, &mut vs);
+    if vs.is_empty() {
+        return Ok(None);
+    }
+    let Some(ev) = exponent_vectors(cx, f, &vs)? else { return Ok(None) };
+    let [u, v] = &ev[..] else { return Ok(None) };
+    let free = u.iter().zip(v).all(|(a, b)| *a.min(b) == 0);
+    let mut g = 0i64;
+    for (a, b) in u.iter().zip(v) {
+        let mut x = (a - b).abs();
+        while x != 0 {
+            (g, x) = (x, g % x);
+        }
+    }
+    Ok((free && g == 1).then_some(true))
+}
+
+/// Irreducibility over the algebraic closure: a polynomial of one variable needs degree 1; in several variables
+/// a polynomial of degree 1 in a variable `y` with coprime coefficients of `y^1` and `y^0` (it is then irreducible
+/// over every extension of the rationals), or one with a factor over the rationals (false), else no answer.
+fn absolute_irreducible<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, vs: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    if let [x] = vs {
+        let d = cx.eval(h.call(h.sym("exponent"), &[f, *x]))?;
+        return match h.view(d) {
+            View::Int(n) => done(cx.bool(n == 1)),
+            _ => decline(),
+        };
+    }
+    // reducible over the rationals: reducible over the closure
+    let g = cx.eval(h.call(h.sym("factor"), &[f]))?;
+    let s = Syms::new(h);
+    let constant = |a: T<'h>| {
+        let mut ws = vec![];
+        variables(h, &s, a, &mut ws);
+        ws.is_empty()
+    };
+    let factors: Vec<T<'h>> = match call_of(h, g, s.mul) {
+        Some(args) => args.iter().copied().filter(|&a| !constant(a)).collect(),
+        None => vec![g],
+    };
+    let head_is = |t: T<'h>, name: &str| matches!(h.view(t), View::App { head, .. } if head == h.sym_term(h.sym(name)));
+    if head_is(g, names::FAILURE) || head_is(g, "factor") {
+        return decline();
+    }
+    if factors.len() != 1 || call_of(h, factors[0], s.pow).is_some() {
+        return done(cx.bool(false));
+    }
+    decline()
 }
 
 /// Whether a term is built from symbols and exact numbers by sums, products and non-negative integer powers. The

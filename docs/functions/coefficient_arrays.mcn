@@ -36,6 +36,14 @@ coefficient_arrays(5*x^3, [x])
 #% output
 #= [0, [0], [[0]], [[[5]]]]
 
+#% text
+# With `symmetric: true` (or `"Symmetric" -> true`) each array is symmetric: the coefficient of a monomial is shared equally among the distinct orderings of its indices:
+
+#% cell
+coefficient_arrays(a*x^2 + b*x*y + c*y^2 + d*x + e*y + f, [x, y], symmetric: true)
+#% output
+#= [f, [d, e], [[a, (1/2)*b], [(1/2)*b, c]]]
+
 #% section
 # See also
 

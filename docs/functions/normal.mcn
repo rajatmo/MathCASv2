@@ -44,6 +44,14 @@ p = normal(series(cos(x), x, 0, 8)); [rewrite(p, x -> 0.5), cos(0.5)]
 #% output
 #= [0.8775825621589781, 0.8775825618903728]
 
+#% text
+# A quantity in a ratio unit (a percentage, parts per million) is the number it stands for, and a `light_dark_switched` colour is its light colour:
+
+#% cell
+[normal(quantity(10, "Percent")), normal(light_dark_switched(blue, green))]
+#% output
+#= [1/10, rgb_color(0, 0, 1)]
+
 #% section
 # See also
 

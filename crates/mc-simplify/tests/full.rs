@@ -109,7 +109,13 @@ fn function_expand_identities() {
         ("function_expand(bessel_j(nu, -x))", "bessel_j(nu, x)*x^-nu*(-x)^nu"),
         ("function_expand(jacobi_sn(u, m)*jacobi_nd(u, m) == jacobi_sd(u, m))", "true"),
         ("function_expand(fibonacci(n + 3), element(n, integers))", "lucas_l(n) + 2*fibonacci(n)"),
-        ("function_expand(fibonacci(n + 3))", "fibonacci(3 + n)"),
+        // without integrality the shift identity does not apply; the number is Binet's form F_n(1) continued in the
+        // order (F_m = (a^m - cos(pi m) a^-m)/sqrt(5), a = (1 + sqrt(5))/2, the definition of fibonacci of a real
+        // order), here with m = 3 + n and a^m = 2^-m (1 + sqrt(5))^m
+        (
+            "function_expand(fibonacci(n + 3))",
+            "(1/5)*(2^(-3 - n)*(1 + 5^(1/2))^(3 + n) + -1*cos(pi*(3 + n))*2^(3 + n)*(1 + 5^(1/2))^(-3 - n))*5^(1/2)",
+        ),
         ("function_expand(polylog(2, 1 - z) + polylog(2, z))", "(1/6)*pi^2 + -1*log(z)*log(1 - z)"),
         ("function_expand(polygamma(3, z - 2) - polygamma(3, z))", "6*((-2 + z)^-4 + (-1 + z)^-4)"),
         ("function_expand(zeta(1 - z)/zeta(z))", "gamma(z)*2^(1 - z)*pi^-z*sin((1/2)*pi*(1 - z))"),

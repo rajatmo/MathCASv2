@@ -886,7 +886,7 @@ impl Native for Not {
 }
 
 /// The negation of `x` without `not`: `a` for `not(a)`, the opposite relation for a comparison of two terms
-/// (`not x > y` is `x <= y`, `not a == b` is `a != b`).
+/// (`not x > y` is `x <= y`, `not a == b` is `a != b`, `not element(x, d)` is `not_element(x, d)`).
 fn negated<'h>(h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
     let View::App { head, args } = h.view(x) else { return None };
     let View::Sym(s) = h.view(head) else { return None };
@@ -904,6 +904,8 @@ fn negated<'h>(h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
         "greater_equal" => "less",
         "equal" => "unequal",
         "unequal" => "equal",
+        "element" => "not_element",
+        "not_element" => "element",
         _ => return None,
     };
     match args {

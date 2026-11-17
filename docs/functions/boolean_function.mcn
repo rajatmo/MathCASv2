@@ -72,6 +72,17 @@ boolean_function([[true, true, false] -> true, [false, true, true] -> false], [x
 #= not z
 
 #% subsection
+# Options
+
+#% text
+# `boolean_function(spec, [x, ...], form)` gives the function in a named form (`dnf`, `cnf`, ..., or the strings `"DNF"`, `"CNF"`):
+
+#% cell
+boolean_function(33, [a, b, c], "CNF")
+#% output
+#= (not a or c) and (a or not c) and not b
+
+#% subsection
 # Applications
 
 #% text

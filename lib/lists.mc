@@ -556,27 +556,76 @@ fn matrix_minimal_polynomial(m, x) when is_matrix(m) and length(m) == length(m[1
   res
 }
 
+# matrix_minimal_polynomial(m, x, modulus: p): the same over the field F_p (p prime, m an integer matrix): the
+# first linear dependency among the powers of m reduced modulo p (coefficients in 0 .. p - 1)
+fn ls_mmp_mod(m, x, p) = {
+  let k = length(m)
+  let mm = map(r => map(e => mod(e, p), r), m)
+  var pows = [flatten(identity_matrix(k))]
+  var cur = identity_matrix(k)
+  var res = 0
+  var d = 0
+  while res === 0 and d < k + 1 {
+    d = d + 1
+    cur = map(r => map(e => mod(e, p), r), dot(cur, mm))
+    pows = append(pows, flatten(cur))
+    let ns = null_space(transpose(pows), modulus: p)
+    if length(ns) > 0 then {
+      let c = ns[1]
+      let inv = power_mod(c[d + 1], -1, p)
+      res = total(map(i => mod(c[i]*inv, p)*x^(i - 1), range(d))) + x^d
+    }
+  }
+  res
+}
+rule matrix_minimal_polynomial(m_, x_, modulus: p_) := ls_mmp_mod(m, x, p) when is_matrix(m) and length(m) == length(m[1]) and every(flatten(m), is_integer) and is_integer(p) and is_prime(p)
+
+# interpolating_polynomial(data, x, modulus: p): the Newton form through the data over F_p (the nodes distinct modulo
+# p, data the values [f1, ...] at 1, 2, ... or the points [[x1, f1], ...]): the coefficients are residues in 0 .. p - 1
+fn ls_interp_mod(data, x, p) = {
+  let pairs = if every(data, is_list) then data else map(i => [i, data[i]], range(length(data)))
+  let xs = map(first, pairs)
+  let n = length(xs)
+  let distinct = every(range(n), i => every(select(range(n), j => j > i), j => mod(xs[i] - xs[j], p) != 0))
+  if not distinct then null else {
+    var lv = map(q => mod(last(q), p), pairs)
+    var cs = [lv[1]]
+    for j in range(n - 1) {
+      let prev = lv
+      lv = map(i => mod((prev[i + 1] - prev[i])*power_mod(xs[i + j] - xs[i], -1, p), p), range(n - j))
+      cs = append(cs, lv[1])
+    }
+    fold((acc, i) => cs[i] + (x - xs[i])*acc, last(cs), reverse(range(n - 1)))
+  }
+}
+rule interpolating_polynomial(data_, x_, modulus: p_) := ls_interp_mod(data, x, p) when is_list(data) and length(data) > 0 and is_integer(p) and is_prime(p) and every(flatten(data), is_integer) and (every(data, q => is_list(q) and length(q) == 2) or every(data, is_integer)) and not (ls_interp_mod(data, x, p) === null)
+
 # coefficient_arrays(polys, vars): the list [a0, a1, ..., ad] of arrays of the coefficients of the polynomial (or list
 # of polynomials) in the variables vars: a_k holds the coefficient of a monomial x_i1 ... x_ik (i1 <= ... <= ik) at
 # the position [i1, ..., ik] (after the polynomial's own index for a list), 0 elsewhere
 fn ls_is_sorted(t) = every(range(length(t) - 1), i => t[i] <= t[i + 1])
 # ls_eq_poly(p): lhs - rhs of an equation, else p
 fn ls_eq_poly(p) = if not is_atom(p) and head(p) === head(ls_p == ls_q) and length(p) == 2 then p[1] - p[2] else p
-fn coefficient_arrays(ps, vars) when is_list(ps) and is_list(vars) = {
+fn coefficient_arrays(ps, vars) when is_list(ps) and is_list(vars) = ls_coefficient_arrays(ps, vars, false)
+fn coefficient_arrays(p, vars) when not is_list(p) and is_list(vars) = map(a => a[1], ls_coefficient_arrays([p], vars, false))
+# with symmetric: true each coefficient array is the symmetric tensor: a monomial's coefficient is shared equally
+# between the distinct orderings of its index list (k! / prod of the multiplicities' factorials of them)
+rule coefficient_arrays(p_, vars_, symmetric: s_) := (if is_list(p) then ls_coefficient_arrays(p, vars, s === true) else map(a => a[1], ls_coefficient_arrays([p], vars, s === true))) when is_list(vars) and (s === true or s === false)
+rule coefficient_arrays(p_, vars_, "Symmetric" -> s_) := (if is_list(p) then ls_coefficient_arrays(p, vars, s === true) else map(a => a[1], ls_coefficient_arrays([p], vars, s === true))) when is_list(vars) and (s === true or s === false)
+fn ls_coefficient_arrays(ps, vars, symm) = {
   let nv = length(vars)
   let rules = map(p => coefficient_rules(ls_eq_poly(p), vars), ps)
   let deg = max(map(r => max(map(q => total(first(q)), r)), rules))
   let entry = (i, t) => {
-    if not ls_is_sorted(t) then 0
+    if not symm and not ls_is_sorted(t) then 0
     else {
       let ex = map(j => length(select(t, s => s == j)), range(nv))
       let hit = select(rules[i], q => first(q) == ex)
-      if length(hit) == 0 then 0 else last(hit[1])
+      if length(hit) == 0 then 0 else if symm then last(hit[1]) * product(map(factorial, ex)) / factorial(length(t)) else last(hit[1])
     }
   }
   map(k => ls_nd(join([length(ps)], constant_array(nv, k)), [], idx => entry(idx[1], rest(idx))), range(0, deg))
 }
-fn coefficient_arrays(p, vars) when not is_list(p) and is_list(vars) = map(a => a[1], coefficient_arrays([p], vars))
 
 # pfaffian_det(m): the Pfaffian of the antisymmetric matrix m (expansion along the first row; 0 for odd size)
 fn ls_pfaffian(m) = {
@@ -878,9 +927,52 @@ fn ls_opt_result(f, rules, prop) = {
 }
 
 # (a repeated constraint is dropped: the robust forms repeat the constraints that do not depend on the parameters)
-fn ls_opt_run(f, cons0, vars) = {
+fn ls_opt_run(f, cons0, vars) = ls_with_params(f, cons0, vars, (f1, c1, v1) => ls_opt_run_plain(f1, c1, v1))
+fn ls_opt_run_plain(f, cons0, vars) = {
   let cons = if is_list(cons0) then unique(cons0) else cons0
   if ls_special(f, cons, vars) then ls_run(f, cons, vars) else optimization_point(f, flatten(map(ls_cone_conditions, if is_list(cons) then cons else [cons]), 1), vars)
+}
+
+# Parameter equations: a constraint `p == value` that binds a symbol p which is not a variable gives p the value
+# in the objective and in the other constraints (the equation is dropped); a variable that is a vector (the
+# second argument of a dot product with a matrix or vector that is known after the substitution) is replaced by
+# its entries, and the answer is put together again as [v -> [..]]. A norm of a vector that depends on such a
+# parameter (it was read as the absolute value while the parameter was a symbol) is the Euclidean norm.
+fn ls_dot_cols(u) = if is_matrix(u) then length(u[1]) else length(u)
+fn ls_param_dim(e, v, rules) = {
+  let a = select(cases(e, dot(u_, w_) :> [rewrite(u, rules), w, 1], [0, inf]), t => t[2] === v and is_list(t[1]))
+  let b = select(cases(e, dot(w_, u_) :> [rewrite(u, rules), w, 2], [0, inf]), t => t[2] === v and is_list(t[1]))
+  let all = join(map(t => ls_dot_cols(t[1]), a), map(t => length(t[1]), b))
+  if length(all) > 0 then all[1] else 0
+}
+fn ls_with_params(f, cons0, vars, run) = {
+  let vl = if is_list(vars) then vars else [vars]
+  let pv = map(v => ls_entry(v)[1], vl)
+  let cl = ls_conj(if is_list(cons0) then cons0 else [cons0])
+  let isp = c => not is_atom(c) and head(c) === equal and length(c) == 2 and is_symbol(c[1]) and not member(pv, c[1]) and every(pv, v => free_of(c[2], v)) and free_of(c[2], c[1])
+  let pars = select(cl, isp)
+  if length(pars) == 0 then run(f, cons0, vars)
+  else {
+    let rest0 = select(cl, c => not isp(c))
+    let ps = map(c => c[1], pars)
+    let rules = map(c => c[1] -> c[2], pars)
+    let dims = map(v => if is_symbol(v) then ls_param_dim([f, rest0], v, rules) else 0, pv)
+    let comps = map(k => if dims[k] > 0 then map(j => to_expression(string_join(["lo_", to_string(pv[k]), "_", to_string(j)])), range(dims[k])) else [], range(length(pv)))
+    let vrules = flatten(map(k => if dims[k] > 0 then [pv[k] -> comps[k]] else [], range(length(pv))), 1)
+    let marked = rewrite([f, rest0], abs(u_) :> if every(ps, p => free_of(u, p)) then abs(u) else ls_pnorm(u))
+    let allrules = join(vrules, rules)
+    let sub = e => fold((acc, k) => rewrite(acc, allrules), e, range(length(rules) + 1))
+    let done = rewrite(sub(marked), ls_pnorm(u_) :> if is_list(u) then sqrt(total(map(a => abs(a)^2, u))) else abs(u))
+    let vars2 = flatten(map(k => if dims[k] > 0 then comps[k] else [vl[k]], range(length(vl))), 1)
+    let r = run(done[1], done[2], vars2)
+    let ok = is_list(r) and length(r) > 0 and every(r, t => ls_is_rule(t))
+    if not ok then r
+    else {
+      let out = map(k => if dims[k] == 0 then select(r, t => t[1] === pv[k]) else [pv[k] -> map(c => if length(select(r, t => t[1] === c)) == 1 then select(r, t => t[1] === c)[1][2] else null, comps[k])], range(length(vl)))
+      let flat = flatten(out, 1)
+      if every(flat, t => ls_is_rule(t) and free_of(t, null)) then flat else r
+    }
+  }
 }
 
 rule quadratic_optimization(f_, cons_, vars_) := ls_opt_run(f, cons, vars) when (not is_list(f) or not is_matrix(f[1])) and lo_dim_known(f, cons, vars)
@@ -1143,9 +1235,10 @@ fn ls_ccond(c) = {
   else if (head(c) === less_equal or head(c) === greater_equal) and length(c) == 2 then [apply(head(c), [complex_expand(c[1]), complex_expand(c[2])])]
   else [c]
 }
-fn ls_opt(f, cons0, vars) = {
+fn ls_opt(f, cons0, vars) = ls_with_params(f, cons0, vars, (f1, c1, v1) => ls_opt_plain(f1, c1, v1))
+fn ls_opt_plain(f, cons0, vars) = {
   let cons = if is_list(cons0) then unique(cons0) else cons0
-  if ls_special(f, cons, vars) then ls_run(f, cons, vars) else optimization_point(f, cons, vars)
+  if ls_special(f, cons, vars) then ls_run(f, cons, vars) else optimization_point(f, flatten(map(ls_cone_conditions, if is_list(cons) then cons else [cons]), 1), vars)
 }
 # a vector variable x (used through dot, total or indexed) is split into its entries first, as optimization_point does
 fn ls_run(f, cons, vars) = {
@@ -1740,3 +1833,62 @@ rule is_tautology(f_, v_) := f[1] == 2^(2^f[2]) - 1 when call_head_is(f, boolean
 
 # the arc of a circle of radius r between the angles t0 and t1: r (t1 - t0) long (a full turn at most)
 rule arc_length(c_) := c[2]*(c[3][2] - c[3][1]) when call_head_is(c, circle) and length(c) == 3 and is_list(c[3]) and length(c[3]) == 2 and not is_list(c[2]) and is_real(n(c[2])) and n(c[2]) >= 0 and is_real(n(c[3][2] - c[3][1])) and n(c[3][2] - c[3][1]) >= 0 and n(c[3][2] - c[3][1]) <= n(2*pi)
+
+# --- irreducibility of a multivariate polynomial over F_p or a number field (Kronecker's substitution) ---
+# irr_kronecker(f, vars, p, ext): true or false, or null when no decision is reached. The variables are replaced by
+# powers of one variable t (the i-th by t^(d^(i-1)), d above every degree), which is injective on the polynomials
+# of degrees below d. A factorisation f = g h gives g' | f' for the images, and g' is a product of irreducible
+# factors of f' times a constant: f' irreducible proves f irreducible, and otherwise every sub-multiset of its
+# factors is decoded: it is a factor of f exactly when the degrees of the two decoded parts add up to the degrees
+# of f (then g h and f have the same image and the degrees are below d, so g h = f). With p the field is F_p, with
+# ext (extension: ext) the number field; more than twelve factors give no answer.
+fn irr_digits(k, d, n) = map(i => if i == n then quotient(k, d^(i - 1)) else mod(quotient(k, d^(i - 1)), d), range(n))
+fn irr_degvec(g, d, n, p) = {
+  let h = if p === null then expand(g) else polynomial_mod(expand(g), p)
+  let ks = map(r => first(r)[1], coefficient_rules(h, [irr_t]))
+  map(i => max(map(k => irr_digits(k, d, n)[i], ks)), range(n))
+}
+fn irr_kronecker(f0, vars, p, ext) = {
+  let n = length(vars)
+  let f = if p === null then f0 else polynomial_mod(f0, p)
+  let rs = coefficient_rules(f, vars)
+  let degs = map(i => max(map(r => first(r)[i], rs)), range(n))
+  let d = max(degs) + 1
+  let enc = r => total(map(i => first(r)[i] * d^(i - 1), range(n)))
+  # an image of a very high degree is not factored (no answer)
+  let ft = if max(map(enc, rs)) > 3000 then null else total(map(r => last(r) * irr_t^enc(r), rs))
+  let fl = if ft === null then null else if p === null then factor_list(ft, extension: ext) else factor_list(ft, modulus: p)
+  if not is_list(fl) then null else {
+    let facs = flatten(map(q => map(i => first(q), range(last(q))), select(fl, q => exponent(first(q), irr_t) >= 1)), 1)
+    let k = length(facs)
+    if k == 0 then null
+    else if k == 1 then true
+    else if k > 12 then null
+    else {
+      var found = false
+      var m = 0
+      while not found and m < 2^(k - 1) - 1 {
+        let inD = join([true], map(b => b == 1, integer_digits(m, 2, k - 1)))
+        let dd = irr_degvec(product(map(i => facs[i], select(range(k), i => inD[i]))), d, n, p)
+        let ed = irr_degvec(product(map(i => facs[i], select(range(k), i => not inD[i]))), d, n, p)
+        if every(range(n), i => dd[i] + ed[i] <= degs[i]) then found = true
+        m = m + 1
+      }
+      not found
+    }
+  }
+}
+
+# ld_light_rgb(a): the colour a (the light theme of light_dark_switched) as rgb_color (exact components for the named
+# colours), null when it is not one; normal(light_dark_switched(a, b)) is that colour
+fn ld_light_rgb(a) = if call_head_is(a, rgb_color) then a else {
+  let c = color_convert(a, "RGB")
+  if call_head_is(c, rgb_color) then apply(rgb_color, map(rationalize, apply(list, c))) else null
+}
+
+# operator forms taking the list (or association) last
+rule select_keys(f_)(a_) := select_keys(a, f) when is_assoc(a)
+rule first_position(p_)(xs_) := first_position(xs, p)
+rule first_position(p_, d_)(xs_) := first_position(xs, p, d)
+rule sequence_replace(r_)(xs_) := sequence_replace(xs, r) when is_list(xs)
+rule sequence_replace(r_, n_)(xs_) := sequence_replace(xs, r, n) when is_list(xs)

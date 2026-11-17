@@ -312,7 +312,7 @@ fn bool_binary(e, g) = {
 
 # the form name (a symbol) as a string, or null
 fn bool_form(f) = {
-  let s = if is_symbol(f) then symbol_name(f) else null
+  let s = if is_symbol(f) then symbol_name(f) else if is_string(f) then to_lower(f) else null
   let t = if s === null then null else string_replace(s, "_" -> "")
   if t !== null and member(["dnf", "cnf", "anf", "esop", "nand", "nor", "binarynand", "binarynor", "and", "or", "implies", "bff", "ite", "booleanfunction"], t) then (if t === "booleanfunction" then "bff" else t) else null
 }
@@ -420,6 +420,8 @@ fn bool_function_of(spec) =
   }
 rule boolean_function(spec_) := bool_function_of(spec) when (is_integer(spec) and spec >= 0) or (is_list(spec) and length(spec) > 0)
 rule boolean_function(spec_, vars_) := boolean_convert(apply(bool_function_of(spec), vars), dnf) when is_list(vars) and (is_list(spec) or is_integer(spec))
+# boolean_function(spec, [x, ...], form): the function in that form (a name such as dnf or cnf, or a string "DNF")
+rule boolean_function(spec_, vars_, form_) := boolean_convert(apply(bool_function_of(spec), vars), form) when is_list(vars) and (is_list(spec) or is_integer(spec)) and bool_form(form) !== null
 rule boolean_function(k_, n_) := failure(argument, boolean_function, 1) when is_integer(k) and is_integer(n) and (k < 0 or k >= 2^(2^n))
 
 # f(a, ...) for f = boolean_function(k, n): the value, or the function of the arguments that are not true or false
@@ -481,6 +483,14 @@ fn logical_terms(e, neg) =
     else if h === equivalent and length(args) >= 2 then logical_terms(apply(`or`, [apply(`and`, args), apply(`and`, map(x => not x, args))]), neg)
     else if h === xor and length(args) == 2 then logical_terms(apply(`or`, [args[1] and not args[2], not args[1] and args[2]]), neg)
     else if h === xor and length(args) > 2 then logical_terms(apply(xor, [args[1], apply(xor, rest(args))]), neg)
+    # element(x | y, d) is element(x, d) and element(y, d); not_element(x | y, d) is either one outside d
+    else if h === element and length(args) == 2 and head(args[1]) === alternatives then
+      logical_terms(apply(`and`, map(u => element(u, args[2]), apply(list, args[1]))), neg)
+    else if h === not_element and length(args) == 2 and head(args[1]) === alternatives then
+      logical_terms(apply(`or`, map(u => not_element(u, args[2]), apply(list, args[1]))), neg)
+    # unequal(a, b, c): the arguments are pairwise different
+    else if h === unequal and length(args) > 2 then
+      logical_terms(apply(`and`, flatten(table(map(j => args[i] != args[j], range(i + 1, length(args))), i, length(args) - 1), 1)), neg)
     else [[if neg then not e else e]]
   }
 # logical_expand of an equation whose left side is a series at 0: the equations of the coefficients up to the order

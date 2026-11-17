@@ -22,6 +22,14 @@ select_keys(assoc(1 -> a, 2 -> b, 3 -> c), is_odd)
 #% output
 #= assoc(1 -> a, 3 -> c)
 
+#% text
+# `select_keys(f)(a)` is the operator form of `select_keys(a, f)`:
+
+#% cell
+select_keys(is_odd)(assoc(1 -> 2, 2 -> 3, 3 -> 4))
+#% output
+#= assoc(1 -> 2, 3 -> 4)
+
 #% section
 # See also
 

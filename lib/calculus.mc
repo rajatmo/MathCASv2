@@ -603,9 +603,22 @@ fn calc_dq(f, spec) = {
   let x = spec[1]
   let k = if length(spec) == 3 then spec[2] else 1
   let h = last(spec)
-  let num = calc_total(map(j => (-1)^(k - j)*binomial(k, j)*rewrite(f, x -> x + j*h), range(0, k)))
-  cancel(num/h^k)
+  let num0 = calc_total(map(j => (-1)^(k - j)*binomial(k, j)*rewrite(f, x -> x + j*h), range(0, k)))
+  # an integer step: the functions with a recurrence in their argument written at the unshifted argument, so that
+  # the differences telescope to finite sums
+  let num = if is_integer(h) and h > 0 and h*k <= 32 and not free_of(num0, x) then rewrite(num0, calc_shift_rules(), strategy: fixed_point) else num0
+  # the telescoped sums are kept as sums
+  if num === num0 then cancel(num/h^k) else if k == 1 then num/h^k else expand(num)/h^k
 }
+# psi(u + m) = psi(u) + sum 1/(u + j), psi^(n)(u + m) = psi^(n)(u) + (-1)^n n! sum (u + j)^(-n - 1) (DLMF 5.15.5),
+# H(u + m, r) = H(u, r) + sum (u + j)^-r, zeta(s, u + m) = zeta(s, u) - sum (u + j)^-s (DLMF 25.11.4), m a natural number
+fn calc_shift_rules() = [
+  digamma(u_ + m_) when is_integer(m) and m > 0 and not is_number(u) :> digamma(u) + sum((u + j)^-1, [j, 0, m - 1]),
+  polygamma(n_, u_ + m_) when is_integer(n) and n >= 0 and is_integer(m) and m > 0 and not is_number(u) :> polygamma(n, u) + (-1)^n*factorial(n)*sum((u + j)^(-n - 1), [j, 0, m - 1]),
+  harmonic_number(u_ + m_) when is_integer(m) and m > 0 and not is_number(u) :> harmonic_number(u) + sum((u + j)^-1, [j, 1, m]),
+  harmonic_number(u_ + m_, r_) when is_integer(m) and m > 0 and not is_number(u) :> harmonic_number(u, r) + sum((u + j)^-r, [j, 1, m]),
+  zeta(s_, u_ + m_) when is_integer(m) and m > 0 and not is_number(u) and s !== 1 :> zeta(s, u) - sum((u + j)^-s, [j, 0, m - 1])
+]
 
 # difference_quotient(f, [x, h]), (f, [x, k, h]), (f, spec1, spec2, ...): the difference quotient of f in x with step
 # h (the k-th one), applied for each specification in turn; lists of functions element-wise
@@ -3084,9 +3097,18 @@ fn calc_algebraic(x) = {
     else null
   }
   else if head(x) === log and length(x) == 1 then (if calc_algebraic(x[1]) === true and not (x[1] === 0) and not (x[1] === 1) then false else null)
+  # a root of a polynomial with algebraic coefficients
+  else if head(x) === root and length(x) == 2 and is_integer(x[2]) and head(x[1]) === `fn` then {
+    let p = x[1](calc_root_var)
+    if is_polynomial(p, calc_root_var) and every(coefficient_list(p, calc_root_var), c => calc_algebraic(c) === true) then true else null
+  }
   else null
 }
-rule element(x_, algebraics) := map(t => element(t, algebraics), x) when is_list(x)
+# a list: true when every element is algebraic, false when one is not, otherwise element by element
+rule element(x_, algebraics) := {
+  let vs = map(t => element(t, algebraics), x)
+  if every(vs, v => v === true) then true else if some(vs, v => v === false) then false else vs
+} when is_list(x)
 rule element(x_, algebraics) := calc_algebraic(x) when is_numeric(x) and not (calc_algebraic(x) === null)
 
 # --- holonomic functions given by their equations: difference_root, differential_root ---

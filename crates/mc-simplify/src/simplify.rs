@@ -766,7 +766,51 @@ fn inside_out<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, 
 const MIRROR: &[&str] = &[
     "sin", "cos", "tan", "cot", "sec", "csc", "sinh", "cosh", "tanh", "coth", "sech", "csch", "exp", "gamma",
     "factorial", "erf", "erfc", "erfi", "exp_integral_e", "exp_integral_ei", "binomial", "beta",
+    // entire or meromorphic and real on the real line, so mirror symmetric everywhere
+    "dawson_f", "logistic_sigmoid", "factorial2", "pochhammer", "multinomial", "airy_ai", "airy_bi",
+    "airy_ai_prime", "airy_bi_prime", "sinc", "sin_integral", "sinh_integral", "fresnel_s", "fresnel_c",
 ];
+
+/// `conjugate(u)` with the conjugate taken inside: over sums and products (conj(a + b) = conj(a) + conj(b),
+/// conj(a b) = conj(a) conj(b)), integer powers (conj(a^n) = conj(a)^n), `conjugate` itself and the functions of
+/// [`MIRROR`]; elsewhere it stays around the subterm.
+fn conjugate_inward<'h>(b: &B<'h>, conj: mc_api::Sym, u: T<'h>, depth: usize) -> T<'h> {
+    let h = b.heap();
+    let keep = || b.call(conj, &[u]);
+    if depth > 64 || b.complex_parts(u).is_some() {
+        return keep();
+    }
+    let Some((g, args)) = b.call_of(u) else { return keep() };
+    let inside = |a: T<'h>| conjugate_inward(b, conj, a, depth + 1);
+    if g == conj {
+        return match args {
+            [a] => *a,
+            _ => keep(),
+        };
+    }
+    if g == b.hd.add {
+        return b.add(&args.iter().map(|&a| inside(a)).collect::<Vec<_>>());
+    }
+    if g == b.hd.mul {
+        return b.mul(&args.iter().map(|&a| inside(a)).collect::<Vec<_>>());
+    }
+    if g == b.hd.pow {
+        if let [base, n] = args {
+            if matches!(h.view(*n), mc_api::View::Int(_) | mc_api::View::BigInt { .. }) {
+                return b.pow(inside(*base), *n);
+            }
+            // exp is entire and real on the reals: conj(e^w) = e^conj(w)
+            if b.sym_of(*base) == Some(h.sym("e")) {
+                return b.pow(*base, inside(*n));
+            }
+        }
+        return keep();
+    }
+    if MIRROR.contains(&h.sym_name(g).as_str()) {
+        return b.call(g, &args.iter().map(|&a| inside(a)).collect::<Vec<_>>());
+    }
+    keep()
+}
 
 /// Rewritings applied once before the search (decision 2B.6): `conjugate(f(z))` as `f(conjugate(z))` for the
 /// functions of [`MIRROR`]; `degree` as `pi/180`; `and`/`or` with repeated arguments removed and the rest sorted;
@@ -790,13 +834,8 @@ fn prepare<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, '_,
         let name = h.sym_name(s);
         match (name.as_str(), args) {
             ("conjugate", [u]) => {
-                if let Some((g, inner)) = b.call_of(*u) {
-                    if MIRROR.contains(&h.sym_name(g).as_str()) {
-                        let conj: Vec<T<'h>> = inner.iter().map(|&a| b.call(s, &[a])).collect();
-                        return Ok(Some(b.call(g, &conj)));
-                    }
-                }
-                Ok(None)
+                let r = conjugate_inward(b, s, *u, 0);
+                Ok((r != node).then_some(r))
             }
             ("and" | "or", _) if args.len() > 1 => {
                 let mut v = args.to_vec();

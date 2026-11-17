@@ -147,7 +147,14 @@ rule fold_while(f_, test_)(x_, xs_) := fold_while(f, x, xs, test)
 rule fold_while(f_, test_, m_, k_)(x_, xs_) := fold_while(f, x, xs, test, m, k)
 rule nest(f_, n_)(x_) := nest(f, x, n) when is_integer(n)
 rule nest_list(f_, n_)(x_) := nest_list(f, x, n) when is_integer(n)
-fn fold_while(f, x, xs, test, m: Int) = last(fold_while_list(f, x, xs, test, m))
+# with one argument, the first element is the start value
+rule fold_while(f_, test_)(xs_) := fold_while(f, first(xs), rest(xs), test) when is_list(xs) and length(xs) > 0
+rule fold_while(f_, test_, m_, k_)(xs_) := fold_while(f, first(xs), rest(xs), test, m, k) when is_list(xs) and length(xs) > 0
+rule fold_while_list(f_, test_)(x_, xs_) := fold_while_list(f, x, xs, test)
+rule fold_while_list(f_, test_)(xs_) := fold_while_list(f, first(xs), rest(xs), test) when is_list(xs) and length(xs) > 0
+rule fold_while_list(f_, test_, m_)(x_, xs_) := fold_while_list(f, x, xs, test, m) when is_integer(m)
+rule fold_while_list(f_, test_, m_)(xs_) := fold_while_list(f, first(xs), rest(xs), test, m) when is_integer(m) and is_list(xs) and length(xs) > 0
+fn fold_while(f, x, xs, test, m: Int) =last(fold_while_list(f, x, xs, test, m))
 fn fold_while(f, x, xs, test, m: Int, k: Int) when k <= 0 = { let vs = fold_while_list(f, x, xs, test, m); vs[max(1, length(vs) + k)] }
 
 # boole(b): 1 for true, 0 for false (element-wise on lists); other arguments stay as they are
@@ -325,6 +332,10 @@ rule operator_applied(f_, s_)(xs___) := {
   if length(xs) > ar then apply(r, drop(xs, ar)) else r
 } when length(xs) >= (if is_integer(s) then s else if is_list(s) then max(s) else s[1])
 fn reverse_applied(f) = (args...) => apply(f, reverse(args))
+# reverse_applied(f, n)(a, b, ...): the first n arguments reversed (the last -n for a negative n)
+rule reverse_applied(f_, n_)(xs___) := apply(f, join(reverse(take(xs, n)), drop(xs, n))) when is_integer(n) and n >= 0 and n <= length(xs)
+rule reverse_applied(f_, n_)(xs___) := apply(f, join(drop(xs, n), reverse(take(xs, n)))) when is_integer(n) and n < 0 and -n <= length(xs)
+rule replace_repeated(r_)(e_) := replace_repeated(e, r)
 
 # take_list(xs, [n1, n2, ...]): the successive pieces take(rest, ni) of what remains of xs (negative ni: from the
 # end of what remains; all: everything that remains)
@@ -1020,12 +1031,14 @@ fn toeplitz_matrix(c, r) when is_list(c) and is_list(r) = if length(r) == 0 then
 # of the given size filled with x (0), the extra entry going to the end; a larger array a is cut around its centre
 fn center_array(m) when is_integer(m) = center_array(1, m, 0)
 fn center_array(a, dims) = center_array(a, dims, 0)
-fn center_array(a, dims, x) when is_integer(dims) or (is_list(dims) and every(dims, is_integer)) = {
-  let d = if is_list(dims) then dims else [dims]
+fn center_array(a, dims, x) when is_integer(dims) or (is_list(dims) and every(dims, d => is_integer(d) or d === inherited)) = {
+  let d0 = if is_list(dims) then dims else [dims]
   # rows of different lengths: each row centred in the longest first (a full array)
   var arr = if is_list(a) and length(a) > 0 and every(a, is_list) and not is_array(a) then map(r => center_array(r, max(map(length, a)), x), a) else a
-  for k in range(max(0, length(d) - length(dimensions(a)))) { arr = [arr] }
+  for k in range(max(0, length(d0) - length(dimensions(arr)))) { arr = [arr] }
   let have = dimensions(arr)
+  # inherited: the size the array has in that dimension
+  let d = map(i => if d0[i] === inherited then have[i] else d0[i], range(length(d0)))
   array_pad(arr, map(i => [floor((d[i] - have[i])/2), d[i] - have[i] - floor((d[i] - have[i])/2)], range(length(d))), x)
 }
 
@@ -1505,7 +1518,7 @@ fn lo_dim_known(f, cons, vars) = {
   }
 }
 fn lo_dimension(e, v) = {
-  let found = cases(e, dot(u_, w_) :> length(u) when is_list(u) and w === v, [0, inf])
+  let found = cases(e, dot(u_, w_) :> (if is_matrix(u) then length(u[1]) else length(u)) when is_list(u) and w === v, [0, inf])
   let found2 = cases(e, dot(w_, u_) :> length(u) when is_list(u) and w === v, [0, inf])
   let all_d = join(found, found2)
   if length(all_d) > 0 then all_d[1] else 1

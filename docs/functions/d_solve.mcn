@@ -13,7 +13,7 @@
 # `d_solve(eqs)` reads the unknown functions and the variable off the equations.
 
 #% item
-# Linear equations of any order: constant coefficients through the roots of the characteristic polynomial (root objects for cubics and higher), a right-hand side by undetermined coefficients or by variation of parameters; Euler equations; equations without `y` by lowering the order; second order with variable coefficients by a solution found from an ansatz and reduction of order, by Airy, Bessel, hypergeometric, Legendre, Kummer and Hermite functions, or by Kovacic's algorithm for Liouvillian solutions.
+# Linear equations of any order: constant coefficients through the roots of the characteristic polynomial (root objects for cubics and higher), a right-hand side by undetermined coefficients or by variation of parameters; Euler equations; equations without `y` by lowering the order; second order with variable coefficients by a solution found from an ansatz and reduction of order, by Airy, Bessel, hypergeometric, Legendre, Kummer and Hermite functions, by the biconfluent, double confluent and triconfluent Heun functions (`heun_b`, `heun_d`, `heun_t`, with the second solution from the substitution that maps the equation to one of the same kind), or by Kovacic's algorithm for Liouvillian solutions.
 
 #% item
 # Nonlinear first-order equations: separable, Bernoulli, Riccati, homogeneous, isobaric, exact (with integrating factors), `y' == f(a x + b y)`, Clairaut, and integrating factors from Lie point symmetries. Autonomous second-order equations and equations without `y` are reduced to first order.

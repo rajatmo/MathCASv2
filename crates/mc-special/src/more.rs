@@ -1575,6 +1575,21 @@ fn hyperfactorial<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         if fx.num(a[0]).is_some() && any_inexact(fx, a) {
             return hyperfactorial_numeric(fx, a);
         }
+        // an exact z > -1 with denominator 2 or 4: H(z) = Gamma(z + 1)^z/G(z + 1) (the form of log K below for
+        // Re(z + 1) > 0, Gamma(z + 1) > 0), with the closed forms of G at halves and quarters
+        if let Some(q) = fx.rat_of(a[0]) {
+            let small_den = q.den == Nat::from_u64(2) || q.den == Nat::from_u64(4);
+            let z = fx.f64_of(a[0]).unwrap_or(f64::NAN);
+            if small_den && z > -1.0 && z < 50.0 {
+                let z1 = fx.add(&[a[0], fx.int(1)]);
+                let g = fx.eval(fx.call("barnes_g", &[z1]))?;
+                if fx.call_of(g, "barnes_g").is_some() {
+                    return Ok(None);
+                }
+                let v = fx.div(fx.pow(fx.call("gamma", &[z1]), a[0]), g);
+                return Ok(Some(fx.eval(v)?));
+            }
+        }
         return Ok(None);
     };
     let mut p = Int::from_i64(1);

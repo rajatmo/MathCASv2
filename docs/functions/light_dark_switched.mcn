@@ -17,6 +17,14 @@ graphics([light_dark_switched(standard_blue, standard_orange), disk()])
 #% output
 #= image("light_dark_switched.files/light_dark_switched-1.svgz")
 
+#% text
+# `normal` gives the light colour as `rgb_color`:
+
+#% cell
+normal(light_dark_switched(blue, green))
+#% output
+#= rgb_color(0, 0, 1)
+
 #% section
 # See also
 

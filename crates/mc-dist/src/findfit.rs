@@ -113,9 +113,38 @@ fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Option<Vec<f64>> {
     Some(x)
 }
 
+/// The optimizers a `method` option may name. Every one of them looks for a minimizer of the same sum of squares,
+/// so the choice does not change the fit (to the tolerance of the iteration) and the option is accepted.
+const METHODS: [&str; 7] = ["automatic", "levenberg_marquardt", "gradient", "conjugate_gradient", "quasi_newton", "newton", "principal_axis"];
+
+/// `a` without a `method: name` option (an `options(...)` argument with no other option is dropped).
+fn without_method<'h>(fx: &Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Vec<T<'h>> {
+    let Some((&last, rest)) = a.split_last() else { return a.to_vec() };
+    let View::App { head, args } = fx.h.view(last) else { return a.to_vec() };
+    if head != fx.sym("options") {
+        return a.to_vec();
+    }
+    let is_method = |r: T<'h>| match fx.h.view(r) {
+        View::App { args: &[k, v], .. } => {
+            k == fx.sym("method") && matches!(fx.h.view(v), View::Sym(s) if METHODS.contains(&fx.h.sym_name(s).as_str()))
+        }
+        _ => false,
+    };
+    let kept: Vec<T<'h>> = args.iter().copied().filter(|&r| !is_method(r)).collect();
+    if kept.len() == args.len() {
+        return a.to_vec();
+    }
+    let mut out = rest.to_vec();
+    if !kept.is_empty() {
+        out.push(fx.h.call(fx.h.sym("options"), &kept));
+    }
+    out
+}
+
 fn find_fit<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    let a = without_method(fx, a);
     // the monitors from a trailing `options(...)`; any other option leaves the call as it is
-    let (a, mons) = match mc_numfn::take_monitors(fx.cx, a, &mc_numfn::MONITOR_OPTIONS) {
+    let (a, mons) = match mc_numfn::take_monitors(fx.cx, &a, &mc_numfn::MONITOR_OPTIONS) {
         Ok(v) => v,
         Err(f) => return Ok(Some(f)),
     };

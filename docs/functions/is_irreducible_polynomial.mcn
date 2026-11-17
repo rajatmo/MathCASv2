@@ -50,6 +50,24 @@ is_irreducible_polynomial(x^2 - y^2)
 #% output
 #= false
 
+#% text
+# Several variables over a prime field, a number field and the algebraic closure (`extension: all`); an answer is given only when it is proved (a factor found, or a complete search over the factors of the Kronecker substitution):
+
+#% cell
+is_irreducible_polynomial([x*y + x + 1, 2 + 2*x + 2*x^2 + 2*y + x*y], modulus: 3)
+#% output
+#= [true, false]
+
+#% cell
+is_irreducible_polynomial([x^2 - 2*y^4, x^4 - 3*y^2], extension: sqrt(3))
+#% output
+#= [true, false]
+
+#% cell
+is_irreducible_polynomial([x^3 - 3, x^2 + 2*x*y - 7], extension: all)
+#% output
+#= [false, true]
+
 #% section
 # See also
 

@@ -27,6 +27,17 @@ fold_while((a, b) => a - b, 12, range(6), is_positive)
 #% output
 #= -3
 
+#% subsection
+# Scope
+
+#% text
+# `fold_while(f, test)(x, xs)` is the operator form; with one argument, `fold_while(f, test)(xs)` starts from the first element of `xs`.
+
+#% cell
+fold_while(add, less_than(20))(range(10))
+#% output
+#= 21
+
 #% section
 # See also
 

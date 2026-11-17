@@ -828,7 +828,9 @@ fn consider<'h>(
     let Some(nv) = real_value(c, v)? else { return Ok(()) };
     let mut key = vec![];
     for &p in &point {
-        key.push(real_value(c, p)?.unwrap_or(f64::INFINITY));
+        // a point with a non-real coordinate is not a point of the real problem
+        let Some(coord) = real_value(c, p)? else { return Ok(()) };
+        key.push(coord);
     }
     // ties go to the smaller point (coordinate by coordinate)
     let better = match best.as_ref() {

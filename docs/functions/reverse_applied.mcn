@@ -22,6 +22,22 @@ reverse_applied(append)(4, [1, 2, 3])
 #% output
 #= [1, 2, 3, 4]
 
+#% subsection
+# Scope
+
+#% text
+# `reverse_applied(f, n)(a, b, ...)` reverses the first `n` arguments, and the last `-n` for a negative `n`. A count larger than the number of arguments leaves the call unevaluated.
+
+#% cell
+reverse_applied(f, 2)(a, b, c, d)
+#% output
+#= f(b, a, c, d)
+
+#% cell
+reverse_applied(f, -2)(a, b, c, d)
+#% output
+#= f(a, b, d, c)
+
 #% section
 # See also
 

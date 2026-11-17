@@ -45,6 +45,14 @@ first_position(f(g(1), h(2)), 2)
 #% output
 #= [2, 1]
 
+#% text
+# `first_position(p)(x)` is the operator form of `first_position(x, p)`:
+
+#% cell
+first_position(_: Int)([f(a), 2, 3, y])
+#% output
+#= [2]
+
 #% section
 # See also
 

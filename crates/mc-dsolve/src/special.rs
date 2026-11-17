@@ -45,7 +45,93 @@ pub(crate) fn basis<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, coefs: &[T<'h>], x: T<'h
     if let Some(v) = mathieu(c, p, q, x)? {
         return Ok(Some(v));
     }
+    if let Some(v) = heun_confluent(c, p, q, x)? {
+        return Ok(Some(v));
+    }
     hermite(c, p, q, x)
+}
+
+/// Coefficients `[c0, ..., cn]` of `t * x^shift` as a polynomial of degree at most `n` in `x`, `None` when it is
+/// not one.
+fn poly_coefs<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, t: T<'h>, x: T<'h>, shift: i64, n: i64) -> Res<Option<Vec<T<'h>>>> {
+    let b = c.b;
+    let e = c.expand(b.mul(&[t, b.powi(x, shift)]))?;
+    let mut out = vec![];
+    let mut back = vec![];
+    for i in 0..=n {
+        let k = c.ev("coefficient", &[e, x, b.int(i)])?;
+        if !c.free(k, x) || c.bad(k) {
+            return Ok(None);
+        }
+        back.push(b.mul(&[k, b.powi(x, i)]));
+        out.push(k);
+    }
+    let diff = b.sub(e, b.add(&back));
+    Ok(if c.is_zero(diff)? { Some(out) } else { None })
+}
+
+/// Is `g` a number that is an integer (the second solution of the equation is then not independent or not defined)?
+fn integer_valued<'h>(c: &Cx<'_, '_, '_, '_, 'h>, g: T<'h>) -> bool {
+    matches!(c.b.heap().view(g), mc_api::View::Int(_))
+}
+
+/// The confluent Heun equations with their second solutions.
+///
+/// - biconfluent `y'' + (g/z + d + e z) y' + (a z - q)/z y = 0`: `heun_b(q, a, g, d, e, z)` and, from
+///   `y = z^(1 - g) w` (which gives the equation of the same kind with `q - (1 - g) d`, `a + (1 - g) e`, `2 - g`),
+///   `z^(1 - g) heun_b(q - (1 - g) d, a + (1 - g) e, 2 - g, d, e, z)`;
+/// - double confluent `y'' + (g/z^2 + d/z + e) y' + (a z - q)/z^2 y = 0`: `heun_d(q, a, g, d, e, z)` and, from
+///   `y = exp(-e z + g/z) z^(2 - d) w`, `exp(-e z + g/z) z^(2 - d) heun_d(q + d - 2, a - 2 e, -g, 4 - d, -e, z)`;
+/// - triconfluent `y'' + (g + d z + e z^2) y' + (a z - q) y = 0`: `heun_t(q, a, g, d, e, z)` and, from
+///   `y = exp(-g z - d z^2/2 - e z^3/3) w`, that factor times `heun_t(q + d, a - 2 e, -g, -d, -e, z)`.
+///
+/// Literature: A. Ronveaux (ed.), *Heun's Differential Equations* (1995), parts B to E; NIST DLMF 31.12.
+fn heun_confluent<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, p: T<'h>, q: T<'h>, x: T<'h>) -> Res<Option<Vec<T<'h>>>> {
+    let b = c.b;
+    // (shift of p, shift of q): z p and z q, z^2 p and z^2 q, p and q
+    for (kind, ps, qs) in [("heun_b", 1, 1), ("heun_d", 2, 2), ("heun_t", 0, 0)] {
+        let Some(pc) = poly_coefs(c, p, x, ps, 2)? else { continue };
+        let Some(qc) = poly_coefs(c, q, x, qs, 1)? else { continue };
+        let (g, d, e) = (pc[0], pc[1], pc[2]);
+        let (qq, a) = (c.simp(b.neg(qc[0]))?, qc[1]);
+        let y1 = c.ev(kind, &[qq, a, g, d, e, x])?;
+        let y2 = match kind {
+            "heun_b" => {
+                if integer_valued(c, g) {
+                    continue;
+                }
+                let s = c.simp(b.sub(b.one(), g))?;
+                let q2 = c.simp(b.sub(qq, b.mul(&[s, d])))?;
+                let a2 = c.simp(b.add(&[a, b.mul(&[s, e])]))?;
+                let g2 = c.simp(b.sub(b.int(2), g))?;
+                let f = c.ev(kind, &[q2, a2, g2, d, e, x])?;
+                c.eval(b.mul(&[b.pow(x, s), f]))?
+            }
+            "heun_d" => {
+                let m = c.simp(b.sub(b.int(2), d))?;
+                let q2 = c.simp(b.add(&[qq, d, b.int(-2)]))?;
+                let a2 = c.simp(b.sub(a, b.mul(&[b.int(2), e])))?;
+                let d2 = c.simp(b.sub(b.int(4), d))?;
+                let f = c.ev(kind, &[q2, a2, b.neg(g), d2, b.neg(e), x])?;
+                let ex = c.ev("exp", &[b.add(&[b.mul(&[b.neg(e), x]), b.div(g, x)])])?;
+                c.eval(b.mul(&[f, ex, b.pow(x, m)]))?
+            }
+            _ => {
+                let q2 = c.simp(b.add(&[qq, d]))?;
+                let a2 = c.simp(b.sub(a, b.mul(&[b.int(2), e])))?;
+                let f = c.ev(kind, &[q2, a2, b.neg(g), b.neg(d), b.neg(e), x])?;
+                let arg = b.neg(b.add(&[
+                    b.mul(&[g, x]),
+                    b.mul(&[d, b.powi(x, 2), b.rat(1, 2)]),
+                    b.mul(&[e, b.powi(x, 3), b.rat(1, 3)]),
+                ]));
+                let ex = c.ev("exp", &[arg])?;
+                c.eval(b.mul(&[f, ex]))?
+            }
+        };
+        return Ok(Some(vec![y1, y2]));
+    }
+    Ok(None)
 }
 
 /// The arguments of `t` when it is a call of `name`.

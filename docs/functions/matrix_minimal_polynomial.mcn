@@ -41,6 +41,14 @@ characteristic_polynomial([[2, 0, 0], [0, 3, 0], [0, 0, 2]], x)
 #% output
 #= -12 + 16*x - 7*x^2 + x^3
 
+#% text
+# With `modulus: p` (a prime) the matrix is taken over the field of `p` elements and the coefficients are residues:
+
+#% cell
+matrix_minimal_polynomial([[22, -16], [25, -18]], x, modulus: 19)
+#% output
+#= 4 + 15*x + x^2
+
 #% section
 # See also
 

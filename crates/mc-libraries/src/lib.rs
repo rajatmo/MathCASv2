@@ -153,6 +153,7 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) -> mc_jit::Jit 
     // mc-poly owns `gcd` and `lcm` and sends exact numbers to mc-numtheory's half-gcd (decision 9.1): no two
     // libraries register one name, so the order of these calls does not matter
     mc_poly::install(k, h, stop);
+    mc_numeric::install_late(k, h);
     mc_algebra::install(k, h, stop);
     mc_calculus::install(k, h, stop);
     mc_integrals::install(k, h, stop);

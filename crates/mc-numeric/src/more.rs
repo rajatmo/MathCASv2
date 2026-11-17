@@ -108,7 +108,25 @@ fn asinh_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
             return Ok(Some(fx.mul(&[fx.i(), v])));
         }
     }
+    // b i for a closed b that is not a number (sqrt(2) i/2): when asin(b) is a rational multiple of pi, b is
+    // sin of a real angle, in [-1, 1], where asinh(b i) = i asin(b) on the principal branches
+    if fx.num(x).is_none() && fx.contains(x, "pow") {
+        let b = fx.eval(fx.mul(&[fx.neg(fx.i()), x]))?;
+        if fx.num(b).is_none() && !fx.contains(b, "complex") {
+            if let Some(c) = closed(fx, "asin", b)? {
+                if pi_rational(fx, c)? {
+                    return Ok(Some(fx.eval(fx.mul(&[fx.i(), c]))?));
+                }
+            }
+        }
+    }
     Ok(None)
+}
+
+/// Is `c` a rational multiple of pi?
+fn pi_rational<'h>(fx: &mut Fx<'_, '_, '_, 'h>, c: T<'h>) -> Res<bool> {
+    let q = fx.eval(fx.div(c, fx.sym("pi")))?;
+    Ok(fx.rat_of(q).is_some())
 }
 
 fn asinh_n<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
@@ -152,6 +170,15 @@ fn acosh_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         if v > -1.0 && v < 1.0 {
             if let Some(c) = closed(fx, "acos", x)? {
                 return Ok(Some(fx.mul(&[fx.i(), c])));
+            }
+        }
+    }
+    // a closed real x that is not a number (sqrt(2)/2): when acos(x) is a rational multiple of pi, x = cos of a real
+    // angle lies in [-1, 1] and acosh(x) = i acos(x) as above
+    if fx.num(x).is_none() && fx.contains(x, "pow") && !fx.contains(x, "complex") {
+        if let Some(c) = closed(fx, "acos", x)? {
+            if pi_rational(fx, c)? {
+                return Ok(Some(fx.eval(fx.mul(&[fx.i(), c]))?));
             }
         }
     }

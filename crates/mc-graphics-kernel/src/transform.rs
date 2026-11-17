@@ -323,6 +323,16 @@ impl Native for NormalGeometry {
             if let Some(v) = transformed_primitive(cx, *g)? {
                 return Ok(Reply::Done(v));
             }
+            // the colour of the light theme, as rgb_color
+            let h = cx.heap();
+            if let View::App { head, args: &[light, _] } = h.view(*g) {
+                if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "light_dark_switched") {
+                    let v = cx.eval(h.call(h.sym("ld_light_rgb"), &[light]))?;
+                    if matches!(h.view(v), View::App { head, .. } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "rgb_color")) {
+                        return Ok(Reply::Done(v));
+                    }
+                }
+            }
         }
         self.inner.call(cx, t, args)
     }

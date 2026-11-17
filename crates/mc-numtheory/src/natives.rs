@@ -294,6 +294,19 @@ fn ceiling<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<
 }
 
 fn round<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    // round is odd (ties go to the even integer, a symmetric rule): round(-x) = -round(x) for a symbolic x written
+    // with a negative numeric factor
+    if let [x] = args {
+        let h = cx.heap();
+        if let View::App { head, args: fs } = h.view(*x) {
+            let ar = Arith::new(h);
+            let negative = |c: T<'h>| matches!(ar.num(c), Some(Num::Real(r)) if r.is_negative());
+            if head == h.sym_term(h.sym("mul")) && fs.len() >= 2 && negative(fs[0]) && !fs[1..].iter().any(|&f| ar.num(f).is_some()) {
+                let y = ar.neg(*x);
+                return Ok(Reply::Again(ar.neg(h.call(h.sym("round"), &[y]))));
+            }
+        }
+    }
     rounding(cx, args, Rounding::Nearest)
 }
 
@@ -715,6 +728,30 @@ fn binomial_int(n: &Int, k: &Int) -> Option<Option<(bool, u64, u64)>> {
     Some(Some((neg, to_u64(&top.mag)?, to_u64(&low.mag)?)))
 }
 
+/// Is `t` a numeric expression that is not a number: built from numbers and the constants `pi`, `e`,
+/// `euler_gamma`, `catalan`, `golden_ratio` by sums, products and powers?
+fn constant_expression(h: &Heap, t: T<'_>) -> bool {
+    let mut stack = vec![t];
+    let mut seen = 0usize;
+    let mut constant = false;
+    let ops = [h.sym("add"), h.sym("mul"), h.sym("pow")];
+    while let Some(u) = stack.pop() {
+        seen += 1;
+        if seen > 256 {
+            return false;
+        }
+        if Arith::new(h).num(u).is_some() {
+            continue;
+        }
+        match h.view(u) {
+            View::Sym(s) if matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio") => constant = true,
+            View::App { head, args } if matches!(h.view(head), View::Sym(s) if ops.contains(&s)) => stack.extend_from_slice(args),
+            _ => return false,
+        }
+    }
+    constant
+}
+
 /// Is `t` an inexact (machine or ball) real or complex number?
 fn inexact(h: &Heap, t: T<'_>) -> bool {
     Arith::new(h).num(t).is_some_and(|n| n.kind() != mc_arith::Kind::Exact)
@@ -773,6 +810,17 @@ fn binomial<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<
         }
         if *b == h.int(1) || ar.add(&[*b, h.int(1)]) == *a {
             return done(*a);
+        }
+        // a numeric constant (pi, 5 pi/6, e + 1) over a natural k <= 20: the polynomial a (a - 1) ... (a - k + 1)/k!
+        if let Some(k) = int_of(h, *b).and_then(|k| k.to_i64()).filter(|k| (2..=20).contains(k)) {
+            if constant_expression(h, *a) {
+                let mut fs = vec![];
+                for i in 0..k {
+                    fs.push(ar.sub(*a, h.int(i)));
+                    fs.push(ar.pow(h.int(i + 1), h.int(-1)));
+                }
+                return Ok(Reply::Again(ar.mul(&fs)));
+            }
         }
     }
     // non-integer rational indices differing by an integer d: C(a, b) = Gamma(a + 1)/(Gamma(b + 1) Gamma(d + 1)) is

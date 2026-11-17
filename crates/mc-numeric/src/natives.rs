@@ -472,6 +472,46 @@ pub fn install_with_stop(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     }
 }
 
+/// Register what needs the natives of the later libraries: `normal` of a quantity in a ratio unit (a percentage,
+/// parts per million) is the number it stands for.
+pub fn install_late(k: &mut Kernel, h: &Heap) {
+    k.wrap_native(h.sym("normal"), |inner| Box::new(NormalRatio { inner }));
+}
+
+/// `normal(quantity(m, unit))` for a dimensionless ratio unit, in front of the native it wraps.
+struct NormalRatio {
+    inner: Box<dyn Native>,
+}
+
+impl Native for NormalRatio {
+    fn reads_term(&self) -> bool {
+        self.inner.reads_term()
+    }
+
+    fn curried(&self) -> bool {
+        self.inner.curried()
+    }
+
+    fn trace(&mut self, visit: &mut dyn FnMut(&mut mc_core::Raw)) {
+        self.inner.trace(visit);
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        if let [q] = args {
+            if let View::App { head, args: &[_, u] } = h.view(*q) {
+                let ratio = matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "quantity")
+                    && matches!(h.view(u), View::Str(s) if ["Percent", "%", "PartsPerMillion", "ppm"].contains(&s));
+                if ratio {
+                    let v = cx.eval(h.call(h.sym("unit_convert"), &[*q, h.int(1)]))?;
+                    return Ok(Reply::Done(v));
+                }
+            }
+        }
+        self.inner.call(cx, t, args)
+    }
+}
+
 /// `max`/`min` with uncertain arguments in front of the list crate's native ([`crate::uncertain::extreme`]).
 struct Extreme {
     inner: Box<dyn Native>,

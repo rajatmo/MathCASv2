@@ -901,6 +901,17 @@ rule jacobi_epsilon(u_ + 2im*elliptic_k(1 - m_), m_) := 2*im*(elliptic_k(1 - m) 
 rule jacobi_epsilon(u_ + 2*elliptic_k(m_) + 2im*elliptic_k(1 - m_), m_) := 2*elliptic_e(m) + 2*im*(elliptic_k(1 - m) - elliptic_e(1 - m)) + jacobi_epsilon(u, m)
 # Neville theta functions: theta_n vanishes at i K'; at m = 1 they are 1, 1, cosh, sinh (DLMF 20.9, 22.2)
 rule neville_theta_n(1im*elliptic_k(1 - m_), m_) := 0
+# at the quarter periods K, i K', K + i K' (z = pi/2, pi tau/2, pi/2 + pi tau/2 in theta_j(z, q)/theta_j(0, q), the
+# half-period shifts of DLMF 20.2.11-14 and theta_2^2/theta_3^2 = m^(1/2), theta_4^2/theta_3^2 = (1 - m)^(1/2), 20.9.1;
+# q the nome); checked numerically for real m < 0, 0 < m < 1, m > 1 and complex m
+rule neville_theta_c(elliptic_k(m_), m_) := 0
+rule neville_theta_d(elliptic_k(m_), m_) := (1 - m)^(1/4)
+rule neville_theta_n(elliptic_k(m_), m_) := (1 - m)^(-1/4)
+rule neville_theta_c(1im*elliptic_k(1 - m_), m_) := 1/(m^(1/4)*elliptic_nome_q(m)^(1/4))
+rule neville_theta_d(1im*elliptic_k(1 - m_), m_) := m^(1/4)/elliptic_nome_q(m)^(1/4)
+rule neville_theta_c(elliptic_k(m_) + 1im*elliptic_k(1 - m_), m_) := -im*(1 - m)^(1/4)/(m^(1/4)*elliptic_nome_q(m)^(1/4))
+rule neville_theta_d(elliptic_k(m_) + 1im*elliptic_k(1 - m_), m_) := 0
+rule neville_theta_n(elliptic_k(m_) + 1im*elliptic_k(1 - m_), m_) := m^(1/4)/((1 - m)^(1/4)*elliptic_nome_q(m)^(1/4))
 rule neville_theta_c(u_, 1) := 1
 rule neville_theta_d(u_, 1) := 1
 rule neville_theta_n(u_, 1) := cosh(u)
@@ -1093,6 +1104,10 @@ rule prime_zeta_p(s_) := {
   let top = ceiling((digits + 3)*3.33/s) + 2
   sum(map(k => if moebius_mu(k) == 0 then 0 else moebius_mu(k)/k*log(zeta(k*s)), range(top)))
 } when is_inexact(s) and is_real(s) and s >= 1/5 and s < 1
+# s = 1/k for a squarefree k: the term moebius_mu(k)/k log(zeta(k s)) of the series has the pole of zeta at 1 inside its
+# logarithm while every other term is finite (zeta has no zero on the positive real axis), so |P(s)| -> inf from every
+# direction: a logarithmic branch point, not a pole, whose value is complex infinity
+rule prime_zeta_p(s_) := complex_infinity when is_rational(s) and s > 0 and numerator(s) == 1 and denominator(s) <= 10^9 and moebius_mu(denominator(s)) != 0
 # prime_zeta_p over a list or matrix of arguments
 rule prime_zeta_p(xs_) := map(prime_zeta_p, xs) when is_list(xs)
 
