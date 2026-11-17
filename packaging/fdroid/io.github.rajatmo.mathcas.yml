@@ -1,0 +1,41 @@
+# The build recipe for F-Droid (the file metadata/io.github.rajatmo.mathcas.yml of fdroiddata). F-Droid builds the
+# tag from source on its own server and signs the package with its own key, so the package is built unsigned.
+Categories:
+  - Science & Education
+License: GPL-3.0-or-later
+AuthorName: Rajat Mandal
+SourceCode: https://github.com/rajatmo/MathCASv2
+IssueTracker: https://github.com/rajatmo/MathCASv2/issues
+Changelog: https://github.com/rajatmo/MathCASv2/blob/HEAD/CHANGELOG.md
+
+AutoName: MathCAS
+
+RepoType: git
+Repo: https://github.com/rajatmo/MathCASv2.git
+
+Builds:
+  - versionName: 0.16.1
+    versionCode: 1601
+    commit: v0.16.1
+    sudo:
+      - apt-get update
+      - apt-get install -y build-essential curl
+    output: out/MathCAS-v2-*-android.apk
+    srclibs:
+      - rustup@1.28.2
+    prebuild:
+      # the toolchain of rust-toolchain.toml, with the two Android targets
+      - $$rustup$$/rustup-init.sh -y --default-toolchain none
+      - source $HOME/.cargo/env
+      - rustup target add aarch64-linux-android x86_64-linux-android
+    scandelete:
+      - bench
+    build:
+      - source $HOME/.cargo/env
+      - ANDROID_HOME=$$SDK$$ ANDROID_NDK_HOME=$$NDK$$ UNSIGNED=1 bash packaging/android/build-apk.sh out
+    ndk: r28c
+
+AutoUpdateMode: None
+UpdateCheckMode: Tags ^v[0-9.]+$
+CurrentVersion: 0.16.1
+CurrentVersionCode: 1601

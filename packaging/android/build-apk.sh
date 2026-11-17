@@ -18,6 +18,7 @@
 #   ABIS              the ABIs to build, default "arm64-v8a x86_64" (phones and tablets; emulators on a PC)
 #   KEYSTORE, KEY_ALIAS, KEYSTORE_PASS   the signing key; default: a debug key made on first use and kept in
 #                     $HOME/.android/debug.keystore (packages signed with it install, but are not for a store)
+#   UNSIGNED=1        leave the package unsigned (a store that builds from source signs it with its own key)
 #   CARGO_TARGET_DIR  where cargo builds (default: target/)
 set -euo pipefail
 
@@ -121,6 +122,11 @@ apk="$out/MathCAS-v2-$version-$commit-android.apk"
 rm -f "$apk"
 "$tools/zipalign$exe" -p 4 "$(native "$stage/unaligned.apk")" "$(native "$apk")"
 
+# UNSIGNED=1: the aligned package without a signature, for a store that signs with its own key
+if [ "${UNSIGNED:-0}" = 1 ]; then
+    echo "build-apk: $apk, not signed ($(($(wc -c <"$apk") / 1048576)) MB)"
+    exit 0
+fi
 keystore="${KEYSTORE:-$HOME/.android/debug.keystore}"
 alias="${KEY_ALIAS:-androiddebugkey}"
 pass="${KEYSTORE_PASS:-android}"

@@ -1,0 +1,1 @@
+Limits onto branch cuts, real roots of analytic equations with a proof that none is missed, faster plots and special functions, and many corrections. The full list is in the changelog of the project.

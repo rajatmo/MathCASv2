@@ -16,8 +16,8 @@ file, and write the crate sources again from the tag's lock file:
 
 To build and try it:
 
-    flatpak install flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08 \
-        org.freedesktop.Sdk.Extension.rust-stable//25.08
+    flatpak install flathub org.freedesktop.Platform//26.08 org.freedesktop.Sdk//26.08 \
+        org.freedesktop.Sdk.Extension.rust-stable//26.08
     cd packaging/flatpak
     flatpak-builder --user --install --force-clean build-dir io.github.rajatmo.MathCASv2.yml
     flatpak run io.github.rajatmo.MathCASv2

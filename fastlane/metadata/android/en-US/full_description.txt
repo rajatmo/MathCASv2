@@ -1,0 +1,17 @@
+MathCAS is a free computer algebra system in a notebook made for a phone or a tablet: type a calculation, get the answer typeset, and copy or share a plot.
+
+<b>What it computes</b>
+• Exact and arbitrary-precision arithmetic
+• Algebra: simplification, factoring, equation solving
+• Calculus: derivatives, integrals, limits, series, sums, transforms, differential equations
+• Linear algebra, number theory and about 1,900 functions in all, special functions among them
+• 2D and 3D plots that can be turned and zoomed
+
+<b>How it works on a phone</b>
+• "New calculation" opens a notebook with the keyboard up; a row of keys above the keyboard has the brackets, operators and Run
+• Notebooks are saved by themselves; open one again from the list, or open a .mcn file from another app
+• Tap a result to copy it as text or LaTeX; tap a plot to copy or share it as a picture
+
+Everything runs on the device. The app needs no network access and no account, and it collects nothing.
+
+The same notebooks open in MathCAS on Windows, Linux and macOS.

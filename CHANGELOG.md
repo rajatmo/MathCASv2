@@ -1,5 +1,12 @@
 # Changelog
 
+## Not released yet
+
+**Packages for more stores.** A Flatpak manifest with its metadata (`packaging/flatpak/`); the texts and
+pictures of the Android app for a store (`fastlane/metadata/android/`) and a build recipe for F-Droid
+(`packaging/fdroid/`); `UNSIGNED=1 packaging/android/build-apk.sh` leaves the Android package unsigned for a
+store that signs with its own key.
+
 ## 0.16.0 (2026-11-17)
 
 **macOS on Intel.** The disk image is also built for Macs with an Intel processor
