@@ -1,0 +1,1 @@
+The app is prepared for F-Droid. No change to the calculations since 0.16.0.

@@ -1,6 +1,6 @@
 # Changelog
 
-## Not released yet
+## 0.16.1 (2026-11-17)
 
 **Packages for more stores.** A Flatpak manifest with its metadata (`packaging/flatpak/`); the texts and
 pictures of the Android app for a store (`fastlane/metadata/android/`) and a build recipe for F-Droid
