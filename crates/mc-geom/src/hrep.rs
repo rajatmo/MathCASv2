@@ -333,8 +333,11 @@ fn convex_polygon<'h>(cx: &mut NativeCx<'_, '_, 'h>, v: &[Pt<'h>], x: &[T<'h>]) 
     for i in 0..m {
         let (a, b) = (&v[i], &v[(i + 1) % m]);
         let dir = e.vsub(b, a);
-        if num(cx, e.norm2(&dir))?.is_none_or(|l| l == 0.0) {
-            continue;
+        // an edge of symbolic length is not known to be an edge: no condition is better than a wrong one
+        match num(cx, e.norm2(&dir))? {
+            None => return Ok(None),
+            Some(0.0) => continue,
+            Some(_) => {}
         }
         let mut nv = vec![e.int(0); n];
         nv[i0] = e.neg(dir[i1]);

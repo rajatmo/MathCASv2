@@ -18,6 +18,9 @@
 #% item
 # The matrix is `length(c)` by `length(r)`.
 
+#% item
+# The option `target_structure` takes `dense`, `sparse`, `automatic` or `structured`; MathCAS has no structured-matrix objects, so the result is always the ordinary matrix with the same entries.
+
 #% section
 # Examples
 

@@ -105,6 +105,9 @@ pub fn at_infinity<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, f: Special, args: &[T<
         (S::AiryAi | S::AiryAiPrime, Some(0)) => b.int(0),
         (S::AiryBi | S::AiryBiPrime, Some(0)) => b.inf(),
         (S::BesselK, Some(0)) => b.int(0),
+        // |J_nu(x)|, |Y_nu(x)| <= C/sqrt(|x|) along the real axis for a real order (DLMF 10.17.3, 10.17.4), and the
+        // continuation to x < 0 only multiplies by e^(+-i pi nu) and adds i cos(pi nu) J_nu (DLMF 10.11.1, 10.11.2)
+        (S::BesselJ | S::BesselY, Some(0 | 2)) if args.len() == 2 && matches!(ar.num(args[0]), Some(Num::Real(_))) => b.int(0),
         // log Gamma along the negative axis has no limit (its real part follows ln|Gamma|, which has poles and
         // zeros-like dips between them); along the imaginary axis |log Gamma(i y)| grows like y log y (DLMF 5.11.1)
         (S::LogGamma, Some(2)) => h.sym_term(h.sym("indeterminate")),

@@ -233,10 +233,11 @@ fn runs<'h>(xs: &[T<'h>], n: usize, d: usize, over: Option<(i64, i64)>, pad: &Pa
     let (first, last) = match over {
         None => (1, len - n + 1),
         Some((kl, kr)) => {
-            let (kl, kr) = (place(kl), place(kr));
-            if !(1..=n).contains(&kl) || !(1..=n).contains(&kr) {
+            // places beyond the run (an overhang of more than one whole run) are allowed; place 0 is not
+            if kl == 0 || kr == 0 {
                 return None;
             }
+            let (kl, kr) = (place(kl), place(kr));
             (2 - kl, len - kr + 1)
         }
     };

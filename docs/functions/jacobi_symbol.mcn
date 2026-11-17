@@ -13,7 +13,7 @@
 # For a prime `n` it is the Legendre symbol: 1 when `a` is a non-zero square modulo `n`, -1 when it is not, 0 when `n` divides `a`. For composite `n` it is the product of the Legendre symbols of the prime factors.
 
 #% item
-# The value is found by quadratic reciprocity, without factoring `n`. For even or negative `n` use `kronecker_symbol`.
+# The value is found by quadratic reciprocity, without factoring `n`. For an even `n > 0` the symbol is continued by the Kronecker symbol `(a/2)` of the factor 2, so `jacobi_symbol(7, 6)` is 1; for negative `n` use `kronecker_symbol`.
 
 #% section
 # Examples

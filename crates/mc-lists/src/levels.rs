@@ -59,6 +59,8 @@ pub(crate) fn level_spec(h: &Heap, t: T<'_>) -> Option<Levels> {
         _ => None,
     };
     match h.view(t) {
+        // `all`: every level, the whole term (level 0) included
+        View::Sym(s) if h.sym_name(s) == "all" => Some(Levels { lo: 0, hi: i64::MAX }),
         View::Int(_) | View::Sym(_) => Some(Levels { lo: 1, hi: bound(t)? }),
         View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "list") => match *args {
             [n] => {

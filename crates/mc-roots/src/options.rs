@@ -123,6 +123,24 @@ pub(crate) fn split<'a, 'h>(
             "method" => match h.view(v) {
                 View::Sym(s) if matches!(h.sym_name(s).as_str(), "auto" | "automatic") => o.method = None,
                 View::Sym(s) => o.method = Some(Method::from_name(&h.sym_name(s)).ok_or_else(bad)?),
+                // [method, "StepControl" -> control, ...]: the method with its own options. The iteration always
+                // takes line-search steps inside a trust radius (newton.rs), which are the two step controls
+                View::App { head, args: [m, sub @ ..] } if head == h.sym_term(h.sym(names::LIST)) => {
+                    let View::Sym(s) = h.view(*m) else { return Err(bad()) };
+                    let method = Method::from_name(&h.sym_name(s)).ok_or_else(bad)?;
+                    for &r in sub {
+                        let View::App { head, args: &[k, c] } = h.view(r) else { return Err(bad()) };
+                        let known = |t: T<'h>, names: &[&str]| match h.view(t) {
+                            View::Str(x) => names.contains(&x.to_ascii_lowercase().replace(['_', ' '], "").as_str()),
+                            View::Sym(x) => names.contains(&h.sym_name(x).to_ascii_lowercase().replace(['_', ' '], "").as_str()),
+                            _ => false,
+                        };
+                        if head != rule || !known(k, &["stepcontrol"]) || !known(c, &["trustregion", "linesearch"]) {
+                            return Err(bad());
+                        }
+                    }
+                    o.method = Some(method);
+                }
                 _ => return Err(bad()),
             },
             "verify" => match h.view(v) {
@@ -130,7 +148,7 @@ pub(crate) fn split<'a, 'h>(
                 View::Sym(s) if h.sym_name(s) == names::FALSE => o.verify = false,
                 _ => return Err(bad()),
             },
-            "compile" => match h.view(v) {
+            "compile" | "compiled" => match h.view(v) {
                 View::Sym(s) => {
                     o.compile = match h.sym_name(s).as_str() {
                         "auto" | "automatic" => Policy::default(),

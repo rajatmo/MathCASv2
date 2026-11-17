@@ -1321,7 +1321,13 @@ fn jacobi_symbol<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -
     let [a, n] = args else { return Ok(Reply::Decline) };
     let (Some(a), Some(n)) = (int_of(h, *a), nat_of(h, *n)) else { return Ok(Reply::Decline) };
     if !n.bit(0) {
-        return Ok(Reply::Decline);
+        // an even modulus: the symbol continued by the Kronecker symbol (a / 2) (a / m) of the odd part m
+        if n.is_zero() {
+            return Ok(Reply::Decline);
+        }
+        let call = h.call(h.sym("kronecker_symbol"), &[args[0], args[1]]);
+        let v = cx.eval(call)?;
+        return if matches!(h.view(v), View::Int(_)) { done(v) } else { Ok(Reply::Decline) };
     }
     cx.charge(crate::budget::limb_work(n.len(), 1))?;
     done(h.int(modular::jacobi(&a, &n) as i64))

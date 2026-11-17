@@ -1114,6 +1114,13 @@ rule prime_zeta_p(s_) := {
 # logarithm while every other term is finite (zeta has no zero on the positive real axis), so |P(s)| -> inf from every
 # direction: a logarithmic branch point, not a pole, whose value is complex infinity
 rule prime_zeta_p(s_) := complex_infinity when is_rational(s) and s > 0 and numerator(s) == 1 and denominator(s) <= 10^9 and moebius_mu(denominator(s)) != 0
+# around(c, u): the value at c with the uncertainty |P'(c)| u propagated to first order, where P'(s) = sum over k of
+# moebius_mu(k) zeta'(k s)/zeta(k s) (the derivative of the series above term by term)
+fn pz_slope(s) = {
+  let top = ceiling(60*3.33/re(s)) + 2
+  sum(map(k => if moebius_mu(k) == 0 then 0 else moebius_mu(k)*rewrite(d(zeta(pz_t), pz_t), pz_t -> k*s)/zeta(k*s), range(top)))
+}
+rule prime_zeta_p(a_) := around(prime_zeta_p(a[1]), abs(pz_slope(a[1]))*a[2]) when not is_atom(a) and head(a) === around and is_real(a[1]) and a[1] > 1 and is_inexact(a[1])
 # prime_zeta_p over a list or matrix of arguments
 rule prime_zeta_p(xs_) := map(prime_zeta_p, xs) when is_list(xs)
 

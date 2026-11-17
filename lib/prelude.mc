@@ -18,6 +18,8 @@ fn log_base(b: Int, x: Int) when b > 1 and x > 0 and b^integer_exponent(x, b) ==
 # numbers of which one is a machine number: the quotient of the logarithms of their exact values to 40 digits,
 # rounded once to a machine number (so log_base(2.0, 8.0) is 3.0, not the quotient of two rounded logarithms)
 fn log_base(b, x) when is_number(b) and is_number(x) and (is_machine_number(b) or is_machine_number(x)) = n(n(log(set_precision(x, inf))/log(set_precision(b, inf)), 40))
+# x = b^c for a real base b > 0 other than 1 and a real exponent c: log(b^c) = c log(b) on the principal branch
+fn log_base(b, x) when is_numeric(b) and is_real(n(b)) and n(b) > 0 and b != 1 and not is_atom(x) and head(x) === pow and x[1] === b and is_rational(x[2]) = x[2]
 fn log_base(b, x) = log(x)/log(b)
 
 # count_if(xs, p): how many elements x of xs have p(x) true
@@ -110,11 +112,17 @@ fn replace_repeated(e, rules) = rewrite(e, rules, strategy: fixed_point)
 # block_map(f, xs, n), block_map(f, xs, n, d): f applied to the blocks partition(xs, n) (offset d)
 # (a list n of block sizes cuts every dimension: f is applied at the level of the blocks, length(n) deep); the
 # blocks of a term with another head keep it, the result is a list of the f(block)s
-fn block_map(f, xs, n) = if is_list(n) then map(f, partition(xs, n), [length(n)]) else {
+# blocks of an array of any one head: cut as lists, the blocks get the head back before f is applied
+fn bm_lists(e, k) = if k == 0 or is_atom(e) then e else map(x => bm_lists(x, k - 1), apply(list, e))
+fn bm_back(e, k, hd) = if k == 0 then e else apply(hd, map(x => bm_back(x, k - 1, hd), e))
+fn bm_blocks(f, xs, n, d) =
+  if is_atom(xs) or is_list(xs) then map(f, partition(xs, n, d), [length(n)])
+  else { let hd = head(xs); map(b => f(bm_back(b, length(n), hd)), partition(bm_lists(xs, length(n)), n, d), [length(n)]) }
+fn block_map(f, xs, n) = if is_list(n) then bm_blocks(f, xs, n, n) else {
   let p = partition(xs, n)
   if not is_atom(xs) and not is_list(xs) and head(p) === head(xs) then map(f, apply(list, p)) else map(f, p)
 }
-fn block_map(f, xs, n, d) = if is_list(n) then map(f, partition(xs, n, d), [length(n)]) else {
+fn block_map(f, xs, n, d) = if is_list(n) then bm_blocks(f, xs, n, d) else {
   let p = partition(xs, n, d)
   if not is_atom(xs) and not is_list(xs) and head(p) === head(xs) then map(f, apply(list, p)) else map(f, p)
 }
@@ -1036,9 +1044,9 @@ fn upper_triangularize(m, k: Int) when is_matrix(m) = {
   let z = if every(flatten(m), x => is_machine_number(x)) then 0.0 else 0
   pr_matrix(length(m), length(m[1]), (i, j) => if j - i >= k then m[i][j] else z)
 }
-# target_structure: dense, sparse or automatic give the dense list form, as for the matrix constructors of
-# mc-linalg; other structures are not done and the call stays
-fn pr_dense_structure(s) = s === dense or s === sparse or s === automatic
+# target_structure: dense, sparse, automatic and structured give the dense list form (there are no structured-matrix
+# objects), as for the matrix constructors of mc-linalg; other structures are not done and the call stays
+fn pr_dense_structure(s) = s === dense or s === sparse or s === automatic or s === structured
 rule hankel_matrix(c_, target_structure: s_) := hankel_matrix(c) when pr_dense_structure(s)
 rule hankel_matrix(c_, r_, target_structure: s_) := hankel_matrix(c, r) when pr_dense_structure(s)
 rule toeplitz_matrix(c_, target_structure: s_) := toeplitz_matrix(c) when pr_dense_structure(s)

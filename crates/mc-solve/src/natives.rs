@@ -574,7 +574,16 @@ fn numerators<'h>(
 /// inconsistent.
 fn eliminate<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
     let h = env.h();
-    // `inverse_functions: ...` matters only for equations that are not polynomial, which are not eliminated here
+    // `inverse_functions: false` keeps the inverses of functions of the unknowns out (radicals are still taken)
+    let no_inverses = match args {
+        [_, _, o] => match h.view(*o) {
+            View::App { args: rules, .. } => rules.iter().any(|&r| {
+                matches!(h.view(r), View::App { args: &[k, v], .. } if k == env.sym("inverse_functions") && env.is_sym(v, names::FALSE))
+            }),
+            _ => false,
+        },
+        _ => false,
+    };
     let args = match args {
         [e, x, o] if matches!(h.view(*o), View::App { head, args: rules } if head == h.sym_term(h.sym("options"))
             && rules.iter().all(|&r| matches!(h.view(r), View::App { args: &[k, _], .. } if k == env.sym("inverse_functions")))) =>
@@ -627,6 +636,27 @@ fn eliminate<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out
     let nv = ring.nvars();
     // an unknown inside another kernel (sin(x - y)) is not eliminated by a polynomial basis
     if ring.kernels.iter().any(|&k| !xs.contains(&k) && env.contains_any(k, &xs)) {
+        // radicals of the unknowns: each radical is a new unknown with its defining equation
+        if let Some(sys) = radical_system(env, &eqs, &xs, m)? {
+            return eliminate(env, &sys, m);
+        }
+        // equations `f(u) == c` of a function with an inverse: u is the inverse's value (principal values)
+        if let Some(cases) = if no_inverses { None } else { inverse_cases(env, &eqs, &xs) } {
+            let mut parts = vec![];
+            for case in cases {
+                let eqs: Vec<T<'h>> = case.iter().map(|&t| env.call("equal", &[t, env.int(0)])).collect();
+                match eliminate(env, &[env.call("and", &eqs), env.list(&xs)], m)? {
+                    Out::Again(t) if env.is_sym(t, names::FALSE) => {}
+                    Out::Again(t) => parts.push(t),
+                    other => return Ok(other),
+                }
+            }
+            return Ok(Out::Again(match parts.as_slice() {
+                [] => env.sym(names::FALSE),
+                [one] => *one,
+                _ => env.call("or", &parts),
+            }));
+        }
         return Ok(env.failure("unsolved", "an unknown to eliminate is inside a function that is not a polynomial"));
     }
     let elim: Vec<usize> = xs.iter().map(|&x| ring.var(x).expect("in the ring")).collect();
@@ -661,6 +691,139 @@ fn eliminate<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out
         [one] => *one,
         _ => env.call("and", &out),
     }))
+}
+
+/// The equation sets that `eqs` come to when each equation `a f(u) + c == 0` (`f` applied to an expression of the
+/// unknowns, `a` a number, `c` free of them) is replaced by `u - v == 0` for each principal value `v` of the
+/// inverse of `f` at `-c/a` (`asin`, `acos` with both signs, `atan`, `log`, `exp`, ..., and
+/// `inverse_function(f, 1, 1)` of a function without a definition). `None` when an equation holds an unknown in
+/// another way, or there are more than 16 sets.
+fn inverse_cases<'h>(env: &Env<'h>, eqs: &[T<'h>], xs: &[T<'h>]) -> Option<Vec<Vec<T<'h>>>> {
+    let h = env.h();
+    let mut sets: Vec<Vec<T<'h>>> = vec![vec![]];
+    for &e in eqs {
+        let items: Vec<T<'h>> = match h.view(e) {
+            View::App { head, args } if head == h.sym_term(h.sym("add")) => args.to_vec(),
+            _ => vec![e],
+        };
+        let mut found = None;
+        let mut rest = vec![];
+        for &a in &items {
+            let (coef, f) = match h.view(a) {
+                View::App { head, args: &[c, f] } if head == h.sym_term(h.sym("mul")) && env.ar.num(c).is_some() => (c, f),
+                _ => (env.int(1), a),
+            };
+            let call = match h.view(f) {
+                View::App { head, args: &[u] } if env.contains_any(u, xs) && !matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "add" | "mul" | "pow")) => Some((head, u)),
+                _ => None,
+            };
+            match call {
+                Some((head, u)) if found.is_none() => found = Some((coef, head, u)),
+                _ if env.contains_any(a, xs) => return None,
+                _ => rest.push(a),
+            }
+        }
+        let Some((coef, head, u)) = found else {
+            for set in &mut sets {
+                set.push(e);
+            }
+            continue;
+        };
+        // f(u) == -rest/coef
+        let c = env.call("mul", &[env.call("pow", &[coef, env.int(-1)]), env.call("mul", &[env.int(-1), env.call("add", &rest)])]);
+        let values: Vec<T<'h>> = match h.view(head) {
+            View::Sym(s) => {
+                let inv = |n: &str| env.call(n, &[c]);
+                match h.sym_name(s).as_str() {
+                    "sin" => vec![inv("asin")],
+                    "cos" => vec![env.call("mul", &[env.int(-1), inv("acos")]), inv("acos")],
+                    "tan" => vec![inv("atan")],
+                    "sinh" => vec![inv("asinh")],
+                    "cosh" => vec![env.call("mul", &[env.int(-1), inv("acosh")]), inv("acosh")],
+                    "tanh" => vec![inv("atanh")],
+                    "exp" => vec![inv("log")],
+                    "log" => vec![inv("exp")],
+                    "asin" => vec![inv("sin")],
+                    "acos" => vec![inv("cos")],
+                    "atan" => vec![inv("tan")],
+                    _ => vec![env.call_term(env.call("inverse_function", &[head, env.int(1), env.int(1)]), &[c])],
+                }
+            }
+            _ => return None,
+        };
+        let mut next = vec![];
+        for set in &sets {
+            for &v in &values {
+                let mut s2 = set.clone();
+                s2.push(env.call("add", &[u, env.call("mul", &[env.int(-1), v])]));
+                next.push(s2);
+            }
+        }
+        if next.len() > 16 {
+            return None;
+        }
+        sets = next;
+    }
+    Some(sets)
+}
+
+/// The system with every radical `b^(p/q)` (a non-integer rational power) replaced by a new unknown `w`, with the
+/// equation `w^q == b^p` (`w^q b^(-p) == 1` for a negative `p`) added and `w` among the unknowns to eliminate: the
+/// arguments of `eliminate` for the new system. `None` when another function holds an unknown or radicals remain
+/// after a few passes (a radical of a radical is taken apart one level at a time).
+fn radical_system<'h>(env: &Env<'h>, eqs: &[T<'h>], xs: &[T<'h>], m: &mut Meter) -> WorkResult<Option<[T<'h>; 2]>> {
+    let h = env.h();
+    let mut eqs = eqs.to_vec();
+    let mut xs = xs.to_vec();
+    let mut fresh = 0;
+    for _pass in 0..6 {
+        let ring = env.ring(&eqs, &xs, m)?;
+        let mut rules = vec![];
+        let mut defs = vec![];
+        for &k in &ring.kernels {
+            if xs.contains(&k) || env.ar.num(k).is_some() {
+                continue;
+            }
+            let radical = match h.view(k) {
+                View::App { head, args: &[b, e] } if head == h.sym_term(h.sym("pow")) => match h.view(e) {
+                    View::Rational { num, den } => match (h.view(num), h.view(den)) {
+                        (View::Int(p), View::Int(q)) if q > 1 && q <= 12 && p.abs() <= 12 => Some((b, p, q)),
+                        _ => None,
+                    },
+                    _ => None,
+                },
+                _ => None,
+            };
+            match radical {
+                Some((b, p, q)) => {
+                    fresh += 1;
+                    let w = env.sym(&format!("calc_elim_r{fresh}"));
+                    let wq = env.call("pow", &[w, env.int(q)]);
+                    let def = if p > 0 {
+                        env.call("add", &[wq, env.call("mul", &[env.int(-1), env.call("pow", &[b, env.int(p)])])])
+                    } else {
+                        env.call("add", &[env.call("mul", &[wq, env.call("pow", &[b, env.int(-p)])]), env.int(-1)])
+                    };
+                    rules.push((k, w));
+                    defs.push(def);
+                    xs.push(w);
+                }
+                None if env.contains_any(k, &xs) => return Ok(None),
+                None => {}
+            }
+        }
+        if rules.is_empty() {
+            let eqs: Vec<T<'h>> = eqs.iter().map(|&t| env.call("equal", &[t, env.int(0)])).collect();
+            return Ok(Some([env.call("and", &eqs), env.list(&xs)]));
+        }
+        let mut next = vec![];
+        for &t in &eqs {
+            next.push(env.subst(t, &rules, m)?);
+        }
+        next.extend(defs);
+        eqs = next;
+    }
+    Ok(None)
 }
 
 /// `groebner_basis(polys, xs)`: the reduced lex basis of the ideal of Q[xs, others] (every other symbolic kernel

@@ -534,7 +534,7 @@ fn ctor_options<'h>(fx: &Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Option<(Vec<T<'h>>,
         let View::Sym(name) = fx.h.view(k) else { return None };
         match fx.h.sym_name(name).as_str() {
             "target_structure" => match fx.h.view(v) {
-                View::Sym(s) if matches!(fx.h.sym_name(s).as_str(), "dense" | "sparse" | "automatic" | "auto") => {}
+                View::Sym(s) if matches!(fx.h.sym_name(s).as_str(), "dense" | "sparse" | "automatic" | "auto" | "structured") => {}
                 _ => return None,
             },
             "working_precision" => digits = Some(v),

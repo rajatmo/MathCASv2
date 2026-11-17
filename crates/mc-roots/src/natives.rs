@@ -194,6 +194,16 @@ pub(crate) fn watched<'h>(mut f: TermFn<'h>, m: &Monitors) -> TermFn<'h> {
 /// (decision R.9). The variables stay symbols; a failure of `n` leaves the expression as it is.
 pub(crate) fn numeric<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, digits: Option<u64>) -> Res<T<'h>> {
     let h = cx.heap();
+    // at d digits an inexact number inside the function stands for its exact binary value (as `set_precision(t, inf)`
+    // makes it): left as an enclosure of machine width it would put a noise of 1e-16 under a residual computed
+    // to a hundred digits, and no root could be refined beyond it
+    let t = match digits {
+        Some(_) => {
+            let e = cx.eval(h.call(h.sym("set_precision"), &[t, h.sym_term(h.sym("inf"))]))?;
+            if is_failure(h, e) { t } else { e }
+        }
+        None => t,
+    };
     let call = match digits {
         None => h.call(h.sym("n"), &[t]),
         Some(d) => h.call(h.sym("n"), &[t, h.int(d as i64)]),
@@ -444,6 +454,14 @@ impl FindRoot {
                     }
                     _ => Outcome::NotNumeric(p),
                 }
+            }
+            o => o,
+        };
+        // a function with no machine value at the start (riemann_r(10^t) at t = -14000, where 10^t underflows) under
+        // `digits:`: the refinement starts from the start itself, its balls having no exponent limit
+        let outcome = match outcome {
+            Outcome::NotNumeric(_) if opts.digits.is_some() && !complex && matches!(method, RootMethod::Newton { .. }) => {
+                Outcome::Done { x: starts.clone(), err: 0.0, converged: true, iterations: 0 }
             }
             o => o,
         };

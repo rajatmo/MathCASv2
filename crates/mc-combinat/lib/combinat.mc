@@ -154,6 +154,9 @@ fn norlund_series(m: Int, a) = {
   g
 }
 rule norlund_b(m_, a_) := expand(factorial(m)*last(norlund_series(m, a))) when is_integer(m) and m >= 0
+# a list of orders threads over m (the series is computed once for each)
+rule norlund_b(ms_, a_) := map(m => norlund_b(m, a), ms) when is_list(ms)
+rule norlund_b(ms_, a_, x_) := map(m => norlund_b(m, a, x), ms) when is_list(ms)
 rule norlund_b(m_, a_, x_) := {
   let g = norlund_series(m, a)
   expand(sum(binomial(m, j)*factorial(j)*g[j + 1]*x^(m - j), [j, 0, m]))
@@ -674,6 +677,11 @@ rule six_j_symbol([j1_, j2_, j3_], [j4_, j5_, j6_]) := {
   }
 } when is_rational(j1) and is_rational(j2) and is_rational(j3) and is_rational(j4) and is_rational(j5) and is_rational(j6) and am_hint(j1) and am_hint(j2) and am_hint(j3) and am_hint(j4) and am_hint(j5) and am_hint(j6)
 
+# a numeric argument that is not an integer or half-integer: no triple of the symbol can couple (each j is half an
+# integer by the definition of the angular momenta), so the symbol is 0
+fn am_off(x) = is_numeric(x) and not is_integer(2*x)
+rule six_j_symbol([j1_, j2_, j3_], [j4_, j5_, j6_]) := 0 when am_off(j1) or am_off(j2) or am_off(j3) or am_off(j4) or am_off(j5) or am_off(j6)
+
 # wigner_d([j, m1, m2], theta): the Wigner small d function d^j_(m2, m1)(theta) (Sakurai's convention, from the
 # explicit sum over s of Wigner's formula); wigner_d([j, m1, m2], theta, phi): the same times exp(i m2 phi);
 # wigner_d([j, m1, m2], psi, theta, phi): the Wigner D function exp(i m1 psi + i m2 phi) d^j_(m2, m1)(theta)
@@ -1186,6 +1194,25 @@ rule coefficient_rules(p_, v_) := map(t => t[1] -> t[2], cr_list(p, rx_vars(v)))
 rule coefficient_rules(p_) := coefficient_rules(p, variables(p, kernels: true))
 rule monomial_list(p_, v_) := map(t => t[2]*product(map(i => rx_vars(v)[i]^t[1][i], range(length(rx_vars(v))))), cr_list(p, rx_vars(v)))
 rule monomial_list(p_) := monomial_list(p, variables(p, kernels: true))
+# coefficient_rules(p, vars, order), monomial_list(p, vars, order): the terms in decreasing order of the monomial
+# order: "Lexicographic", "DegreeLexicographic", "DegreeReverseLexicographic" (also written in lower case with
+# underscores), or a weight matrix w (exponent vectors e are compared by w.e, first row first; Cox, Little, O'Shea,
+# Ideals, Varieties and Algorithms, ch. 2 section 4)
+fn mo_name(o) = if is_string(o) then string_replace(to_lower(o), "_" -> "") else none
+fn mo_matrix(o, n) = {
+  let nm = mo_name(o)
+  if nm === "lexicographic" or nm === "lex" then identity_matrix(n)
+  else if nm === "degreelexicographic" or nm === "deglex" then join([map(i => 1, range(n))], identity_matrix(n))
+  else if nm === "degreereverselexicographic" or nm === "degrevlex" then join([map(i => 1, range(n))], map(i => map(j => if i + j == n + 1 then -1 else 0, range(n)), range(n)))
+  else if is_list(o) and length(o) > 0 and every(o, r => is_list(r) and length(r) == n and every(r, is_rational)) then o
+  else none
+}
+fn mo_list(p, vs, o) = {
+  let w = mo_matrix(o, length(vs))
+  if w === none then none else reverse(sort_by(cr_expand(coefficient_list(expand(p), vs), length(vs), []), t => dot(w, t[1])))
+}
+rule coefficient_rules(p_, v_, o_) := map(t => t[1] -> t[2], mo_list(p, rx_vars(v), o)) when mo_list(p, rx_vars(v), o) !== none and not md_only(o)
+rule monomial_list(p_, v_, o_) := map(t => t[2]*product(map(i => rx_vars(v)[i]^t[1][i], range(length(rx_vars(v))))), mo_list(p, rx_vars(v), o)) when mo_list(p, rx_vars(v), o) !== none and not md_only(o)
 
 # symmetric_polynomial(k, [x1, ..., xn]): the elementary symmetric polynomial of degree k, the sum of the products of
 # the k-element subsets
@@ -1421,6 +1448,8 @@ fn dirichlet_exponent(k: Int, j: Int, a: Int) = {
 # k^(-s) times the sum over a of chi(a) zeta(s, a/k) (Hurwitz zeta values); k = 1 is the zeta function. Evaluated for
 # inexact s at machine precision, symbolic otherwise; lists of s thread
 rule dirichlet_l(k_, j_, ss_) := map(s => dirichlet_l(k, j, s), ss) when is_list(ss)
+# a modulus and label written as integer-valued machine numbers (n of a call turns every number into one)
+rule dirichlet_l(k_, j_, s_) := dirichlet_l(round(k), round(j), s) when is_number(k) and is_number(j) and (is_inexact(k) or is_inexact(j)) and is_real(k) and is_real(j) and k == round(k) and j == round(j) and not is_list(s)
 rule dirichlet_l(1, 1, s_) := zeta(s) when not is_list(s)
 rule dirichlet_l(k_, j_, s_) := {
   var tot = 0
@@ -1429,7 +1458,7 @@ rule dirichlet_l(k_, j_, s_) := {
     if r !== null then tot = tot + exp(2*pi*sqrt(-1)*r)*zeta(s, a/k)
   }
   tot*k^(-s)
-} when is_integer(k) and k > 1 and is_integer(j) and gcd(j, k) == 1 and is_inexact(s) and is_number(s)
+} when is_integer(k) and k > 1 and is_integer(j) and gcd(j, k) == 1 and (is_inexact(s) and is_number(s) or not is_atom(s) and (head(s) === interval or head(s) === centered_interval))
 
 # --- Dirichlet series and Euler products of arithmetic functions ---
 # sum(a(n)/n^s, [n, inf]) (or [n, 1, inf]) for the classical Dirichlet series, on their half plane of absolute

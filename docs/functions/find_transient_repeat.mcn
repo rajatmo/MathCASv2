@@ -12,6 +12,9 @@
 #% item
 # When no block repeats k times the value is `[xs, []]`. Strings give strings.
 
+#% item
+# The option `same_test` replaces identity as the comparison of elements.
+
 #% section
 # Examples
 
@@ -32,6 +35,14 @@ find_transient_repeat([1, 2, 3, 4, 3, 4, 3, 4], 4)
 find_transient_repeat("abcdedede", 2)
 #% output
 #= ["abc", "de"]
+
+#% subsection
+# Scope
+
+#% cell
+find_transient_repeat([1, 2, -3, 4, 3, -4, -3, 4], 3, same_test: &(abs(&1) == abs(&2)))
+#% output
+#= [[1, 2], [-3, 4]]
 
 #% section
 # See also

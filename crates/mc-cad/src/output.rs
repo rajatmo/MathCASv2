@@ -14,7 +14,7 @@
 //!   (decision CAD.6). Otherwise the cylindrical form.
 use crate::cad::{Cell, FacInfo, Label, Outcome, Truth};
 use crate::formula::UNKNOWN;
-use mc_api::{names, Store, T};
+use mc_api::{names, Store, View, T};
 use mc_arith::num::{Int, Rat};
 use mc_arith::{Arith, Num, Real};
 use mc_core::Heap;
@@ -98,6 +98,30 @@ fn merge_desc(a: &Desc, b: &Desc) -> Option<Desc> {
     }
 }
 
+/// Do two descriptions have the same bounds, root for root (the same set of labels, not only a common one)?
+fn same_desc(a: &Desc, b: &Desc) -> bool {
+    let same_bound = |x: &Bound, y: &Bound| x.labels.len() == y.labels.len() && meet(&x.labels, &y.labels).len() == x.labels.len();
+    let same_opt = |x: &Option<(Bound, bool)>, y: &Option<(Bound, bool)>| match (x, y) {
+        (None, None) => true,
+        (Some((p, c)), Some((q, d))) => c == d && same_bound(p, q),
+        _ => false,
+    };
+    match (a, b) {
+        (Desc::True, Desc::True) => true,
+        (Desc::Pieces(x), Desc::Pieces(y)) => {
+            x.len() == y.len()
+                && x.iter().zip(y).all(|(p, q)| match (p, q) {
+                    (Piece::Point { at: s, inner: i }, Piece::Point { at: t, inner: j }) => same_bound(s, t) && same_desc(i, j),
+                    (Piece::Interval { lo: l1, hi: h1, inner: i }, Piece::Interval { lo: l2, hi: h2, inner: j }) => {
+                        same_opt(l1, l2) && same_opt(h1, h2) && same_desc(i, j)
+                    }
+                    _ => false,
+                })
+        }
+        _ => false,
+    }
+}
+
 fn merge_piece(a: &Piece, b: &Piece) -> Option<Piece> {
     match (a, b) {
         (Piece::Point { at: x, inner: i }, Piece::Point { at: y, inner: j }) => {
@@ -170,10 +194,10 @@ fn join(a: &Piece, b: &Piece) -> Option<Piece> {
             merge_bound(h, l)?;
             Some(Piece::Interval { lo: lo.clone(), hi: hi.clone(), inner: merge_desc(i, j)? })
         }
-        // {r} then (r, hi): [r, hi), only when nothing is described above them (a section with a description joins
-        // the sector before it, as written by hand)
+        // {r} then (r, hi): [r, hi), when nothing is described above them or the same bounds (the very same roots)
+        // are
         (Piece::Point { at, inner: i }, Piece::Interval { lo: Some((l, false)), hi, inner: j })
-            if matches!((i, j), (Desc::True, Desc::True)) =>
+            if matches!((i, j), (Desc::True, Desc::True)) || same_desc(i, j) =>
         {
             let at = merge_bound(at, l)?;
             Some(Piece::Interval { lo: Some((at, true)), hi: hi.clone(), inner: merge_desc(i, j)? })
@@ -391,30 +415,42 @@ impl<'h> Writer<'h> {
                     (cond, None, inner)
                 }
             };
-            let mut conj: Vec<T<'h>> = cond.into_iter().collect();
             // a rational point: the roots above it are written from the factors specialized to it
             let fix = point.filter(|_| self.substitute).and_then(|r| self.ar.num(r)).and_then(|n| n.as_rat().cloned());
             let before = std::mem::replace(&mut self.fixed.borrow_mut()[v], fix);
             let parts = self.desc_parts(o, inner, v + 1, m);
             self.fixed.borrow_mut()[v] = before;
-            let above: Vec<T<'h>> = match parts? {
-                None => vec![],
-                Some(parts) if parts.len() == 1 => parts.into_iter().next().expect("one piece"),
-                Some(parts) => vec![self.or_term(parts)],
+            // the description above: one piece is written out after the condition; several pieces that are single
+            // atoms stay together as one disjunction (`x < 1 and (y == x or y == -x)`); several larger pieces are
+            // each written out with the condition, so the answer is a disjunction of conjunctions
+            let groups: Vec<Vec<T<'h>>> = match parts? {
+                None => vec![vec![]],
+                Some(parts) if parts.len() == 1 => parts,
+                Some(parts) if parts.iter().all(|p| p.len() == 1 && !self.is_call(p[0], "and")) => vec![vec![self.or_term(parts)]],
+                Some(parts) => parts,
             };
-            // a single point's coordinate is substituted into the description above it
-            for t in above {
-                conj.push(match (point, self.substitute) {
-                    (Some(r), true) => {
-                        let rule = self.call(names::RULE, &[x, r]);
-                        self.call("rewrite", &[t, rule])
-                    }
-                    _ => t,
-                });
+            for above in groups {
+                let mut conj: Vec<T<'h>> = cond.into_iter().collect();
+                // a single point's coordinate is substituted into the description above it
+                for t in above {
+                    conj.push(match (point, self.substitute) {
+                        (Some(r), true) => {
+                            let rule = self.call(names::RULE, &[x, r]);
+                            self.call("rewrite", &[t, rule])
+                        }
+                        _ => t,
+                    });
+                }
+                out.push(conj);
             }
-            out.push(conj);
         }
         Ok(Some(out))
+    }
+
+    /// Is `t` a call of the head `name`?
+    fn is_call(&self, t: T<'h>, name: &str) -> bool {
+        let h = self.h();
+        matches!(h.view(t), View::App { head, .. } if head == h.sym_term(h.sym(name)))
     }
 
     fn and_term(&self, conj: Vec<T<'h>>) -> T<'h> {

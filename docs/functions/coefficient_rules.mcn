@@ -7,6 +7,12 @@
 # `coefficient_rules(p, vars)` gives the rules `[e1, e2, ...] -> c` for each monomial of `p`, in decreasing lexicographic order.
 
 #% section
+# Details
+
+#% item
+# `coefficient_rules(p, vars, order)` lists the rules in the given monomial order: `"Lexicographic"` (the default), `"DegreeLexicographic"`, `"DegreeReverseLexicographic"`, or a weight matrix `w`, which compares the exponent vectors `e` by `w.e` row by row (the largest first).
+
+#% section
 # Examples
 
 #% subsection
@@ -21,6 +27,19 @@ coefficient_rules(x^2 + y + 3, [x, y])
 coefficient_rules(x^2*y + 2*x*y^2, [x, y])
 #% output
 #= [[2, 1] -> 1, [1, 2] -> 2]
+
+#% subsection
+# Scope
+
+#% cell
+coefficient_rules(a*x*y^2 + b*x^2*z, [x, y, z], "DegreeReverseLexicographic")
+#% output
+#= [[1, 2, 0] -> a, [2, 0, 1] -> b]
+
+#% cell
+coefficient_rules(a*x*y^2 + b*x^2*z, [x, y, z], [[1, 1, 1], [0, 0, -1], [0, -1, 0]])
+#% output
+#= [[1, 2, 0] -> a, [2, 0, 1] -> b]
 
 #% section
 # See also

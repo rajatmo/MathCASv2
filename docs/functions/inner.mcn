@@ -8,6 +8,12 @@
 # `inner(f, a, b, g)` combines with `g` in place of addition.
 
 #% section
+# Details
+
+#% item
+# Vectors with the same head, a list or any other, contract alike; the level argument `k` contracts the k-th index of the first array with the first index of the second (the last index is the default).
+
+#% section
 # Examples
 
 #% subsection
@@ -33,6 +39,14 @@ inner(mul, [[1, 2], [3, 4]], [5, 6])
 inner(add, [1, 2], [3, 4], mul)
 #% output
 #= 24
+
+#% subsection
+# Options
+
+#% cell
+inner(s, f(1), f(2), t)
+#% output
+#= t(s(1, 2))
 
 #% section
 # See also

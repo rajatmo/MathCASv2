@@ -18,6 +18,9 @@
 #% item
 # `rotation_matrix([u, v])` is the rotation taking the direction of `u` to that of `v`, in the plane of `u` and `v` (vectors of 2 or 3 entries); for opposite vectors in space it stays unevaluated.
 
+#% item
+# The option `target_structure` takes `dense`, `sparse`, `automatic` or `structured`; MathCAS has no structured-matrix objects, so the result is always the ordinary matrix with the same entries.
+
 #% section
 # Examples
 

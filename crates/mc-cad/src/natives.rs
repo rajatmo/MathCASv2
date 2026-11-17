@@ -331,7 +331,9 @@ fn resolve<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: &[T<
     let reals = match dom.as_deref() {
         Some("reals") => true,
         Some("complexes") => false,
-        None => has_inequality(&fr, f),
+        // the real and the complex algebraic numbers are elementary substructures of the reals and the complex
+        // numbers (Tarski, Robinson): the same sentences hold, and the same quantifier-free equivalents
+        None | Some("algebraics") => has_inequality(&fr, f),
         _ => return Ok(Reply::Decline),
     };
     if !reals {

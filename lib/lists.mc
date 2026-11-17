@@ -1300,6 +1300,28 @@ rule from_digits(ds_, b_) := fold((acc, d) => acc*b + d, 0, ds) when is_list(ds)
 # matrix_log and permanent take a method (Jordan, Schur, Ryser, ...): every method gives the same value
 rule matrix_log(m_, method: mth_) := matrix_log(m) when is_matrix(m)
 rule permanent(m_, method: mth_) := permanent(m) when is_matrix(m)
+# distance_matrix(columns): an association of equal-length columns (or a dataset of one) is the list of its rows
+rule distance_matrix(d_) := distance_matrix(transpose(values(d))) when is_assoc(d) and length(d) > 0 and every(values(d), is_list) and length(union(map(length, values(d)))) == 1
+rule distance_matrix(d_) := distance_matrix(apply(list, d)[1]) when not is_atom(d) and head(d) === dataset and length(apply(list, d)) == 1 and is_assoc(apply(list, d)[1]) and length(apply(list, d)[1]) > 0 and every(values(apply(list, d)[1]), is_list)
+# distance_matrix(rows, feature_types: types): the types of the features (columns), by position in an association or in
+# a list, are "Nominal" (a mismatch counts 1) or "Numerical" (a difference); a column not named is nominal when some
+# entry of it is not a number. Only nominal features: the number of mismatches (the Hamming distance); otherwise the
+# square root of the sum of the squared differences and the mismatches (the Euclidean distance, a mismatch counting 1)
+fn nl_dm_nominal(rows, ft, j) =
+  if is_assoc(ft) and key_exists(ft, j) then ft[j] === "Nominal"
+  else if is_list(ft) and j <= length(ft) then ft[j] === "Nominal"
+  else some(rows, r => not is_numeric(r[j]))
+fn nl_dm_rows_ok(rows, ft) = length(rows) > 0 and every(rows, r => is_list(r) and length(r) == length(rows[1])) and length(rows[1]) > 0 and (is_assoc(ft) or is_list(ft)) and every(range(length(rows[1])), j => nl_dm_nominal(rows, ft, j) or every(rows, r => is_numeric(r[j])))
+fn nl_dm_mixed(rows, ft) = {
+  let nom = map(j => nl_dm_nominal(rows, ft, j), range(length(rows[1])))
+  let all_nominal = every(nom, x => x)
+  map(u => map(v => {
+    let sq = sum(map(j => if nom[j] then (if u[j] === v[j] then 0 else 1) else (u[j] - v[j])^2, range(length(nom))))
+    if all_nominal then sq else sqrt(sq)
+  }, rows), rows)
+}
+rule distance_matrix(rows_, feature_types: ft_) := nl_dm_mixed(rows, ft) when is_list(rows) and nl_dm_rows_ok(rows, ft)
+
 # distance_matrix(points, distance_function: f): f applied to every pair of points
 rule distance_matrix(pts_, distance_function: df_) := map(a => map(b => df(a, b), pts), pts) when is_list(pts) and length(pts) > 0
 # identity_matrix(n, sparse_array, working_precision: p): the identity matrix at precision p (machine numbers at machine precision)

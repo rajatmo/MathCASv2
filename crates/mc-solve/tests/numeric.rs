@@ -23,7 +23,7 @@ fn reduce_exact() {
         ("reduce(1/x > 0, x, reals)", "0 < x"),
         // a parameter: the cylindrical form from the decomposition (item 11A)
         ("reduce(x^2 > a, x, reals)", "a < 0 or a == 0 and (x < 0 or x > 0) or a > 0 and (x < -a^(1/2) or x > a^(1/2))"),
-        ("reduce(x > 0, x, complexes)", "failure(argument, reduce, \"reduce works over the reals\")"),
+        ("reduce(x > 0, x, complexes)", "re(x) > 0 and im_part(x) == 0"),
     ]);
 }
 

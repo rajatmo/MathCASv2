@@ -378,7 +378,10 @@ fn dense_target_structures() {
     assert_eq!(ev("lower_triangularize([[1, 2, 3], [4, 5, 6], [7, 8, 9]], target_structure: dense)"), "[[1, 0, 0], [4, 5, 0], [7, 8, 9]]");
     assert_eq!(ev("upper_triangularize([[1, 2], [3, 4]], 1, target_structure: sparse) === upper_triangularize([[1, 2], [3, 4]], 1)"), "true");
     // a structure no clause takes: a name is a symbol, so the call is not ground and stays; a string is ground and fails
+    // `structured` gives the ordinary matrix
+    assert_eq!(ev("hankel_matrix(3, target_structure: structured) === hankel_matrix(3)"), "true");
     assert_eq!(ev("head(hankel_matrix(3, target_structure: symmetric))"), "hankel_matrix");
+    assert_eq!(ev("cholesky([[2, 1], [1, 2]], target_structure: structured) === cholesky([[2, 1], [1, 2]])"), "true");
     assert!(ev("hankel_matrix(3, target_structure: \"Symmetric\")").starts_with("failure(no_match, hankel_matrix"));
 }
 

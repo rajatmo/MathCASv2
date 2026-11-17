@@ -280,7 +280,11 @@ fn modular_functions() {
         ("jacobi_symbol(2, 7)", "1"),
         ("jacobi_symbol(3, 7)", "-1"),
         ("jacobi_symbol(-1, 7)", "-1"),
-        ("jacobi_symbol(1, 8)", "jacobi_symbol(1, 8)"),
+        // an even modulus: the Kronecker symbol, (a/2)^k times the Jacobi symbol of the odd part, (3/2) = -1 and 8 = 2^3
+        ("jacobi_symbol(1, 8)", "1"),
+        ("jacobi_symbol(3, 8)", "-1"),
+        ("jacobi_symbol(2, 8)", "0"),
+        ("jacobi_symbol(7, 6)", "1"),
         ("multiplicative_order(2, 7)", "3"),
         ("multiplicative_order(10, 7)", "6"),
         ("multiplicative_order(2, 6)", "multiplicative_order(2, 6)"),

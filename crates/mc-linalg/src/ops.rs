@@ -85,7 +85,7 @@ pub(crate) fn options<'a, 'h>(env: &Env<'h>, args: &'a [T<'h>]) -> (&'a [T<'h>],
         match h.sym_name(name).as_str() {
             "target_structure" => {
                 let ok = match h.view(v) {
-                    View::Sym(s) => matches!(h.sym_name(s).as_str(), "dense" | "sparse" | "automatic" | "auto"),
+                    View::Sym(s) => matches!(h.sym_name(s).as_str(), "dense" | "sparse" | "automatic" | "auto" | "structured"),
                     _ => false,
                 };
                 if !ok {

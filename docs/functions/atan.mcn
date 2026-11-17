@@ -18,6 +18,9 @@
 #% item
 # Machine numbers, balls and complex numbers give numerical values; `atan(inf)` is `pi/2`. `atan` is listable.
 
+#% item
+# `atan(x, y)` with a real infinite coordinate gives the limiting direction: `atan(inf, 1)` is 0, `atan(-1, inf)` is `pi/2`, and two infinite coordinates give `indeterminate`. With complex coordinates it is `-i log((x + i y)/sqrt(x^2 + y^2))`.
+
 #% section
 # Examples
 

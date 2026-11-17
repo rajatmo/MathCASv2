@@ -1618,13 +1618,13 @@ fn divide_sides(e, c; assumptions = automatic, generate_conditions = calc_no_gc)
 # --- repeats in sequences: find_repeat, find_transient_repeat ---
 
 # calc_periodic(xs, p): whether xs[i] === xs[i + p] wherever both exist
-fn calc_periodic(xs, p) = every(range(length(xs) - p), i => xs[i] === xs[i + p])
+fn calc_periodic(xs, p, test) = every(range(length(xs) - p), i => test(xs[i], xs[i + p]))
 
 # calc_repeat_list(xs, k): the shortest block that xs repeats (a partial last copy allowed) at least k times, or
 # null
-fn calc_repeat_list(xs, k) = {
+fn calc_repeat_list(xs, k, test) = {
   let m = length(xs)
-  let ps = select(range(m), p => m >= k*p and calc_periodic(xs, p))
+  let ps = select(range(m), p => m >= k*p and calc_periodic(xs, p, test))
   if length(ps) == 0 then null else take(xs, ps[1])
 }
 
@@ -1655,24 +1655,27 @@ fn calc_find_repeat(xs, k, test) = {
 }
 fn find_repeat(xs; same_test = automatic) = find_repeat(xs, automatic, same_test: same_test)
 fn find_repeat(xs, k; same_test = automatic) = {
-  if is_string(xs) then string_join(calc_find_repeat(characters(xs), k, same_test))
+  if is_assoc(xs) then { let r = calc_find_repeat(values(xs), k, same_test); association_thread(take(keys(xs), length(r)), r) }
+  else if is_string(xs) then string_join(calc_find_repeat(characters(xs), k, same_test))
   else calc_find_repeat(xs, k, same_test)
 }
 
 # find_transient_repeat(xs, k): [transient, block], the shortest transient after which xs repeats the shortest
 # block at least k times (a partial last copy allowed); [xs, []] when there is none
-fn calc_transient(xs, k) = {
+fn calc_transient(xs, k, test) = {
   var res = null
   for t in range(0, length(xs) - 1) {
     if res === null then {
-      let r = calc_repeat_list(drop(xs, t), k)
+      let r = calc_repeat_list(drop(xs, t), k, test)
       if not (r === null) then res = [take(xs, t), r]
     }
   }
   if res === null then [xs, []] else res
 }
-fn find_transient_repeat(xs, k) =
-  if is_string(xs) then map(string_join, calc_transient(characters(xs), k)) else calc_transient(xs, k)
+fn find_transient_repeat(xs, k; same_test = automatic) = {
+  let test = if same_test === automatic then ((a, b) => a === b) else same_test
+  if is_string(xs) then map(string_join, calc_transient(characters(xs), k, test)) else calc_transient(xs, k, test)
+}
 
 # --- series of algebraic functions given as roots: series(root(f, k), a, a0, n) ---
 
@@ -3505,6 +3508,9 @@ rule partial_fraction_elements(r_, x_, key_, options(extension -> e_)) := cb_pfe
 rule polynomial_reduction(p_, gs_, xs_) := polynomial_reduce(p, gs, xs)[2] when is_list(gs) and is_list(polynomial_reduce(p, gs, xs))
 # the options (monomial_order, coefficient_domain) are polynomial_reduce's
 rule polynomial_reduction(p_, gs_, xs_, o_) := polynomial_reduce(p, gs, xs, o)[2] when is_list(gs) and not is_atom(o) and head(o) === options and is_list(polynomial_reduce(p, gs, xs, o))
+
+# a single generator g is the ideal <g>; a g free of the variables is a unit of the coefficient field, so the remainder is 0
+rule polynomial_reduction(p_, g_, xs_) := polynomial_reduction(p, [g], xs) when not is_list(g) and is_list(xs) and is_polynomial_expression(p, xs) and is_polynomial_expression(g, xs)
 
 # cb_lex_max(rs): the rule exponents -> coefficient of rs with the lexicographically largest exponents
 fn cb_lex_max(rs) = last(sort_by(rs, r => r[1]))

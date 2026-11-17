@@ -70,6 +70,43 @@ impl Native for Elementary {
                 let z = ar.add(&[x, ar.mul(&[i, y])]);
                 return Ok(Reply::Again(h.call(h.sym("arg"), &[z])));
             }
+            // a real directed infinity as one coordinate and a finite real number as the other: the direction of
+            // the point (x, y) tends to that of the axis (inf, y) -> 0, (-inf, y) -> pi (-pi for y < 0),
+            // (x, inf) -> pi/2, (x, -inf) -> -pi/2; two infinities have no limit
+            let inf_dir = |v: T<'h>| match v {
+                v if v == h.sym_term(h.sym("inf")) => Some(true),
+                v if v == ar.neg(h.sym_term(h.sym("inf"))) => Some(false),
+                _ => None,
+            };
+            let pi = h.sym_term(h.sym("pi"));
+            match (inf_dir(x), inf_dir(y)) {
+                (Some(true), None) if real(y) => return Ok(Reply::Done(h.int(0))),
+                (Some(false), None) if real(y) => {
+                    let neg = matches!(ar.num(y), Some(Num::Real(r)) if r.is_negative());
+                    return Ok(Reply::Done(if neg { ar.neg(pi) } else { pi }));
+                }
+                (None, Some(up)) if real(x) => {
+                    let half = ar.rational(h.int(if up { 1 } else { -1 }), h.int(2));
+                    return Ok(Reply::Done(ar.mul(&[half, pi])));
+                }
+                (Some(_), Some(_)) => return Ok(Reply::Done(h.sym_term(h.sym("indeterminate")))),
+                _ => {}
+            }
+            // complex coordinates: atan(x, y) = -i log((x + i y)/sqrt(x^2 + y^2)), numeric arguments only
+            let radius2 = ar.add(&[ar.pow(x, h.int(2)), ar.pow(y, h.int(2))]);
+            // (a vanishing x^2 + y^2, atan(1, i), has no direction: left alone)
+            if ar.num(x).is_some()
+                && ar.num(y).is_some()
+                && !(zero(x) && zero(y))
+                && !(real(x) && real(y))
+                && ar.num(radius2).is_some_and(|n| !n.is_zero())
+            {
+                let i = ar.complex(h.int(0), h.int(1));
+                let z = ar.add(&[x, ar.mul(&[i, y])]);
+                let r = h.call(h.sym("sqrt"), &[radius2]);
+                let q = ar.mul(&[z, ar.pow(r, h.int(-1))]);
+                return Ok(Reply::Again(ar.mul(&[ar.neg(i), h.call(h.sym("log"), &[q])])));
+            }
             return Ok(Reply::Decline);
         }
         let [x] = args else { return Ok(Reply::Decline) };
@@ -188,6 +225,32 @@ impl Native for NumericN {
         if library_constant {
             let digits = d.unwrap_or_else(|| h.int(0));
             return Ok(Reply::Again(h.call(h.sym("ls_n_constant"), &[x, digits])));
+        }
+        // an expression containing khinchin: the constant at the working precision (plus guard digits, which cover
+        // powers and products of moderate size) put in its place
+        if !library_constant && contains_symbol(h, x, "khinchin") {
+            let guard = |d: u64| d + 40;
+            let digits = match d.map(|d| precision_goal(h, d)) {
+                None => None,
+                Some(Some(Target::Digits(k))) => Some(guard(k)),
+                Some(Some(Target::Goal { digits, accuracy })) => Some(guard(digits.max(accuracy).unwrap_or(0))),
+                _ => return Ok(Reply::Decline),
+            };
+            let k = h.sym_term(h.sym("khinchin"));
+            let value = match digits {
+                Some(k2) => cx.eval(h.call(h.sym("n"), &[k, h.int(k2 as i64)]))?,
+                None => cx.eval(h.call(h.sym("n"), &[k]))?,
+            };
+            if value == k {
+                return Ok(Reply::Decline);
+            }
+            let rule = h.call(h.sym(names::RULE), &[k, value]);
+            let sub = cx.eval(h.call(h.sym("rewrite"), &[x, rule]))?;
+            let call = match d {
+                Some(d) => h.call(h.sym("n"), &[sub, d]),
+                None => h.call(h.sym("n"), &[sub]),
+            };
+            return Ok(Reply::Again(call));
         }
         let target = match d {
             None => Target::Machine,
@@ -551,6 +614,26 @@ impl Native for Extreme {
         }
         self.inner.call(cx, t, args)
     }
+}
+
+/// Does the term contain the symbol `name`? (Each shared subterm is visited once.)
+fn contains_symbol(h: &Heap, t: T<'_>, name: &str) -> bool {
+    let sym = h.sym_term(h.sym(name));
+    let mut seen = std::collections::HashSet::new();
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
+        if u == sym {
+            return true;
+        }
+        if let View::App { head, args } = h.view(u) {
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    false
 }
 
 #[cfg(test)]

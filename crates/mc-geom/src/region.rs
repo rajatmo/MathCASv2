@@ -256,6 +256,10 @@ pub fn read<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Option<Region<'h>> {
         },
         ("disk" | "circle", []) => Region::Ball { c: zeros(h, 2), r: Radius::One(one()), solid: name == "disk" },
         ("ball" | "sphere", []) => Region::Ball { c: zeros(h, 3), r: Radius::One(one()), solid: name == "ball" },
+        // a ball of the line from its radius alone: `ball(r)` is the interval from `-r` to `r`
+        ("ball", [r]) if cx.as_list(*r).is_none() && matches!(h.view(*r), View::Int(_) | View::Rational { .. }) => {
+            Region::Ball { c: zeros(h, 1), r: Radius::One(*r), solid: true }
+        }
         ("disk" | "circle" | "ball" | "sphere", [c]) => {
             let c = vector(cx, *c)?;
             Region::Ball { c, r: Radius::One(one()), solid: matches!(name.as_str(), "disk" | "ball") }

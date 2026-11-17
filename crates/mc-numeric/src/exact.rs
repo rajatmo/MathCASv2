@@ -94,6 +94,24 @@ impl<'a, 'h, S: Store + ?Sized> Exact<'a, 'h, S> {
         }
     }
 
+    /// z with x = b i z for an exact real b: the product of the other factors with b, when x is a product with one
+    /// numeric imaginary factor and at least one other factor that is not a number.
+    fn imaginary_multiple(&self, x: T<'h>) -> Option<T<'h>> {
+        let View::App { head, args } = self.st.view(x) else { return None };
+        if head != self.st.sym_term(self.nm.mul()) {
+            return None;
+        }
+        let at = args.iter().position(|&a| matches!(self.ar.num(a), Some(Num::Complex(re, Real::Exact(_))) if re.is_exact_zero()))?;
+        let Some(Num::Complex(_, Real::Exact(b))) = self.ar.num(args[at]) else { return None };
+        let rest: Vec<T<'h>> = args.iter().enumerate().filter(|&(k, _)| k != at).map(|(_, &a)| a).collect();
+        if rest.iter().any(|&a| self.ar.num(a).is_some()) {
+            return None;
+        }
+        let mut factors = vec![self.rat_term(&b)];
+        factors.extend(rest);
+        Some(self.ar.mul(&factors))
+    }
+
     /// -t when t has a negative exact coefficient (a negative rational, or a product with one).
     fn negated(&self, t: T<'h>) -> Option<T<'h>> {
         let negative = match self.st.view(t) {
@@ -494,6 +512,8 @@ impl<'a, 'h, S: Store + ?Sized> Exact<'a, 'h, S> {
         if x == self.st.sym_term(self.st.sym("complex_infinity")) {
             return match f {
                 Fun::Log => Some(self.inf()),
+                // asin(z) = -i log(i z + sqrt(1 - z^2)) and acos(z) = pi/2 - asin(z) grow like log|z| in every direction
+                Fun::Asin | Fun::Acos => Some(x),
                 // no limit as |z| -> inf: exp tends to 0 along -inf and to inf along inf; sin, cos, tan and their
                 // hyperbolic forms oscillate along one axis and grow (or tend to +-i) along the other; atan tends to
                 // pi/2 in the right half plane and to -pi/2 in the left
@@ -519,6 +539,10 @@ impl<'a, 'h, S: Store + ?Sized> Exact<'a, 'h, S> {
             (Fun::Exp | Fun::Expm1, 1 | -1) => self.st.sym_term(self.st.sym("indeterminate")),
             (Fun::Exp, 0) | (Fun::Log, _) | (Fun::Sqrt, 0) | (Fun::Log1p, 0) | (Fun::Expm1, 0) => inf,
             (Fun::Exp, 2) => self.st.int(0),
+            // asin(x) = pi/2 - i log(x + sqrt(x^2 - 1)) for real x > 1 (the branch the numeric value takes there) and
+            // asin is odd; acos(x) = pi/2 - asin(x)
+            (Fun::Asin, 0) | (Fun::Acos, 2) => self.ar.mul(&[self.ar.neg(self.i()), inf]),
+            (Fun::Asin, 2) | (Fun::Acos, 0) => self.ar.mul(&[self.i(), inf]),
             (Fun::Atan, 0) => half_pi,
             (Fun::Atan, 2) => self.ar.neg(half_pi),
             (Fun::Sinh, 0) | (Fun::Cosh, 0) | (Fun::Cosh, 2) => inf,
@@ -533,8 +557,12 @@ impl<'a, 'h, S: Store + ?Sized> Exact<'a, 'h, S> {
     /// tan(b i) = i tanh(b), and the hyperbolic functions as circular ones (evaluated again, so at the table's
     /// angles they become radicals).
     fn imaginary_argument(&self, f: Fun, x: T<'h>) -> Option<T<'h>> {
-        let (b, with_pi) = self.imaginary_part_of(x)?;
-        let real = if with_pi { self.times_pi(&b) } else { self.rat_term(&b) };
+        let real = match self.imaginary_part_of(x) {
+            Some((b, with_pi)) => if with_pi { self.times_pi(&b) } else { self.rat_term(&b) },
+            // a product b i t with a symbolic factor t: cos(i z) = cosh(z), sin(i z) = i sinh(z), ... hold for every
+            // complex z (DLMF 4.28.8-4.28.10, 4.28.1), so the factor need not be known to be real
+            None => self.imaginary_multiple(x)?,
+        };
         let times_i = |t: T<'h>| self.ar.mul(&[self.i(), t]);
         Some(match f {
             Fun::Cos => self.call(Fun::Cosh, real),

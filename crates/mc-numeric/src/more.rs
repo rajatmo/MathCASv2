@@ -21,7 +21,7 @@ fn reciprocal<'h>(fx: &mut Fx<'_, '_, '_, 'h>, base: &str, me: &str, x: T<'h>) -
         // symbolic: only parity (cos(-x) = cos(x) makes sec(-x) = sec(x), sin(-x) = -sin(x) makes csc(-x) = -csc(x))
         let Some(y) = fx.negated(x) else {
             let g = fx.eval(fx.call(base, &[x]))?;
-            return Ok((!fx.contains(g, base) && !fx.is_int(g, 0)).then(|| fx.pow(g, fx.int(-1))));
+            return Ok((!fx.contains(g, base) && !fx.is_int(g, 0)).then(|| reciprocal_form(fx, g)));
         };
         let g = fx.eval(fx.call(base, &[x]))?;
         let by = fx.call(base, &[y]);
@@ -38,6 +38,26 @@ fn reciprocal<'h>(fx: &mut Fx<'_, '_, '_, 'h>, base: &str, me: &str, x: T<'h>) -
         return Ok(None);
     }
     Ok(Some(fx.pow(g, fx.int(-1))))
+}
+
+/// 1/g, as the reciprocal function when g is a call of one of the six circular and hyperbolic functions
+/// (1/cos(x) is sec(x)).
+fn reciprocal_form<'h>(fx: &mut Fx<'_, '_, '_, 'h>, g: T<'h>) -> T<'h> {
+    // c f(y) for a number c: (1/c) of the reciprocal of f(y) (1/(i sin(x)) is -i csc(x))
+    if let Some(&[c, u]) = fx.call_of(g, "mul") {
+        if fx.num(c).is_some() && fx.num(u).is_none() {
+            let r = reciprocal_form(fx, u);
+            if r != fx.pow(u, fx.int(-1)) {
+                return fx.mul(&[fx.pow(c, fx.int(-1)), r]);
+            }
+        }
+    }
+    for (f, r) in [("cos", "sec"), ("sin", "csc"), ("tan", "cot"), ("cosh", "sech"), ("sinh", "csch"), ("tanh", "coth")] {
+        if let Some(y) = fx.call_of(g, f).filter(|a| a.len() == 1) {
+            return fx.call(r, &[y[0]]);
+        }
+    }
+    fx.pow(g, fx.int(-1))
 }
 
 fn reciprocal_numeric<'h>(fx: &mut Fx<'_, '_, '_, 'h>, base: &str, x: T<'h>) -> R<'h> {
@@ -115,6 +135,10 @@ fn asinh_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         Some(0) => return Ok(Some(fx.inf())),
         Some(2) => return Ok(Some(fx.neg(fx.inf()))),
         _ => {}
+    }
+    // |asinh z| grows like log|z| in every direction
+    if x == fx.sym("complex_infinity") {
+        return Ok(Some(x));
     }
     if let Some(v) = odd(fx, "asinh", x) {
         return Ok(Some(v));
@@ -199,6 +223,10 @@ fn acosh_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
             }
         }
     }
+    // acosh z = log(z + sqrt(z + 1) sqrt(z - 1)) tends to inf along every direction, as log(complex_infinity) does
+    if x == fx.sym("complex_infinity") {
+        return Ok(Some(fx.inf()));
+    }
     Ok(fx.infinity(x).map(|_| fx.inf()))
 }
 
@@ -229,6 +257,10 @@ fn atanh_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         Some(0) => return Ok(Some(i_pi(fx, -1, 2))),
         Some(2) => return Ok(Some(i_pi(fx, 1, 2))),
         _ => {}
+    }
+    // atanh z tends to i pi/2 or -i pi/2 as z -> inf, the sign by the side the direction leaves it
+    if x == fx.sym("complex_infinity") {
+        return Ok(Some(fx.sym("indeterminate")));
     }
     if let Some(v) = odd(fx, "atanh", x) {
         return Ok(Some(v));

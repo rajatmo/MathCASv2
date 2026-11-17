@@ -31,6 +31,11 @@ use std::cmp::Ordering;
 pub(crate) fn several<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: &[T<'h>]) -> Res<Option<T<'h>>> {
     let h = cx.heap();
     let (args, _) = crate::domain::strip_no_facts(h, args);
+    // `backsubstitution: true` changes only how a triangular answer is written; the cylindrical form is complete
+    let args = match args.split_last() {
+        Some((&last, rest)) if only_backsubstitution(h, last) => rest,
+        _ => args,
+    };
     let (cond, xs, dom) = match args {
         [c, x] => (*c, *x, None),
         [c, x, d] => (*c, *x, Some(*d)),
@@ -75,7 +80,7 @@ pub(crate) fn several<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>,
     let quantified = fr.has_quantifier(cond);
     let real = match dom.as_deref() {
         Some("reals") => true,
-        None => inequality(h, cond),
+        None => inequality(h, cond) && !crate::reduce_ri::has_parts(h, cond),
         _ => false,
     };
     if dom.as_deref() == Some("integers") && vars.len() >= 2 && !quantified {
@@ -107,7 +112,15 @@ pub(crate) fn several<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>,
         // equations and `!=` over the complex numbers: the triangular decomposition (several variables, or
         // parameters)
         if !quantified && matches!(dom.as_deref(), None | Some("complexes")) {
-            return crate::reduce_cx::complex(cx, stop, cond, &vars);
+            if let Some(t) = crate::reduce_cx::complex(cx, stop, cond, &vars)? {
+                return Ok(Some(t));
+            }
+            // order relations, `re`, `im_part`: the real and imaginary parts as two real variables each (equations
+            // alone stay with the solver's other methods)
+            if inequality(h, cond) || crate::reduce_ri::has_parts(h, cond) {
+                return crate::reduce_ri::complexes(cx, stop, cond, &vars);
+            }
+            return Ok(None);
         }
         // quantified formulas over the complex numbers: complex quantifier elimination
         if quantified && matches!(dom.as_deref(), None | Some("complexes")) {
@@ -120,6 +133,10 @@ pub(crate) fn several<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>,
                     return Ok(Some(t));
                 }
             }
+            // else over the real and imaginary parts of the variables
+            if inequality(h, cond) || crate::reduce_ri::has_parts(h, cond) {
+                return crate::reduce_ri::complexes(cx, stop, cond, &vars);
+            }
         }
         return Ok(None);
     }
@@ -129,6 +146,16 @@ pub(crate) fn several<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>,
         return Ok(None);
     }
     mc_cad::reduce_reals(cx, stop, cond, &vars)
+}
+
+/// Is `t` an `options(...)` of the option `backsubstitution` alone?
+fn only_backsubstitution<'h>(h: &'h impl Store, t: T<'h>) -> bool {
+    let View::App { head, args } = h.view(t) else { return false };
+    if head != h.sym_term(h.sym("options")) || args.is_empty() {
+        return false;
+    }
+    let key = h.sym_term(h.sym("backsubstitution"));
+    args.iter().all(|&r| matches!(h.view(r), View::App { args: &[k, _], .. } if k == key))
 }
 
 /// Does `t` hold a symbol (outside the heads) that is not one of `vars` nor a constant?

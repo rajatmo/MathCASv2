@@ -65,11 +65,12 @@ fn alternating_series_of_rational_functions() {
             same(&mut e, &src, want);
             alternating_check(&mut e, g, lo, want);
         }
-        // even summands with complex poles: the residue form pi/sinh
+        // even summands with complex poles: the residue form pi/sinh(pi), written pi csch(pi) (the reciprocal function
+        // keeps its own name)
         for (g, lo, want) in [
-            ("1/(k^2 + 1)", 0, "(1 + pi/sinh(pi))/2"),
-            ("1/(k^2 + 1)", 1, "(-1 + pi/sinh(pi))/2"),
-            ("1/(k^2 + 4)", 0, "1/8 + pi/(4*sinh(2*pi))"),
+            ("1/(k^2 + 1)", 0, "(1 + pi*csch(pi))/2"),
+            ("1/(k^2 + 1)", 1, "(-1 + pi*csch(pi))/2"),
+            ("1/(k^2 + 4)", 0, "(1 + 2*pi*csch(2*pi))/8"),
         ] {
             let src = format!("sum((-1)^k*({g}), [k, {lo}, inf])");
             same(&mut e, &src, want);

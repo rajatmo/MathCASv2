@@ -7,6 +7,12 @@
 # `monomial_list(p, vars)` gives the terms of the polynomial `p` in decreasing lexicographic order of the exponents of `vars`.
 
 #% section
+# Details
+
+#% item
+# `monomial_list(p, vars, order)` takes the order of the exponent vectors: `"Lexicographic"` (the default), `"DegreeLexicographic"`, `"DegreeReverseLexicographic"`, or a weight matrix `w`, which compares the vectors `w.e` row by row (the largest first).
+
+#% section
 # Examples
 
 #% subsection
@@ -21,6 +27,19 @@ monomial_list(x^2 + 2*x*y + y^2, [x, y])
 monomial_list(1 + x + x^2, x)
 #% output
 #= [x^2, x, 1]
+
+#% subsection
+# Scope
+
+#% cell
+monomial_list(x^2*y^2 + x^3, [x, y], "DegreeLexicographic")
+#% output
+#= [x^2*y^2, x^3]
+
+#% cell
+monomial_list(x^2*y^2 + x^3, [x, y], [[1, 1], [1, 0]])
+#% output
+#= [x^2*y^2, x^3]
 
 #% section
 # See also

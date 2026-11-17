@@ -15,6 +15,12 @@
 #% item
 # The points are vectors or numbers.
 
+#% item
+# The points may be given as an association of equal-length columns (or a dataset of one), whose rows are the points.
+
+#% item
+# `feature_types` names the type of each feature (column) by position, in an association or a list: `"Nominal"` (a mismatch counts 1) or `"Numerical"` (a difference). With only nominal features the distance is the number of mismatches; with a mixture it is the square root of the sum of the squared differences and the mismatches. A column not named is nominal when some entry of it is not a number.
+
 #% section
 # Examples
 
@@ -35,6 +41,19 @@ distance_matrix([1, 4, 9])
 distance_matrix([[0, 0], [1, 0]], [[0, 1], [1, 1], [2, 2]])
 #% output
 #= [[1, 2^(1/2), 2*2^(1/2)], [2^(1/2), 1, 5^(1/2)]]
+
+#% subsection
+# Scope
+
+#% cell
+distance_matrix(assoc("age" -> [32, 41, 30], "gender" -> ["f", "f", "m"]))
+#% output
+#= [[0, 9, 5^(1/2)], [9, 0, 122^(1/2)], [5^(1/2), 122^(1/2), 0]]
+
+#% cell
+distance_matrix([[1, "A"], [2, "A"], [2, "B"], [1, "B"]], feature_types: assoc(1 -> "Nominal"))
+#% output
+#= [[0, 1, 2, 1], [1, 0, 1, 2], [2, 1, 0, 1], [1, 2, 1, 0]]
 
 #% section
 # See also

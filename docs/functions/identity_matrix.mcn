@@ -18,6 +18,9 @@
 #% item
 # `n` must be a nonnegative integer; anything else gives a failure.
 
+#% item
+# The option `target_structure` takes `dense`, `sparse`, `automatic` or `structured`; MathCAS has no structured-matrix objects, so the result is always the ordinary matrix with the same entries.
+
 #% section
 # Examples
 

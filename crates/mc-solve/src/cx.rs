@@ -108,6 +108,11 @@ impl<'h> Env<'h> {
         let h = self.h();
         h.call(h.sym(name), args)
     }
+    /// `head(args)` for a head that is a term (a function value such as `inverse_function(f, 1, 1)`).
+    pub fn call_term(&self, head: T<'h>, args: &[T<'h>]) -> T<'h> {
+        self.h().app(head, args)
+    }
+
     pub fn int(&self, v: i64) -> T<'h> {
         self.ar.int(v)
     }

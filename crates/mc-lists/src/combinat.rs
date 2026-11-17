@@ -510,10 +510,28 @@ pub(crate) fn inner<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     let (f, a, b, g) = match *args {
         [f, a, b] => (f, a, b, h.sym_term(lib.s.add)),
         [f, a, b, g] => (f, a, b, g),
+        // level k of `a` against the first index of `b`: the last level is the default; level 1 of a matrix
+        // is the last level of its transpose
+        [f, a, b, g, k] => {
+            let matrix = cx.as_list(a).is_some_and(|r| r.first().is_some_and(|&x| cx.as_list(x).is_some()));
+            match h.view(k) {
+                View::Int(1) if !matrix => (f, a, b, g),
+                View::Int(2) if matrix => (f, a, b, g),
+                View::Int(1) => {
+                    let ta = h.call(h.sym("transpose"), &[a]);
+                    return Ok(Reply::Again(h.call(h.sym("inner"), &[f, ta, b, g])));
+                }
+                _ => return Ok(Reply::Decline),
+            }
+        }
         _ => return Ok(Reply::Decline),
     };
-    let a = take!(lib.list_operand(h, t, a, 2));
-    let b = take!(lib.list_operand(h, t, b, 3));
+    // vectors of one head, a list or any other, contract alike
+    let (ha, a) = take!(lib.operand(h, t, a, 2));
+    let (hb, b) = take!(lib.operand(h, t, b, 3));
+    if ha != hb {
+        return Ok(Reply::Done(lib.bad_arg(h, t, 3)));
+    }
     let (Some(ta), Some(tb)) = (Tensor::of(cx, a), Tensor::of(cx, b)) else {
         return Ok(Reply::Done(lib.shape(h, t)));
     };

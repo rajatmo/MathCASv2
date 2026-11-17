@@ -10,6 +10,7 @@
 use crate::ex::{num, points, E};
 use crate::props;
 use crate::region::{call_parts, read, Radius, Region, Ring};
+use mc_api::names;
 use mc_core::{Heap, Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
 
@@ -656,11 +657,68 @@ pub fn relation<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], which: &str) -> 
                 _ => !plane_meet(&x, &y, scale),
             }
         } else {
-            return Ok(Reply::Decline);
+            return symbolic_relation(cx, a, &regs, which);
         };
         verdict &= ok;
     }
     Ok(Reply::Done(crate::metric::truth(h, verdict)))
+}
+
+/// The relation of regions with symbolic parameters as the condition on the parameters under which it holds: the
+/// regions' membership conditions in a point of the common space, combined (`disjoint`: no point in two of them;
+/// `equal`: the same points; `within`: every point of the second is in the first) and resolved over the reals.
+/// Declined when the memberships are not conditions or the quantifiers do not go.
+fn symbolic_relation<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], regs: &[Region<'h>], which: &str) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let n = regs[0].embedding();
+    if n == 0 || regs.iter().any(|r| r.embedding() != n) {
+        return Ok(Reply::Decline);
+    }
+    let vars: Vec<T<'h>> = (0..n).map(|k| h.sym_term(h.sym(&format!("region$u{}", k + 1)))).collect();
+    let pt = cx.list(&vars);
+    let vl = cx.list(&vars);
+    let call = |name: &str, args: &[T<'h>]| h.call(h.sym(name), args);
+    let mut members = vec![];
+    for &t in a {
+        let m = cx.eval(call("region_member", &[t, pt]))?;
+        let bad = matches!(h.view(m), View::App { head, .. } if head == h.sym_term(h.sym("region_member")) || head == h.sym_term(h.sym(names::FAILURE)));
+        if bad {
+            return Ok(Reply::Decline);
+        }
+        members.push(m);
+    }
+    let mut parts = vec![];
+    match which {
+        "within" => parts.push(call("for_all", &[vl, call("implies", &[members[1], members[0]])])),
+        "equal" => {
+            for &m in &members[1..] {
+                let both = call("and", &[call("implies", &[members[0], m]), call("implies", &[m, members[0]])]);
+                parts.push(call("for_all", &[vl, both]));
+            }
+        }
+        _ => {
+            for i in 0..a.len() {
+                for j in i + 1..a.len() {
+                    parts.push(call("not", &[call("exists", &[vl, call("and", &[members[i], members[j]])])]));
+                }
+            }
+        }
+    }
+    let f = if parts.len() == 1 { parts[0] } else { call("and", &parts) };
+    let r = cx.eval(call("resolve", &[f, h.sym_term(h.sym("reals"))]))?;
+    // only a formula free of quantifiers and of the unresolved calls
+    let mut stack = mc_api::walk::Walk::new(r);
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if let View::Sym(s) = h.view(head) {
+                if matches!(h.sym_name(s).as_str(), "exists" | "for_all" | "resolve" | "region_member" | "failure" | "implies") {
+                    return Ok(Reply::Decline);
+                }
+            }
+            stack.extend(args.iter().copied());
+        }
+    }
+    Ok(Reply::Done(r))
 }
 
 // ---- bounding regions

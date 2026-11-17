@@ -110,6 +110,33 @@ fn divisible<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     }))
 }
 
+/// A Gaussian integer (or integer) with both parts below 2^31 in magnitude, as a pair of machine integers.
+fn gaussian_small<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<(i128, i128)> {
+    let part = |r: &Real| match r {
+        Real::Exact(q) if q.is_int() => q.num.to_i64().filter(|v| v.unsigned_abs() < 1 << 31).map(i128::from),
+        _ => None,
+    };
+    match fx.num(t)? {
+        Num::Real(r) => Some((part(&r)?, 0)),
+        Num::Complex(r, s) => Some((part(&r)?, part(&s)?)),
+    }
+}
+
+/// The greatest common divisor in Z[i] (up to a unit) by Euclid's algorithm with the quotient rounded to the nearest
+/// Gaussian integer, which makes the norm of the remainder at most half that of the divisor (Hardy and Wright, 12.6).
+fn gaussian_gcd(mut a: (i128, i128), mut b: (i128, i128)) -> (i128, i128) {
+    let round_div = |x: i128, n: i128| (2 * x + n).div_euclid(2 * n);
+    while b != (0, 0) {
+        let n = b.0 * b.0 + b.1 * b.1;
+        // a conj(b) = (a0 b0 + a1 b1) + (a1 b0 - a0 b1) i
+        let q = (round_div(a.0 * b.0 + a.1 * b.1, n), round_div(a.1 * b.0 - a.0 * b.1, n));
+        let r = (a.0 - (q.0 * b.0 - q.1 * b.1), a.1 - (q.0 * b.1 + q.1 * b.0));
+        a = b;
+        b = r;
+    }
+    a
+}
+
 fn is_coprime<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if a.len() < 2 {
         return Ok(None);
@@ -117,6 +144,19 @@ fn is_coprime<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     // Gaussian integers: coprime when the gcd in Z[i] is a unit
     let gaussian = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| matches!(fx.num(t), Some(Num::Complex(Real::Exact(r), Real::Exact(s))) if r.is_int() && s.is_int());
     if a.iter().all(|&t| int(fx, t).is_some() || gaussian(fx, t)) && a.iter().any(|&t| gaussian(fx, t)) {
+        // components below 2^31: Euclid's algorithm on machine integers (the norms stay below 2^64)
+        let small: Option<Vec<(i128, i128)>> = a.iter().map(|&t| gaussian_small(fx, t)).collect();
+        if let Some(zs) = small {
+            for i in 0..zs.len() {
+                for j in i + 1..zs.len() {
+                    let g = gaussian_gcd(zs[i], zs[j]);
+                    if g.0 * g.0 + g.1 * g.1 != 1 {
+                        return Ok(Some(fx.bool(false)));
+                    }
+                }
+            }
+            return Ok(Some(fx.bool(true)));
+        }
         for i in 0..a.len() {
             for j in i + 1..a.len() {
                 let g = ev(fx, "gcd", &[a[i], a[j]])?;
@@ -715,7 +755,54 @@ fn kronecker_symbol<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     Ok(Some(fx.mul(&[fx.int(r), j])))
 }
 
+/// The product of Gaussian integers.
+fn gaussian_mul(a: (i128, i128), b: (i128, i128)) -> (i128, i128) {
+    (a.0 * b.0 - a.1 * b.1, a.0 * b.1 + a.1 * b.0)
+}
+
+/// The Gaussian integer nearest to `a/b` (the real and imaginary parts rounded half up).
+fn gaussian_round_div(a: (i128, i128), b: (i128, i128)) -> (i128, i128) {
+    let n = b.0 * b.0 + b.1 * b.1;
+    let round_div = |x: i128, n: i128| (2 * x + n).div_euclid(2 * n);
+    (round_div(a.0 * b.0 + a.1 * b.1, n), round_div(a.1 * b.0 - a.0 * b.1, n))
+}
+
+/// The inverse of `a` modulo `m` in Z[i] when a and m are coprime: the remainder (quotient rounded to the nearest
+/// Gaussian integer, so of norm at most half that of m) of s conj(u) where a s + m t = u is a unit, by the extended
+/// Euclidean algorithm.
+fn gaussian_inverse(a: (i128, i128), m: (i128, i128)) -> Option<(i128, i128)> {
+    if m == (0, 0) {
+        return None;
+    }
+    let sub = |x: (i128, i128), y: (i128, i128)| (x.0 - y.0, x.1 - y.1);
+    // invariants: r0 = a s0 (mod m), r1 = a s1 (mod m)
+    let (mut r0, mut r1) = (m, a);
+    let (mut s0, mut s1) = ((0, 0), (1, 0));
+    while r1 != (0, 0) {
+        let q = gaussian_round_div(r0, r1);
+        let r2 = sub(r0, gaussian_mul(q, r1));
+        let s2 = sub(s0, gaussian_mul(q, s1));
+        (r0, s0) = (r1, s1);
+        (r1, s1) = (r2, s2);
+    }
+    // r0 = a s0 (mod m) is the greatest common divisor: a unit
+    if r0.0 * r0.0 + r0.1 * r0.1 != 1 {
+        return None;
+    }
+    let inv = gaussian_mul(s0, (r0.0, -r0.1));
+    let q = gaussian_round_div(inv, m);
+    Some(sub(inv, gaussian_mul(q, m)))
+}
+
 fn modular_inverse<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    // Gaussian integers (at least one argument not real)
+    if let (Some(x), Some(m)) = (gaussian_small(fx, a[0]), gaussian_small(fx, a[1])) {
+        if x.1 != 0 || m.1 != 0 {
+            let Some((re, im)) = gaussian_inverse(x, m) else { return Ok(None) };
+            let v = fx.add(&[fx.int(re as i64), fx.mul(&[fx.int(im as i64), fx.i()])]);
+            return Ok(Some(fx.eval(v)?));
+        }
+    }
     if int(fx, a[0]).is_none() || int(fx, a[1]).is_none() {
         return Ok(None);
     }
@@ -759,6 +846,9 @@ fn catalan_number<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 
 const COUNT_MAX: i64 = 10_000;
 
+/// The largest n whose partition numbers are tabulated (about n^1.5 big-integer additions).
+const PARTITIONS_MAX: i64 = 200_000;
+
 /// Stirling numbers of the first (signed) or second kind by the row recurrence.
 fn stirling<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], first: bool) -> R<'h> {
     let (Some(n), Some(k)) = (small(fx, a[0], COUNT_MAX), small(fx, a[1], COUNT_MAX)) else { return Ok(None) };
@@ -798,7 +888,7 @@ fn stirling_s2<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 
 /// The number of partitions of n (`distinct` false) or into distinct parts, by the products' coefficients.
 fn partitions<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], distinct: bool) -> R<'h> {
-    let Some(n) = small(fx, a[0], COUNT_MAX) else { return Ok(None) };
+    let Some(n) = small(fx, a[0], PARTITIONS_MAX) else { return Ok(None) };
     if n < 0 {
         return Ok(Some(fx.int(0)));
     }

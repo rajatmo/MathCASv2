@@ -730,7 +730,30 @@ fn mentions_zero(h: &Heap, t: T<'_>) -> bool {
 pub(crate) fn replace_at<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [x, rules, spec] = *args else { return Ok(Reply::Decline) };
-    let with_all = if crate::assocs::entries(lib, h, x).is_none() { positions_with_all(cx, x, spec) } else { None };
+    // an association: its entries are the parts (a key names the part of its entry), edited as the list of its values
+    let es = crate::assocs::entries(lib, h, x);
+    let (target, spec) = match &es {
+        Some(es) => {
+            let index_of = |k: T<'h>| es.iter().position(|&(kk, _)| kk == k).map(|i| h.int(i as i64 + 1));
+            let first_key = |t: T<'h>| match h.view(t) {
+                View::Int(_) => None,
+                View::Sym(s) if h.sym_name(s) == "all" => None,
+                _ => index_of(t),
+            };
+            let spec2 = match cx.as_list(spec) {
+                Some(&[first, ref rest @ ..]) if cx.as_list(first).is_none() => {
+                    let mut v = vec![first_key(first).unwrap_or(first)];
+                    v.extend_from_slice(rest);
+                    cx.list(&v)
+                }
+                Some(_) => spec,
+                None => first_key(spec).unwrap_or(spec),
+            };
+            (cx.list(&es.iter().map(|&(_, v)| v).collect::<Vec<_>>()), spec2)
+        }
+        None => (x, spec),
+    };
+    let with_all = positions_with_all(cx, target, spec);
     let Some(ps) = with_all.or_else(|| positions(h, cx, spec)) else { return Ok(Reply::Decline) };
     // an association of replacements is the list of its rules
     let rules = match crate::assocs::entries(lib, h, rules) {
@@ -744,7 +767,7 @@ pub(crate) fn replace_at<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>
     // inside `quote` the replacement is put in as the rule gives it, not evaluated (the parts of a quoted term are
     // held: `replace_at(quote(1, 2, 3), x_ :> f(x + 1), 2)` is `quote(1, f(2 + 1), 3)`)
     let held = matches!(h.view(x), View::App { head, .. } if head == h.sym_term(h.sym("quote")));
-    let mut cur = x;
+    let mut cur = target;
     for p in ps {
         cx.tick(1)?;
         let Ok(part) = part_at(h, cur, &p) else { return Ok(Reply::Done(lib.bad_index(h, h.int(p[0]), 0))) };
@@ -765,6 +788,12 @@ pub(crate) fn replace_at<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>
             Ok(Some(u)) => cur = u,
             _ => return Ok(Reply::Decline),
         }
+    }
+    if let Some(es) = &es {
+        return Ok(match cx.as_list(cur) {
+            Some(ys) if ys.len() == es.len() => Reply::Again(rekeyed(lib, h, es, ys)),
+            _ => Reply::Decline,
+        });
     }
     Ok(settle(lib, h, cur))
 }

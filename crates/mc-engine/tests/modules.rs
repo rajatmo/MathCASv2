@@ -193,7 +193,7 @@ fn prelude_names() -> Vec<String> {
 #[test]
 fn the_prelude_is_native_free_and_avoids_benchmark_names() {
     let names = prelude_names();
-    assert!((8..=160).contains(&names.len()), "{names:?}");
+    assert!((8..=170).contains(&names.len()), "{names:?}");
     let mut e = CoreEngine::new();
     for n in &names {
         assert!(!e.has_native(n), "the prelude defines rules on the native {n}");

@@ -31,16 +31,16 @@
 # Options:
 
 #% subitem
-# `digits: d` (or `working_precision: d`) works at `d` decimal digits and gives the root to them.
+# `digits: d` (or `working_precision: d`) works at `d` decimal digits and gives the root to them. An inexact number inside the function is taken at its exact binary value, and a function with no machine value at the start (its machine evaluation overflows or underflows) is refined from the start point at the working precision.
 
 #% subitem
 # `method:` chooses the iteration: `newton`, `secant` or `brent` (a bracketing method; `bisection` and the other bracketing names select it); `precision_goal: p` and `accuracy_goal: a` set the tolerance; `max_iterations: n` limits the steps.
 
 #% subitem
-# `compile: auto | true | false` controls whether the function is compiled for the search.
+# `compile: auto | true | false` controls whether the function is compiled for the search (`compiled:` is accepted too). `method: [newton, "StepControl" -> "TrustRegion"]` names a method with its step control; the iteration always takes line-search steps within a trust radius.
 
 #% subitem
-# `evaluation_monitor: f` and `step_monitor: f` call the function `f` with the current values of the variables, one argument each, at every evaluation of the function and after every step; a failure `f` gives (a `throw`) ends the search and is the result. A value that is not a function is a failure showing the form to write.
+# `evaluation_monitor: f` and `step_monitor: f` call the function `f` with the current values of the variables, one argument each, at every evaluation of the function and after every step (the trial points a line search rejects are evaluations too, so the count depends on the step control and is not a property of the root); a failure `f` gives (a `throw`) ends the search and is the result. A value that is not a function is a failure showing the form to write.
 
 #% item
 # A search that does not converge gives a failure tagged `not_converged` holding the last point and the size of the function there.

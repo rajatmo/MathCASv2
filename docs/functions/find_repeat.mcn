@@ -15,6 +15,9 @@
 #% item
 # Without k the block must fit at least one and a half times; with none, the value is the empty list.
 
+#% item
+# Given an association, the repeat is found in its values and the result keeps the keys of the block.
+
 #% section
 # Examples
 
@@ -35,6 +38,14 @@ find_repeat([1, 2, 1, 2, 1, 2, 1, 2], 5)
 find_repeat("hellohellohello")
 #% output
 #= "hello"
+
+#% subsection
+# Scope
+
+#% cell
+find_repeat(assoc(a -> 1, b -> 2, c -> 1, d -> 2, e -> 1, f -> 2))
+#% output
+#= assoc(a -> 1, b -> 2)
 
 #% section
 # See also

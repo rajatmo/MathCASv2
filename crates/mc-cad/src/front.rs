@@ -356,6 +356,8 @@ impl<'h> Front<'h> {
         for (c, v) in cases {
             let g = self.replace(f, k, v, m)?;
             let Some(g) = self.split_cases(&g, depth - 1, budget, m)? else { return Ok(None) };
+            // the case's condition holds the other arguments of an n-ary `max` or `min`
+            let Some(c) = self.split_cases(&c, depth - 1, budget, m)? else { return Ok(None) };
             alts.push(QFm::And(vec![c, g]));
         }
         Ok(Some(QFm::Or(alts)))

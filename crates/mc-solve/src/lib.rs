@@ -38,6 +38,7 @@ mod reduce;
 mod reduce_cx;
 mod reduce_fn;
 mod reduce_forms;
+mod reduce_ri;
 mod reduce_steps;
 mod rootobj;
 mod solve;

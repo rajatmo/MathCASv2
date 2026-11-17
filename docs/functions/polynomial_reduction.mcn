@@ -12,6 +12,9 @@
 #% item
 # The remainder is the second part of `polynomial_reduce(p, gs, xs)`; for a Groebner basis it is the normal form of p.
 
+#% item
+# A single generator `g` stands for the list `[g]`; a `g` free of the variables is a unit of the coefficient field, so every remainder is 0.
+
 #% section
 # Examples
 
@@ -28,6 +31,19 @@ let gb = groebner_basis([x^2 + y^2 - 1, x*y - 2], [x, y])
 polynomial_reduction((x^2 + y^2)^2, gb, [x, y])
 #% output
 #= 1
+
+#% subsection
+# Scope
+
+#% cell
+polynomial_reduction(x^4 + y^4, g, [x, y])
+#% output
+#= 0
+
+#% cell
+polynomial_reduction(x^3 + 1, x - 1, [x])
+#% output
+#= 2
 
 #% section
 # See also
