@@ -36,6 +36,9 @@
 # `find_instance(cond, p, primes)` (or `element(p, primes)` in the condition): the primes from the lower bound of the condition upward.
 
 #% item
+# Over the complex numbers (no domain), equations with functions such as `sin`, `exp` or Bessel and Hankel functions: an equation `solve` solves for one unknown gives it in terms of the others, the other unknowns of the last equation are set to 1, 2, 1/2, ..., and the last unknown is a value of `solve` or a proved root object. The equations hold by construction; the other conditions must evaluate to `true` at the point.
+
+#% item
 # `find_instance(cond, vars, n)` without a domain lists up to `n` points: all of them for a finite solution set, else points of the solution families (periodic equations with their integer parameter set to 0, 1, -1, ...). Over the reals, sets of positive dimension give sample points of several cells.
 
 #% section

@@ -116,6 +116,7 @@ fn accepts(f: &str, key: &str) -> bool {
             common || matches!(key, "cubics" | "quartics" | "inverse_functions" | "modulus" | "mode" | "backsubstitution")
         }
         "roots" => matches!(key, "cubics" | "quartics" | "modulus" | "multiplicity" | "equated_to" | "method"),
+        "reduce" => matches!(key, "cubics" | "quartics"),
         "n_solve" | "n_solve_values" => common || matches!(key, "digits" | "precision_goal" | "accuracy_goal"),
         _ => false,
     }

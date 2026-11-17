@@ -64,8 +64,9 @@ fn analytic_inverse_functions() {
 
 #[test]
 fn surjective_x_sin_x() {
-    // onto, but only values growing along samples supported it: the call stays
-    assert_eq!(ev("function_surjective(x*sin(x), x)"), "function_surjective(x*sin(x), x)");
+    // onto, proved: continuous, with the value x at x = pi/2 + 2 k pi and -x at x = 3 pi/2 + 2 k pi (unbounded both
+    // ways, intermediate values); values growing along samples alone would prove nothing
+    assert_eq!(ev("function_surjective(x*sin(x), x)"), "true");
 }
 
 #[test]

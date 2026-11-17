@@ -205,6 +205,6 @@ fn lommel_functions_of_a_non_integer_order() {
     assert_eq!(ev(&mut e, "function_singularities(lommel_s2(1/3, 1/4, z), z)"), "z <= 0");
     // s at mu = 1/2 is z^(3/2) times an entire series: 0 at 0, so defined there on the real line
     assert_eq!(ev(&mut e, "function_domain(lommel_s1(1/2, 1/3, z), z)"), "z >= 0");
-    // an integer order is not covered by these entries
-    assert_eq!(ev(&mut e, "function_singularities(lommel_s1(2, 1/3, z), z)"), "function_singularities(lommel_s1(2, 1/3, z), z)");
+    // an integer order mu >= -1: z^(mu + 1) times an even entire series (DLMF 11.9.3), entire
+    assert_eq!(ev(&mut e, "function_singularities(lommel_s1(2, 1/3, z), z)"), "false");
 }

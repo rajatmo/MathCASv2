@@ -4,7 +4,8 @@
 //!
 //! - **Candidates**: every periodic subterm `g(w)` with `w = a x + b` linear in `x` has the period `p / a` for the
 //!   period `p` of `g`: `2 pi` (`sin`, `cos`, `sec`, `csc`), `pi` (`tan`, `cot`), `2 pi im` (`sinh`, `cosh`,
-//!   `sech`, `csch`, `exp`), `pi im` (`tanh`, `coth`), `1` (the waves, `fractional_part`), `m` (`mod(w, m)`); a
+//!   `sech`, `csch`, `exp`), `pi im` (`tanh`, `coth`), `1` (the waves, `fractional_part`, `klein_invariant_j`), `2`
+//!   (`modular_lambda`), `24` (`dedekind_eta`), `m` (`mod(w, m)`); a
 //!   power `c^w` of a constant is `exp(w log(c))` (`(-1)^n` has the period 2). Over the integers `mod(p(n), m)`
 //!   of a polynomial with integer coefficients has the candidate `m`.
 //! - **Combination**: the candidates must be commensurable (rational ratios); their least common multiple `T` is
@@ -124,6 +125,11 @@ fn candidates<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, x: T<'
         "sinh" | "cosh" | "sech" | "csch" => Some(b.mul(&[b.int(2), pi, imu])),
         "tanh" | "coth" => Some(b.mul(&[pi, imu])),
         "square_wave" | "triangle_wave" | "sawtooth_wave" | "fractional_part" => Some(b.one()),
+        // the modular functions of the upper half plane: J(tau + 1) = J(tau), lambda(tau + 2) = lambda(tau) (DLMF
+        // 23.15.3, 23.15.6), eta(tau + 1) = e^(i pi/12) eta(tau) (DLMF 23.15.5, 27.14.12)
+        "klein_invariant_j" => Some(b.one()),
+        "modular_lambda" => Some(b.int(2)),
+        "dedekind_eta" => Some(b.int(24)),
         _ => None,
     };
     if let (Some(p), [w]) = (base, args) {

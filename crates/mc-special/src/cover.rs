@@ -2549,6 +2549,11 @@ fn lerch_phi<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
                 return Ok(Some(fx.mul(&[fx.pow(z, fx.int(-m)), fx.add(&terms)])));
             }
         }
+        // from the circle's neighbourhood outwards: the expansion in log z; inside it, between 0.95 and 0.985, the
+        // direct series would need up to 2400 terms (each a power) and stays unevaluated, as it did before
+        if mag(fx, z) >= 0.985 {
+            return lerch_phi_log_series(fx, a);
+        }
         return Ok(None);
     }
     // machine arguments with a real s and a > 0: the series in double-double numbers (about a thousand times faster
@@ -2578,6 +2583,58 @@ fn lerch_phi<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     })?;
     let Some(v) = v else { return Ok(None) };
     let real = wk.real && parts(fx, xs[2]).is_some_and(|p| p.0 > 0.0);
+    Ok(wk.out(fx, v, real))
+}
+
+/// Phi(z, s, a) near and beyond the unit circle by the expansion in log z (Erdelyi et al., *Higher transcendental
+/// functions* I, 1.11(8)):
+///
+/// Phi(z, s, a) = z^(-a) (Gamma(1 - s) (-log z)^(s - 1) + sum_(n >= 0) zeta(s - n, a) (log z)^n/n!),
+///
+/// valid for |log z| < 2 pi, s not a positive integer, a not a non-positive integer, with principal logarithms and
+/// powers: the continuation of the series sum z^k/(k + a)^s from the unit disk to the plane cut along [1, inf). The
+/// terms fall like (|log z|/(2 pi))^n (zeta(s - n, a) grows like n!/(2 pi)^n, DLMF 25.11.43); the series is used for
+/// |log z| <= 2.5 (at most a factor 0.4 per term) at inexact arguments, off the cut (z real and >= 1 declines).
+fn lerch_phi_log_series<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    let (Some(pz), Some(ps), Some(pa)) = (parts(fx, a[0]), parts(fx, a[1]), parts(fx, a[2])) else { return Ok(None) };
+    let lz = (pz.0.hypot(pz.1).ln(), pz.1.atan2(pz.0));
+    if !(lz.0.hypot(lz.1) <= 2.5) || (pz.1 == 0.0 && pz.0 >= 1.0) {
+        return Ok(None);
+    }
+    let near_int = |v: (f64, f64), pos: bool| v.1 == 0.0 && (v.0 - v.0.round()).abs() < 1e-12 && if pos { v.0 > 0.5 } else { v.0 < 0.5 };
+    if near_int(ps, true) || near_int(pa, false) {
+        return Ok(None);
+    }
+    // zeta(s - n, a) ~ -a^(n + 1 - s)/(n + 1 - s) for a large against n (DLMF 25.11.43, 24.2.5): the sum then behaves
+    // like an exponential series in a log z and cancels about |a log z| log2(e) bits, which the working precision adds
+    let am = pa.0.hypot(pa.1);
+    let lm = lz.0.hypot(lz.1);
+    if am * lm > 2000.0 {
+        return Ok(None);
+    }
+    let Some((wk, xs)) = work(fx, a, 16 + (am * lm * std::f64::consts::LOG2_E) as u64) else { return Ok(None) };
+    let (z, s, x) = (xs[0], xs[1], xs[2]);
+    let l = ev(fx, "log", &[z])?;
+    let one = fx.int(1);
+    let g = ev(fx, "gamma", &[fx.sub(one, s)])?;
+    let lp = evpow(fx, fx.neg(l), fx.sub(s, one))?;
+    let za = evpow(fx, z, fx.neg(x))?;
+    if [l, g, lp, za].iter().any(|&v| fx.num(v).is_none()) {
+        return Ok(None);
+    }
+    let mut c = one; // (log z)^n/n!
+    let sum = sum_series(fx, wk.w, 8 + (2.0 * am * lm) as usize, |fx, n| {
+        let zt = ev(fx, "zeta", &[fx.sub(s, fx.int(n as i64)), x])?;
+        if fx.num(zt).is_none() {
+            return Ok(None);
+        }
+        let t = fx.eval(fx.mul(&[zt, c]))?;
+        c = fx.eval(fx.div(fx.mul(&[c, l]), fx.int(n as i64 + 1)))?;
+        Ok(Some(t))
+    })?;
+    let Some(sum) = sum else { return Ok(None) };
+    let v = fx.eval(fx.mul(&[za, fx.add(&[fx.mul(&[g, lp]), sum])]))?;
+    let real = wk.real && pz.1 == 0.0 && pz.0 < 1.0 && pa.0 > 0.0;
     Ok(wk.out(fx, v, real))
 }
 

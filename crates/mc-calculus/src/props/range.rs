@@ -72,7 +72,10 @@ pub fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
         Some(r) => Some(r),
         None => match harmonic(cx, b, f, cond, x, y)? {
             Some(r) => Some(r),
-            None => intervals(cx, b, f, cond, x, y, false)?,
+            None => match circular(cx, b, f, cond, x, y)? {
+                Some(r) => Some(r),
+                None => intervals(cx, b, f, cond, x, y, false)?,
+            },
         },
     };
     if let Some(r) = r {
@@ -204,10 +207,14 @@ pub fn affine_in<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, x: 
     if u == x {
         return Ok(true);
     }
-    if poly_degree(b, u, &[x]) != Some(1) {
-        return Ok(false);
-    }
     let s = cx.eval(b.call("d", &[u, x]))?;
+    // a + s x with a, s free of x (s may be irrational: `x 2^(1/2)`)
+    if poly_degree(b, u, &[x]) != Some(1) {
+        let rest = cx.eval(b.call("expand", &[b.sub(u, b.mul(&[s, x]))]))?;
+        if !is_free(b, s, x) || !is_free(b, rest, x) {
+            return Ok(false);
+        }
+    }
     let n = cx.eval(b.call("n", &[s]))?;
     let h = b.heap();
     Ok(spec::params(b, &[u], &[x]).is_empty() && matches!(h.view(n), View::Real(v) if v != 0.0) || matches!(h.view(n), View::Int(v) if v != 0))
@@ -355,6 +362,84 @@ fn qe<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: Option<T
 
 fn is_free<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> bool {
     crate::common::is_free(b, t, x)
+}
+
+/// A rational function of the circular functions of one affine `w = a x + b` (`a != 0`, no parameters) over the whole
+/// line: as x runs over the line, (sin(w), cos(w)) runs over the unit circle, so the range is that of `G(s, c)` on
+/// `s^2 + c^2 == 1` (`tan = s/c`, `cot = c/s`, `sec = 1/c`, `csc = 1/s`), by quantifier elimination:
+/// `-1/2 + 3/2 csc(w)^2` gives `y >= 1`.
+fn circular<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: Option<T<'h>>, x: T<'h>, y: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    if cond.is_some() || !spec::params(b, &[f], &[x]).is_empty() {
+        return Ok(None);
+    }
+    let (s, c) = (h.sym_term(h.sym("s·circle")), h.sym_term(h.sym("c·circle")));
+    let mut w0: Option<T<'h>> = None;
+    let mut ok = true;
+    let g = circular_sub(cx, b, f, x, s, c, &mut w0, &mut ok)?;
+    let Some(w) = w0 else { return Ok(None) };
+    if !ok || !is_free(b, g, x) || !affine_in(cx, b, w, x)? {
+        return Ok(None);
+    }
+    let t = cx.eval(b.call("together", &[g]))?;
+    let num = cx.eval(b.call("numerator", &[t]))?;
+    let den = cx.eval(b.call("denominator", &[t]))?;
+    if poly_degree(b, num, &[s, c]).is_none() || poly_degree(b, den, &[s, c]).is_none() {
+        return Ok(None);
+    }
+    let circle = b.call("equal", &[b.add(&[b.powi(s, 2), b.powi(c, 2)]), b.one()]);
+    let mut body = vec![circle, b.call("equal", &[num, b.mul(&[y, den])])];
+    if den != b.one() {
+        body.push(b.call("unequal", &[den, b.zero()]));
+    }
+    let e = b.call("exists", &[cx.list(&[s, c]), b.call("and", &body)]);
+    let r = cx.eval(b.call("resolve", &[e, h.sym_term(h.sym("reals"))]))?;
+    if is_head(b, r, "resolve") || is_head(b, r, names::FAILURE) || is_head(b, r, "exists") || !is_free(b, r, s) || !is_free(b, r, c) {
+        return Ok(None);
+    }
+    if !cx.is_true(r) && !cx.is_false(r) {
+        let rr = cx.eval(b.call("reduce", &[r, y, h.sym_term(h.sym("reals"))]))?;
+        if !is_head(b, rr, "reduce") && !is_head(b, rr, names::FAILURE) {
+            return Ok(Some(super::sets::tidy_cond(cx, b, rr)?));
+        }
+    }
+    Ok(Some(super::sets::tidy_cond(cx, b, r)?))
+}
+
+/// `t` with the circular functions of one argument `w` (recorded in `w0`) replaced by rational functions of `s`, `c`;
+/// `ok` is cleared when they have two different arguments.
+#[allow(clippy::too_many_arguments)]
+fn circular_sub<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, x: T<'h>, s: T<'h>, c: T<'h>, w0: &mut Option<T<'h>>, ok: &mut bool) -> Res<T<'h>> {
+    let h = b.heap();
+    if is_free(b, t, x) || !*ok {
+        return Ok(t);
+    }
+    let View::App { head, args } = h.view(t) else { return Ok(t) };
+    if let (Some(sy), [w]) = (b.sym_of(head), args) {
+        let one = b.one();
+        let rep = match h.sym_name(sy).as_str() {
+            "sin" => Some(s),
+            "cos" => Some(c),
+            "tan" => Some(b.div(s, c)),
+            "cot" => Some(b.div(c, s)),
+            "sec" => Some(b.div(one, c)),
+            "csc" => Some(b.div(one, s)),
+            _ => None,
+        };
+        if let Some(r) = rep {
+            match *w0 {
+                None => *w0 = Some(*w),
+                Some(v) if v == *w => {}
+                Some(_) => *ok = false,
+            }
+            return Ok(r);
+        }
+    }
+    let mut new = Vec::with_capacity(args.len());
+    for &a in args {
+        new.push(circular_sub(cx, b, a, x, s, c, w0, ok)?);
+    }
+    cx.eval(h.app(head, &new))
 }
 
 /// `c0 + A sin(w) + B cos(w)` for one linear `w` over the whole line: `c0 - R <= y <= c0 + R` with

@@ -235,7 +235,90 @@ pub fn parse<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
         });
     }
     let _ = names::LIST;
+    // over the reals, hyperbolic functions of an imaginary argument are circular ones (the Weierstrass functions of a
+    // degenerate lattice evaluate to csch(i u)^2, ...)
+    let (f, comps) = if dom == Dom::Reals && contains_imaginary_hyperbolic(b, f) {
+        let mut cs = Vec::with_capacity(comps.len());
+        for &c in &comps {
+            cs.push(circular_of_imaginary(cx, b, c)?);
+        }
+        let f = if vector { cx.list(&cs) } else { cs[0] };
+        (f, cs)
+    } else {
+        (f, comps)
+    };
     Ok(Some(Spec { f, comps, vector, cond, ycond, vars, yvars, dom, dom_given, gc, facts, strict, speed }))
+}
+
+/// The hyperbolic functions.
+const HYPERBOLIC: [&str; 6] = ["sinh", "cosh", "tanh", "coth", "sech", "csch"];
+
+/// Does `t` have a hyperbolic function of an argument with the factor `im`?
+fn contains_imaginary_hyperbolic<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        let View::App { head, args } = h.view(u) else { continue };
+        if b.sym_of(head).is_some_and(|s| HYPERBOLIC.contains(&h.sym_name(s).as_str())) && args.len() == 1 && has_imaginary(b, args[0]) {
+            return true;
+        }
+        stack.extend(args.iter().copied());
+    }
+    false
+}
+
+/// Does `t` have the imaginary unit (the symbol `im` or a complex number `complex(re, im)`)?
+fn has_imaginary<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    let (imu, complex) = (h.sym("im"), h.sym(names::COMPLEX));
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        match h.view(u) {
+            View::Sym(s) if s == imu => return true,
+            View::App { head, args } => {
+                if b.sym_of(head) == Some(complex) {
+                    return true;
+                }
+                stack.extend(args.iter().copied());
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// `t` with every hyperbolic function of `i v` (v free of `im`) written by the circular function of `v` (DLMF
+/// 4.28.8-4.28.10): sinh(i v) = i sin(v), cosh(i v) = cos(v), tanh(i v) = i tan(v), and the reciprocals.
+fn circular_of_imaginary<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>) -> Res<T<'h>> {
+    let h = b.heap();
+    let View::App { head, args } = h.view(t) else { return Ok(t) };
+    let mut new = Vec::with_capacity(args.len());
+    for &a in args {
+        new.push(circular_of_imaginary(cx, b, a)?);
+    }
+    let imu = h.sym_term(h.sym("im"));
+    if let (Some(s), [u]) = (b.sym_of(head), new.as_slice()) {
+        let name = h.sym_name(s).to_string();
+        if HYPERBOLIC.contains(&name.as_str()) {
+            let v = cx.eval(b.mul(&[b.int(-1), imu, *u]))?;
+            if !has_imaginary(b, v) {
+                let (circ, factor) = match name.as_str() {
+                    "sinh" => ("sin", Some(imu)),
+                    "cosh" => ("cos", None),
+                    "tanh" => ("tan", Some(imu)),
+                    "coth" => ("cot", Some(b.neg(imu))),
+                    "sech" => ("sec", None),
+                    _ => ("csc", Some(b.neg(imu))),
+                };
+                let c = b.call(circ, &[v]);
+                return cx.eval(match factor {
+                    Some(k) => b.mul(&[k, c]),
+                    None => c,
+                });
+            }
+        }
+    }
+    cx.eval(h.app(head, &new))
 }
 
 /// The symbols of `t` other than the constants and the given variables (the parameters), sorted by name.

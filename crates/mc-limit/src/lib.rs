@@ -103,6 +103,14 @@ pub fn limit_with<'h>(
     if is_free(b, f, x) {
         return Ok(Outcome::Value(f));
     }
+    // a directed infinity off the real line (`im*inf`, `-im*inf`): x = c y with y -> inf along the ray
+    if let Some(c) = complex_direction(b, a) {
+        let g = crate::bounds::subst(cx, b, f, x, b.mul(&[c, x]))?;
+        if g != f && !mc_calculus::common::is_failure(b, g) {
+            let inf = b.heap().sym_term(b.heap().sym("inf"));
+            return limit_with(cx, b, g, x, inf, Direction::TwoSided, opts);
+        }
+    }
     let run = Run { deadline: Allowance::new(cx, opts.budget), budget: opts.budget, check: opts.check };
     // complex infinity (|x| -> inf in every direction): a rational function by the degrees of its numerator and
     // denominator (0, the ratio of the leading coefficients, or complex_infinity); otherwise not decided here
@@ -145,6 +153,24 @@ pub fn limit_with<'h>(
         return Ok(o);
     }
     Ok(complex_parts(cx, b, f, x, a, direction, opts)?.unwrap_or(o))
+}
+
+/// The direction c of a directed infinity `c*inf` off the real line (`im*inf`, `-im*inf`, `(1 + im)*inf`: c an exact
+/// complex number that is not real), or `None`. The ray x = c y, y -> inf, is the same for c and every positive
+/// multiple of c, so c need not have modulus 1.
+fn complex_direction<'h>(b: &Build<'h>, a: T<'h>) -> Option<T<'h>> {
+    let h = b.heap();
+    let View::App { head, args: [c, y] } = h.view(a) else { return None };
+    if b.sym_of(head) != Some(b.hd.mul) || *y != h.sym_term(h.sym("inf")) {
+        return None;
+    }
+    match h.view(*c) {
+        View::App { head, args: [re, im] } if b.sym_of(head) == Some(h.sym("complex")) => {
+            let exact = |t: &T<'h>| matches!(h.view(*t), View::Int(_) | View::BigInt { .. } | View::Rational { .. });
+            (exact(re) && exact(im)).then_some(*c)
+        }
+        _ => None,
+    }
 }
 
 /// The limit of a function with complex values along the real line (`im*x`, `exp(im*pi/4)*x`, `x + im*x^2`) from
@@ -563,6 +589,16 @@ fn special_cuts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T
         let at = apply(cx, b, "rewrite", &[arg, rule(x, a)])?;
         let atn = apply(cx, b, "n", &[at, b.int(30)])?;
         if num_of(b, atn).is_none() || args.iter().enumerate().any(|(j, &p)| j != k && num_of(b, p).is_none()) {
+            continue;
+        }
+        // the logarithmic singularities of Ei at 0 and li at 1 (-inf from both sides, taken by the walk)
+        let name = b.sym_of(head).map(|s| h.sym_name(s).as_str().to_string());
+        let singular = match name.as_deref() {
+            Some("exp_integral_ei") => apply(cx, b, "equal", &[atn, b.zero()])? == h.sym_term(h.sym(names::TRUE)),
+            Some("log_integral") => apply(cx, b, "equal", &[atn, b.one()])? == h.sym_term(h.sym(names::TRUE)),
+            _ => false,
+        };
+        if singular {
             continue;
         }
         let call_at = |p: T<'h>| {

@@ -91,6 +91,42 @@ pub fn shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ord
     decide(cx, b, s, order, weak_strict, &ps)
 }
 
+/// Is every call in `t` that depends on the variables an `add`, `mul`, `pow`, `exp` or `log`?
+fn elementary_rational<'h>(b: &Build<'h>, t: T<'h>, vars: &[T<'h>]) -> bool {
+    let h = b.heap();
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        let View::App { head, args } = h.view(u) else { continue };
+        if vars.iter().all(|&x| crate::common::is_free(b, u, x)) {
+            continue;
+        }
+        let ok = b.sym_of(head).is_some_and(|s| s == b.hd.add || s == b.hd.mul || s == b.hd.pow || matches!(h.sym_name(s).as_str(), "exp" | "log"));
+        if !ok {
+            return false;
+        }
+        stack.extend(args.iter().copied());
+    }
+    true
+}
+
+/// Does `t` have at most `max` nodes?
+fn small_term<'h>(b: &Build<'h>, t: T<'h>, max: usize) -> bool {
+    let h = b.heap();
+    let mut stack = mc_api::walk::Walk::new(t);
+    let mut count = 0;
+    while let Some(u) = stack.pop() {
+        count += 1;
+        if count > max {
+            return false;
+        }
+        if let View::App { head, args } = h.view(u) {
+            stack.push(head);
+            stack.extend(args.iter().copied());
+        }
+    }
+    true
+}
+
 /// Is the condition a conjunction of relations between one variable and a term free of the variables (a box)?
 fn is_box<'h>(b: &Build<'h>, c: T<'h>, vars: &[T<'h>]) -> bool {
     let h = b.heap();
@@ -123,11 +159,21 @@ fn decide<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, order:
             if n > 3 {
                 return Ok(None);
             }
+            // the Hessian of a function of the variables other than powers, exp and log can be huge (the derivative of
+            // jacobi_dn in m): it is built for those only while every derivative stays small (mathieu_c's do), and the
+            // minors are then decided by the signs at points
+            let elementary = elementary_rational(b, f, &s.vars);
             let mut hm = vec![vec![b.zero(); n]; n];
             for (row, &xi) in hm.iter_mut().zip(&s.vars) {
                 let di = cx.eval(b.call("d", &[f, xi]))?;
+                if !elementary && !small_term(b, di, 32) {
+                    return Ok(None);
+                }
                 for (cell, &xj) in row.iter_mut().zip(&s.vars) {
                     *cell = cx.eval(b.call("d", &[di, xj]))?;
+                    if !elementary && !small_term(b, *cell, 32) {
+                        return Ok(None);
+                    }
                 }
             }
             // principal minors by subsets of the indices

@@ -1243,6 +1243,67 @@ pub(crate) fn lommel_t1_cd(mu: CD, nu: CD, z: CD) -> Option<CD> {
     (v.finite() && big * U * 1e2 <= TOL * s.abs()).then_some(v)
 }
 
+/// The constants of T_(mu,nu) for [`lommel_t2`] at one pair (mu, nu): 1/Gamma(1 + nu), 1/Gamma(1 - nu),
+/// g = 2^(mu-1) Gamma((mu - nu + 1)/2) Gamma((mu + nu + 1)/2) and c = (sin(mu pi) + sin(nu pi))/(2 sin(nu pi)).
+#[derive(Clone, Copy)]
+pub(crate) struct LommelT2Consts {
+    pub rg_p: CD,
+    pub rg_m: CD,
+    pub g: CD,
+    pub c: CD,
+}
+
+/// T_(mu,nu)(z) for a non-integer nu in double-double numbers: with K_nu = pi/(2 sin(nu pi)) (I_(-nu) - I_nu) (DLMF
+/// 10.27.4) the connection formula of [`crate::scorer_lommel_coulomb`] is T = -t_(mu,nu)(z) + g ((1 - c) I_nu(z) +
+/// c I_(-nu)(z)), and I_(+-nu)(z) = (z/2)^(+-nu) sum_k (z^2/4)^k/(k! Gamma(k + 1 +- nu)) (DLMF 10.25.2), all on the
+/// principal branches. The terms and the parts are of size up to e^|z|; the value is declined when the largest of
+/// them leaves fewer than the machine digits (the cancellation for large positive z, where T ~ z^(mu - 1)), and for
+/// |z| > 40.
+pub(crate) fn lommel_t2(mu: CD, nu: CD, z: CD, k: &LommelT2Consts) -> Option<C64> {
+    if z.abs() > 40.0 || z.abs() == 0.0 {
+        return None;
+    }
+    let t = lommel_t1_cd(mu, nu, z)?;
+    let q = z * z * CD::f(0.25);
+    let half = z * CD::f(0.5);
+    // sum_k q^k/(k! (1 + s)_k): the series of I_s(z) (z/2)^(-s) Gamma(1 + s)
+    let bessel = |s: CD| -> Option<(CD, f64)> {
+        let mut term = CD::ONE;
+        let (mut sum, mut big) = (CD::ZERO, 0.0f64);
+        let mut small = 0;
+        for j in 0..2000 {
+            sum = sum + term;
+            big = big.max(term.abs());
+            if term.abs() <= 1e-34 * sum.abs() {
+                small += 1;
+                if small >= 2 {
+                    return Some((sum, big));
+                }
+            } else {
+                small = 0;
+            }
+            let d = CD::f(j as f64 + 1.0) * (s + CD::f(j as f64 + 1.0));
+            if d.abs() == 0.0 {
+                return None;
+            }
+            term = term * q / d;
+        }
+        None
+    };
+    let (sp, bp) = bessel(nu)?;
+    let (sm, bm) = bessel(-nu)?;
+    let pp = half.pow(nu) * k.rg_p;
+    let pm = half.pow(-nu) * k.rg_m;
+    let ip = pp * sp;
+    let im = pm * sm;
+    let a = k.g * (CD::ONE - k.c) * ip;
+    let b = k.g * k.c * im;
+    let v = a + b - t;
+    // the largest quantity met: the parts and the largest terms of the sums at their scale
+    let big = t.abs().max(a.abs()).max(b.abs()).max((k.g * (CD::ONE - k.c) * pp).abs() * bp).max((k.g * k.c * pm).abs() * bm);
+    (v.finite() && big.is_finite() && big * U * 1e2 <= TOL * v.abs()).then(|| v.to_c64())
+}
+
 /// The Jacobi theta function theta_a(u, q) or its u-derivative in double-double numbers: the series of
 /// DLMF 20.2.1-20.2.4 with the principal q^(1/4) (the ball path's terms), e^(+-i m u) by products. `None` for |q| >=
 /// 0.99 or when the largest term leaves fewer than the machine digits of the value.

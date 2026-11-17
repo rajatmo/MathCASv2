@@ -33,7 +33,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 /// Working precision of the enclosures (bits).
-const P: u64 = 128;
+pub(crate) const P: u64 = 128;
 /// The half-widths of the bounded part tried in turn, in quarters (the tail checks are cheap, the bounded interval
 /// method is not: the narrowest part that is proved to suffice is taken).
 const WIDTHS: [i64; 21] = [8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256];
@@ -42,14 +42,14 @@ const SAMPLES: i64 = 64;
 
 /// An end of an extended interval: exact dyadic or infinite.
 #[derive(Clone, Debug)]
-enum Ex {
+pub(crate) enum Ex {
     NegInf,
     Fin(Float),
     PosInf,
 }
 
 impl Ex {
-    fn cmp(&self, o: &Ex) -> Ordering {
+    pub(crate) fn cmp(&self, o: &Ex) -> Ordering {
         match (self, o) {
             (Ex::NegInf, Ex::NegInf) | (Ex::PosInf, Ex::PosInf) => Ordering::Equal,
             (Ex::NegInf, _) | (_, Ex::PosInf) => Ordering::Less,
@@ -73,7 +73,7 @@ impl Ex {
         })
     }
     /// The sign: -1, 0, 1.
-    fn sign(&self) -> i32 {
+    pub(crate) fn sign(&self) -> i32 {
         match self {
             Ex::NegInf => -1,
             Ex::PosInf => 1,
@@ -108,9 +108,9 @@ impl Ex {
 
 /// An extended interval [lo, hi].
 #[derive(Clone, Debug)]
-struct Iv {
-    lo: Ex,
-    hi: Ex,
+pub(crate) struct Iv {
+    pub lo: Ex,
+    pub hi: Ex,
 }
 
 impl Iv {
@@ -162,7 +162,7 @@ const MONOTONE: [(&str, bool, Lim, Lim); 9] = [
     ("log", true, Lim::NegInf, Lim::PosInf),
 ];
 
-fn head_name(h: &Heap, t: T<'_>) -> Option<String> {
+pub(crate) fn head_name(h: &Heap, t: T<'_>) -> Option<String> {
     match h.view(t) {
         View::App { head, .. } => match h.view(head) {
             View::Sym(s) => Some(h.sym_name(s).to_string()),
@@ -172,14 +172,14 @@ fn head_name(h: &Heap, t: T<'_>) -> Option<String> {
     }
 }
 
-fn args_of<'h>(h: &'h Heap, t: T<'h>) -> &'h [T<'h>] {
+pub(crate) fn args_of<'h>(h: &'h Heap, t: T<'h>) -> &'h [T<'h>] {
     match h.view(t) {
         View::App { args, .. } => args,
         _ => &[],
     }
 }
 
-fn contains(h: &Heap, t: T<'_>, x: T<'_>) -> bool {
+pub(crate) fn contains(h: &Heap, t: T<'_>, x: T<'_>) -> bool {
     let mut stack = vec![t];
     while let Some(u) = stack.pop() {
         if u == x {
@@ -194,7 +194,7 @@ fn contains(h: &Heap, t: T<'_>, x: T<'_>) -> bool {
 }
 
 /// Does `t` hold a symbol other than `x` and the numeric constants?
-fn has_other_symbols<'h>(h: &'h Heap, t: T<'h>, x: T<'h>) -> bool {
+pub(crate) fn has_other_symbols<'h>(h: &'h Heap, t: T<'h>, x: T<'h>) -> bool {
     let mut stack = vec![t];
     while let Some(u) = stack.pop() {
         match h.view(u) {
@@ -219,23 +219,23 @@ fn small_rational(h: &Heap, t: T<'_>) -> Option<(i64, i64)> {
 }
 
 /// Numeric enclosures of terms.
-struct Encl<'a, 'h> {
-    h: &'h Heap,
-    ar: &'a Arith<'h, Heap>,
-    nm: &'a Names,
-    x: T<'h>,
+pub(crate) struct Encl<'a, 'h> {
+    pub h: &'h Heap,
+    pub ar: &'a Arith<'h, Heap>,
+    pub nm: &'a Names,
+    pub x: T<'h>,
 }
 
 impl<'h> Encl<'_, 'h> {
     /// The ball of a closed real numeric term.
-    fn constant(&self, t: T<'h>) -> Option<Ball> {
+    pub(crate) fn constant(&self, t: T<'h>) -> Option<Ball> {
         let g = Graph::build(self.h, self.ar, self.nm, t);
         let is = g.island(g.node(t)?);
         g.eval_ball(&is, P)
     }
 
     /// The ball of `t` (a term in `x`) at x in the real ball `at`.
-    fn at(&self, t: T<'h>, at: &Ball) -> Option<Ball> {
+    pub(crate) fn at(&self, t: T<'h>, at: &Ball) -> Option<Ball> {
         let View::Sym(xs) = self.h.view(self.x) else { return None };
         let g = Graph::build_with_vars(self.h, self.ar, self.nm, t, &[xs]);
         let is = g.island(g.node(t)?);
@@ -293,10 +293,10 @@ impl<'h> Encl<'_, 'h> {
 }
 
 /// Enclosures over the half-line x in [t0, inf).
-struct Tail<'a, 'b, 'c, 'h> {
-    cx: &'a mut NativeCx<'b, 'c, 'h>,
-    en: Encl<'a, 'h>,
-    t0: Float,
+pub(crate) struct Tail<'a, 'b, 'c, 'h> {
+    pub cx: &'a mut NativeCx<'b, 'c, 'h>,
+    pub en: Encl<'a, 'h>,
+    pub t0: Float,
 }
 
 impl<'h> Tail<'_, '_, '_, 'h> {
@@ -402,7 +402,7 @@ impl<'h> Tail<'_, '_, '_, 'h> {
     }
 
     /// An enclosure of `t` over x in [t0, inf), or `None`.
-    fn bound(&mut self, t: T<'h>) -> Res<Option<Iv>> {
+    pub(crate) fn bound(&mut self, t: T<'h>) -> Res<Option<Iv>> {
         self.cx.tick(1)?;
         let h = self.en.h;
         let x = self.en.x;
@@ -464,9 +464,29 @@ impl<'h> Tail<'_, '_, '_, 'h> {
                 let (neg, pos) = if incr { (Lim::Val(0, 1), Lim::PosInf) } else { (Lim::PosInf, Lim::Val(0, 1)) };
                 Ok(self.pow_base(b, incr, neg, pos, &u))
             }
-            Some("sin" | "cos") if args.len() == 1 => {
-                let Some(_) = self.bound(args[0])? else { return Ok(None) };
-                Ok(Some(Iv { lo: Ex::Fin(Float::from_i64(-1)), hi: Ex::Fin(Float::from_i64(1)) }))
+            Some(n @ ("sin" | "cos")) if args.len() == 1 => {
+                let Some(u) = self.bound(args[0])? else { return Ok(None) };
+                let unit = Iv { lo: Ex::Fin(Float::from_i64(-1)), hi: Ex::Fin(Float::from_i64(1)) };
+                // a finite argument interval without a turning point (sin: pi/2 + k pi, cos: k pi) inside: monotone
+                // there, between the values at the ends
+                let (Ex::Fin(lo), Ex::Fin(hi)) = (&u.lo, &u.hi) else { return Ok(Some(unit)) };
+                let Some(pi) = self.en.constant(h.sym_term(h.sym("pi"))) else { return Ok(Some(unit)) };
+                let shift = if n == "sin" { Ball::from_ratio(1, 2, P) } else { Ball::from_i64(0) };
+                let turn = |v: &Float| Ball::exact(v.clone()).div(&pi, P).map(|q| q.sub(&shift, P));
+                let (Some(ql), Some(qh)) = (turn(lo), turn(hi)) else { return Ok(Some(unit)) };
+                let (qll, _) = ql.ends();
+                let (_, qhh) = qh.ends();
+                let k = float_floor(&qll);
+                let one_piece = k.as_ref().is_some_and(|k| qhh.cmp_exact(&k.add_exact(&Float::from_i64(1))) == Ordering::Less);
+                if !one_piece {
+                    return Ok(Some(unit));
+                }
+                let (Some(a), Some(b)) = (self.en.call_at(n, &[], lo), self.en.call_at(n, &[], hi)) else { return Ok(Some(unit)) };
+                let (al, ah) = a.ends();
+                let (bl, bh) = b.ends();
+                let low = if al.cmp_exact(&bl) == Ordering::Less { al } else { bl };
+                let high = if ah.cmp_exact(&bh) == Ordering::Greater { ah } else { bh };
+                Ok(Some(Iv { lo: Ex::Fin(low), hi: Ex::Fin(high) }))
             }
             Some("bessel_j") if args.len() == 2 && !contains(h, args[0], x) => {
                 // |J_nu(t)| <= M_nu(T) for t >= T > 0 (Nicholson's integral, DLMF 10.9.30)
@@ -489,6 +509,43 @@ impl<'h> Tail<'_, '_, '_, 'h> {
                 let Some(m) = Ball::exact(m2.ends().1).sqrt(P) else { return Ok(None) };
                 let mu = m.ends().1;
                 Ok(Some(Iv { lo: Ex::Fin(mu.neg()), hi: Ex::Fin(mu) }))
+            }
+            Some(n @ ("bessel_i" | "bessel_k")) if args.len() == 2 && !contains(h, args[0], x) => {
+                // a real order nu >= 0 (bessel_i) or any real order (bessel_k) and a nonnegative argument t:
+                // I_nu(t) = (t/2)^nu sum (t^2/4)^k / (k! Gamma(nu + k + 1)) increases from I_nu(0) (1 for nu = 0,
+                // else 0) to inf (DLMF 10.25.2); K_nu(t) = int_0^inf exp(-t cosh s) cosh(nu s) ds decreases from inf
+                // at 0+ to 0 (DLMF 10.32.9)
+                let Some(nu) = self.en.constant(args[0]) else { return Ok(None) };
+                let zero = Ball::from_i64(0);
+                let nu_sign = nu.cmp3(&zero);
+                let incr = n == "bessel_i";
+                if incr && !matches!(nu_sign, Some(Ordering::Greater)) && !(nu.rad.is_zero() && nu.mid.is_zero()) {
+                    return Ok(None);
+                }
+                let Some(u) = self.bound(args[1])? else { return Ok(None) };
+                if u.lo.sign() < 0 {
+                    return Ok(None);
+                }
+                let at = |e: &Ex, up: bool| -> Option<Ex> {
+                    match e {
+                        Ex::PosInf => Some(if incr { Ex::PosInf } else { Ex::Fin(Float::zero()) }),
+                        Ex::NegInf => None,
+                        Ex::Fin(a) if a.is_zero() => Some(if incr {
+                            Ex::Fin(if nu.mid.is_zero() { Float::from_i64(1) } else { Float::zero() })
+                        } else {
+                            Ex::PosInf
+                        }),
+                        Ex::Fin(a) => {
+                            let (l, hh) = self.en.call_at(n, &args[..1], a)?.ends();
+                            Some(Ex::Fin(if up { hh } else { l }))
+                        }
+                    }
+                };
+                Ok(if incr {
+                    (|| Some(Iv { lo: at(&u.lo, false)?, hi: at(&u.hi, true)? }))()
+                } else {
+                    (|| Some(Iv { lo: at(&u.hi, false)?, hi: at(&u.lo, true)? }))()
+                })
             }
             Some("cosh") if args.len() == 1 => {
                 // even, increasing on [0, inf), least value 1 at 0
@@ -605,6 +662,18 @@ impl<'h> Tail<'_, '_, '_, 'h> {
     }
 }
 
+/// The greatest integer <= v, as a dyadic number.
+fn float_floor(v: &Float) -> Option<Float> {
+    if v.exp >= 0 || v.is_zero() {
+        return Some(v.clone());
+    }
+    let t = v.man.shr(v.exp.unsigned_abs());
+    let whole = Float::new(false, t.clone(), 0);
+    let exact = whole.cmp_exact(&Float::new(false, v.man.clone(), v.exp)) == Ordering::Equal;
+    let r = Float::new(v.neg, t, 0);
+    Some(if v.neg && !exact { r.sub_exact(&Float::from_i64(1)) } else { r })
+}
+
 /// The ends of a closed half-line condition on x (`x >= a`, `a <= x`, `x <= b`, `b >= x`): (lower, upper) with one
 /// of them `None`.
 #[allow(clippy::type_complexity)]
@@ -629,13 +698,13 @@ fn half_line<'h>(h: &'h Heap, cond: T<'h>, x: T<'h>) -> Option<(Option<T<'h>>, O
 }
 
 /// The exact dyadic value of a number term.
-fn dyadic<'h>(en: &Encl<'_, 'h>, t: T<'h>) -> Option<Float> {
+pub(crate) fn dyadic<'h>(en: &Encl<'_, 'h>, t: T<'h>) -> Option<Float> {
     let b = en.constant(t)?;
     b.rad.is_zero().then_some(b.mid)
 }
 
 /// The exact rational term of a dyadic number (an odd mantissa below 2^62).
-fn dyadic_term<'h>(cx: &mut NativeCx<'_, '_, 'h>, v: &Float) -> Res<Option<T<'h>>> {
+pub(crate) fn dyadic_term<'h>(cx: &mut NativeCx<'_, '_, 'h>, v: &Float) -> Res<Option<T<'h>>> {
     let h = cx.heap();
     if v.is_zero() {
         return Ok(Some(h.int(0)));

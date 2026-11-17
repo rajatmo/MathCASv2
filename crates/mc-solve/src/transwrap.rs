@@ -95,10 +95,48 @@ impl Native for Extremum {
     }
 }
 
-/// Wraps `n` and the extrema (after the natives they wrap are installed).
+/// `count_roots(f, x)` of an analytic function that is not a polynomial: the number of its real roots when each
+/// one is isolated and proved simple (`realline`).
+pub(crate) struct CountRoots {
+    pub inner: Box<dyn Native>,
+    pub stop: Arc<AtomicBool>,
+}
+
+impl Native for CountRoots {
+    fn reads_term(&self) -> bool {
+        self.inner.reads_term()
+    }
+
+    fn curried(&self) -> bool {
+        self.inner.curried()
+    }
+
+    fn trace(&mut self, visit: &mut dyn FnMut(&mut mc_core::Raw)) {
+        self.inner.trace(visit);
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let r = self.inner.call(cx, t, args)?;
+        if !matches!(r, Reply::Decline) {
+            return Ok(r);
+        }
+        let &[f, x] = args else { return Ok(r) };
+        if !matches!(cx.heap().view(x), View::Sym(_)) {
+            return Ok(r);
+        }
+        Ok(match crate::realline::count_line(cx, &self.stop, f, x)? {
+            Some(n) => Reply::Done(cx.heap().int(n as i64)),
+            None => r,
+        })
+    }
+}
+
+/// Wraps `n`, `count_roots` and the extrema (after the natives they wrap are installed).
 pub(crate) fn install(k: &mut mc_eval::Kernel, h: &mc_core::Heap, stop: &Arc<AtomicBool>) {
     let st = stop.clone();
     k.wrap_native(h.sym("n"), move |inner| Box::new(NumericRoots { inner, stop: st }));
+    let st = stop.clone();
+    k.wrap_native(h.sym("count_roots"), move |inner| Box::new(CountRoots { inner, stop: st }));
     for (name, max, goal) in [
         ("minimize", false, Goal::Both),
         ("maximize", true, Goal::Both),

@@ -1328,6 +1328,19 @@ pub fn meets<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ato
     if live.is_empty() {
         return Ok(Meet::No);
     }
+    // a point `x == c` (c a real number built of numbers and constants, `-1/e`) of the whole line or plane: in the
+    // region
+    if cond.is_none() {
+        for &a in &live {
+            let View::App { head, args: &[l, r] } = h.view(a) else { continue };
+            if b.sym_of(head) == Some(h.sym("equal")) && s.vars.contains(&l) && numeric_quantity(h, r) {
+                let v = cx.eval(b.call("n", &[r]))?;
+                if matches!(h.view(v), View::Real(x) if x.is_finite()) || matches!(h.view(v), View::Int(_)) {
+                    return Ok(Meet::Yes);
+                }
+            }
+        }
+    }
     let mut all = live.clone();
     if let Some(c) = cond {
         all.push(c);

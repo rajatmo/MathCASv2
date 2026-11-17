@@ -569,6 +569,8 @@ fn conditions_of<'h>(
             }
             "asin" | "acos" | "asinh" => {}
             "acosh" if !complex => out.push(rel("greater_equal", *a, one)),
+            // the principal inverse cosine is defined in the whole plane (DLMF 4.37.(iv))
+            "acosh" => {}
             "atanh" if !complex => {
                 out.push(rel("greater", *a, b.neg(one)));
                 out.push(rel("less", *a, one));
@@ -2140,7 +2142,11 @@ fn sampled_shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
 /// Several variables: what refine proves, or `indeterminate` proved by a grid of samples ([`grid_witness`]).
 fn sign_multi<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, order: usize) -> Res<Option<T<'h>>> {
     if order == 2 {
-        return grid_witness(cx, b, c, 2);
+        // the grid first (it is cheap where the function's values are), then lines through the domain
+        if let Some(r) = grid_witness(cx, b, c, 2)? {
+            return Ok(Some(r));
+        }
+        return slice_witness(cx, b, c);
     }
     if order > 0 {
         return Ok(None);
@@ -2164,6 +2170,38 @@ fn sign_multi<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, or
         (false, true) => Some(b.int(-1)),
         _ => grid_witness(cx, b, c, 0)?,
     })
+}
+
+/// Convexity in several variables (no parameters, no condition): the restriction of a convex (concave, affine)
+/// function to a line is convex (concave, affine), so a restriction to a coordinate line on which `f` is defined
+/// everywhere and proved neither convex nor concave (`indeterminate` in one variable, from points) makes `f`
+/// `indeterminate`: `jacobi_dn(x, 1/2)` in x for `jacobi_dn(x, m)`. A few lines per variable only.
+fn slice_witness<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let mut params = rustc_hash::FxHashSet::default();
+    symbols(b, c.f, &mut params);
+    if c.cond.is_some() || c.integers || c.complex || params.iter().any(|s| !c.vars.contains(s)) || c.vars.len() > 3 {
+        return Ok(None);
+    }
+    let indet = h.sym_term(h.sym("indeterminate"));
+    for &x in &c.vars {
+        for fixed in [b.rat(1, 2), b.rat(-1, 3)] {
+            if out_of_time(cx) {
+                return Ok(None);
+            }
+            let rules: Vec<T<'h>> = c.vars.iter().filter(|&&v| v != x).map(|&v| h.call(h.sym(names::RULE), &[v, fixed])).collect();
+            let g = cx.eval(h.call(h.sym("rewrite"), &[c.f, cx.list(&rules)]))?;
+            // defined on the whole line (no condition left)
+            if !conditions(cx, b, g, &[x], false)?.is_some_and(|cs| cs.is_empty()) {
+                continue;
+            }
+            let one = Call { f: g, cond: None, vars: vec![x], complex: false, integers: false, facts: vec![], strict: false };
+            if sign_of(cx, b, &one, 2)? == Some(indet) {
+                return Ok(Some(indet));
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// Several variables without parameters: two points of the domain (and the condition) where `f` has opposite
@@ -2446,6 +2484,17 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> 
         if let Some((_, g)) = affine_part(cx, b, c, x)? {
             let cg = Call { f: g, cond: None, vars: c.vars.clone(), complex: false, integers: false, facts: c.facts.clone(), strict: c.strict };
             return injective(cx, b, &cg);
+        }
+    }
+    // a special function whose injectivity or strict monotonicity the table records (before the slower searches)
+    if c.cond.is_none() && !c.integers {
+        if let Some(hit) = range::table_call(cx, b, c.f, x, &c.facts)? {
+            if let Some(v) = hit.injective(cx, b, false)? {
+                return Ok(Some(cx.bool(v)));
+            }
+            if hit.shape(cx, b, 1)?.is_some_and(|k| k.abs() == 1) {
+                return Ok(Some(cx.bool(true)));
+            }
         }
     }
     let mut params = rustc_hash::FxHashSet::default();

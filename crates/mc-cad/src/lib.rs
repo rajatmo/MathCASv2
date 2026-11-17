@@ -29,6 +29,7 @@
 //! Pollack and Roy, *Algorithms in Real Algebraic Geometry*. Decisions are numbered CAD.1, CAD.2, ... in
 //! the comments where they apply.
 #![warn(missing_docs)]
+pub mod analytic;
 pub mod cad;
 pub mod complex;
 pub mod formula;

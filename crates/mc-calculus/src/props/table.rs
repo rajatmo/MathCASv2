@@ -80,6 +80,10 @@ pub struct Entry {
     pub onto: &'static [(&'static str, bool)],
     /// a condition on the parameters under which the function is periodic in the variable (not injective)
     pub periodic: &'static str,
+    /// injective on its real domain: (condition on the parameters, answer), the first that holds
+    pub inj: &'static [(&'static str, bool)],
+    /// injective on its domain in the plane: (condition on the parameters, answer), the first that holds
+    pub cinj: &'static [(&'static str, bool)],
     /// the strict sign on the real domain: (condition on the parameters, 1 positive or -1 negative), the first that
     /// holds; 2 (-2) when only nonnegative (nonpositive) is known
     pub signs: &'static [(&'static str, i8)],
@@ -111,6 +115,8 @@ const E: Entry = Entry {
     bound: Bound::No,
     onto: &[],
     periodic: "",
+    inj: &[],
+    cinj: &[],
     signs: &[],
     mono: &[],
     convex: &[],
@@ -282,6 +288,8 @@ pub static TABLE: &[Entry] = &[
         complex: "re($u) >= 0 or not_element($u/2, integers)",
         sr: Some(&[("sin(pi*$u/2) == 0 and $u <= -2", PO)]),
         sc: Some(&[("sin(pi*$u/2) == 0 and re($u) <= -2", PO)]),
+        // a product of positive factors and Gamma(u/2 + 1), which has no zero: 0 is not a value
+        onto: &[("", false)],
         refs: "DLMF 5.2.1 (double factorial by the gamma function)",
         ..E
     },
@@ -312,7 +320,10 @@ pub static TABLE: &[Entry] = &[
     // functions of an integer: complex-valued off the integers (subfactorial: Gamma(z + 1, -1)/e, entire in z, DLMF
     // 8.2.(ii)); the alternating harmonic numbers (a factor (-1)^z); the tau function (integers only)
     Entry { name: "subfactorial", real: "element($u, integers) and $u >= 0", complex: "true", sr: Some(&[("true", BR)]), sc: Some(NONE), refs: "DLMF 8.2.(ii)", ..E },
-    Entry { name: "alternating_harmonic_number", real: "element($u, integers)", sr: Some(&[("true", BR)]), refs: "DLMF 25.11", ..E },
+    // the alternating harmonic numbers log 2 - (-1)^z (psi(z/2 + 1) - psi((z + 1)/2))/2 (the partial sums of DLMF
+    // 4.6.1 at 1 continued by DLMF 5.15 and the integral of t^z/(1 + t) over [0, 1]): (-1)^z entire, the digamma
+    // functions with simple poles at z = -1, -2, ... that do not cancel (the residues of the bracket are +-1)
+    Entry { name: "alternating_harmonic_number", real: "element($u, integers)", complex: AHN_COMPLEX, sr: Some(&[("true", BR)]), sc: Some(AHN_POLES), refs: "DLMF 4.6.1, 5.15", ..E },
     Entry { name: "ramanujan_tau", real: "element($u, integers)", complex: "element($u, integers)", sr: Some(&[("true", BR)]), refs: "DLMF 27.14.20", ..E },
     // elliptic integrals and the nome (DLMF 19.2.4-19.2.8, 19.6, 19.7.9, 22.2.1-22.2.2)
     Entry {
@@ -432,6 +443,8 @@ pub static TABLE: &[Entry] = &[
         sr: Some(&[("true", BR)]),
         sc: Some(&[("im_part($u) <= 0", BR)]),
         signs: &[("im_part($u) > 0 and element(re($u)/24, integers)", 1), ("im_part($u) > 0 and element((re($u) - 12)/24, integers)", -1)],
+        // eta(tau + 24) = eta(tau)
+        cinj: &[("", false)],
         refs: "DLMF 27.14.12",
         ..E
     },
@@ -442,6 +455,8 @@ pub static TABLE: &[Entry] = &[
         sr: Some(&[("true", BR)]),
         sc: Some(&[("im_part($u) <= 0", BR)]),
         signs: &[("im_part($u) > 0 and element(re($u), integers)", 1)],
+        // J(tau + 1) = J(tau)
+        cinj: &[("", false)],
         refs: "DLMF 23.15.7",
         ..E
     },
@@ -452,6 +467,8 @@ pub static TABLE: &[Entry] = &[
         sr: Some(&[("true", BR)]),
         sc: Some(&[("im_part($u) <= 0", BR)]),
         signs: &[("im_part($u) > 0 and element(re($u)/2, integers)", 1), ("im_part($u) > 0 and element((re($u) - 1)/2, integers)", -1)],
+        // lambda(tau + 2) = lambda(tau)
+        cinj: &[("", false)],
         refs: "DLMF 23.15.6",
         ..E
     },
@@ -507,7 +524,7 @@ pub static TABLE: &[Entry] = &[
         name: "bessel_i",
         arity: 2,
         var: 1,
-        when: "element(($a - 1)/2, integers)",
+        when: "element(($a + 1)/2, integers)",
         mono: &[("", 1)],
         ranges: &[("", "true")],
         onto: &[("", true)],
@@ -545,8 +562,11 @@ pub static TABLE: &[Entry] = &[
         refs: "DLMF 10.47.4, 10.49.4",
         ..E
     },
-    Entry { name: "spherical_hankel_h1", arity: 2, var: 1, real: "false", complex: "$u != 0", sr: Some(&[("true", BR)]), sc: Some(SPH_HANKEL), refs: "DLMF 10.47.5, 10.49.6", ..E },
-    Entry { name: "spherical_hankel_h2", arity: 2, var: 1, real: "false", complex: "$u != 0", sr: Some(&[("true", BR)]), sc: Some(SPH_HANKEL), refs: "DLMF 10.47.6, 10.49.7", ..E },
+    // for an integer order h(z) = e^(+-i z) P(1/z) with a nonzero polynomial P (DLMF 10.49.6, 10.49.7, 10.47.15): an
+    // essential singularity at inf, so by Picard's great theorem every value but one is taken infinitely often (not
+    // injective in the plane)
+    Entry { name: "spherical_hankel_h1", arity: 2, var: 1, real: "false", complex: "$u != 0", sr: Some(&[("true", BR)]), sc: Some(SPH_HANKEL), cinj: &[("element($a, integers)", false)], refs: "DLMF 10.47.5, 10.49.6", ..E },
+    Entry { name: "spherical_hankel_h2", arity: 2, var: 1, real: "false", complex: "$u != 0", sr: Some(&[("true", BR)]), sc: Some(SPH_HANKEL), cinj: &[("element($a, integers)", false)], refs: "DLMF 10.47.6, 10.49.7", ..E },
     Entry { name: "kelvin_ber", arity: 2, var: 1, when: "element($a, integers)", ranges: &[("", "true")], refs: "DLMF 10.65.1, 10.67.1", ..ENTIRE },
     Entry { name: "kelvin_bei", arity: 2, var: 1, when: "element($a, integers)", ranges: &[("", "true")], refs: "DLMF 10.65.1, 10.67.1", ..ENTIRE },
     // ber + i bei = J_nu(x e^(3 pi i/4)): the leading term (x/2)^nu cos(3 nu pi/4) (sin for bei), the next with the
@@ -649,31 +669,24 @@ pub static TABLE: &[Entry] = &[
     },
     Entry { name: "anger_j", arity: 2, var: 1, refs: "DLMF 11.10.1, 11.10.(i)", ..ENTIRE },
     Entry { name: "weber_e", arity: 2, var: 1, refs: "DLMF 11.10.2, 11.10.(i)", ..ENTIRE },
-    // Lommel functions of a non-integer first order mu: s_(mu,nu) = z^(mu + 1)/((mu + 1)^2 - nu^2) 1F2(1; (mu - nu + 3)/2,
-    // (mu + nu + 3)/2; -z^2/4) (DLMF 11.9.3; t with +z^2/4), z^(mu + 1) times an entire series: the cut z <= 0, the
-    // value 0 at 0 for mu > -1; the parameters where a denominator vanishes (mu +- nu an odd negative integer) left
-    // out. S_(mu,nu) and T_(mu,nu) add Bessel functions of order nu (DLMF 11.9.5), singular at 0 for a non-integer nu:
-    // the cut and z != 0, the parameters where a gamma factor has a pole left out.
+    // Lommel functions s_(mu,nu) = z^(mu + 1)/((mu + 1)^2 - nu^2) 1F2(1; (mu - nu + 3)/2, (mu + nu + 3)/2; -z^2/4)
+    // (DLMF 11.9.3; t with +z^2/4): z^(mu + 1) times an even entire series that is 1 at 0. Undefined for every z when
+    // mu - nu or mu + nu is an odd negative integer (the denominator (mu + 1)^2 - nu^2 vanishes at -1, a lower parameter
+    // is a pole of the series below). Otherwise: the cut of z^(mu + 1) for a non-integer mu, a pole of order -mu - 1 at
+    // 0 for an integer mu < -1, entire for an integer mu >= -1 (s_(2,1/3) = z^3 times an even entire series).
     Entry {
         name: "lommel_s1",
         arity: 3,
         var: 2,
-        when: "not_element($a, integers) and not_element(($a - $b + 3)/2, integers) and not_element(($a + $b + 3)/2, integers)",
-        real: "$u > 0 or $u == 0 and $a > -1",
-        complex: "$u != 0 or re($a) > -1",
+        joint: true,
+        real: LOMMEL_REAL,
+        complex: LOMMEL_COMPLEX,
+        sr: Some(LOMMEL_SR),
+        sc: Some(LOMMEL_SC),
         refs: "DLMF 11.9.3",
-        ..POSITIVE
+        ..E
     },
-    Entry {
-        name: "lommel_t1",
-        arity: 3,
-        var: 2,
-        when: "not_element($a, integers) and not_element(($a - $b + 3)/2, integers) and not_element(($a + $b + 3)/2, integers)",
-        real: "$u > 0 or $u == 0 and $a > -1",
-        complex: "$u != 0 or re($a) > -1",
-        refs: "DLMF 11.9.3",
-        ..POSITIVE
-    },
+    Entry { name: "lommel_t1", arity: 3, var: 2, joint: true, real: LOMMEL_REAL, complex: LOMMEL_COMPLEX, sr: Some(LOMMEL_SR), sc: Some(LOMMEL_SC), refs: "DLMF 11.9.3 (the series with +z^2/4)", ..E },
     Entry {
         name: "lommel_s2",
         arity: 3,
@@ -691,7 +704,23 @@ pub static TABLE: &[Entry] = &[
         ..POSITIVE
     },
     // parabolic cylinder and Mathieu functions: solutions of equations with entire coefficients (DLMF 12.2, 28.2)
-    Entry { name: "parabolic_cylinder_d", arity: 2, var: 1, refs: "DLMF 12.2.(i), 12.2.5", ..ENTIRE },
+    // D_nu(x) = U(-nu - 1/2, x) for real nu < 0 is e^(-x^2/4)/Gamma(-nu) times the integral of t^(-nu-1) e^(-t^2/2 - x t)
+    // over t > 0 (DLMF 12.5.1, 12.1.3): positive; it tends to 0 at inf (12.9.1) and to inf at -inf (12.9.3, the term
+    // with 1/Gamma(-nu) != 0), so every positive value is taken. For nu <= -1/2, D'' = (x^2/4 - nu - 1/2) D > 0 (12.2.4):
+    // strictly convex, and a convex positive function tending to 0 at inf strictly decreases. For nu = 0, 1, ... D_n =
+    // e^(-x^2/4) He_n(x) (12.7.2) is bounded: not onto.
+    Entry {
+        name: "parabolic_cylinder_d",
+        arity: 2,
+        var: 1,
+        signs: &[("$a < 0", 1)],
+        mono: &[("$a <= -1/2", -1)],
+        convex: &[("$a <= -1/2", 1)],
+        ranges: &[("$a < 0", "$y > 0")],
+        onto: &[("$a < 0", false), ("element($a, integers) and $a >= 0", false)],
+        refs: "DLMF 12.2.4, 12.5.1, 12.7.2, 12.9.1, 12.9.3",
+        ..ENTIRE
+    },
     Entry { name: "mathieu_c", arity: 3, var: 2, joint: true, refs: "DLMF 28.2.(i)", ..ENTIRE },
     Entry { name: "mathieu_s", arity: 3, var: 2, joint: true, refs: "DLMF 28.2.(i)", ..ENTIRE },
     Entry { name: "mathieu_c_prime", arity: 3, var: 2, joint: true, refs: "DLMF 28.2.(i)", ..ENTIRE },
@@ -779,24 +808,37 @@ pub static TABLE: &[Entry] = &[
     },
     Entry { name: "prime_zeta_p", real: "$u > 1", sr: Some(&[("$u <= 1", BR)]), refs: "the prime zeta function sum mu(k)/k log zeta(k s), DLMF 25.2", ..E },
     Entry { name: "riemann_siegel_z", real: "true", sr: Some(NONE), refs: "DLMF 25.9", ..E },
-    // q-functions: the Euler function (x; x)_inf inside the unit disc, the circle its natural boundary; the
-    // q-factorial (q; q)_inf/(q^(z + 1); q)_inf (1 - q)^(-z) with poles at z = -1, -2, ... for 0 < q < 1 (DLMF 17.2)
+    // q-functions: the Euler function phi(x) = (x; x)_inf inside the unit disc, the circle its natural boundary. On
+    // (-1, 1) it is continuous, at most 1 - x in absolute value on (0, 1), and tends to 0 at -1 through phi(-r) =
+    // phi(r^2)^3/(phi(r) phi(r^4)) and the transformation of eta (phi(e^(-t)) ~ (2 pi/t)^(1/2) e^(-pi^2/(6 t)), DLMF
+    // 23.15.5, 27.14.12): bounded, so not onto the reals
     Entry {
         name: "q_pochhammer",
         real: "-1 < $u and $u < 1",
         complex: "abs($u) < 1",
         sr: Some(&[("$u <= -1", BR), ("$u >= 1", BR)]),
         sc: Some(&[("abs($u) >= 1", BR)]),
-        refs: "DLMF 17.2.4, 27.14.2",
+        bound: Bound::Both,
+        onto: &[("", false)],
+        refs: "DLMF 17.2.4, 23.15.5, 27.14.2, 27.14.12",
         ..E
     },
+    // the q-factorial [x]_q! = (q; q)_inf/(q^(x + 1); q)_inf (1 - q)^(-x) for 0 < q < 1, Gamma(x + 1) at q = 1 and
+    // q^(x (x - 1)/2) [x]_(1/q)! for q > 1 (DLMF 5.18.1-5.18.4, 17.2.1); for an integer n >= 0 the polynomial
+    // prod_(k <= n) (1 - q^k)/(1 - q), real for every q. For q > 0: simple poles at x = -1, -2, ... (the factor
+    // 1 - q^(x + 1 + k) of the denominator), no zero (every factor is finite and nonzero), so 0 is not a value (not
+    // onto); between the poles -2 and -1 the sign is constant and |f| tends to inf at both ends, so a value is taken
+    // twice (not injective). For q < 0 a non-integer x gives the non-real q^(x + 1); at q = 0 the value is 1 for x > -1
+    // and q^(x + 1) is undefined for x < -1; for q < 0 the integers x <= -1 are poles too (the factor 1 - q^0).
     Entry {
         name: "q_factorial",
         arity: 2,
-        when: "0 < $a and $a < 1",
-        real: "$u > -1 or not_element($u, integers)",
-        sr: Some(&[("sin(pi*$u) == 0 and $u <= -1", PO)]),
-        refs: "DLMF 17.2.1, 5.18.(ii)",
+        joint: true,
+        real: "element($u, integers) and $u >= 0 or not_element($u, integers) and ($a > 0 or $a == 0 and $u > -1)",
+        sr: Some(&[("$a != 0 and sin(pi*$u) == 0 and $u <= -1", PO), ("$a < 0 and not_element($u, integers)", BR), ("$a == 0 and $u <= -1", BR)]),
+        onto: &[("$a > 0", false)],
+        inj: &[("$a > 0", false)],
+        refs: "DLMF 5.18.1-5.18.4, 17.2.1",
         ..E
     },
     // the incomplete gamma functions Gamma(a, z) = int_z^inf t^(a-1) e^(-t) dt: entire in a, the cut of z^a otherwise;
@@ -862,6 +904,9 @@ pub static TABLE: &[Entry] = &[
         complex: "not(element($a, integers) and $a <= 0) and not(element($b, integers) and $b <= 0) and ($u != 0 or re($a) > 0) and ($u != 1 or re($b) > 0)",
         sr: Some(INCOMPLETE_BETA_R),
         sc: Some(INCOMPLETE_BETA_C),
+        // I_x(a, 1) = x^a (DLMF 8.17.2 with B(a, 1) = 1/a): for a positive integer a defined on the whole line, even
+        // (x and -x give the same value) for an even a, strictly increasing for an odd a
+        inj: &[("$b == 1 and element($a/2, integers) and $a > 0", false), ("$b == 1 and element(($a - 1)/2, integers) and $a > 0", true)],
         refs: "DLMF 8.17.2, 8.17.7",
         ..E
     },
@@ -934,7 +979,7 @@ pub static TABLE: &[Entry] = &[
     // a < 0
     Entry { name: "mittag_leffler_e", arity: 2, var: 1, joint: true, sr: Some(&[("$a == 0 and $u == 1", PO), ("$a < 0 and $u == 0", BR)]), refs: "DLMF 10.46.3", ..E },
     // the alternating harmonic numbers in their two-argument form
-    Entry { name: "alternating_harmonic_number", arity: 2, when: "$a == 1", real: "element($u, integers)", sr: Some(&[("true", BR)]), refs: "DLMF 25.11", ..E },
+    Entry { name: "alternating_harmonic_number", arity: 2, when: "$a == 1", real: "element($u, integers)", complex: AHN_COMPLEX, sr: Some(&[("true", BR)]), sc: Some(AHN_POLES), refs: "DLMF 4.6.1, 5.15", ..E },
     // inverse Jacobi functions for real m other than 1: the real domain of the principal branch is the range of the
     // function on the line (for m > 1 through Jacobi's real transformation), the values bounded by a period
     // (DLMF 22.15.1-22.15.12, 22.17.4, 22.16.(i)); the numeric values are real exactly on these sets. Where that
@@ -1223,6 +1268,33 @@ pub static TABLE: &[Entry] = &[
 /// U(a, b, x) > 0, decreasing and convex on its domain (an interval) for a > 0 off the Laurent-polynomial cases:
 /// the integral 13.4.4 and U' = -a U(a + 1, b + 1, x) (DLMF 13.3.22).
 const U_POSITIVE: &str = "$a > 0 and not(element($b, integers) and element($a - $b, integers) and $a - $b <= -1)";
+/// The parameters of the Lommel functions s, t where they are undefined: mu - nu or mu + nu an odd negative integer.
+macro_rules! lommel_bad {
+    () => {
+        "element(($a - $b + 1)/2, integers) and $a - $b < 0 or element(($a + $b + 1)/2, integers) and $a + $b < 0"
+    };
+}
+/// Where s, t are defined and real on the line.
+const LOMMEL_REAL: &str = concat!("not(", lommel_bad!(), ") and ($u > 0 or $u == 0 and $a >= -1 or $u < 0 and element($a, integers))");
+/// Where s, t are defined in the plane.
+const LOMMEL_COMPLEX: &str = concat!("not(", lommel_bad!(), ") and ($u != 0 or re($a) > -1 or $a == -1)");
+/// The singular atoms of s, t on the line.
+const LOMMEL_SR: &[(&str, Kind)] = &[
+    (lommel_bad!(), BR),
+    ("not_element($a, integers) and $u <= 0", BR),
+    ("element($a, integers) and $a < -1 and $u == 0", PO),
+];
+/// The singular atoms of s, t in the plane.
+const LOMMEL_SC: &[(&str, Kind)] = &[
+    (lommel_bad!(), BR),
+    ("not_element($a, integers) and $u == 0", BR),
+    ("not_element($a, integers) and im_part($u) == 0 and re($u) <= 0", BR),
+    ("element($a, integers) and $a < -1 and $u == 0", PO),
+];
+/// The alternating harmonic numbers in the plane: off the negative integers.
+const AHN_COMPLEX: &str = "re($u) > -1 or not_element($u, integers)";
+/// Their poles.
+const AHN_POLES: &[(&str, Kind)] = &[("sin(pi*$u) == 0 and re($u) <= -1", PO)];
 /// Real m other than 1: the Jacobi functions are periodic in x (DLMF 22.4.(ii), 22.17.4).
 const PERIODIC_M: &str = "$a < 1 or $a > 1";
 /// Real m other than 1.
@@ -1270,6 +1342,8 @@ struct Facts {
     bound: Bound,
     onto: Vec<(String, bool)>,
     periodic: String,
+    inj: Vec<(String, bool)>,
+    cinj: Vec<(String, bool)>,
     signs: Vec<(String, i8)>,
     mono: Vec<(String, i8)>,
     convex: Vec<(String, i8)>,
@@ -1281,6 +1355,8 @@ impl Facts {
         Facts {
             onto: e.onto.iter().map(|(w, v)| (w.to_string(), *v)).collect(),
             periodic: e.periodic.into(),
+            inj: e.inj.iter().map(|(w, v)| (w.to_string(), *v)).collect(),
+            cinj: e.cinj.iter().map(|(w, v)| (w.to_string(), *v)).collect(),
             signs: e.signs.iter().map(|(w, v)| (w.to_string(), *v)).collect(),
             mono: e.mono.iter().map(|(w, v)| (w.to_string(), *v)).collect(),
             convex: e.convex.iter().map(|(w, v)| (w.to_string(), *v)).collect(),
@@ -1481,6 +1557,8 @@ fn hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, 
             bound: Bound::No,
             onto: vec![],
             periodic: String::new(),
+            inj: vec![],
+            cinj: vec![],
             signs: vec![],
             mono: vec![],
             convex: vec![],
@@ -1502,6 +1580,8 @@ fn hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, 
             bound: Bound::No,
             onto: vec![],
             periodic: String::new(),
+            inj: vec![],
+            cinj: vec![],
             signs: vec![],
             mono: vec![],
             convex: vec![],
@@ -1524,6 +1604,8 @@ fn hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, 
             bound: Bound::No,
             onto: vec![],
             periodic: String::new(),
+            inj: vec![],
+            cinj: vec![],
             signs: vec![],
             mono: vec![],
             convex: vec![],
@@ -1672,7 +1754,18 @@ impl<'h> Hit<'h> {
 
     /// Onto the reals, by the first recorded parameter condition that holds; `None` when none does.
     pub fn onto(&self, cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>) -> Res<Option<bool>> {
-        for (w, v) in self.facts.onto.clone() {
+        self.first(cx, b, self.facts.onto.clone())
+    }
+
+    /// Injective on the real domain (or, `complex`, on the domain in the plane), by the first recorded parameter
+    /// condition that holds; `None` when none does.
+    pub fn injective(&self, cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, complex: bool) -> Res<Option<bool>> {
+        self.first(cx, b, if complex { self.facts.cinj.clone() } else { self.facts.inj.clone() })
+    }
+
+    /// The answer of the first pair whose parameter condition holds.
+    fn first(&self, cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, list: Vec<(String, bool)>) -> Res<Option<bool>> {
+        for (w, v) in list {
             if w.is_empty() {
                 return Ok(Some(v));
             }

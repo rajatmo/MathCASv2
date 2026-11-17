@@ -250,6 +250,147 @@ fn lommel_t2_terminating<'h>(fx: &Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Option<T<'
     None
 }
 
+/// T_(mu,nu)(z) at z = 0 for real mu, nu (the expansion at infinity not terminating), from the leading terms of
+/// T = -t + g (I_nu + c' K_nu) as z -> 0+:
+///
+/// - mu + 1 < -|nu|: t_(mu,nu)(z) ~ z^(mu+1)/((mu+1)^2 - nu^2) (the first term of its series, the denominator
+///   positive) dominates I_nu and K_nu (at most z^(-|nu|) and log z), so T -> -inf;
+/// - nu >= 0 and mu + 1 > -nu (mu + 1 > 0 at nu = 0): c K_nu(z) with c = g c' = 2^(mu-1) Gamma((mu - nu + 1)/2)
+///   Gamma((mu + nu + 1)/2) (sin(mu pi) + sin(nu pi))/pi dominates (K_nu(z) ~ Gamma(nu)/2 (z/2)^(-nu) for nu > 0 and
+///   ~ -log z at nu = 0, DLMF 10.30.2-3; I_nu stays bounded, t = O(z^(mu+1)) grows more slowly), so T -> sign(c) inf
+///   when c != 0.
+///
+/// At an exact 0 the value is complex infinity (T is not real on the negative axis, so the direction depends on the
+/// approach); at an inexact real 0 it is the limit from the right, as K_nu(0.) is inf. `None` in the other cases
+/// (nu < 0, where I_nu grows like K_nu, the boundary cases, c = 0 or not decided).
+fn lommel_t2_at_zero<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    let (mu, nu, z) = (a[0], a[1], a[2]);
+    let (Some(m), Some(v)) = (fx.f64_of(mu), fx.f64_of(nu)) else { return Ok(None) };
+    let exact = fx.num(z).is_some_and(|n| !mc_numeric::formula::inexact(&n));
+    let real_zero = matches!(fx.num(z), Some(mc_arith::Num::Real(_)));
+    let at = |fx: &Fx<'_, '_, '_, 'h>, neg: bool| {
+        if exact || !real_zero {
+            fx.sym("complex_infinity")
+        } else if neg {
+            fx.neg(fx.inf())
+        } else {
+            fx.inf()
+        }
+    };
+    // a margin keeps ball parameters near the boundaries out
+    if m + 1.0 < -v.abs() - 1e-9 {
+        // not where a denominator of t vanishes ((-mu - 1 +- nu)/2 a non-negative integer)
+        let near_int = |q: f64| q > -1e-9 && (q - q.round()).abs() < 1e-9;
+        if lommel_pole(fx, mu, nu) || near_int((-m - 1.0 + v) / 2.0) || near_int((-m - 1.0 - v) / 2.0) {
+            return Ok(None);
+        }
+        return Ok(Some(at(fx, true)));
+    }
+    if !(v >= 0.0 && (m + 1.0 > -v + 1e-9) && (v > 1e-9 || m + 1.0 > 1e-9)) {
+        return Ok(None);
+    }
+    let half = fx.rat(1, 2);
+    let pi = fx.sym("pi");
+    let c = fx.mul(&[
+        fx.pow(fx.int(2), fx.sub(mu, fx.int(1))),
+        fx.call("gamma", &[fx.mul(&[half, fx.add(&[fx.sub(mu, nu), fx.int(1)])])]),
+        fx.call("gamma", &[fx.mul(&[half, fx.add(&[mu, nu, fx.int(1)])])]),
+        fx.add(&[fx.call("sin", &[fx.mul(&[mu, pi])]), fx.call("sin", &[fx.mul(&[nu, pi])])]),
+        fx.pow(pi, fx.int(-1)),
+    ]);
+    let cn = fx.eval(fx.call("n", &[c, fx.int(30)]))?;
+    // a value of c near 0 (or a ball around it) does not decide the sign
+    match fx.num(cn) {
+        Some(mc_arith::Num::Real(r)) if r.to_f64().abs() > 1e-20 && r.to_f64().is_finite() => Ok(Some(at(fx, r.to_f64() < 0.0))),
+        _ => Ok(None),
+    }
+}
+
+/// A number as a complex double-double, from its value at 40 digits.
+fn cd_of<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>) -> Res<Option<crate::cdd::CD>> {
+    use mc_arith::{Num, Real};
+    let v = fx.eval(fx.call("n", &[t, fx.int(40)]))?;
+    let dd = |r: &Real| match r {
+        Real::Ball(b, _) => Some(crate::fast_dd::dd_of_ball(b)),
+        Real::Exact(q) => Some(crate::bernoulli::rat_to_dd(q)),
+        Real::Machine(_) => None,
+    };
+    Ok(match fx.num(v) {
+        Some(Num::Real(r)) => dd(&r).map(crate::cdd::CD::real),
+        Some(Num::Complex(x, y)) => dd(&x).zip(dd(&y)).map(|(x, y)| crate::cdd::CD::new(x, y)),
+        None => None,
+    }
+    .filter(|c| c.finite()))
+}
+
+/// A parameter as an exact number (a machine real by its exact binary value), so its constants take 40 digits.
+fn exact_param<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>) -> Res<T<'h>> {
+    fx.eval(fx.call("rationalize", &[t, fx.int(0)]))
+}
+
+thread_local! {
+    /// The constants of the last few (mu, nu) pairs of `lommel_t2`, by the bits of their double-double values (a plot
+    /// evaluates one pair many times).
+    static T2_CONSTS: std::cell::RefCell<Vec<([u64; 8], crate::fast_dd::LommelT2Consts)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// [`lommel_t2_consts`] through the cache [`T2_CONSTS`].
+fn lommel_t2_consts_cached<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], ms: &[crate::cdd::CD]) -> Res<Option<crate::fast_dd::LommelT2Consts>> {
+    let key = [
+        ms[0].re.hi.to_bits(),
+        ms[0].re.lo.to_bits(),
+        ms[0].im.hi.to_bits(),
+        ms[0].im.lo.to_bits(),
+        ms[1].re.hi.to_bits(),
+        ms[1].re.lo.to_bits(),
+        ms[1].im.hi.to_bits(),
+        ms[1].im.lo.to_bits(),
+    ];
+    if let Some(k) = T2_CONSTS.with(|c| c.borrow().iter().find(|(kk, _)| *kk == key).map(|(_, v)| *v)) {
+        return Ok(Some(k));
+    }
+    let k = lommel_t2_consts(fx, a[0], a[1])?;
+    if let Some(k) = k {
+        T2_CONSTS.with(|c| {
+            let mut c = c.borrow_mut();
+            if c.len() >= 16 {
+                c.remove(0);
+            }
+            c.push((key, k));
+        });
+    }
+    Ok(k)
+}
+
+/// The constants of [`crate::fast_dd::lommel_t2`] at a non-integer order nu; `None` at an integer nu or where a
+/// constant is not a finite number.
+fn lommel_t2_consts<'h>(fx: &mut Fx<'_, '_, '_, 'h>, mu: T<'h>, nu: T<'h>) -> Res<Option<crate::fast_dd::LommelT2Consts>> {
+    let (m, v) = (exact_param(fx, mu)?, exact_param(fx, nu)?);
+    if fx.rat_of(m).is_none() && fx.num(m).is_none() || fx.num(v).is_none() {
+        return Ok(None);
+    }
+    if fx.rat_of(v).is_some_and(|q| q.is_int()) {
+        return Ok(None);
+    }
+    let half = fx.rat(1, 2);
+    let pi = fx.sym("pi");
+    let one = fx.int(1);
+    let rg = |fx: &Fx<'_, '_, '_, 'h>, x: T<'h>| fx.pow(fx.call("gamma", &[x]), fx.int(-1));
+    let g = fx.mul(&[
+        fx.pow(fx.int(2), fx.sub(m, one)),
+        fx.call("gamma", &[fx.mul(&[half, fx.add(&[fx.sub(m, v), one])])]),
+        fx.call("gamma", &[fx.mul(&[half, fx.add(&[m, v, one])])]),
+    ]);
+    let snu = fx.call("sin", &[fx.mul(&[v, pi])]);
+    let c = fx.div(fx.add(&[fx.call("sin", &[fx.mul(&[m, pi])]), snu]), fx.mul(&[fx.int(2), snu]));
+    let rp = rg(fx, fx.add(&[one, v]));
+    let rm = rg(fx, fx.sub(one, v));
+    let (Some(rg_p), Some(rg_m), Some(g), Some(c)) = (cd_of(fx, rp)?, cd_of(fx, rm)?, cd_of(fx, g)?, cd_of(fx, c)?) else {
+        return Ok(None);
+    };
+    Ok(Some(crate::fast_dd::LommelT2Consts { rg_p, rg_m, g, c }))
+}
+
 /// T_(mu,nu)(z) = -t_(mu,nu)(z) + 2^(mu-1) Gamma((mu - nu + 1)/2) Gamma((mu + nu + 1)/2) (I_nu(z) + (sin(mu pi) +
 /// sin(nu pi))/pi K_nu(z)).
 fn lommel_t2<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
@@ -261,6 +402,17 @@ fn lommel_t2<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     }
     if !numeric(fx, a) {
         return Ok(None);
+    }
+    if fx.num(a[2]).is_some_and(|n| n.is_zero()) {
+        return lommel_t2_at_zero(fx, a);
+    }
+    // machine arguments: the double-double kernel, the ball path when it declines
+    if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
+        if let Some(k) = lommel_t2_consts_cached(fx, a, &ms)? {
+            if let Some(v) = crate::fast_dd::lommel_t2(ms[0], ms[1], ms[2], &k) {
+                return Ok(crate::fast_dd::machine_out(fx, v, real && ms[2].re.hi >= 0.0));
+            }
+        }
     }
     let extra = cancel_bits(fx, a[2], 2.0) + 16;
     let Some((wk, xs)) = work(fx, a, extra) else { return Ok(None) };

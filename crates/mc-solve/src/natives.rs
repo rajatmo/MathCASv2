@@ -33,6 +33,11 @@ pub(crate) enum SolveFn {
     Root,
 }
 
+thread_local! {
+    /// The reductions to another call evaluated in place, nested (a bound on the depth).
+    static AGAIN_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
 /// A function of this crate as a native.
 pub(crate) struct SolveNative {
     pub f: SolveFn,
@@ -41,7 +46,45 @@ pub(crate) struct SolveNative {
 }
 
 impl Native for SolveNative {
-    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let r = self.call_inner(cx, t, args)?;
+        // one analytic equation in one real unknown that no method above solved: every real root, proved
+        let form = match self.f {
+            SolveFn::Solve => mc_algebra::transroot::Form::Rules,
+            SolveFn::Reduce => mc_algebra::transroot::Form::Condition,
+            SolveFn::NSolve => mc_algebra::transroot::Form::Numbers,
+            _ => return Ok(r),
+        };
+        // a reduction to another call: its answer decides
+        let r = match r {
+            Reply::Again(u) if self.f == SolveFn::Reduce && u != t && AGAIN_DEPTH.with(|d| d.get()) < 8 => {
+                AGAIN_DEPTH.with(|d| d.set(d.get() + 1));
+                let v = cx.eval(u);
+                AGAIN_DEPTH.with(|d| d.set(d.get() - 1));
+                Reply::Done(v?)
+            }
+            r => r,
+        };
+        let open = match &r {
+            Reply::Decline => true,
+            Reply::Done(v) => crate::realline::unsolved(cx.heap(), *v),
+            _ => false,
+        };
+        if open {
+            if let Some(v) = crate::realline::solve_line(cx, &self.stop, args, form)? {
+                return Ok(Reply::Done(v));
+            }
+            // a piecewise function of the unknown: its branches
+            if let Some(v) = crate::branches::split(cx, self.name, args)? {
+                return Ok(Reply::Done(v));
+            }
+        }
+        Ok(r)
+    }
+}
+
+impl SolveNative {
+    fn call_inner<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h: &'h Heap = cx.heap();
         // root([f, x0]): the root of an analytic function near x0
         if self.f == SolveFn::Root {
@@ -88,6 +131,16 @@ impl Native for SolveNative {
                 own.push(crate::domain::no_facts_option(h));
             }
             args = &own;
+        } else if self.f == SolveFn::Reduce {
+            // `cubics`, `quartics`: radicals for the cubics and quartics the solutions come from (other options stay
+            // with the methods that read them)
+            if let Ok((a, o)) = crate::front::split(h, self.name, args) {
+                if a.len() < args.len() && !o.no_facts {
+                    own = a;
+                    opts = o;
+                    args = &own;
+                }
+            }
         }
         let _settings = crate::front::Scope::enter(&opts.settings);
         if let Some(p) = opts.modulus {

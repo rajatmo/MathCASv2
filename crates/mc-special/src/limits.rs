@@ -56,6 +56,9 @@ impl<'h> B<'_, 'h> {
 pub fn at_infinity<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, f: Special, args: &[T<'h>]) -> Option<T<'h>> {
     use Special as S;
     let b = B { h, ar };
+    if f == S::BetaRegularized {
+        return beta_regularized_at_infinity(h, ar, args);
+    }
     let last = *args.last()?;
     let d = direction(h, ar, last);
     let first = direction(h, ar, args[0]);
@@ -120,6 +123,30 @@ pub fn at_infinity<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, f: Special, args: &[T<
         },
     };
     Some(v)
+}
+
+/// I_z(a, b) at z = inf, -inf or complex infinity for positive integers a, b (at most 10^4): then
+/// I_z(a, b) = sum_(j=a)^(n) C(n, j) z^j (1 - z)^(n - j) with n = a + b - 1 (DLMF 8.17.5 with 8.17.2) is a polynomial
+/// of degree n >= 1 whose leading coefficient sum_(j=a)^(n) C(n, j) (-1)^(n - j) = (-1)^(b - 1) C(n - 1, a - 1) is not 0
+/// (the alternating partial sum of a binomial row). So the value is (-1)^(b - 1) inf at inf, (-1)^(a) inf at -inf
+/// ((-1)^(b - 1 + n) = (-1)^a), and complex infinity at complex infinity.
+fn beta_regularized_at_infinity<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, args: &[T<'h>]) -> Option<T<'h>> {
+    let [z, a, b] = args else { return None };
+    let small = |t: &T<'h>| match h.view(*t) {
+        View::Int(v) if (1..=10_000).contains(&v) => Some(v),
+        _ => None,
+    };
+    let (a, b) = (small(a)?, small(b)?);
+    let inf = h.sym_term(h.sym("inf"));
+    let signed = |odd: bool| if odd { ar.neg(inf) } else { inf };
+    if *z == h.sym_term(h.sym("complex_infinity")) {
+        return Some(*z);
+    }
+    match direction(h, ar, *z)? {
+        0 => Some(signed((b - 1) % 2 == 1)),
+        2 => Some(signed(a % 2 == 1)),
+        _ => None,
+    }
 }
 
 /// The signed limit at an exact pole on the real line, where it has one: `cos_integral(0)` is `-inf`.

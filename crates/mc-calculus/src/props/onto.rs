@@ -490,6 +490,9 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
     let Some((pts, families)) = real_breaks(cx, b, s, x)? else { return Ok(Ans::Unknown) };
     let inf = h.sym_term(h.sym("inf"));
     let ninf = cx.eval(b.neg(inf))?;
+    if pts.is_empty() && !families && s.cond.is_none() && oscillates_unboundedly(cx, b, f, x)? {
+        return Ok(Ans::Bool(true));
+    }
     // values taken at the break points themselves (sqrt(x) at 0)
     let mut attained = vec![];
     for &(_, p) in &pts {
@@ -511,6 +514,9 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
     // it (intermediate values on the stretch from p to that end), and one where f tends to +inf every value above
     // f(p); a ray below some v and a ray above some w <= v cover the line (-cos(x)/x: -inf at 0+, +inf at 0-)
     let (mut below, mut above): (Vec<T<'h>>, Vec<T<'h>>) = (vec![], vec![]);
+    // finite limits at both ends of every piece: f is bounded on each piece (continuous there), and there are
+    // finitely many pieces, so it is bounded and not onto
+    let mut bounded = !families && s.cond.is_none();
     for w in ends.windows(2) {
         cx.tick(1)?;
         let (a, c) = (w[0], w[1]);
@@ -540,6 +546,15 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
         }
         let la = side_limit(cx, b, f, x, a.1, true)?;
         let lc = side_limit(cx, b, f, x, c.1, false)?;
+        for l in [la, lc] {
+            bounded &= match l {
+                Some(l) => {
+                    let v = cx.eval(b.call("n", &[l]))?;
+                    matches!(h.view(v), View::Real(y) if y.is_finite()) || matches!(h.view(v), View::Int(_))
+                }
+                None => false,
+            };
+        }
         if let (Some(la), Some(lc)) = (la, lc) {
             if [la, lc].contains(&inf) && [la, lc].contains(&ninf) {
                 return Ok(Ans::Bool(true));
@@ -619,6 +634,9 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
             }
         }
     }
+    if bounded && !images.is_empty() {
+        return Ok(Ans::Bool(false));
+    }
     // every image known (and every break point listed, not a family): a value outside all of them (0, or an end
     // of an image), decided exactly
     if images.is_empty() || images.iter().any(|i| i.is_none()) || families {
@@ -661,6 +679,47 @@ fn surjective_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h
         return Ok(Ans::Bool(false));
     }
     Ok(Ans::Unknown)
+}
+
+/// `f = P sin(w)` or `P cos(w)` (`w` affine in `x` with a nonzero slope, `P` free of that factor) with `P^2 -> inf`
+/// at `inf` or `-inf`, for an `f` continuous on the whole line: at the points where the circular factor is 1 and -1
+/// (a sequence tending to that end) the values are `P` and `-P`, and `P` keeps one sign there (continuous and
+/// nonzero), so f has values beyond every bound of both signs and takes every real value (`exp(x^2/4) sin(x)`).
+fn oscillates_unboundedly<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<bool> {
+    let h = b.heap();
+    let View::App { head, args } = h.view(f) else { return Ok(false) };
+    if b.sym_of(head) != Some(b.hd.mul) {
+        return Ok(false);
+    }
+    let mut circ = None;
+    let mut rest = vec![];
+    for &a in args {
+        let is_circ = matches!(h.view(a), View::App { head: ah, args: &[w] } if b.sym_of(ah).is_some_and(|s| matches!(h.sym_name(s).as_str(), "sin" | "cos")) && !is_free(b, w, x));
+        if is_circ && circ.is_none() {
+            circ = Some(a);
+        } else {
+            rest.push(a);
+        }
+    }
+    let Some(cf) = circ else { return Ok(false) };
+    let View::App { args: &[w], .. } = h.view(cf) else { return Ok(false) };
+    if !super::range::affine_in(cx, b, w, x)? || rest.is_empty() {
+        return Ok(false);
+    }
+    let p = cx.eval(b.mul(&rest))?;
+    // P free of the circular factor (its argument w)
+    if !is_free(b, p, cf) {
+        return Ok(false);
+    }
+    let inf = h.sym_term(h.sym("inf"));
+    let p2 = cx.eval(b.powi(p, 2))?;
+    for at in [inf, cx.eval(b.neg(inf))?] {
+        let l = cx.eval(b.call("limit", &[p2, h.call(h.sym(names::RULE), &[x, at])]))?;
+        if l == inf {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// One complex variable (module comment).
@@ -786,6 +845,16 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps:
     }
     if s.dom == Dom::Integers {
         return Ok(Ans::Unknown);
+    }
+    // a special function of an affine argument whose injectivity the table records
+    if s.comps.len() == 1 && s.vars.len() == 1 && s.cond.is_none() && s.ycond.is_none() {
+        if let Some(hit) = super::range::table_call(cx, b, s.comps[0], s.vars[0], &s.facts)? {
+            if super::range::affine_in(cx, b, hit.arg, s.vars[0])? {
+                if let Some(v) = hit.injective(cx, b, complex)? {
+                    return Ok(Ans::Bool(v));
+                }
+            }
+        }
     }
     // a special function periodic in the variable for the parameters' facts (the table): not injective
     if s.comps.len() == 1 && s.vars.len() == 1 && !complex && s.cond.is_none() && s.ycond.is_none() {

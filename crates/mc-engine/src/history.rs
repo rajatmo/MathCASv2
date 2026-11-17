@@ -127,9 +127,39 @@ impl Native for Out {
         let n = if k > 0 { Some(k) } else { line.map(|l| l + k).filter(|&n| n > 0) };
         let value = n.and_then(|n| cx.value(h.sym(&entry(n as u64))));
         Ok(Reply::Done(match value {
-            Some(v) => v,
+            Some(v) => without_display_wrapper(h, v),
             None => failure(h, &[h.int(n.unwrap_or(k))], "history"),
         }))
+    }
+}
+
+/// Display forms that only change how a value is shown: an output read back through `out` is the value inside one
+/// of them at the top (`short(list)` shows a shortened list, `out()` is the list).
+const DISPLAY_WRAPPERS: [&str; 18] = [
+    "short",
+    "shallow",
+    "matrix_form",
+    "table_form",
+    "tree_form",
+    "full_form",
+    "input_form",
+    "output_form",
+    "standard_form",
+    "traditional_form",
+    "tex_form",
+    "number_form",
+    "scientific_form",
+    "engineering_form",
+    "accounting_form",
+    "padded_form",
+    "percent_form",
+    "base_form",
+];
+
+fn without_display_wrapper<'h>(h: &'h Heap, v: T<'h>) -> T<'h> {
+    match h.view(v) {
+        View::App { head, args: [inner, ..] } if matches!(h.view(head), View::Sym(s) if DISPLAY_WRAPPERS.contains(&h.sym_name(s).as_str())) => *inner,
+        _ => v,
     }
 }
 

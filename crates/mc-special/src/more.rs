@@ -1575,22 +1575,7 @@ fn hyperfactorial<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         if fx.num(a[0]).is_some() && any_inexact(fx, a) {
             return hyperfactorial_numeric(fx, a);
         }
-        // an exact z > -1 with denominator 2 or 4: H(z) = Gamma(z + 1)^z/G(z + 1) (the form of log K below for
-        // Re(z + 1) > 0, Gamma(z + 1) > 0), with the closed forms of G at halves and quarters
-        if let Some(q) = fx.rat_of(a[0]) {
-            let small_den = q.den == Nat::from_u64(2) || q.den == Nat::from_u64(4);
-            let z = fx.f64_of(a[0]).unwrap_or(f64::NAN);
-            if small_den && z > -1.0 && z < 50.0 {
-                let z1 = fx.add(&[a[0], fx.int(1)]);
-                let g = fx.eval(fx.call("barnes_g", &[z1]))?;
-                if fx.call_of(g, "barnes_g").is_some() {
-                    return Ok(None);
-                }
-                let v = fx.div(fx.pow(fx.call("gamma", &[z1]), a[0]), g);
-                return Ok(Some(fx.eval(v)?));
-            }
-        }
-        return Ok(None);
+        return Ok(hyperfactorial_quarter(fx, a[0]));
     };
     let mut p = Int::from_i64(1);
     for j in 1..=k {
@@ -1598,6 +1583,47 @@ fn hyperfactorial<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         fx.tick(1)?;
     }
     Ok(Some(fx.integer(&p)))
+}
+
+/// H(z) in closed form at z = p/2 and z = p/4 (not an integer) with -1 < z <= 64, from the K-function
+/// K(a) = H(a - 1) = exp(zeta'(-1, a) - zeta'(-1)) and zeta'(-1) = 1/12 - log A (A Glaisher's constant):
+///
+/// - zeta'(-1, 1/2) = -zeta'(-1)/2 - log(2)/24 (from zeta(s, 1/2) = (2^s - 1) zeta(s)), so
+///   H(-1/2) = K(1/2) = 2^(-1/24) e^(-1/8) A^(3/2);
+/// - zeta'(-1, 1/4) = G/(4 pi) - zeta'(-1)/8 with Catalan's G (Adamchik, *Polygamma functions of negative order*,
+///   J. Comput. Appl. Math. 100 (1998)), and zeta'(-1, 1/4) + zeta'(-1, 3/4) = -zeta'(-1)/4 (from zeta(s, 1/4) +
+///   zeta(s, 3/4) = (4^s - 2^s) zeta(s)), so H(-3/4) = K(1/4) = e^(-3/32 + G/(4 pi)) A^(9/8) and
+///   H(-1/4) = K(3/4) = e^(-3/32 - G/(4 pi)) A^(9/8);
+/// - upwards by H(z) = z^z H(z - 1) (from zeta(s, a) = a^(-s) + zeta(s, a + 1)), z > 0.
+fn hyperfactorial_quarter<'h>(fx: &Fx<'_, '_, '_, 'h>, z: T<'h>) -> Option<T<'h>> {
+    let q = fx.rat_of(z)?;
+    let den = i64::try_from(q.den.to_u128()?).ok()?;
+    let num = q.num.to_i64()?;
+    // z = num/den with -1 < z <= 64
+    if !(den == 2 || den == 4) || num <= -den || num > 64 * den {
+        return None;
+    }
+    // the base z0 = z - steps in (-1, 0)
+    let steps = (num + den - 1).div_euclid(den);
+    let z0 = (num - steps * den, den);
+    if !(z0.0 < 0 && z0.0 > -z0.1) {
+        return None;
+    }
+    let glaisher = fx.sym("glaisher");
+    let e = |t: T<'h>| fx.call("exp", &[t]);
+    let g4pi = fx.div(fx.sym("catalan"), fx.mul(&[fx.int(4), fx.sym("pi")]));
+    let base = match (z0.0, z0.1) {
+        (-1, 2) => fx.mul(&[fx.pow(fx.int(2), fx.rat(-1, 24)), e(fx.rat(-1, 8)), fx.pow(glaisher, fx.rat(3, 2))]),
+        (-3, 4) => fx.mul(&[e(fx.add(&[fx.rat(-3, 32), g4pi])), fx.pow(glaisher, fx.rat(9, 8))]),
+        (-1, 4) => fx.mul(&[e(fx.sub(fx.rat(-3, 32), g4pi)), fx.pow(glaisher, fx.rat(9, 8))]),
+        _ => return None,
+    };
+    let mut fs = vec![base];
+    for j in 1..=steps {
+        let zj = fx.rat(z0.0 + j * den, den);
+        fs.push(fx.pow(zj, zj));
+    }
+    Some(fx.mul(&fs))
 }
 
 /// H(z) at an inexact z as the K-function K(z + 1) = exp(zeta'(-1, z + 1) - zeta'(-1)) (DLMF 5.17; the definition behind

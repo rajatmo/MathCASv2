@@ -506,6 +506,14 @@ impl Native for FindInstance {
             return Ok(Reply::Done(r));
         }
         let r = self.inner.call(cx, t, args)?;
+        // equations with analytic functions over the complex numbers: the unknowns fixed one by one; also when the
+        // method before found no point (it searches the reals: sin(x) == 3 has complex solutions)
+        let none = matches!(&r, Reply::Done(v) if cx.as_list(*v).is_some_and(|l| l.is_empty()));
+        if matches!(r, Reply::Decline) || none {
+            if let Some(s) = crate::analytic::find(cx, args, none)? {
+                return Ok(Reply::Done(s));
+            }
+        }
         if matches!(r, Reply::Decline) {
             // one integer variable that no other path took: the search
             let h = cx.heap();

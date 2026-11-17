@@ -18,6 +18,7 @@
 //!
 //! Decisions of this crate are numbered 3B.1, 3B.2, ... in the comments where they are applied.
 #![warn(missing_docs)]
+mod branches;
 mod chart;
 mod bounds;
 mod cx;
@@ -31,6 +32,7 @@ mod nsolve;
 mod numroots;
 mod order;
 mod plog;
+mod realline;
 pub mod realroots;
 mod reduce;
 mod reduce_cx;

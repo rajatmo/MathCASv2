@@ -1126,9 +1126,19 @@ fn ls_khinchin(p) = {
   var alt = 0
   for k in range(ceiling(1.7*w) + 2) {
     alt = alt + (-1)^(2*k)/(2*k - 1) - (if k > 1 then 1/(2*k - 2) else 0)
-    s = s + (n(zeta(2*k), w + ceiling(1.25*k) + 6) - 1)/k*n(alt, w)
+    s = s + ls_zeta_even_tail(k, w)/k*n(alt, w)
   }
   n(exp(s/log(2)), p)
+}
+
+# zeta(2k) - 1 to w digits: from the exact zeta(2k) while few terms of sum_(m >= 2) m^(-2k) do not reach w digits,
+# else that sum to m = M directly, its rest below M^(1 - 2k)/(2k - 1) < 10^-(w + 6) (the integral bound)
+fn ls_zeta_even_tail(k, w) = {
+  let lim = 10^((w + 6)/(2*k - 1))
+  if lim > 200 then n(zeta(2*k), w + ceiling(1.25*k) + 6) - 1 else {
+    let big = ceiling(n(lim)) + 1
+    total(map(m => n(m, w + 6)^(-2*k), range(2, big)))
+  }
 }
 
 # champernowne_number(b): the base-b number 0.123456789(10)(11)... whose digits are the integers written one after

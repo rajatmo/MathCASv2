@@ -514,6 +514,14 @@ fn inverse_weierstrass_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> 
         Some(_) => return Ok(None),
         None => (a[0], None),
     };
+    // g2 = g3 = 0: p(u) = 1/u^2, and u = p^(-1/2), the value R_F(p, p, p) of the formula below (complex infinity at
+    // p = 0, the pole of p being the only point where it is not finite)
+    if q.is_none() && fx.is_int(g2, 0) && fx.is_int(g3, 0) {
+        if fx.is_int(p, 0) {
+            return Ok(Some(fx.sym("complex_infinity")));
+        }
+        return Ok(Some(fx.pow(p, fx.rat(-1, 2))));
+    }
     let mut args = vec![p, g2, g3];
     if let Some(q) = q {
         args.push(q);

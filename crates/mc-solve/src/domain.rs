@@ -655,20 +655,61 @@ fn transcendental<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
     false
 }
 
-/// The real bounds `(lo, hi)` of `x` the conditions `x < v`, `v <= x`, ... give (numeric values).
+/// A relation `l op r` linear in `x` with numeric coefficients (`a x + b op 0`, a != 0, or its negation `not(...)`)
+/// as `x op' v`: (upper bound, v).
+fn linear_bound<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, c: T<'h>) -> Res<Option<(bool, T<'h>)>> {
+    let h = cx.heap();
+    let (c, negated) = match (head_name(h, c).as_deref(), h.view(c)) {
+        (Some("not"), View::App { args: &[inner], .. }) => (inner, true),
+        _ => (c, false),
+    };
+    let Some(name) = head_name(h, c) else { return Ok(None) };
+    let View::App { args: &[l, r], .. } = h.view(c) else { return Ok(None) };
+    // a < b: upper bound on (a - b)/coef when coef > 0
+    let less = match name.as_str() {
+        "less" | "less_equal" => true,
+        "greater" | "greater_equal" => false,
+        _ => return Ok(None),
+    };
+    let d = cx.eval(h.call(h.sym(names::ADD), &[l, h.call(h.sym(names::MUL), &[h.int(-1), r])]))?;
+    let cl = cx.eval(h.call(h.sym("coefficient_list"), &[d, x]))?;
+    let Some(&[b, a]) = cx.as_list(cl) else { return Ok(None) };
+    if mentions(h, a, &[x]) || mentions(h, b, &[x]) {
+        return Ok(None);
+    }
+    let na = cx.eval(h.call(h.sym("n"), &[a]))?;
+    let sa = match h.view(na) {
+        View::Real(f) if f != 0.0 && f.is_finite() => f > 0.0,
+        View::Int(k) if k != 0 => k > 0,
+        _ => return Ok(None),
+    };
+    let v = cx.eval(h.call(h.sym(names::MUL), &[h.int(-1), b, h.call(h.sym("pow"), &[a, h.int(-1)])]))?;
+    // a x + b < 0 with a > 0: x < -b/a (an upper bound); a negation or a < 0 turns it
+    Ok(Some((less == sa && !negated || less != sa && negated, v)))
+}
+
+/// The real bounds `(lo, hi)` of `x` the conditions `x < v`, `v <= x`, `2 x - pi <= 0`, `not(x < 1)`, ... give
+/// (numeric values).
 fn real_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, conds: &[T<'h>]) -> Res<(Option<f64>, Option<f64>)> {
     let h = cx.heap();
     let (mut lo, mut hi) = (None::<f64>, None::<f64>);
     for &c in conds {
         let Some(name) = head_name(h, c) else { continue };
-        let View::App { args: &[l, r], .. } = h.view(c) else { continue };
-        let (upper, v) = match (name.as_str(), l == x, r == x) {
-            ("less" | "less_equal", true, false) => (true, r),
-            ("greater" | "greater_equal", true, false) => (false, r),
-            ("less" | "less_equal", false, true) => (false, l),
-            ("greater" | "greater_equal", false, true) => (true, l),
-            _ => continue,
+        let simple = match h.view(c) {
+            View::App { args: &[l, r], .. } => match (name.as_str(), l == x, r == x) {
+                ("less" | "less_equal", true, false) => Some((true, r)),
+                ("greater" | "greater_equal", true, false) => Some((false, r)),
+                ("less" | "less_equal", false, true) => Some((false, l)),
+                ("greater" | "greater_equal", false, true) => Some((true, l)),
+                _ => None,
+            },
+            _ => None,
         };
+        let found = match simple {
+            Some(s) => Some(s),
+            None => linear_bound(cx, x, c)?,
+        };
+        let Some((upper, v)) = found else { continue };
         let nv = cx.eval(h.call(h.sym("n"), &[v]))?;
         let f = match h.view(nv) {
             View::Real(f) if f.is_finite() => f,

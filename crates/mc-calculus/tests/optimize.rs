@@ -76,6 +76,7 @@ fn ranges_from_families_of_critical_points() {
     check(&[
         ("function_range(sin(x), x, y)", "-1 <= y and y <= 1"),
         ("function_range(fresnel_c(x), x, y)", "-fresnel_c(1) <= y and y <= fresnel_c(1)"),
-        ("function_range(x*sin(x), x, y)", "function_range(x*sin(x), x, y)"),
+        // continuous, with the values x at x = pi/2 + 2 k pi and -x at x = 3 pi/2 + 2 k pi: unbounded both ways
+        ("function_range(x*sin(x), x, y)", "true"),
     ]);
 }

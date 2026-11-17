@@ -720,8 +720,17 @@ fn nl_uc(f, g, tau, t, asm) = {
         ok = free_of(r, integrate)
       }
     }
-    if ok then simplify(r, assumptions: asm and fold((p, q) => p and q, map(x => x > 0, xs))) else null
+    if ok then simplify(r, assumptions: asm and fold((p, q) => p and q, map(x => x > 0, xs)))
+    else if length(ts) == 1 and some([unit_box, unit_triangle, unit_step, heaviside_theta, piecewise], hd => not free_of([f, g], hd)) then nl_uc_pieces(f, g, ts[1], xs[1], asm)
+    else null
   }
+}
+
+# one variable, f or g given by pieces: the integral over 0 <= tau <= t is the full-line convolution of f and g cut
+# to tau >= 0 (for t > 0 the cut factors are 1 on [0, t] and both vanish outside it), taken piece by piece
+fn nl_uc_pieces(f, g, tau, t, asm) = {
+  let r = if asm === true then convolve(f*unit_step(tau), g*unit_step(tau), tau, t) else convolve(f*unit_step(tau), g*unit_step(tau), tau, t, assumptions: asm)
+  if free_of(r, convolve) and free_of(r, integrate) then simplify(r, assumptions: asm) else null
 }
 
 # mellin_convolve(f, g, x, y): the Mellin convolution, the integral of f(x) g(y/x)/x over 0 < x < inf (y > 0);

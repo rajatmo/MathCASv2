@@ -227,10 +227,43 @@ fn lim<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, dep
             let s = if v == b.zero() && f == "asin" { s } else { 0 };
             Ok(Some(fin(cx, b.call(f, &[v]), s)?))
         }
+        // the logarithmic singularities: li(u) ~ log|log u| + gamma at u = 1 and Ei(u) ~ log|u| + gamma at u = 0 tend
+        // to -inf from both sides (both real there, DLMF 6.2.8, 6.6.1); Ci and Chi alike from above (6.6.2, 6.6.4;
+        // from below they carry i pi)
+        (f @ ("log_integral" | "exp_integral_ei" | "cos_integral" | "cosh_integral"), [u]) => {
+            let pole = if f == "log_integral" { b.one() } else { b.zero() };
+            match lim(cx, b, *u, t, d)? {
+                Some(Lim::Fin(v, s)) if v == pole => {
+                    let from_above = if f == "log_integral" { side_of(cx, b, b.sub(*u, b.one()), t, d)? == Some(1) } else { approach(cx, b, *u, t, s)? == 1 };
+                    if matches!(f, "log_integral" | "exp_integral_ei") || from_above {
+                        Ok(Some(Lim::Inf(-1)))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                // at an infinity as every special function of one argument (Ci(inf) = 0, Ei(inf) = inf, ...)
+                Some(Lim::Inf(sg)) if at_infinity_known(f, 0) => match at_infinity(cx, b, f, &[], sg)? {
+                    Some(l) => Ok(Some(l)),
+                    None => series(cx, b, g, t),
+                },
+                _ => series(cx, b, g, t),
+            }
+        }
         (f, [params @ .., u]) if at_infinity_known(f, params.len()) && params.iter().all(|&p| is_free(b, p, t)) => {
             // special functions as their argument tends to an infinity (decision IOSYM.8)
             match lim(cx, b, *u, t, d)? {
                 Some(Lim::Inf(sg)) => at_infinity(cx, b, f, params, sg),
+                None if matches!(f, "bessel_i" | "hypergeometric_1f1" | "hypergeometric_1f1_regularized") => {
+                    // along the imaginary axis: u = s i v with v -> inf
+                    let i = cx.eval(b.mul(&[b.int(-1), b.sym(b.heap().sym("im")), *u]))?;
+                    match lim(cx, b, i, t, d)? {
+                        Some(Lim::Inf(s)) => match at_imaginary_infinity(cx, b, f, params, s)? {
+                            Some(l) => Ok(Some(l)),
+                            None => series(cx, b, g, t),
+                        },
+                        _ => series(cx, b, g, t),
+                    }
+                }
                 _ => series(cx, b, g, t),
             }
         }
@@ -254,7 +287,7 @@ fn at_infinity_known(f: &str, params: usize) -> bool {
                 | "spherical_bessel_y" | "spherical_hankel_h1" | "spherical_hankel_h2" | "anger_j" | "weber_e"
                 | "parabolic_cylinder_d" | "struve_h" | "bessel_j_zero" | "bessel_y_zero"
         ),
-        2 => matches!(f, "hypergeometric_1f1" | "hypergeometric_1f1_regularized"),
+        2 => matches!(f, "hypergeometric_1f1" | "hypergeometric_1f1_regularized" | "hypergeometric_u"),
         _ => false,
     }
 }
@@ -267,7 +300,7 @@ fn at_infinity_known(f: &str, params: usize) -> bool {
 /// and Weber functions 11.11.8-11.11.10 (J_nu - J_nu and E_nu + Y_nu are O(1/x)); parabolic cylinder functions
 /// 12.9.1 (x^nu e^(-x^2/4)); Struve H 11.6.1 (H_nu - Y_nu ~ (x/2)^(nu - 1)/(sqrt(pi) Gamma(nu + 1/2)), real nu);
 /// confluent hypergeometric 13.7.1 (M(a, b, x) ~ e^x x^(a - b)/Gamma(a) for the regularized function, real a not
-/// a nonpositive integer).
+/// a nonpositive integer); Tricomi's U 13.7.3 (U(a, b, x) ~ x^(-a)).
 fn at_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: &str, params: &[T<'h>], sg: i8) -> Res<Option<Lim<'h>>> {
     let zero = || Some(Lim::Fin(b.zero(), 0));
     let pi = || b.sym(b.heap().sym("pi"));
@@ -301,6 +334,24 @@ fn at_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: &str, params
                 _ => None,
             }
         }
+        ("hypergeometric_u", 1) => {
+            // U(a, b, x) ~ x^(-a) (DLMF 13.7.3, coefficient 1): 0 for Re a > 0, 1 at a = 0 (U(0, b, x) = 1), inf for real
+            // a < 0; a with Re a = 0 and Im a != 0 turns without a limit, a symbolic a is not decided
+            let a = params[0];
+            if a == b.zero() {
+                return Ok(Some(Lim::Fin(b.one(), 0)));
+            }
+            let re = cx.eval(b.call("n", &[b.call("re", &[a])]))?;
+            if !matches!(b.heap().view(re), View::Real(_)) {
+                return Ok(None);
+            }
+            let real = cx.eval(b.call("im_part", &[a]))? == b.zero();
+            match sign(cx, b, re)? {
+                Some(1) => zero(),
+                Some(-1) if real => Some(Lim::Inf(1)),
+                _ => None,
+            }
+        }
         ("hypergeometric_1f1" | "hypergeometric_1f1_regularized", 1) => {
             // the sign of the factor of e^x x^(a - b): 1/Gamma(a), times Gamma(b) when not regularized
             let (a, bb) = (params[0], params[1]);
@@ -329,6 +380,72 @@ fn at_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: &str, params
         }
         _ => None,
     })
+}
+
+/// The limit of a special function as its argument tends to `im*inf` (`s` 1) or `-im*inf` (-1), where it is 0:
+/// I_nu(+-i v) = (+-i)^nu J_nu(v) and J_nu(v) = O(v^(-1/2)) (DLMF 10.27.6, 10.17.3) for any fixed nu; M(a, b, z) and
+/// its regularized form, whose expansion Gamma(b)/Gamma(b - a) (-z)^(-a) + Gamma(b)/Gamma(a) e^z z^(a - b) holds on
+/// the imaginary axis (DLMF 13.7.2), have both terms tending to 0 when Re a > 0 and Re(a - b) < 0 (|e^z| = 1 there),
+/// whatever the gamma factors (b not a nonpositive integer for the unregularized function). `None` otherwise.
+fn at_imaginary_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: &str, params: &[T<'h>], s: i8) -> Res<Option<Lim<'h>>> {
+    let _ = s;
+    let zero = Some(Lim::Fin(b.zero(), 0));
+    Ok(match f {
+        "bessel_i" => zero,
+        "hypergeometric_1f1" | "hypergeometric_1f1_regularized" => {
+            let (a, bb) = (params[0], params[1]);
+            let positive = |cx: &mut NativeCx<'_, '_, 'h>, v: T<'h>| -> Res<bool> {
+                let r = cx.eval(b.call("n", &[b.call("re", &[v])]))?;
+                Ok(sign(cx, b, r)? == Some(1) && matches!(b.heap().view(r), View::Real(_)))
+            };
+            if f == "hypergeometric_1f1" {
+                let r = cx.eval(b.call("and", &[b.call("element", &[bb, b.sym(b.heap().sym("integers"))]), b.call("less_equal", &[bb, b.zero()])]))?;
+                if cx.is_true(r) || !is_numeric_term(cx, b, bb)? {
+                    return Ok(None);
+                }
+            }
+            if positive(cx, a)? && positive(cx, b.sub(bb, a))? {
+                zero
+            } else {
+                None
+            }
+        }
+        _ => None,
+    })
+}
+
+/// Is `v` a numeric quantity (a number or an exact constant expression)?
+fn is_numeric_term<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'h>) -> Res<bool> {
+    let r = cx.eval(b.call("is_numeric", &[v]))?;
+    Ok(cx.is_true(r))
+}
+
+/// A product with the factors `subfactorial(u)` and `factorial(u)^-1` (or `gamma(u + 1)^-1`) for u -> +inf: their
+/// ratio is Gamma(u + 1, -1)/(e Gamma(u + 1)) = Q(u + 1, -1)/e, and Q(s, -1) = 1 - gamma(s, -1)/Gamma(s) -> 1 since
+/// |gamma(s, -1)| = |int_0^-1 t^(s-1) e^-t dt| <= e for s >= 1 (DLMF 8.2.1, 8.4.15 for the subfactorial) while
+/// Gamma(s) -> inf. The ratio becomes 1/e and the limit of the rest is taken; `None` when the pattern is not there.
+fn subfactorial_ratio<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>], t: T<'h>, d: u32) -> R<'h> {
+    let mut sub = None;
+    for (i, &a) in args.iter().enumerate() {
+        if let Some((n, [u])) = call_of(b, a) {
+            if n == "subfactorial" {
+                sub = Some((i, *u));
+            }
+        }
+    }
+    let Some((i, u)) = sub else { return Ok(None) };
+    let fact = b.call("factorial", &[u]);
+    let gam = cx.eval(b.call("gamma", &[b.add(&[u, b.one()])]))?;
+    let Some(j) = args.iter().position(|&a| matches!(args_of(b, a, b.hd.pow), Some([f, p]) if (*f == fact || *f == gam) && *p == b.int(-1))) else {
+        return Ok(None);
+    };
+    if !matches!(lim(cx, b, u, t, d)?, Some(Lim::Inf(1))) {
+        return Ok(None);
+    }
+    let mut rest: Vec<T<'h>> = args.iter().enumerate().filter(|&(k, _)| k != i && k != j).map(|(_, &a)| a).collect();
+    rest.push(b.call("exp", &[b.int(-1)]));
+    let r = cx.eval(b.mul(&rest))?;
+    lim(cx, b, r, t, d)
 }
 
 /// `Lim::Fin` of the evaluated `v`.
@@ -531,6 +648,9 @@ fn dominant_term<'h>(
 
 /// The limit of a product.
 fn product<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, args: &[T<'h>], t: T<'h>, d: u32) -> R<'h> {
+    if let Some(r) = subfactorial_ratio(cx, b, args, t, d)? {
+        return Ok(Some(r));
+    }
     let mut fins = Vec::new();
     let (mut small, mut big, mut finite, mut bnd) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     let (mut zero_side, mut inf_sign) = (1i8, 1i8);

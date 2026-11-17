@@ -458,8 +458,15 @@ pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
             let out = cx.without_continues(out);
             return Ok(Reply::Done(cx.list(&out)));
         }
-        // a symbol alone at the end is neither an iterator nor a count
-        [.., last] if args.len().is_multiple_of(2) && matches!(h.view(last), View::Sym(_)) => return Ok(Reply::Decline),
+        // a symbol alone at the end is neither an iterator nor a count, unless an earlier iterator binds it: then it
+        // is a count that depends on that iterator (`table(e, j, 3, j)` repeats e j times for each j)
+        [.., last]
+            if args.len().is_multiple_of(2)
+                && matches!(h.view(last), View::Sym(_))
+                && !args[1..args.len() - 1].iter().step_by(2).any(|&k| k == last) =>
+        {
+            return Ok(Reply::Decline)
+        }
         [e, k, r, ..] => (e, k, r),
         _ => return Ok(Reply::Decline),
     };
@@ -467,6 +474,9 @@ pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
         return Ok(Reply::Done(lib.bad_arg(h, t, 2)));
     }
     let vs = take!(iterator_values(lib, cx, t, r, 3)?);
+    // an earlier output read in the body (`table(out(), n, 0, 30)` over an output in n) is that output's value, in
+    // which the iterator then stands for its values
+    let e = with_outputs_read(cx, e)?;
     // the remaining iterators run inside the body
     let body = if args.len() > 3 {
         let mut inner = vec![e];
@@ -486,6 +496,37 @@ pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
     let out = if parallel { cx.group_parallel_loop(vs.len(), &elem)? } else { cx.group_loop(vs.len(), cost, &elem)? };
     let out = cx.without_continues(out);
     Ok(Reply::Done(cx.list(&out)))
+}
+
+/// `e` with each history read `out()` / `out(k)` (atoms as arguments) replaced by its value.
+fn with_outputs_read<'h>(cx: &mut NativeCx<'_, '_, 'h>, e: T<'h>) -> Res<T<'h>> {
+    let h = cx.heap();
+    // each distinct subterm once (a body may hold a value with deeply shared parts)
+    let mut calls = vec![];
+    let mut seen = std::collections::HashSet::new();
+    let mut stack = vec![e];
+    while let Some(t) = stack.pop() {
+        if !seen.insert(t) {
+            continue;
+        }
+        cx.tick(1)?;
+        if let View::App { head, args } = h.view(t) {
+            if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "out") && args.iter().all(|&a| matches!(h.view(a), View::Int(_))) {
+                calls.push(t);
+                continue;
+            }
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    if calls.is_empty() {
+        return Ok(e);
+    }
+    let mut pairs = vec![];
+    for c in calls {
+        pairs.push((c, cx.eval(c)?));
+    }
+    Ok(mc_numfn::replace(h, e, &mut |u| pairs.iter().find(|(v, _)| *v == u).map(|&(_, w)| w)))
 }
 
 /// The fewest values for which [`compiled_table`] compiles the body: below this the interpreter is as fast as the
