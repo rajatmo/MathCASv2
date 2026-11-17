@@ -8,6 +8,9 @@ The files of the Flatpak package `io.github.rajatmo.MathCASv2`:
 - `cargo-sources.json`: every crate of that tag's `Cargo.lock` as a source, written by `gen-cargo-sources.py`.
 - `io.github.rajatmo.MathCASv2.desktop`, `.metainfo.xml`, `.xml` (the MIME types of `.mcn` and `.mc`).
 
+`build-bundle.sh` builds this checkout (not a tag) into one file, `MathCAS-v2-<version>-<commit>-linux-x64.flatpak`,
+which each release carries; `flatpak install --user` takes it.
+
 For a new release: change `tag`, `commit` and `MC_COMMIT` in the manifest, add a `<release>` to the metainfo
 file, and write the crate sources again from the tag's lock file:
 

@@ -4,6 +4,8 @@
 
 **Linux.** The tarball and the AppImage are built against an older C library (glibc 2.35), so they run on
 Ubuntu 22.04, Debian 12 and other systems of that age; before, they needed the newest one.
+A Flatpak bundle (`MathCAS-v2-<version>-linux-x64.flatpak`) is built with each release:
+`flatpak install --user` it and run `io.github.rajatmo.MathCASv2`.
 
 ## 0.16.1 (2026-11-17)
 

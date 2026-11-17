@@ -1,6 +1,6 @@
 # Packages: build the Windows installer and zip (tools/dist.ps1, tools/package.ps1), the Linux tarball and AppImage
 # (packaging/linux/build-tarball.sh, build-appimage.sh), the macOS disk images for Apple Silicon and Intel (packaging/macos/build-app.sh) and the
-# Android package (packaging/android/build-apk.sh), check each, and upload them as the artifacts `windows`, `linux`,
+# Android package (packaging/android/build-apk.sh), check each, and upload them as the artifacts `windows`, `linux`, `flatpak`,
 # `macos-arm64`, `macos-x64` and `android`.
 # Called by release.yml (tags) and nightly.yml (pushes to main); the tests run in ci.yml.
 #
@@ -131,6 +131,35 @@ jobs:
           path: |
             dist-linux/MathCAS-v2-*.tar.gz
             dist-linux/MathCAS-v2-*.AppImage
+          if-no-files-found: error
+          retention-days: 7
+
+  flatpak:
+    name: Flatpak bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Flatpak and its builder
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends flatpak flatpak-builder
+      - name: Cache the downloaded crates and the builder's state
+        uses: actions/cache@v4
+        with:
+          path: target/flatpak/.flatpak-builder
+          key: flatpak-${{ hashFiles('Cargo.lock') }}
+          restore-keys: flatpak-
+      - name: Build the bundle (packaging/flatpak/build-bundle.sh)
+        run: bash packaging/flatpak/build-bundle.sh dist-flatpak
+      - name: Smoke test the bundle
+        run: |
+          flatpak install --user -y --noninteractive dist-flatpak/MathCAS-v2-*.flatpak
+          flatpak run --command=mc-repl io.github.rajatmo.MathCASv2 -e "factor(x^4 - 1)" -e "integrate(1/(1 + x^2), [x, 0, inf])"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak
+          path: dist-flatpak/MathCAS-v2-*.flatpak
           if-no-files-found: error
           retention-days: 7
 
