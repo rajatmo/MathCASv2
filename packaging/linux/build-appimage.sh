@@ -65,6 +65,12 @@ if [ -z "$tool" ]; then
 fi
 image="$out/$name.AppImage"
 case "$name" in *-linux-x64) arch=x86_64 ;; *-linux-arm64) arch=aarch64 ;; *) arch="$(uname -m)" ;; esac
-ARCH="$arch" "$tool" --no-appstream "$appdir" "$image"
+# Update information: where a tool such as AppImageUpdate finds the newest release and the file that lets it
+# fetch only what changed (written beside the image as <image>.zsync when zsyncmake is installed).
+update=()
+if command -v zsyncmake >/dev/null 2>&1; then
+  update=(-u "gh-releases-zsync|rajatmo|MathCASv2|latest|MathCAS-v2-*-linux-${name##*-linux-}.AppImage.zsync")
+fi
+(cd "$out" && ARCH="$arch" "$tool" --no-appstream ${update[@]+"${update[@]}"} "$appdir" "$image")
 rm -rf "$appdir"
 echo "$image"

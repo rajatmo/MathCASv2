@@ -1,5 +1,10 @@
 # Changelog
 
+## Not released yet
+
+**Linux.** The AppImage carries update information, and each release has its `.zsync` file: AppImageUpdate and
+similar tools can bring an installed AppImage to the newest release.
+
 ## 0.16.3 (2026-11-17)
 
 **Linux.** The AppImage carries the keyboard libraries the window needs under X11 (`libxkbcommon-x11` and
