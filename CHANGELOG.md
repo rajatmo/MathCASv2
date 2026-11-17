@@ -1,5 +1,11 @@
 # Changelog
 
+## Not released yet
+
+**Linux.** The AppImage carries the keyboard libraries the window needs under X11 (`libxkbcommon-x11` and
+what it uses), so it starts on a system that does not have them; the package build opens the window on a bare
+display to check it.
+
 ## 0.16.2 (2026-11-17)
 
 **Linux.** The tarball and the AppImage are built against an older C library (glibc 2.35), so they run on

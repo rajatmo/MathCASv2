@@ -1,0 +1,10 @@
+# Notebook self-test for the Linux package build: the window opens on a bare display, an input is evaluated by
+# the kernel and a picture of the window is written.
+size 900 600
+new
+keys Ctrl+End "1 + 1"
+eval
+wait 60
+shot window
+wait 10
+quit

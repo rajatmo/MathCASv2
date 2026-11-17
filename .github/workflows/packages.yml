@@ -94,7 +94,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
       - name: System libraries for the windowing crates
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxi-dev libxcursor-dev libxrandr-dev libgl-dev libfontconfig-dev
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxi-dev libxcursor-dev libxrandr-dev libgl-dev libfontconfig-dev libxkbcommon-x11-0 libxcb-xkb1 xvfb libgl1-mesa-dri libegl1
       - name: Rust toolchain
         run: rustup toolchain install stable --profile minimal && rustup default stable
       - name: Build the tarball (packaging/linux/build-tarball.sh)
@@ -125,6 +125,18 @@ jobs:
           image="$(ls dist-linux/MathCAS-v2-*.AppImage)"
           chmod +x "$image"
           "$image" repl -e "factor(x^4 - 1)" -e "integrate(1/(1 + x^2), [x, 0, inf])"
+      # the window, as a catalog of AppImages tests it: a display without a graphics card, the keyboard library
+      # taken from the image (the system's is hidden from the loader's cache by removing its package)
+      - name: The AppImage opens its window on a bare display
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          sudo apt-get remove -y libxkbcommon-x11-0
+          mkdir window-test && cp packaging/linux/smoke-window.selftest window-test/script.txt
+          image="$(ls dist-linux/MathCAS-v2-*.AppImage)"
+          export MCNB_SELFTEST="$PWD/window-test/script.txt" MCNB_CONFIG_DIR="$PWD/window-test/config" MCUI_CLIPBOARD=local
+          timeout 180 xvfb-run -a -s "-screen 0 1280x800x24" "$image"
+          test -s window-test/window.png
       - uses: actions/upload-artifact@v4
         with:
           name: linux

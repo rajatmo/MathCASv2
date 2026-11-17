@@ -22,6 +22,23 @@ for f in README.md README-linux.txt LICENSE THIRD-PARTY-NOTICES.txt CHANGELOG.md
   cp "$staged/$f" "$appdir/usr/share/doc/mathcas-v2/"
 done
 cp -r "$staged/examples" "$appdir/usr/share/doc/mathcas-v2/examples"
+# Libraries the window toolkit loads by name when it starts (keyboard layouts under X11) and that a small system
+# does not have: they travel in the image, with their copyright files, and AppRun puts them on the library path.
+mkdir -p "$appdir/usr/lib" "$appdir/usr/share/doc/mathcas-v2/bundled-libraries"
+for lib in libxkbcommon-x11.so.0 libxkbcommon.so.0 libxcb-xkb.so.1; do
+  path="$(ldconfig -p | awk -v l="$lib" '$1 == l { print $NF; exit }')"
+  if [ -z "$path" ]; then
+    echo "build-appimage.sh: $lib is not installed here (packages libxkbcommon-x11-0, libxkbcommon0, libxcb-xkb1)" >&2
+    exit 4
+  fi
+  cp -L "$path" "$appdir/usr/lib/$lib"
+  ln -sf "$lib" "$appdir/usr/lib/${lib%.so.*}.so"
+done
+for pkg in libxkbcommon-x11-0 libxkbcommon0 libxcb-xkb1; do
+  if [ -f "/usr/share/doc/$pkg/copyright" ]; then
+    cp "/usr/share/doc/$pkg/copyright" "$appdir/usr/share/doc/mathcas-v2/bundled-libraries/$pkg.copyright"
+  fi
+done
 # the AppImage's own entry: the notebook, with the program name AppRun dispatches on
 sed -e 's|^Exec=mc-notebook|Exec=mathcas|' -e '/^TryExec=/d' "$staged/share/applications/mathcas-notebook.desktop" \
   > "$appdir/mathcas.desktop"
@@ -35,6 +52,8 @@ program=mc-notebook
 case "${1:-}" in
   repl|docs|kernel|lsp|docs-pages|bench) program="mc-$1"; shift ;;
 esac
+# the libraries that travel in the image (build-appimage.sh), before the system's
+export LD_LIBRARY_PATH="$here/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec "$here/usr/bin/$program" "$@"
 APPRUN
 chmod 755 "$appdir/AppRun"
