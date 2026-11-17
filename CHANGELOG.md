@@ -1,6 +1,6 @@
 # Changelog
 
-## Not released yet
+## 0.16.0 (2026-11-17)
 
 **macOS on Intel.** The disk image is also built for Macs with an Intel processor
 (`MathCAS-v2-<version>-macos-x64.dmg`), beside the one for Apple Silicon.
