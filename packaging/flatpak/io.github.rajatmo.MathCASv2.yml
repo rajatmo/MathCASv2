@@ -22,7 +22,7 @@ build-options:
   env:
     CARGO_HOME: /run/build/mathcas/cargo
     CARGO_NET_OFFLINE: 'true'
-    MC_COMMIT: bb336dd
+    MC_COMMIT: 9e5a755
 modules:
   - name: mathcas
     buildsystem: simple
@@ -41,8 +41,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/rajatmo/MathCASv2.git
-        tag: v0.16.2
-        commit: bb336ddc35cf1b78125ba3e0ed7d2cada1f3a300
+        tag: v0.16.3
+        commit: 9e5a75546d2bde22512870d9c56889de8771d764
       - cargo-sources.json
       - type: file
         path: io.github.rajatmo.MathCASv2.desktop
