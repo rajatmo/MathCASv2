@@ -6,7 +6,7 @@
 # written from this checkout's Cargo.lock.
 # Usage: packaging/flatpak/build-bundle.sh [OUTDIR]       (default OUTDIR: <work dir>/packages)
 # Environment: FLATPAK_WORK (the work folder, default ./target/flatpak), MC_COMMIT (when the source is not a git
-# checkout). Needs flatpak, flatpak-builder and python3; the runtime, the SDK and the Rust extension are installed
+# checkout). Needs flatpak, flatpak-builder, elfutils (eu-strip) and python3; the runtime, the SDK and the Rust extension are installed
 # for this user from Flathub when they are missing. Prints the bundle's path last.
 set -euo pipefail
 
