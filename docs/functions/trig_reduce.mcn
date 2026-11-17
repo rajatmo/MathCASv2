@@ -12,6 +12,9 @@
 #% item
 # The product-to-sum formulas are applied until no product of trigonometric functions remains; the result is linear in sines and cosines.
 
+#% item
+# The form: the positive rational factor common to the coefficients of the sum is written outside, and the sum keeps integer coefficients without a common factor, as in `(1/8)*(3 - 4*cos(2*x) + cos(4*x))`. Lists, equations, inequalities and logical combinations are reduced part by part.
+
 #% section
 # Examples
 
@@ -21,22 +24,22 @@
 #% cell
 trig_reduce(sin(x)^2)
 #% output
-#= 1/2 - (1/2)*cos(2*x)
+#= (1/2)*(1 - cos(2*x))
 
 #% cell
 trig_reduce(sin(x)*cos(y))
 #% output
-#= (1/2)*sin(x + y) + (1/2)*sin(x - y)
+#= (1/2)*(sin(x + y) + sin(x - y))
 
 #% cell
 trig_reduce(cos(x)^3)
 #% output
-#= (1/4)*cos(3*x) + (3/4)*cos(x)
+#= (1/4)*(cos(3*x) + 3*cos(x))
 
 #% cell
 trig_reduce(sin(x)^2*cos(x)^2)
 #% output
-#= 1/8 - (1/8)*cos(4*x)
+#= (1/8)*(1 - cos(4*x))
 
 #% subsection
 # Applications
@@ -47,7 +50,7 @@ trig_reduce(sin(x)^2*cos(x)^2)
 #% cell
 integrate(trig_reduce(sin(x)^4), x)
 #% output
-#= (-1/4)*sin(2*x) + (1/32)*sin(4*x) + (3/8)*x
+#= (1/8)*(-2*sin(2*x) + (1/4)*sin(4*x) + 3*x)
 
 #% subsection
 # Properties and relations

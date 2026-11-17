@@ -451,9 +451,28 @@ fn ff_tf_lin(f) =
     else f
   }
   else f
+# the factors (-1 + t)^k (1 + t)^j of one argument, t = cos(u), sin(u) or cosh(u), merged by the Pythagorean
+# identities: (-1 + t) (1 + t) = t^2 - 1 is -sin(u)^2, -cos(u)^2 or sinh(u)^2; bs holds [base, exponent] pairs
+fn ff_tf_base(f) = if not is_atom(f) and head(f) === pow and is_integer(f[2]) then [f[1], f[2]] else [f, 1]
+fn ff_tf_pyth1(bs, t) = {
+  let lo = select(bs, q => q[1] === -1 + t)
+  let hi = select(bs, q => q[1] === 1 + t)
+  if length(lo) == 0 or length(hi) == 0 then bs else {
+    let k = min(lo[1][2], hi[1][2])
+    let sq = if head(t) === cosh then sinh(t[1])^(2*k) else if head(t) === cos then (-1)^k*sin(t[1])^(2*k) else (-1)^k*cos(t[1])^(2*k)
+    let others = select(bs, q => q[1] !== -1 + t and q[1] !== 1 + t)
+    join(others, [[lo[1][1], lo[1][2] - k], [hi[1][1], hi[1][2] - k], [sq, 1]])
+  }
+}
+fn ff_tf_pyth(bs, ts) = if length(ts) == 0 then bs else ff_tf_pyth(ff_tf_pyth1(bs, first(ts)), rest(ts))
+fn ff_tf_terms(bs) = unique(flat_map(q => if not is_atom(q[1]) and head(q[1]) === add and length(q[1]) == 2 and q[1][1] === -1
+  and not is_atom(q[1][2]) and member_of([cos, sin, cosh], head(q[1][2])) then [q[1][2]] else [], bs))
 fn ff_tf_poly(p) = {
   let f = factor(p)
-  if not is_atom(f) and head(f) === mul then product(map(ff_tf_pow, apply(list, f))) else ff_tf_pow(f)
+  let fs = if not is_atom(f) and head(f) === mul then apply(list, f) else [f]
+  let bs = map(ff_tf_base, fs)
+  let ms = ff_tf_pyth(bs, ff_tf_terms(bs))
+  if ms === bs then product(map(ff_tf_pow, fs)) else product(map(q => ff_tf_pow(q[1]^q[2]), ms))
 }
 fn ff_tf_pow(f) = if not is_atom(f) and head(f) === pow then ff_tf_lin(f[1])^f[2] else ff_tf_lin(f)
 fn ff_tf1(r) = {

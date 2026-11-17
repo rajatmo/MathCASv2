@@ -13,7 +13,7 @@
 # Details
 
 #% item
-# Lists and the sides of comparisons are handled element-wise.
+# Lists, the sides of equations and inequalities, and the parts of logical combinations are handled element-wise.
 
 #% section
 # Examples

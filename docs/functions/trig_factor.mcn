@@ -16,6 +16,9 @@
 # A factor `a cos(u) + a sin(u)` becomes `sqrt(2) a sin(u + pi/4)`, and `a sin(u) - a cos(u)` becomes `sqrt(2) a sin(u - pi/4)`.
 
 #% item
+# Factors `(-1 + t)` and `(1 + t)` of one argument become one square by the Pythagorean identities: `cos(u)^2 - 1` is `-sin(u)^2`, `sin(u)^2 - 1` is `-cos(u)^2`, `cosh(u)^2 - 1` is `sinh(u)^2`; so the result is a product of trigonometric and hyperbolic factors where these identities give one.
+
+#% item
 # Lists, equations, inequalities and logical combinations are factored part by part.
 
 #% section
@@ -32,7 +35,7 @@ trig_factor(sin(x)^2 + tan(x)^2)
 #% cell
 trig_factor(cosh(x)^2 - cosh(x)^4)
 #% output
-#= -(-1 + cosh(x))*(1 + cosh(x))*cosh(x)^2
+#= -cosh(x)^2*sinh(x)^2
 
 #% cell
 trig_factor(sin(x)^2 - cos(x)^2)

@@ -249,7 +249,7 @@ fn ds_lpow(a, r) = fold((p, i) => ds_lmul(p, a), join([1], ds_lzero(length(a) - 
 fn ds_ldiv(a, b) = fold((c, n) => append(c, (a[n + 1] - ds_total(map(i => b[i + 1]*c[n - i + 1], range(1, n))))/b[1]), [a[1]/b[1]], range(1, length(a) - 1))
 fn ds_lcos(d) = ds_lsum(map(r => ds_lscale((-1)^r/factorial(2*r), ds_lpow(d, 2*r)), range(0, length(d) - 1)), length(d))
 fn ds_lsin(d) = ds_lsum(map(r => ds_lscale((-1)^r/factorial(2*r + 1), ds_lpow(d, 2*r + 1)), range(0, length(d) - 1)), length(d))
-fn ds_jint(e) = integrate(rewrite(trig_reduce(expand(e)), ds_jz -> ds_jt), [ds_jt, 0, ds_jz])
+fn ds_jint(e) = integrate(rewrite(expand(trig_reduce(expand(e))), ds_jz -> ds_jt), [ds_jt, 0, ds_jz])
 fn ds_jstep(phi) = {
   let n = length(phi)
   let d = join([0], map(i => phi[i], range(2, n)))
@@ -304,7 +304,8 @@ rule ds_at(jacobi_sd(u_, m_), 2, 0, k_) := ds_jr(u, m, k, 1, 3) when k >= 3 and 
 # at m = 0; pq_0 is the trigonometric function, pq_1 the m coefficient above)
 fn ds_ij1(v, m, p, q, u0) = {
   let r = ds_ldiv(ds_jdata(1)[p], ds_jdata(1)[q])
-  u0 - rewrite(r[2], ds_jz -> u0)/rewrite(d(r[1], ds_jz), ds_jz -> u0)*m
+  # the coefficient algebraic in v (sin(2 asin(v)) is 2 v sqrt(1 - v^2)) and as one fraction
+  u0 - together(trig_expand(rewrite(r[2], ds_jz -> u0)/rewrite(d(r[1], ds_jz), ds_jz -> u0)))*m
 }
 rule ds_at(inverse_jacobi_sn(v_, m_), 2, 0, k_) := ds_ij1(v, m, 1, 4, asin(v)) when k == 4
 rule ds_at(inverse_jacobi_cn(v_, m_), 2, 0, k_) := ds_ij1(v, m, 2, 4, acos(v)) when k == 4

@@ -480,9 +480,27 @@ pub fn odd_even<'h>(cx: &NativeCx<'_, '_, 'h>, b: &B<'h>, node: T<'h>) -> Option
 
 /// Sines and cosines of sums with the sign convention of [`odd_even`], shifts by quarter periods reduced
 /// ([`quarter_shift`]), evaluated.
+/// Even integer powers of sums take the same convention: `(y - x)^2` is `(x - y)^2`.
 pub fn normal_signs<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
-    let r = rewrite(cx, b, t, &mut |cx, b, node| Ok(quarter_shift(b, node).map(|v| odd_even(cx, b, v).unwrap_or(v)).or_else(|| odd_even(cx, b, node))))?;
+    let r = rewrite(cx, b, t, &mut |cx, b, node| {
+        Ok(quarter_shift(b, node).map(|v| odd_even(cx, b, v).unwrap_or(v)).or_else(|| odd_even(cx, b, node)).or_else(|| even_power(cx, b, node)))
+    })?;
     cx.eval(r)
+}
+
+/// `u^k` for an even integer k and a sum u, written with whichever of `u` and `-u` comes first in the canonical order.
+fn even_power<'h>(cx: &NativeCx<'_, '_, 'h>, b: &B<'h>, node: T<'h>) -> Option<T<'h>> {
+    let (u, k) = b.int_power(node);
+    if k == 1 || k % 2 != 0 {
+        return None;
+    }
+    let terms = b.terms(u);
+    if terms.len() < 2 {
+        return None;
+    }
+    let negated: Vec<T<'h>> = terms.iter().map(|&a| b.neg(a)).collect();
+    let nu = b.add(&negated);
+    (cx.cmp(nu, u) == std::cmp::Ordering::Less).then(|| b.powi(nu, k))
 }
 
 /// The circular functions at `v + n pi/2` and the hyperbolic functions at `v + n i pi/2` (n an integer, v a sum of

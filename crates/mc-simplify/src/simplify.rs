@@ -286,12 +286,47 @@ fn task_step<'h>(cx: &mut NativeCx<'_, '_, 'h>, cfg: &Config<'h>, has_facts: boo
     step(cx, &b, &mut k, m, t)
 }
 
+/// A fraction whose denominator `together` kept as a product of simple factors, with that product expanded (and the
+/// numerator expanded in any case): the
+/// search reaches `(1 + x^3)^-1` from `1/((1 + x) (1 - x + x^2))` this way (a repeated factor stays: the expanded
+/// power hides it). The factored forms are the `Factor` move's.
+fn simple_factors_expanded<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, r: T<'h>) -> Res<T<'h>> {
+    let (mut simple, mut repeated) = (0, false);
+    for f in b.factors(r) {
+        let (base, k) = b.int_power(f);
+        if k < 0 && !b.is_number(base) {
+            repeated |= k < -1;
+            simple += 1;
+        }
+    }
+    if simple == 0 {
+        return Ok(r);
+    }
+    // the numerator expanded, as the search always had it
+    let r = apply(cx, b, "expand_numerator", r)?;
+    if simple < 2 || repeated {
+        return Ok(r);
+    }
+    apply(cx, b, "expand_denominator", r)
+}
+
 /// The moves that need only the builder.
 fn plain_step<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, cfg: &Config<'h>, m: Move, t: T<'h>) -> Res<T<'h>> {
     match m {
         Move::Refine | Move::Identities | Move::PythagorasOne | Move::FunctionExpand => Ok(t),
-        Move::Together => bounded(cx, b, "together", t),
-        Move::Cancel => bounded(cx, b, "cancel", t),
+        Move::Together => {
+            let r = bounded(cx, b, "together", t)?;
+            simple_factors_expanded(cx, b, r)
+        }
+        Move::Cancel => {
+            let r = bounded(cx, b, "cancel", t)?;
+            let terms = b.terms(r);
+            let mut out = Vec::with_capacity(terms.len());
+            for u in terms {
+                out.push(simple_factors_expanded(cx, b, u)?);
+            }
+            cx.eval(b.add(&out))
+        }
         Move::Factor => bounded(cx, b, "factor", t),
         Move::Expand => bounded(cx, b, "expand", t),
         Move::TrigReduce => trig_reduce(cx, b, t),
@@ -603,7 +638,11 @@ fn golden_ratio_number<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, cost: &mut 
     let s = cx.eval(b.call_named("rewrite", &[r, rule]))?;
     let mut own = Facts::new(cx, b, &cfg.syms, &[])?;
     let s = run(cx, b, &mut own, false, cost, cfg, s)?;
-    Ok(if matches!(h.view(s), View::Int(_) | View::BigInt { .. } | View::Rational { .. }) { s } else { r })
+    if matches!(h.view(s), View::Int(_) | View::BigInt { .. } | View::Rational { .. }) {
+        return Ok(s);
+    }
+    // a radical form no larger than the result: the number itself (golden_ratio^4 - golden_ratio is 3 + sqrt(5))
+    Ok(if !has_golden_ratio(b, s) && !cost.score(cx, r)?.simpler_than(&cost.score(cx, s)?) { s } else { r })
 }
 
 /// Does `t` hold `sin`, `cos` or `tan` of a sum with a term that is a multiple of `pi`?
@@ -758,7 +797,16 @@ fn inside_out<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, 
             return Ok(b.call(s, &out));
         }
     }
-    search(cx, b, k, depth, inner)
+    let r = search(cx, b, k, depth, inner)?;
+    // full_simplify: the parts searched first can hide a form of the whole (4 s^2 c^2 + 4 s c + 1 is
+    // (1 + 2 s c)^2, but not after 4 s c became 2 sin(2 x)); the input factored is a candidate too
+    if full && inner != t && !k.cfg.over(cx) {
+        let r1 = plain_step(cx, b, k.cfg, Move::Factor, t)?;
+        if k.cost.score(cx, r1)?.simpler_than(&k.cost.score(cx, r)?) {
+            return Ok(r1);
+        }
+    }
+    Ok(r)
 }
 
 /// The functions with mirror symmetry, `f(conjugate(z)) = conjugate(f(z))` (decision 2B.5: the identity is used

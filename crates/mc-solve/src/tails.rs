@@ -768,7 +768,7 @@ pub(crate) fn minimize_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<Atomic
             let Some(cf) = dyadic(&en, c) else { continue };
             let refl = h.call(h.sym("add"), &[h.call(h.sym("mul"), &[h.int(2), c]), h.call(h.sym("mul"), &[h.int(-1), x])]);
             let fr = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, refl])]))?;
-            let diff = cx.eval(h.call(h.sym("expand_all"), &[h.call(h.sym("add"), &[fr, h.call(h.sym("mul"), &[h.int(-1), f])])]))?;
+            let diff = cx.eval(h.call(h.sym("ex_all_num"), &[h.call(h.sym("add"), &[fr, h.call(h.sym("mul"), &[h.int(-1), f])])]))?;
             if matches!(h.view(diff), View::Int(0)) {
                 hi_f = Some((c, cf));
                 restricted = true;

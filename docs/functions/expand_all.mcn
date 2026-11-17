@@ -7,6 +7,12 @@
 # `expand_all(e)` expands `e` everywhere: numerators and denominators, and the arguments of functions, which `expand` leaves alone.
 
 #% section
+# Details
+
+#% item
+# The form: a sum of terms, each a product whose numerator and denominator are both expanded polynomials, as in `x^2/(2*y*z + y^2 + z^2)`; a power with a negative integer exponent has its base raised and expanded, `(1 + x)^-3` is `(1 + 3*x + 3*x^2 + x^3)^-1`.
+
+#% section
 # Examples
 
 #% subsection
@@ -20,7 +26,7 @@ expand_all((x + 1)^2/(x + 2))
 #% cell
 expand_all(1/(x + 1)^2 + sin((x + 1)^2))
 #% output
-#= (1 + x)^-2 + sin(1 + 2*x + x^2)
+#= (1 + 2*x + x^2)^-1 + sin(1 + 2*x + x^2)
 
 #% section
 # See also

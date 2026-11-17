@@ -7,6 +7,12 @@
 # `horner_form(p)` writes the polynomial `p` in nested (Horner) form; `horner_form(p, x)` or `horner_form(p, [x, y])` chooses the variables, nested in order. A quotient has numerator and denominator done separately.
 
 #% section
+# Details
+
+#% item
+# The form: each variable in turn is pulled out of the remaining terms, so every polynomial in the result is nested with one multiplication per step. Rational coefficients stay in place, `horner_form(x/2 + x^3/3)` is `x*(1/2 + (1/3)*x^2)`; only a denominator that is not a number makes a quotient of two nested forms.
+
+#% section
 # Examples
 
 #% subsection

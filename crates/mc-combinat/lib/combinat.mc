@@ -734,10 +734,25 @@ fn ex_denom(e) = if is_atom(e) then e
   else if head(e) === add then apply(add, map(ex_denom, ex_parts(e)))
   else if (head(e) === mul or head(e) === pow) and denominator(e) !== 1 then numerator(e)/expand(denominator(e))
   else apply(head(e), map(ex_denom, ex_parts(e)))
-fn ex_all(e) = if is_atom(e) then e else {
-  let ps = map(ex_all, ex_parts(e))
+# a term of an expanded sum with its denominator expanded too (x^2/(y + z)^2 is x^2/(y^2 + 2 y z + z^2))
+fn ex_den_term(t) = if is_atom(t) or not (head(t) === mul or head(t) === pow) then t else {
+  let d = denominator(t)
+  let de = expand(d)
+  if d === 1 or de === d then t else numerator(t)/de
+}
+fn ex_den_terms(e) = if not is_atom(e) and head(e) === add then apply(add, map(ex_den_term, ex_parts(e))) else ex_den_term(e)
+# ex_all_num(e): everything expanded but the denominators (the walk the transforms, quadrature and solvers use on
+# their own terms)
+fn ex_all_num(e) = if is_atom(e) then e else {
+  let ps = map(ex_all_num, ex_parts(e))
   if head(e) === pow and is_integer(ps[2]) and ps[2] < 0 then expand(ps[1])^ps[2]
   else if head(e) === add or head(e) === mul or head(e) === pow then expand(apply(head(e), ps))
+  else apply(head(e), ps)
+}
+fn ex_all(e) = if is_atom(e) then e else {
+  let ps = map(ex_all, ex_parts(e))
+  if head(e) === pow and is_integer(ps[2]) and ps[2] < 0 then expand(ps[1]^(-ps[2]))^(-1)
+  else if head(e) === add or head(e) === mul or head(e) === pow then ex_den_terms(expand(apply(head(e), ps)))
   else apply(head(e), ps)
 }
 # expand_numerator(e): the numerators of all fractions in e expanded; expand_denominator(e): the denominators;
@@ -1182,7 +1197,8 @@ rule horner_form(p_) := horner_form(p, variables(p, kernels: true)) when not is_
 rule horner_form(p_, v_) := {
   let t = together(p)
   let vs = rx_vars(v)
-  if denominator(t) === 1 then horner_vars(p, vs) else horner_vars(numerator(t), vs)/horner_vars(denominator(t), vs)
+  # a numerical denominator stays in the coefficients
+  if is_number(denominator(t)) then horner_vars(p, vs) else horner_vars(numerator(t), vs)/horner_vars(denominator(t), vs)
 } when not is_list(p)
 
 # coefficient_rules(p, [x, y, ...]): the rules {exponents} -> coefficient of the monomials of the polynomial p, in

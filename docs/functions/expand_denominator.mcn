@@ -7,6 +7,12 @@
 # `expand_denominator(e)` expands the denominators of all fractions in `e`, leaving the numerators alone.
 
 #% section
+# Details
+
+#% item
+# The form: each term keeps its numerator as written over one expanded polynomial, as in `(x - y)^2/(-2*u*v + u^2 + v^2)`.
+
+#% section
 # Examples
 
 #% subsection

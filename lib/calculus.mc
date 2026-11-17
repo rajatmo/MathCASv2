@@ -1125,7 +1125,9 @@ fn calc_factor_terms_mod(p, m) = {
 fn factor_terms(p; modulus = 0, trig = false) =
   if trig === true then factor_terms(trig_reduce(p), modulus: modulus)
   else if modulus != 0 and is_integer(modulus) then (if is_list(p) then map(q => calc_factor_terms_mod(q, modulus), p) else calc_factor_terms_mod(p, modulus))
-  else if is_list(p) then map(factor_terms, p) else if head(p) === less or head(p) === equal or head(p) === greater then apply(head(p), map(factor_terms, apply(list, p))) else calc_factor_terms(p, [])
+  else if is_list(p) then map(factor_terms, p) else if calc_ft_structural(p) then apply(head(p), map(factor_terms, apply(list, p))) else calc_factor_terms(p, [])
+# relations and logical connectives map over their parts
+fn calc_ft_structural(p) = not is_atom(p) and member_of([less, equal, greater, less_equal, greater_equal, unequal, head(cb_p and cb_q), head(cb_p or cb_q), head(not cb_p)], head(p))
 fn factor_terms(p, v) = if is_list(p) then map(q => factor_terms(q, v), p) else calc_factor_terms(p, if is_list(v) then v else [v])
 
 # exponent(e, x), (e, x, h): the largest power of x in the expanded e (h(all powers) for another function h, such
@@ -1209,7 +1211,7 @@ fn calc_pf_complex(f, x) = {
   let dd = d(den, x)
   let sq = degree(polynomial_gcd(den, dd), x) == 0
   let sols = if sq then solve(den == 0, x) else []
-  if not sq or not is_list(sols) or length(sols) != degree(den, x) then apart(f, x) else {
+  if not sq or not is_list(sols) or length(sols) != degree(den, x) then calc_pf_dist(apart(f, x)) else {
     let q = polynomial_quotient(num, den, x)
     let rm = polynomial_remainder(num, den, x)
     q + calc_total(map(s => {
@@ -1218,7 +1220,14 @@ fn calc_pf_complex(f, x) = {
     }, sols))
   }
 }
-fn partial_fractions(f, x; extension = automatic) = if extension === reals then apart(f, x) else calc_pf_complex(f, x)
+# partial_fractions writes apart's fractions with the numerical factor in the numerator: (-2/13 + (5/13) x)/(4 + x^2)
+fn calc_pf_dist1(t) = {
+  let d = denominator(t)
+  let k = if not is_atom(d) and head(d) === mul and is_number(d[1]) then d[1] else 1
+  if d === 1 then t else expand(numerator(t)/k)/(d/k)
+}
+fn calc_pf_dist(e) = if not is_atom(e) and head(e) === add then calc_total(map(calc_pf_dist1, apply(list, e))) else calc_pf_dist1(e)
+fn partial_fractions(f, x; extension = automatic) = if extension === reals then calc_pf_dist(apart(f, x)) else calc_pf_complex(f, x)
 
 # polynomial_reduce(p, [g1, ..., gk], [x1, ..., xm]): [[q1, ..., qk], r] with p = q1 g1 + ... + qk gk + r and no term
 # of r divisible by a leading term of the gi, by the multivariate division algorithm in the lexicographic order of
@@ -2311,7 +2320,7 @@ fn calc_mb_sep(g, w, lo, hi) =
 
 # the inverse Mellin transform of the product g in w at x on the strip lo < re(w) < hi, or null
 fn calc_mb_invert(g, w, x, lo, hi) = {
-  let g2 = expand_all(calc_gamma_form(g, w))
+  let g2 = ex_all_num(calc_gamma_form(g, w))
   let g3 = if head(g2) === add then simplify(g2) else g2
   let bal = not (lo === -inf) and calc_mb_balanced(g3, w)
   let mid = if hi === inf then lo + 1/2 else (lo + hi)/2
@@ -3401,14 +3410,20 @@ fn cb_den_factors(d, x) = {
     map(p => [p[1], p[2]*e], select(factor_square_free_list(b), p => not free_of(p[1], x)))
   }, fs)
   let bases = unique(map(p => expand(p[1]), pairs))
-  map(b => [b, cb_total(map(p => p[2], select(pairs, p => expand(p[1]) === b)))], bases)
+  # each factor with a positive leading coefficient in x (x - a, not a - x)
+  map(b => [cb_lead_positive(b, x), cb_total(map(p => p[2], select(pairs, p => expand(p[1]) === b)))], bases)
+}
+fn cb_lead_positive(b, x) = {
+  let c = coefficient(b, x, exponent(b, x))
+  if is_number(c) and c < 0 or not is_number(c) and is_number(calc_num_part(c)) and calc_num_part(c) < 0 then expand(-b) else b
 }
 
 # cb_adic(r, d, e, x): r/d^e written as sum_j a_j/d^(e - j) with deg a_j < deg d (repeated division by d)
 fn cb_adic(r, d, e, x) = {
   if e == 0 then 0 else {
     let qr = polynomial_quotient_remainder(r, d, x)
-    qr[2]/d^e + cb_adic(qr[1], d, e - 1, x)
+    # each numerator as one fraction ((1 + a)/(a (x - a)), not (1 + 1/a)/(x - a))
+    together(qr[2])/d^e + cb_adic(qr[1], d, e - 1, x)
   }
 }
 
@@ -3945,7 +3960,7 @@ rule integrate_change_variables(i_, us_, eqs_) := {
 # b) dirac_delta(p - a cos(phi) - b sin(phi)), the rotation (x, y) -> (p, t) having Jacobian 1. Options: assumptions:
 # (the integral computed under them), generate_conditions: true (its convergence conditions as
 # conditional_expression).
-fn cb_rad_trig(e, phi) = expand(rewrite(expand_all(e), sin(u_)^n_ :> (if u === phi and is_integer(n) and n >= 2 then sin(u)^mod(n, 2)*(1 - cos(u)^2)^quotient(n, 2) else sin(u)^n)))
+fn cb_rad_trig(e, phi) = expand(rewrite(ex_all_num(e), sin(u_)^n_ :> (if u === phi and is_integer(n) and n >= 2 then sin(u)^mod(n, 2)*(1 - cos(u)^2)^quotient(n, 2) else sin(u)^n)))
 fn cb_find_step(e, t) =
   if is_atom(e) then null
   else if head(e) === unit_step and length(e) == 1 and not free_of(e, t) then e

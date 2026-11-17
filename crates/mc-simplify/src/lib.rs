@@ -302,7 +302,15 @@ impl Native for SimplifyNative {
                     None => (*e, vec![]),
                 };
                 let mut c = cost::Cost::with(h, measure);
-                let r = simplify::simplify(cx, &b, f.as_mut(), &mut c, &cfg, hidden)?;
+                let mut r = simplify::simplify(cx, &b, f.as_mut(), &mut c, &cfg, hidden)?;
+                // among forms of equal measure the written one: a polynomial sum's rational content outside
+                // (2 (1 + n), not 2 + 2 n)
+                if back.is_empty() && term::polynomial_sum(&b, r) {
+                    let k = term::content_form(cx, &b, r)?;
+                    if k != r && !c.score(cx, r)?.simpler_than(&c.score(cx, k)?) {
+                        r = k;
+                    }
+                }
                 if back.is_empty() {
                     r
                 } else {
@@ -312,7 +320,11 @@ impl Native for SimplifyNative {
             }
             Fun::TrigExpand => trig::trig_expand(cx, &b, *e)?,
             Fun::TrigReduce => match opts.modulus {
-                None => trig::trig_reduce(cx, &b, *e)?,
+                // the written form: the rational content of each sum outside
+                None => {
+                    let r = trig::trig_reduce(cx, &b, *e)?;
+                    term::content_form(cx, &b, r)?
+                }
                 // a modulus that is no integer >= 2 leaves the expression as it is
                 Some(p) => trig::trig_reduce_mod(cx, &b, *e, p)?.unwrap_or(*e),
             },

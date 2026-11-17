@@ -74,6 +74,7 @@ pub fn integrate<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: 
             return Ok(None);
         }
         let g = apply(cx, b, "trig_reduce", &[f])?;
+        let g = apply(cx, b, "expand", &[g])?;
         if g == f {
             return Ok(None);
         }
@@ -134,6 +135,7 @@ fn monomial<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, m: i64, n: i64, w:
     }
     if m >= 0 && n >= 0 {
         let g = apply(cx, b, "trig_reduce", &[b.mul(&[b.powi(sin, m), b.powi(cos, n)])])?;
+        let g = apply(cx, b, "expand", &[g])?;
         return antiderivative(cx, b, g, w, depth + 1);
     }
     // both negative and even: 1 = sin^2 + cos^2

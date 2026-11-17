@@ -283,8 +283,9 @@ fn decompose<'h>(b: &Build<'h>, e: T<'h>, x: Option<T<'h>>, m: &mut Meter) -> Wo
             }
             let (next, coef) = k.divrem(&a, &pk, m)?;
             if !coef.num.is_zero() {
-                let ct = k.term(&conv, &ring, &coef, m)?;
-                out.push(b.mul(&[ct, b.powi(pt, -(j as i64))]));
+                let mut fs = k.written(&conv, &ring, &coef, m)?;
+                fs.push(b.powi(pt, -(j as i64)));
+                out.push(b.mul(&fs));
             }
             a = next;
         }
@@ -413,6 +414,43 @@ impl K {
         let c = self.lc_inv(&r0, m)?;
         let s = self.mul(&s0, &c, m)?;
         Ok(Some(self.divrem(&s, md, m)?.1))
+    }
+    /// The factors of the numerator `a` of a partial fraction in written form: the positive rational content
+    /// outside and the primitive numerator (`(-3 - x)/(3 (1 + x + x^2))`, not `(-1 - x/3)/(1 + x + x^2)`); with
+    /// parameters the denominator of `a` factored over the integers (`1/((a - b) (a - c))`).
+    fn written<'h>(&self, conv: &Conv<'_, 'h, mc_core::Heap>, ring: &Ring<'h>, a: &Kp, m: &mut Meter) -> WorkResult<Vec<T<'h>>> {
+        let ar = conv.ar;
+        let st = ar.store();
+        let (mut n, mut d) = (a.num.content(), a.den.content());
+        let (np, dp) = (a.num.div_exact_scalar(&n), a.den.div_exact_scalar(&d));
+        let mut fs = vec![];
+        let put = |p: &Poly, e: i64, fs: &mut Vec<T<'h>>, m: &mut Meter| -> WorkResult<()> {
+            let t = conv.int_poly_term(p, ring, m)?;
+            fs.push(if e == 1 { t } else { ar.pow(t, st.int(e)) });
+            Ok(())
+        };
+        if !np.is_constant() {
+            put(&np, 1, &mut fs, m)?;
+        } else if np.as_constant().is_some_and(|c| c.is_neg()) {
+            n = n.neg();
+        }
+        if self.nv > 1 && !dp.is_constant() {
+            let fac = mc_poly::factor::factor(&dp, false, m)?;
+            if fac.unit.is_neg() {
+                d = d.neg();
+            }
+            for (q, k) in &fac.factors {
+                put(q, -i64::from(*k), &mut fs, m)?;
+            }
+        } else if !dp.is_constant() {
+            put(&dp, -1, &mut fs, m)?;
+        }
+        if d.is_neg() {
+            d = d.neg();
+            n = n.neg();
+        }
+        fs.insert(0, conv.rat_term(&mc_poly::qpoly::rat_of(&n, &d)));
+        Ok(fs)
     }
     /// The canonical term of `a`.
     fn term<'h>(&self, conv: &Conv<'_, 'h, mc_core::Heap>, ring: &Ring<'h>, a: &Kp, m: &mut Meter) -> WorkResult<T<'h>> {

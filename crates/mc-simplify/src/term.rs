@@ -291,6 +291,123 @@ pub fn apply<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, name: &str, t: T<'h>)
     cx.eval(b.call_named(name, &[t]))
 }
 
+/// The rational coefficient `(n, d)` of a term (`(1, 1)` without a numerical factor), `None` for an inexact, complex
+/// or very large one.
+fn rational_coefficient<'h>(b: &B<'h>, t: T<'h>) -> Option<(i128, i128)> {
+    let c = match b.call_of(t) {
+        Some((s, [c, ..])) if s == b.hd.mul && b.is_number(*c) => *c,
+        _ if b.is_number(t) => t,
+        _ => return Some((1, 1)),
+    };
+    match b.heap().view(c) {
+        View::Int(n) => Some((i128::from(n), 1)),
+        View::Rational { num, den } => match (b.heap().view(num), b.heap().view(den)) {
+            (View::Int(n), View::Int(d)) => Some((i128::from(n), i128::from(d))),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn gcd_i128(mut a: i128, mut b: i128) -> i128 {
+    (a, b) = (a.abs(), b.abs());
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    a
+}
+
+/// Is `t` a polynomial sum: built from rational numbers and symbols by sums, products and powers with positive
+/// integer exponents, with at least one symbol that is not a numerical constant (`2 + 2 n`, not `2 + pi/3`)?
+pub fn polynomial_sum<'h>(b: &B<'h>, t: T<'h>) -> bool {
+    const CONSTANTS: &[&str] = &["pi", "e", "euler_gamma", "catalan", "golden_ratio", "degree", "glaisher", "khinchin"];
+    let Some((s, args)) = b.call_of(t) else { return false };
+    if s != b.hd.add {
+        return false;
+    }
+    let h = b.heap();
+    let mut variable = false;
+    let mut seen = std::collections::HashSet::new();
+    let mut stack: Vec<T<'h>> = args.to_vec();
+    while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
+        match h.view(u) {
+            View::Int(_) | View::Rational { .. } => {}
+            View::Sym(s) => variable |= !CONSTANTS.contains(&h.sym_name(s).as_str()),
+            _ => match b.call_of(u) {
+                Some((p, [base, e])) if p == b.hd.pow => match h.view(*e) {
+                    View::Int(k) if k > 0 => stack.push(*base),
+                    _ => return false,
+                },
+                Some((p, xs)) if p == b.hd.add || p == b.hd.mul => stack.extend_from_slice(xs),
+                _ => return false,
+            },
+        }
+    }
+    variable
+}
+
+/// The sum `t` with the positive rational content of its terms' coefficients written outside, the sum left with
+/// integer coefficients without a common factor: `3/2 - 2 cos(2 x) + (1/2) cos(4 x)` is
+/// `(1/2) (3 - 4 cos(2 x) + cos(4 x))`, `2 cos(3 x) + 6 cos(x)` is `2 (cos(3 x) + 3 cos(x))`. Lists, relations and
+/// logical connectives map over their parts; anything else, and a sum with an inexact, complex or very large
+/// coefficient, stays as it is.
+pub fn content_form<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
+    // shared subterms are done once (a list can be a tree exponentially larger than itself)
+    content_form_memo(cx, b, t, &mut FxHashMap::default())
+}
+
+fn content_form_memo<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, memo: &mut FxHashMap<T<'h>, T<'h>>) -> Res<T<'h>> {
+    if let Some(&r) = memo.get(&t) {
+        return Ok(r);
+    }
+    cx.tick(1)?;
+    let r = content_form_node(cx, b, t, memo)?;
+    memo.insert(t, r);
+    Ok(r)
+}
+
+fn content_form_node<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, memo: &mut FxHashMap<T<'h>, T<'h>>) -> Res<T<'h>> {
+    let h = b.heap();
+    let Some((s, args)) = b.call_of(t) else { return Ok(t) };
+    let name = h.sym_name(s);
+    if s == b.hd.list
+        || matches!(name.as_str(), "and" | "or" | "not" | "equal" | "unequal" | "less" | "less_equal" | "greater" | "greater_equal")
+    {
+        let mut out = Vec::with_capacity(args.len());
+        for &a in args {
+            out.push(content_form_memo(cx, b, a, memo)?);
+        }
+        if out.as_slice() == args {
+            return Ok(t);
+        }
+        return cx.eval(b.call(s, &out));
+    }
+    if s != b.hd.add {
+        return Ok(t);
+    }
+    let (mut g, mut l) = (0i128, 1i128);
+    for &u in args {
+        let Some((n, d)) = rational_coefficient(b, u) else { return Ok(t) };
+        g = gcd_i128(g, n);
+        let Some(nl) = (l / gcd_i128(l, d)).checked_mul(d) else { return Ok(t) };
+        l = nl;
+        if l > i128::from(i64::MAX) || g > i128::from(i64::MAX) {
+            return Ok(t);
+        }
+    }
+    if g == 0 || g == l {
+        return Ok(t);
+    }
+    let (g, l) = (g as i64, l as i64);
+    let inv = b.rat(l, g);
+    let terms: Vec<T<'h>> = args.iter().map(|&u| b.mul(&[inv, u])).collect();
+    let sum = b.add(&terms);
+    cx.eval(b.mul(&[b.rat(g, l), sum]))
+}
+
 /// A plain full form of `t` (debugging).
 #[doc(hidden)]
 pub fn dbg<'h>(h: &'h Heap, t: T<'h>) -> String {

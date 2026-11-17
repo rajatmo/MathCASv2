@@ -261,7 +261,8 @@ fn simplify_of_propositional_and_boole_terms() {
 #[test]
 fn trig_reduce_hyperbolic_products_and_trig_expand_pythagoras() {
     assert_eq!(ev("trig_reduce(2 * sinh(x) * cosh(y))"), "sinh(x + y) + sinh(x - y)");
-    assert_eq!(ev("trig_reduce(cosh(x)^2)"), "1/2 + (1/2)*cosh(2*x)");
+    // the rational content written outside: (1 + cosh(2 x))/2 = 1/2 + cosh(2 x)/2
+    assert_eq!(ev("trig_reduce(cosh(x)^2)"), "(1/2)*(1 + cosh(2*x))");
     assert_eq!(ev("trig_expand(sin(x)^2 + cos(x)^2)"), "1");
     assert_eq!(ev("trig_expand(3 * cos(x)^2 + 3 * sin(x)^2 + y)"), "3 + y");
     assert_eq!(ev("trig_expand(cosh(x)^2 - sinh(x)^2)"), "1");
@@ -869,7 +870,8 @@ fn power_expand_with_explicit_assumptions_keeps_the_branch_corrections() {
     assert_eq!(ev("power_expand(log((a*b)^c), assumptions: 3 < a and a < 5 and -2 < b and b < -1 and 7 < c and c < 9)"), "-8im*pi + c*(log(a) + log(b))");
     assert_eq!(ev("power_expand((exp(x))^y, assumptions: 4 < im_part(x) and im_part(x) < 5)"), "exp(x*y + -2im*pi*y)");
     // undecided: the winding stays as a floor
-    assert_eq!(ev("power_expand(log(x*y), assumptions: true)"), "log(x) + log(y) + 2im*pi*floor(1/2 + (-1/2)*(arg(x) + arg(y))/pi)");
+    // (the argument of the floor written expanded: the same number)
+    assert_eq!(ev("power_expand(log(x*y), assumptions: true)"), "log(x) + log(y) + 2im*pi*floor(1/2 + (-1/2)*arg(x)/pi + (-1/2)*arg(y)/pi)");
     // without the option the formal law, as before
     assert_eq!(ev("power_expand(sqrt(x*y))"), "x^(1/2)*y^(1/2)");
 }

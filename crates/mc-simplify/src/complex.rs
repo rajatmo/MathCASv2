@@ -230,7 +230,47 @@ impl<'a, 'h> Expander<'a, 'h> {
             }
         }
         let p = self.parts(cx, t)?;
-        let j = self.join(p);
-        cx.eval(j)
+        let j = cx.eval(self.join(p))?;
+        // a polynomial in the parts (and real symbols) is expanded: re(z^3) is re(z)^3 - 3 re(z) im_part(z)^2
+        if j != t && !self.complex_vars.is_empty() && self.polynomial(j) {
+            return cx.eval(self.b.call_named("expand", &[j]));
+        }
+        Ok(j)
+    }
+
+    /// Is `t` built from numbers, symbols, `re(..)` and `im_part(..)` by sums, products and nonnegative integer
+    /// powers?
+    fn polynomial(&self, t: T<'h>) -> bool {
+        let b = self.b;
+        let h = b.heap();
+        // shared subterms are visited once
+        let mut seen = std::collections::HashSet::new();
+        let mut stack = vec![t];
+        while let Some(u) = stack.pop() {
+            if !seen.insert(u) {
+                continue;
+            }
+            let ok = match h.view(u) {
+                View::Sym(_) | View::Int(_) | View::BigInt { .. } | View::Rational { .. } => true,
+                View::App { .. } if b.complex_parts(u).is_some() => true,
+                View::App { .. } => match b.call_of(u) {
+                    Some((s, args)) if s == b.hd.add || s == b.hd.mul => {
+                        stack.extend_from_slice(args);
+                        true
+                    }
+                    Some((s, &[base, e])) if s == b.hd.pow && matches!(h.view(e), View::Int(k) if k > 0) => {
+                        stack.push(base);
+                        true
+                    }
+                    Some((s, &[_])) => matches!(h.sym_name(s).as_str(), "re" | "im_part"),
+                    _ => false,
+                },
+                _ => false,
+            };
+            if !ok {
+                return false;
+            }
+        }
+        true
     }
 }

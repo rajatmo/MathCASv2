@@ -93,7 +93,7 @@ power_expand(sqrt(x*y), assumptions: pi/2 < arg(x) and arg(x) < pi and pi/2 < ar
 #% cell
 power_expand(log(x*y), assumptions: true)
 #% output
-#= log(x) + log(y) + 2im*pi*floor(1/2 - (arg(x) + arg(y))/(2*pi))
+#= log(x) + log(y) + 2im*pi*floor(1/2 - arg(x)/(2*pi) - arg(y)/(2*pi))
 
 #% subsection
 # Possible issues

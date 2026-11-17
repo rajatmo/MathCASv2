@@ -13,7 +13,7 @@
 # "Simplest" means the form with the fewest parts (leaves), where an integer counts as many parts as it has digits, plus one for a minus sign, and a fraction or complex number counts one plus its parts.
 
 #% item
-# Among equally small forms, the one with fewer negative powers wins, then the one with fewer different functions; beyond that the first found is kept, so the input is kept unless something is strictly simpler.
+# Among equally small forms, the one with fewer negative powers wins, then the one with fewer different functions; beyond that the first found is kept, so the input is kept unless something is strictly simpler. Last, a polynomial sum (no negative or fractional powers) whose terms have a common rational factor is written with that factor outside when this is not larger: `2*(1 + n)` rather than `2 + 2*n`.
 
 #% item
 # `simplify(e, complexity_function: f)` measures each form by `f(form)` instead, which must give a real number; a form for which it gives no number is never chosen.

@@ -282,9 +282,11 @@ fn im_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: &mut Ctx<'_, '_, 'h>, u: T<'h>) -
 
 /// `k = floor(1/2 - sum/(2 pi))`: an integer when the ranges decide it, else the `floor` term.
 fn winding<'h>(b: &B<'h>, ps: &[Piece<'h>]) -> (Option<i64>, T<'h>) {
-    let terms: Vec<T<'h>> = ps.iter().map(|p| p.term).collect();
-    let sum = b.add(&terms);
-    let arg = b.sub(b.rat(1, 2), b.div(sum, b.mul(&[b.int(2), pi(b)])));
+    // the argument expanded: 1/2 - arg(x)/(2 pi) - arg(y)/(2 pi)
+    let two_pi = b.mul(&[b.int(2), pi(b)]);
+    let mut terms: Vec<T<'h>> = vec![b.rat(1, 2)];
+    terms.extend(ps.iter().map(|p| b.neg(b.div(p.term, two_pi))));
+    let arg = b.add(&terms);
     let sym = b.call_named("floor", &[arg]);
     let mut iv = Some(Iv::point(0.0));
     for p in ps {

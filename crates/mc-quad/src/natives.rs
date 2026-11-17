@@ -741,7 +741,7 @@ fn reflected_form<'h>(
     if power_law_near_zero(cx, &mut plain, len)? {
         return Ok(g);
     }
-    let expanded = cx.eval(h.call(h.sym("time_constrained"), &[h.call(h.sym("expand_all"), &[g]), h.int(2)]))?;
+    let expanded = cx.eval(h.call(h.sym("time_constrained"), &[h.call(h.sym("ex_all_num"), &[g]), h.int(2)]))?;
     let mut alt = mc_numfn::compile_expr(cx, expanded, &uv, nopts)?;
     Ok(if power_law_near_zero(cx, &mut alt, len)? { expanded } else { g })
 }

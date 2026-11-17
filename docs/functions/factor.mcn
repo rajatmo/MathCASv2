@@ -16,6 +16,9 @@
 # Repeated factors are collected as powers.
 
 #% item
+# Powers of one base whose exponents are rational multiples of one symbolic exponent are read as powers of one variable: `x^(2*s) + 2*x^s + 1` is `(1 + x^s)^2` and `2^(3*x) - 1` is `(-1 + 2^x)*(1 + 2^x + 2^(2*x))`.
+
+#% item
 # Factors are irreducible over the rational numbers: x^2 - 2 and x^2 + 1 stay as they are.
 
 #% item

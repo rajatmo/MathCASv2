@@ -875,23 +875,34 @@ fn factored_term<'h>(env: &Env<'h>, ring: &Ring<'h>, f: &factor::Factored, m: &m
 fn merge_root_kernels<'h>(env: &Env<'h>, ring: &Ring<'h>, f: &ratfun::RatFun) -> Option<(Ring<'h>, ratfun::RatFun)> {
     use rustc_hash::FxHashMap;
     let h = env.h();
-    // base -> [(variable, p, q)]
-    let mut groups: FxHashMap<T<'h>, Vec<(usize, i64, i64)>> = FxHashMap::default();
+    let rat = |e: T<'h>| -> Option<(i64, i64)> {
+        let r = env.ar.num(e)?.as_rat().cloned()?;
+        let (n, d) = rat_parts(&r);
+        Some((n.as_i64()?, d.as_i64()?))
+    };
+    // (base, symbolic part w of the exponent or None) -> [(variable, p, q)]: the kernel is base^((p/q) w)
+    type Groups<'h> = FxHashMap<(T<'h>, Option<T<'h>>), Vec<(usize, i64, i64)>>;
+    let mut groups: Groups<'h> = FxHashMap::default();
     for (i, &k) in ring.kernels.iter().enumerate() {
-        let (b, p, q) = match h.view(k) {
-            View::App { head, args: [b, e] } if head == env.hd.pow => match env.ar.num(*e).and_then(|x| x.as_rat().cloned()) {
-                Some(r) => {
-                    let (n, d) = rat_parts(&r);
-                    (*b, n.as_i64()?, d.as_i64()?)
-                }
-                None => (k, 1, 1),
+        let (b, w, p, q) = match h.view(k) {
+            View::App { head, args: [b, e] } if head == env.hd.pow => match rat(*e) {
+                Some((n, d)) => (*b, None, n, d),
+                // a symbolic exponent c w with a rational c: x^(2 s), 2^(3 x), x^((2/3) s)
+                None => match h.view(*e) {
+                    View::App { head: mh, args: xs } if mh == env.hd.mul && xs.len() >= 2 && rat(xs[0]).is_some() => {
+                        let (n, d) = rat(xs[0])?;
+                        let w = if xs.len() == 2 { xs[1] } else { env.ar.mul(&xs[1..]) };
+                        (*b, Some(w), n, d)
+                    }
+                    _ => (*b, Some(*e), 1, 1),
+                },
             },
-            _ => (k, 1, 1),
+            _ => (k, None, 1, 1),
         };
-        if p <= 0 || env.ar.num(b).is_some() {
+        if p <= 0 || (w.is_none() && env.ar.num(b).is_some()) {
             continue;
         }
-        groups.entry(b).or_default().push((i, p, q));
+        groups.entry((b, w)).or_default().push((i, p, q));
     }
     let gcd = |mut a: i64, mut b: i64| {
         while b != 0 {
@@ -901,15 +912,24 @@ fn merge_root_kernels<'h>(env: &Env<'h>, ring: &Ring<'h>, f: &ratfun::RatFun) ->
     };
     // (variable -> (new kernel, multiplier))
     let mut map: FxHashMap<usize, (T<'h>, u32)> = FxHashMap::default();
-    for (b, g) in &groups {
-        if g.len() < 2 || g.iter().all(|&(_, _, q)| q == 1) {
+    for (&(b, w), g) in &groups {
+        // numeric exponents: two kernels of one base, one exponent a fraction; symbolic ones: any multiple but w
+        let plain = match w {
+            None => g.len() < 2 || g.iter().all(|&(_, _, q)| q == 1),
+            Some(_) => g.iter().all(|&(_, p, q)| p == 1 && q == 1),
+        };
+        if plain {
             continue;
         }
         let l = g.iter().try_fold(1i64, |acc, &(_, _, q)| acc.checked_mul(q / gcd(acc, q)))?;
-        if l > 64 {
+        if l > 64 || g.iter().any(|&(_, p, q)| p * (l / q) > 64) {
             return None;
         }
-        let u = env.ar.pow(*b, env.conv().rat_term(&rat_of(&Z::ONE, &Z::S(l))));
+        let frac = env.conv().rat_term(&rat_of(&Z::ONE, &Z::S(l)));
+        let u = match w {
+            None => env.ar.pow(b, frac),
+            Some(w) => env.ar.pow(b, env.ar.mul(&[frac, w])),
+        };
         for &(i, p, q) in g {
             map.insert(i, (u, u32::try_from(p * (l / q)).ok()?));
         }
@@ -1087,45 +1107,85 @@ pub(crate) fn discriminant<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> 
     Ok(Out::Done(env.conv().to_term(&QPoly::new(d, den), &ring, m)?))
 }
 
-/// The fraction `f` (read from `t`) with its denominator kept as the product of powers of the denominators written
-/// in `t`, when the reduced denominator is such a product up to a constant and some factor is repeated:
-/// `-(3 - 2 x + x^2)/(-1 + x)^3` stays over `(-1 + x)^3` (the expanded cube hides the factor). `None` otherwise.
-fn factored_denominator<'h, S: Store + ?Sized>(c: &Conv<'_, 'h, S>, t: T<'h>, f: &ratfun::RatFun, ring: &Ring<'h>, m: &mut Meter) -> WorkResult<Option<T<'h>>> {
+/// The polynomial bases written in `t`: with `den` the bases of the negative integer powers among the factors of
+/// `t` (and of the terms of a sum), else the sums among the factors of a product `t` (alone or to a positive power).
+fn written_bases<'h, S: Store + ?Sized>(c: &Conv<'_, 'h, S>, t: T<'h>, den: bool) -> Vec<T<'h>> {
     use crate::convert::Node;
-    if f.den.is_constant() {
-        return Ok(None);
-    }
-    // the bases of the negative powers among the factors of t (and of the terms of a sum)
     let mut terms = vec![t];
     if let Node::Add(xs) = c.node(t) {
+        if !den {
+            return vec![];
+        }
         terms = xs.to_vec();
     }
     let mut bases: Vec<T<'h>> = vec![];
     for u in terms {
         let fs = match c.node(u) {
             Node::Mul(xs) => xs.to_vec(),
-            _ => vec![u],
+            _ if den => vec![u],
+            _ => return vec![],
         };
         for v in fs {
-            if let Node::Inv(b, _) = c.node(v) {
-                if !bases.contains(&b) {
-                    bases.push(b);
-                }
+            let b = match c.node(v) {
+                Node::Inv(b, _) if den => b,
+                Node::Add(_) if !den => v,
+                Node::Pow(b, _) if !den && matches!(c.node(b), Node::Add(_)) => b,
+                _ => continue,
+            };
+            if !bases.contains(&b) {
+                bases.push(b);
             }
         }
     }
+    bases
+}
+
+/// Factors with their exponents, and the quotient left.
+type Split = (Vec<(Poly, u32)>, Poly);
+
+/// `p` divided by the polynomials read from `bases` as often as each divides it: the factors found with their
+/// exponents and the quotient left. `None` when a base is not a polynomial or nothing divides.
+fn split_by_bases<'h, S: Store + ?Sized>(c: &Conv<'_, 'h, S>, p: &Poly, bases: &[T<'h>], ring: &Ring<'h>, m: &mut Meter) -> WorkResult<Option<Split>> {
     if bases.is_empty() || bases.len() > 8 {
         return Ok(None);
     }
-    let mut d = f.den.clone();
+    let mut d = p.clone();
     let mut parts: Vec<(Poly, u32)> = vec![];
-    for b in bases {
+    for &b in bases {
         let Ok(bf) = ratfun::read(c, b, ring, m)? else { return Ok(None) };
-        if !bf.den.is_constant() || bf.num.is_constant() {
+        if !bf.den.is_constant() {
             return Ok(None);
         }
+        if bf.num.is_constant() {
+            continue;
+        }
+        // a base that is an algebraic number (1 + sqrt(5)) is no factor to keep: its powers reduce
+        let degrees = bf.num.degrees();
+        let constant = |k: T<'h>| {
+            let st = c.ar.store();
+            let mut stack = mc_api::walk::Walk::new(k);
+            while let Some(u) = stack.pop() {
+                match st.view(u) {
+                    View::Sym(s) if !matches!(st.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio" | "im") => return false,
+                    View::App { args, .. } => stack.extend(args.iter().copied()),
+                    _ => {}
+                }
+            }
+            true
+        };
+        if (0..ring.nvars()).all(|v| degrees.get(v).copied().unwrap_or(0) == 0 || constant(ring.kernels[v])) {
+            return Ok(None);
+        }
+        // the base without its numerical content (which joins the content of the fraction), with a positive leading
+        // coefficient (a sign joins the content too)
+        let mut bp = bf.num.div_exact_scalar(&bf.num.content());
+        // the sign: in one variable a positive leading coefficient (-1 + x^4 for 1 - x^4), in several as written
+        // (a - b, s - a)
+        if degrees.iter().filter(|&&d| d > 0).count() == 1 && bp.lc().is_neg() {
+            bp = bp.neg();
+        }
         let mut e = 0u32;
-        while let Some(q) = d.div_exact(&bf.num, m)? {
+        while let Some(q) = d.div_exact(&bp, m)? {
             d = q;
             e += 1;
             if e > 64 {
@@ -1133,21 +1193,55 @@ fn factored_denominator<'h, S: Store + ?Sized>(c: &Conv<'_, 'h, S>, t: T<'h>, f:
             }
         }
         if e > 0 {
-            parts.push((bf.num, e));
+            parts.push((bp, e));
         }
     }
-    let Some(k) = d.as_constant() else { return Ok(None) };
-    if !parts.iter().any(|&(_, e)| e >= 2) {
+    Ok(if parts.is_empty() { None } else { Some((parts, d)) })
+}
+
+/// The fraction `f` (read from `t`) in the written form of `together`, when its denominator is a product of powers of
+/// the denominators written in `t` up to a constant (their least common multiple): the denominator kept as that
+/// product (`(1 + 2 x)/(x (1 + x))`, `(-3 + 2 x - x^2)/(-1 + x)^3`), the numerator of a product `t` kept as the
+/// product of the sums written in it that divide it (`(-2 + x) (-1 + x)/((-5 + x) (-4 + x) (-3 + x))`), and the
+/// numerical content written outside (`2 (3 + 11 x + 9 x^2 + 2 x^3)/(x (1 + x) (2 + x) (3 + x))`); the factors
+/// without content and with a positive leading coefficient. `None` otherwise (numerator and denominator expanded).
+fn written_fraction<'h, S: Store + ?Sized>(c: &Conv<'_, 'h, S>, t: T<'h>, f: &ratfun::RatFun, ring: &Ring<'h>, m: &mut Meter) -> WorkResult<Option<T<'h>>> {
+    // (complex coefficients: the expanded quotient, whose real factors the callers look for)
+    if f.num.is_zero() || f.den.is_constant() || ring.kernels.iter().any(|&k| matches!(c.ar.num(k), Some(mc_arith::Num::Complex(..)))) {
         return Ok(None);
     }
-    // the constant left is 1 or -1 (both polynomials primitive), which goes into the numerator
-    if k != Z::ONE && k != Z::ONE.neg() {
+    let Some((den_parts, rest)) = split_by_bases(c, &f.den, &written_bases(c, t, true), ring, m)? else { return Ok(None) };
+    // invariant: an exact quotient of a nonzero polynomial is nonzero
+    let Some(mut dk) = rest.as_constant() else { return Ok(None) };
+    // one simple factor: the expanded quotient says the same
+    if matches!(den_parts.as_slice(), [(_, 1)]) {
         return Ok(None);
+    }
+    // the numerator: the sums written in a product t that divide it, and the rest, when they are a product (one
+    // simple factor is the expanded numerator)
+    let (num_parts, rest) = match split_by_bases(c, &f.num, &written_bases(c, t, false), ring, m)? {
+        Some((parts, rest)) if parts.iter().map(|&(_, e)| e).sum::<u32>() >= 2 => (parts, rest),
+        _ => (vec![], f.num.clone()),
+    };
+    let g = rest.content();
+    let mut prim = rest.div_exact_scalar(&g);
+    if dk.is_neg() {
+        dk = dk.neg();
+        prim = prim.neg();
     }
     let st = c.ar.store();
-    let n = c.int_poly_term(&f.num.scale(&k), ring, m)?;
-    let mut fs = vec![n];
-    for (p, e) in &parts {
+    let mut fs = vec![];
+    if g != dk {
+        fs.push(c.rat_term(&crate::qpoly::rat_of(&g, &dk)));
+    }
+    if prim.as_constant() != Some(Z::ONE) {
+        fs.push(c.int_poly_term(&prim, ring, m)?);
+    }
+    for (p, e) in &num_parts {
+        let pt = c.int_poly_term(p, ring, m)?;
+        fs.push(if *e == 1 { pt } else { c.ar.pow(pt, st.int(i64::from(*e))) });
+    }
+    for (p, e) in &den_parts {
         let pt = c.int_poly_term(p, ring, m)?;
         fs.push(c.ar.pow(pt, st.int(-i64::from(*e))));
     }
@@ -1185,12 +1279,10 @@ pub(crate) fn together<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter, cancel:
             let Ok(f) = ratfun::read(&c, t, &ring, m)? else {
                 return Ok(division_by_zero(env));
             };
-            if !cancel {
-                if let Some(r) = factored_denominator(&c, t, &f, &ring, m)? {
-                    out.push(r);
-                    factored = true;
-                    continue;
-                }
+            if let Some(r) = written_fraction(&c, t, &f, &ring, m)? {
+                out.push(r);
+                factored = true;
+                continue;
             }
             out.push(ratfun::to_term(&c, &f, &ring, m)?);
         }

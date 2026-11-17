@@ -13,6 +13,9 @@
 # Sums of fractions are not brought over a common denominator; use `together` for that.
 
 #% item
+# Each term has the form `together` gives it: a denominator that is a product of the factors written in the term stays that product.
+
+#% item
 # `cancel` works over the rationals and treats non-polynomial subexpressions as variables.
 
 #% section
@@ -61,7 +64,7 @@ cancel((x^2 - 1)/(x + 1) + (x^2 - 4)/(x - 2))
 #% cell
 e = 1/(x - 1) - 1/(x + 1); [cancel(e), together(e)]
 #% output
-#= [-1/(1 + x) + (-1 + x)^-1, 2/(-1 + x^2)]
+#= [-1/(1 + x) + (-1 + x)^-1, 2/((-1 + x)*(1 + x))]
 
 #% section
 # See also

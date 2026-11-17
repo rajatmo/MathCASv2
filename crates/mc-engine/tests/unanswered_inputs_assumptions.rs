@@ -60,7 +60,8 @@ fn number_theory_under_assumptions() {
         ("function_expand(euler_phi(p), element(p, primes))", "-1 + p"),
         ("simplify(cos((p + q) * pi), element(p, primes) and element(q, primes) and p > 2 and q > 2)", "1"),
         ("full_simplify(mod(a^carmichael_lambda(n), n), element(a | n, integers) and gcd(a, n) == 1 and n > 1)", "1"),
-        ("simplify(quotient(4 * n + 5, 2), element(n, integers))", "2 + 2*n"),
+        // equal forms of one size: the rational content is written outside (simplify's last rule)
+        ("simplify(quotient(4 * n + 5, 2), element(n, integers))", "2*(1 + n)"),
         ("refine(quotient(2 * n - 3, 7), element((n + 2) / 7, integers))", "-1 + (2/7)*(2 + n)"),
         ("full_simplify(quotient(7 + k * n, n) == quotient(7, n) + k, element([n, k], integers))", "true"),
         ("assuming(element(n, integers), refine(exp(2 * pi * im * (n + 1 / 2))))", "-1"),
