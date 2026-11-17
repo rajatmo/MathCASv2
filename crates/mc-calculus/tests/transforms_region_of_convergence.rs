@@ -84,16 +84,29 @@ fn derivative_of_pfq_and_meijer_g_with_list_parameters() {
     assert!(!run("d(meijer_g([[1/2, 1/3], [1/5]], [[0], [0, 2/7]], x), x)").contains("shape_mismatch"));
 }
 
+/// `src` evaluated with a fuel budget: a run that does more work ends in a limit failure or an error.
+fn run_with_fuel(src: &str, fuel: i64) -> String {
+    let eval = mc_eval::EvalConfig { fuel, ..mc_eval::EvalConfig::default() };
+    let mut e = CoreEngine::with_config(EngineConfig { threads: 1, eval, ..EngineConfig::default() });
+    e.eval(src, &StopFlag::new()).map(|v| v.printed).unwrap_or_else(|x| format!("error: {x}"))
+}
+
+/// Fuel enough for a call that declines a huge exponent at once (a few thousand rewrites), far below what
+/// building any polynomial of degree 2^31 would spend; the bound is on the work, so a loaded machine does not fail it.
+const DECLINE_FUEL: i64 = 20_000_000;
+
 #[test]
 fn huge_exponents_are_declined_at_once() {
+    // the budget is a real bound: ten million steps of a loop exceed it
+    let heavy = run_with_fuel("{ var i = 0; while i < 10000000 { i = i + 1 }; i }", DECLINE_FUEL);
+    assert!(heavy.starts_with("error") || heavy.contains("failure(limit"), "the budget does not bound the work: {}", &heavy[..heavy.len().min(80)]);
     for src in [
         "integrate(x^(2^31)*exp(-x), x)",
         "integrate(sqrt(x^(2^31)), x)",
         "fourier_transform(exp(-u^(2^31)), u, x)",
     ] {
-        let t = std::time::Instant::now();
-        let got = run(src);
-        assert!(t.elapsed().as_secs_f64() < 2.0 && !got.starts_with("error"), "{src}: {got}");
+        let got = run_with_fuel(src, DECLINE_FUEL);
+        assert!(!got.starts_with("error") && !got.contains("failure(limit"), "{src}: {got}");
     }
     assert_eq!(run("integrate(x^(2^31), x)"), "(1/2147483649)*x^2147483649");
 }

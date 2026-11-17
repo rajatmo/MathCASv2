@@ -182,7 +182,8 @@ impl Native for Integrate {
     }
 }
 
-/// `t` with every `sinc(u)` written as `sin(u)/u`, or `None` when it has none.
+/// `t` with every `sinc(u)` written as `sin(u)/u` and every `spherical_bessel_j(k, u)` of an integer order 1 <= k <=
+/// 25 as `function_expand` of it (its form in sin and cos), or `None` when it has none.
 fn without_sinc<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
     let sinc = h.sym_term(h.sym("sinc"));
     // shared subterms rewritten once
@@ -193,6 +194,10 @@ fn without_sinc<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
                 let u = walk(h, sinc, args[0], memo).unwrap_or(args[0]);
                 let sin = h.call(h.sym("sin"), &[u]);
                 return Some(h.call(h.sym(names::MUL), &[sin, h.call(h.sym(names::POW), &[u, h.int(-1)])]));
+            }
+            if head == h.sym_term(h.sym("spherical_bessel_j")) && matches!(args, [k, _] if matches!(h.view(*k), View::Int(1..=25))) {
+                let u = walk(h, sinc, args[1], memo).unwrap_or(args[1]);
+                return Some(h.call(h.sym("function_expand"), &[h.call(h.sym("spherical_bessel_j"), &[args[0], u])]));
             }
             let new_head = walk(h, sinc, head, memo);
             let new_args: Vec<Option<T<'h>>> = args.iter().map(|&a| walk(h, sinc, a, memo)).collect();

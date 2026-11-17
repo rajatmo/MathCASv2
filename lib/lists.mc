@@ -1600,13 +1600,59 @@ rule subsets(xs_, spec_, ns_) := {
 # subset_map(f, xs, all): f applied to the whole list, element by element in place
 fn subset_map(f, xs, a) when is_list(xs) and a === all = subset_map(f, xs, range(length(xs)))
 
+# numerical_order(a, b): 1 when a comes first in the numerical order, -1 when b does, 0 when they are equal in it.
+# The order: numbers (inf and -inf included) by value, complex numbers by real part, then size of the imaginary
+# part (an undecided comparison gives 0); then quantities, by value where their units are compatible, else by
+# their units in base units in canonical order; then compound terms, by head in canonical order, then the shorter
+# first, then argument by argument in this order; then the other terms (symbols, strings) in canonical order
+fn ls_no_number(x) = is_numeric(x) or x === inf or x === -inf
+fn ls_no_quantity(x) = not is_atom(x) and head(x) === quantity
+fn ls_no_compound(x) = not is_atom(x) and not is_assoc(x) and not ls_no_quantity(x) and not ls_no_number(x)
+fn ls_no_rank(x) = if ls_no_number(x) then 0 else if ls_no_quantity(x) then 1 else if ls_no_compound(x) then 2 else 3
+fn numerical_order(a, b) = {
+  let ra = ls_no_rank(a)
+  let rb = ls_no_rank(b)
+  if ra < rb then 1
+  else if ra > rb then -1
+  else if ra == 0 then ls_no_values(a, b)
+  else if ra == 1 then ls_no_quantities(a, b)
+  else if ra == 2 then ls_no_compounds(a, b)
+  else order(a, b)
+}
+fn ls_no_values(a, b) = {
+  let x = n(a)
+  let y = n(b)
+  let rx = re(x)
+  let ry = re(y)
+  let ix = abs(im_part(x))
+  let iy = abs(im_part(y))
+  if (rx < ry) === true then 1 else if (rx > ry) === true then -1 else if (ix < iy) === true then 1 else if (ix > iy) === true then -1 else 0
+}
+fn ls_no_quantities(a, b) = {
+  if (a < b) === true then 1
+  else if (a > b) === true then -1
+  else if (a == b) === true then 0
+  else order(quantity_unit(unit_convert(a)), quantity_unit(unit_convert(b)))
+}
+fn ls_no_compounds(a, b) = {
+  let o = order(head(a), head(b))
+  if o !== 0 then o
+  else if length(a) < length(b) then 1
+  else if length(a) > length(b) then -1
+  else lexicographic_order(a, b, numerical_order)
+}
+
+# numerical_sort(xs): the elements of xs (a list or another compound term) in the order of numerical_order
+fn numerical_sort(xs) when not is_atom(xs) and not is_assoc(xs) = {
+  let items = apply(list, xs)
+  let real = x => (x === inf or x === -inf or is_real(n(x))) === true
+  # real numbers only (the common case): by their values directly, the same order and much faster
+  apply(head(xs), if every(items, real) then sort(items, (a, b) => n(a) <= n(b)) else sort(items, numerical_order))
+}
+
 # numerical_sort(a) of an association: its entries in the order of numerical_sort of their values
 fn numerical_sort(a) when is_assoc(a) = {
-  let ks = keys(a)
-  let real = x => (x === inf or x === -inf or is_real(n(x))) === true
-  let num = select(ks, k => real(a[k]))
-  let other = select(ks, k => not real(a[k]))
-  let ord = join(sort(num, (p, q) => n(a[p]) <= n(a[q])), sort_by(other, k => a[k]))
+  let ord = sort(keys(a), (p, q) => numerical_order(a[p], a[q]))
   assoc(map(k => k -> a[k], ord))
 }
 

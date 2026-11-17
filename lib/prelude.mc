@@ -391,13 +391,6 @@ fn key_complement(xs) when is_list(xs) and length(xs) > 0 = {
 fn operate(p, e) = operate(p, e, 1)
 fn operate(p, e, n: Int) when n >= 0 = if n == 0 then p(e) else if is_atom(e) then e else apply(operate(p, head(e), n - 1), apply(list, e))
 
-# numerical_sort(xs): the elements of xs (a list or another compound term) that have a real numerical value (inf and
-# -inf included) in increasing order of it, followed by the others in canonical order
-fn numerical_sort(xs) when not is_atom(xs) and not is_assoc(xs) = {
-  let real = x => (x === inf or x === -inf or is_real(n(x))) === true
-  let items = apply(list, xs)
-  apply(head(xs), join(sort(select(items, real), (a, b) => n(a) <= n(b)), sort(select(items, x => not real(x)))))
-}
 
 # design_matrix(data, [f1, ..., fm], x), (..., [x1, ..., xk]): the matrix of the basis functions fj at the points
 # of data, rows [x1, ..., xk, y] (a list of values y: the points 1, 2, ...)
@@ -657,20 +650,6 @@ fn unequal_to(y) = x => x != y
 # order(a, b): 1 when a comes before b in the canonical order, -1 when after, 0 when they are the same term
 fn order(a, b) = if a === b then 0 else if ordered([a, b]) then 1 else -1
 
-# numerical_order(a, b): 1 when a is numerically smaller than b, -1 when larger, 0 when equal (complex numbers by
-# real part, then size of the imaginary part); undecided comparisons give 0
-# an argument that is not numeric (a symbol, a string) comes after the numbers; two of them in the canonical order
-fn numerical_order_number(x) = is_numeric(x) or x === inf or x === -inf or (not is_atom(x) and head(x) === quantity)
-fn numerical_order(a, b) when not numerical_order_number(a) or not numerical_order_number(b) = if numerical_order_number(a) then 1 else if numerical_order_number(b) then -1 else order(a, b)
-fn numerical_order(a, b) = {
-  let x = n(a)
-  let y = n(b)
-  let rx = re(x)
-  let ry = re(y)
-  let ix = abs(im_part(x))
-  let iy = abs(im_part(y))
-  if (rx < ry) === true then 1 else if (rx > ry) === true then -1 else if (ix < iy) === true then 1 else if (ix > iy) === true then -1 else 0
-}
 
 # lexicographic_order(a, b), lexicographic_order(a, b, p): compares the elements of a and b in turn (by order, or
 # the ordering function p), a prefix first; strings by their characters, other atoms as one-element lists,

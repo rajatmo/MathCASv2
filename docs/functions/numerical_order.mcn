@@ -4,7 +4,7 @@
 # numerical_order
 
 #% text
-# `numerical_order(a, b)` gives 1 when `a` is numerically smaller than `b`, -1 when it is larger and 0 when they are equal. Complex numbers are compared by their real parts, then by the size of their imaginary parts; a comparison that cannot be decided gives 0.
+# `numerical_order(a, b)` gives 1 when `a` is numerically smaller than `b`, -1 when it is larger and 0 when they are equal. Complex numbers are compared by their real parts, then by the size of their imaginary parts; a comparison that cannot be decided gives 0. Numbers come first; then quantities, by value where their units are compatible and otherwise by their units in base units; then compound terms, by head in canonical order, then the shorter first, then argument by argument in this order; then symbols and strings in canonical order.
 
 #% section
 # Examples
@@ -31,6 +31,11 @@ numerical_order(pi, e^2)
 sort([pi, 3, e, -inf, 2/3], numerical_order)
 #% output
 #= [-inf, 2/3, e, 3, pi]
+
+#% cell
+sort([h(0, 2, foo), h(inf, 1), h(-inf, 3), x, quantity(1, "Minutes"), quantity(1, "Yards"), 2], numerical_order)
+#% output
+#= [2, quantity(1, "Yards"), quantity(1, "Minutes"), h(-inf, 3), h(inf, 1), h(0, 2, foo), x]
 
 #% section
 # See also

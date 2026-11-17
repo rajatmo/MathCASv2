@@ -205,6 +205,9 @@ fn lommel_t1<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if fx.is_int(z, 0) && fx.f64_of(mu).is_some_and(|m| m > -1.0) {
         return Ok(Some(fx.int(0)));
     }
+    if let Some(v) = crate::cover::lommel_small_at_zero(fx, a)? {
+        return Ok(Some(v));
+    }
     if let Some(v) = crate::cover::lommel_exact(fx, a, 2)? {
         return Ok(Some(v));
     }

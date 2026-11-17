@@ -279,7 +279,7 @@ fn at_infinity_known(f: &str, params: usize) -> bool {
             "erf" | "erfc" | "erfi" | "airy_ai" | "airy_ai_prime" | "airy_bi" | "airy_bi_prime" | "dawson_f" | "fresnel_c"
                 | "fresnel_s" | "sin_integral" | "sinh_integral" | "cos_integral" | "cosh_integral" | "exp_integral_ei"
                 | "gamma" | "log_gamma" | "product_log" | "scorer_gi" | "scorer_gi_prime" | "scorer_hi" | "scorer_hi_prime"
-                | "airy_ai_zero" | "airy_bi_zero" | "subfactorial"
+                | "airy_ai_zero" | "airy_bi_zero" | "subfactorial" | "sinc"
         ),
         1 => matches!(
             f,
@@ -309,7 +309,8 @@ fn at_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: &str, params
         ("erfc", 1) => zero(),
         ("erfc", _) => Some(Lim::Fin(b.int(2), 0)),
         ("erfi" | "sinh_integral", _) => Some(Lim::Inf(sg)),
-        ("airy_ai" | "dawson_f", _) => zero(),
+        // sinc(x) = sin(x)/x, |sinc(x)| <= 1/|x|
+        ("airy_ai" | "dawson_f" | "sinc", _) => zero(),
         ("airy_ai_prime", 1) => zero(),
         ("airy_bi" | "airy_bi_prime", 1) => Some(Lim::Inf(1)),
         ("airy_bi", _) => zero(),

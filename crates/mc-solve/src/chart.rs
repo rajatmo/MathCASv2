@@ -177,6 +177,22 @@ fn zeros<'h>(env: &Env<'h>, renv: &Env<'h>, d: T<'h>, x: T<'h>, m: &mut Meter) -
         if k == 0 {
             continue;
         }
+        // an end of the real domain between two samples (`x + product_log(x)` at -1/e): located by bisection on
+        // where d has a value; a value there near 0 is a zero the sign test cannot see
+        if vals[k - 1].is_some() != vals[k].is_some() {
+            let (mut inside, mut outside) = if vals[k].is_some() { (p, p - step) } else { (p - step, p) };
+            for _ in 0..80 {
+                let mid = 0.5 * (inside + outside);
+                if at(env, d, x, mid, m)?.is_some() {
+                    inside = mid;
+                } else {
+                    outside = mid;
+                }
+            }
+            if at(env, d, x, inside, m)?.is_some_and(|f| f.abs() < 1e-6) {
+                cand.push(inside);
+            }
+        }
         if let Some(pv) = vals[k - 1] {
             if pv * v < 0.0 {
                 let (mut a, mut b, mut fa) = (p - step, p, pv);
@@ -289,7 +305,15 @@ pub(crate) fn chart<'h>(env: &Env<'h>, cond: &Cond, diffs: &[T<'h>], x: T<'h>, m
         }
     }
     for (term, val, mask) in &roots {
-        let v = eval_all(*val, m)?;
+        // at a zero the atoms are evaluated at its exact term first: the machine value of an end of a domain (`-1/e`
+        // for `product_log`) may fall just outside it
+        let mut v = eval_all(*val, m)?;
+        for (i, &d) in diffs.iter().enumerate() {
+            if v[i].is_none() {
+                let t = env.subst(d, &[(x, *term)], m)?;
+                v[i] = mach(env, t, m)?.filter(|w| w.is_finite());
+            }
+        }
         for (s, w) in seen.iter_mut().zip(&v) {
             *s |= w.is_some();
         }

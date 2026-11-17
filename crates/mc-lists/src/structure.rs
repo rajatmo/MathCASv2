@@ -741,11 +741,26 @@ pub(crate) fn replace_at<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>
         None => rules,
     };
     let replace = h.sym_term(h.sym("replace"));
+    // inside `quote` the replacement is put in as the rule gives it, not evaluated (the parts of a quoted term are
+    // held: `replace_at(quote(1, 2, 3), x_ :> f(x + 1), 2)` is `quote(1, f(2 + 1), 3)`)
+    let held = matches!(h.view(x), View::App { head, .. } if head == h.sym_term(h.sym("quote")));
     let mut cur = x;
     for p in ps {
         cx.tick(1)?;
         let Ok(part) = part_at(h, cur, &p) else { return Ok(Reply::Done(lib.bad_index(h, h.int(p[0]), 0))) };
-        let v = cx.eval(h.app(replace, &[part, rules]))?;
+        let v = match matchers(lib, cx, rules).filter(|_| held) {
+            Some(mut ms) => {
+                let mut v = part;
+                for (m, rhs) in ms.iter_mut() {
+                    if m.matches(cx, part)? {
+                        v = m.substitute(cx, *rhs)?;
+                        break;
+                    }
+                }
+                v
+            }
+            None => cx.eval(h.app(replace, &[part, rules]))?,
+        };
         match rebuild_at(h, cur, &p, Edit::Set(v)) {
             Ok(Some(u)) => cur = u,
             _ => return Ok(Reply::Decline),
@@ -1073,15 +1088,15 @@ pub(crate) fn first_case<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
 }
 
 /// `reverse_sort(xs)`: the elements in reverse canonical order.
-pub(crate) fn reverse_sort<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+pub(crate) fn reverse_sort<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // `reverse_sort(xs, p)`: `sort(xs, p)` reversed
-    let sorted = match *args {
-        [xs] => h.app(h.sym_term(h.sym("sort")), &[xs]),
-        [xs, p] => h.app(h.sym_term(h.sym("sort")), &[xs, p]),
-        _ => return Ok(Reply::Decline),
-    };
-    Ok(Reply::Again(h.app(h.sym_term(h.sym("reverse")), &[sorted])))
+    match *args {
+        [xs] => Ok(Reply::Again(h.app(h.sym_term(h.sym("reverse")), &[h.app(h.sym_term(h.sym("sort")), &[xs])]))),
+        // `reverse_sort(xs, p)`: sorted by the negation of p (`b` before `a` when `p(a, b)` is true or 1; pairs p
+        // does not decide keep their order)
+        [xs, p] => crate::sort::sort_with(lib, cx, t, xs, Some(p), true),
+        _ => Ok(Reply::Decline),
+    }
 }
 
 /// `take_largest(xs, n)`: the `n` largest elements, largest first.

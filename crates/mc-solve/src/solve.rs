@@ -985,6 +985,29 @@ fn invert<'h>(env: &Env<'h>, k: T<'h>, v: T<'h>, x: T<'h>, m: &mut Meter) -> Wor
                 _ => vec![one(u, f(inv))],
             }
         }
+        // product_log(u) == v: u == v e^v where v is a value of the principal branch W_0 (DLMF 4.13): over the
+        // reals v >= -1; in the plane the strip |im(v)| < pi right of the image of the cut, re(v) >= -im(v)
+        // cot(im(v)); the edges are decided by the check by substitution
+        "product_log" => {
+            let value = env.ar.mul(&[v, env.ar.pow(env.sym("e"), v)]);
+            let t = 1e-12;
+            match env.machine(v) {
+                Some((a, b)) => {
+                    let p = std::f64::consts::PI;
+                    let inside = if b == 0.0 {
+                        a >= -1.0 - t
+                    } else {
+                        b.abs() < p + t && a >= -b * b.cos() / b.sin() - t
+                    };
+                    if inside { vec![one(u, value)] } else { vec![] }
+                }
+                None if reals => {
+                    let c = env.call("greater_equal", &[v, env.int(-1)]);
+                    vec![Branch { inner: u, value, cond: Some(c), keep: None }]
+                }
+                None => return Ok(None),
+            }
+        }
         // the inverse functions: the value of the function, where v is in their range
         // acsch(u) and asech(u) are never 0
         "acsch" | "asech" if is_zero => vec![],

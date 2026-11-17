@@ -259,12 +259,18 @@ fn decide<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, pred: T<'h>, a: T<'h>, b
 /// `sort(xs)`: the arguments of `xs` in canonical order; `sort(xs, by)`: ordered so that `by(a, b)` is `true` (or 1,
 /// for an ordering function) when `a` comes before `b` (elements for which neither holds keep their order).
 pub(crate) fn sort<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-    let h = cx.heap();
     let (xs, by) = match *args {
         [xs] => (xs, None),
         [xs, by] => (xs, Some(by)),
         _ => return Ok(Reply::Decline),
     };
+    sort_with(lib, cx, t, xs, by, false)
+}
+
+/// `sort(xs)`, `sort(xs, by)`; with `negate`, `by` read the other way round: `b` goes before `a` when `by(a, b)` is
+/// `true` (or 1), so `reverse_sort(xs, p)` orders by the negation of `p` (undecided pairs keep their order).
+pub(crate) fn sort_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, xs: T<'h>, by: Option<T<'h>>, negate: bool) -> Res<Reply<'h>> {
+    let h = cx.heap();
     let (head, xs) = take!(lib.operand(h, t, xs, 1));
     if by.is_none() {
         if let Some(ix) = value_order(cx, xs)? {
@@ -307,7 +313,11 @@ pub(crate) fn sort<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
                 return Err(Halt::Fail(v));
             }
             // an ordering function's -1 (P9B.2)
-            Ok(v == cx.bool(false) || v == cx.heap().int(-1))
+            if negate {
+                Ok(cx.is_true(v) || v == cx.heap().int(1))
+            } else {
+                Ok(v == cx.bool(false) || v == cx.heap().int(-1))
+            }
         }),
     };
     match r {
@@ -352,13 +362,18 @@ pub(crate) fn ordered<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
 }
 
 /// The positions `0..n` sorted stably by the canonical order of `key[i]`, charging fuel per comparison.
-/// The positions of `key` ordered so that `by(key[i], key[j])` true puts `i` first (stable): `Err` holds a failure
-/// of `by`.
+/// The positions of `key` ordered as `sort(key, by)` orders the elements: a later `b` goes before `a` when `by(a,
+/// b)` is `false` (or -1), so pairs `by` does not decide keep their order and a strict predicate puts equal keys in
+/// reverse order, as in `sort`. `Err` holds a failure of `by`.
 fn order_by_pred<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>], by: T<'h>) -> Res<Result<Vec<usize>, T<'h>>> {
     let mut ix: Vec<usize> = (0..key.len()).collect();
     match merge_sort(&mut ix, &mut |b, a| {
         cx.tick(1)?;
-        decide(lib, cx, by, key[b], key[a], true)
+        let v = apply(cx, by, &[key[a], key[b]])?;
+        if lib.is_failure(cx.heap(), v) {
+            return Err(Halt::Fail(v));
+        }
+        Ok(v == cx.bool(false) || v == cx.heap().int(-1))
     }) {
         Ok(()) => Ok(Ok(ix)),
         Err(Halt::Abort(a)) => Err(a),
@@ -367,6 +382,10 @@ fn order_by_pred<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>], by
 }
 
 fn order_by_keys<'h>(cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>]) -> Res<Vec<usize>> {
+    // quantities and other values among numbers: by value, as `sort` orders them
+    if let Some(ix) = value_order(cx, key)? {
+        return Ok(ix);
+    }
     let mut ix: Vec<usize> = (0..key.len()).collect();
     // finite machine reals: compared as floats, equal values by the canonical order (as `sort`)
     let h = cx.heap();

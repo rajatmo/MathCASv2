@@ -2010,6 +2010,22 @@ fn spherical<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], first: bool) -> R<'h>
         if fx.is_int(z, 0) {
             return Ok(if first { Some(fx.int(if k == 0 { 1 } else { 0 })) } else { None });
         }
+        // j_k of a symbolic argument: j_0 is sinc (with its value 1 at 0); j_k for k >= 1 stays, odd or even by
+        // the parity of k (DLMF 10.47.14), since its elementary form has no value at 0 where j_k is 0
+        // (`function_expand` gives that form)
+        if first && fx.num(z).is_none() {
+            let zn = fx.eval(fx.call("n", &[z]))?;
+            if fx.num(zn).is_none() {
+                if k == 0 {
+                    return Ok(Some(fx.call("sinc", &[z])));
+                }
+                if let Some(w) = fx.negated(z) {
+                    let j = fx.call("spherical_bessel_j", &[n, w]);
+                    return Ok(Some(if k % 2 == 1 { fx.neg(j) } else { j }));
+                }
+                return Ok(None);
+            }
+        }
         // j_k at a machine |z| < k: the upward recurrence loses everything (growth like (k/z)^k); the power series
         // converges fast there (Abramowitz-Stegun 10.1.2)
         if first && k >= 1 {

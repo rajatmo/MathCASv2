@@ -15,7 +15,8 @@
 //! - **K(m), E(m)** by the AGM of 1 and sqrt(1 - m): b_n <= M <= a_n for n >= 1, so M is enclosed by
 //!   [lower(b_n), upper(a_n)]; E = K (1 - m/2 - sum_(n>=1) 2^(n-1) c_n^2) with c_1 = m/(2(1 + sqrt(1 - m))) and
 //!   c_(n+1) = c_n^2/(4 a_(n+1)); once c_n <= M/4 the terms decrease by more than 2 and the tail is at most twice the
-//!   first omitted term, which is bounded by 2^n (c_n^2/(4 M))^2.
+//!   first omitted term, which is bounded by 2^n (c_n^2/(4 M))^2. For m > 1 (complex values on the cut, from
+//!   below) the reciprocal-modulus transformation (DLMF 19.7.3) to the real integrals at 1/m and 1 - 1/m.
 //! - **F, E, Pi (incomplete)**: phi = j pi + psi with |psi| < pi/2 decided rigorously (a psi ball that may reach
 //!   ±pi/2 gives no value at that precision; the retries resolve it), then the Carlson forms of the machine path and
 //!   the quasi-periodicity with the complete integrals. Pi(n | m) for n > 1 is the principal value
@@ -27,8 +28,8 @@
 //!   [phi - d, phi + d] and sn = sin, cn = cos of that ball, dn = sqrt(cn^2 + (1 - m) sn^2). m = 1 by tanh and sech,
 //!   m > 1 by the reciprocal-modulus transformation. inverse_jacobi_sn(v, m) = v R_F(1 - v^2, 1 - m v^2, 1).
 //!
-//! Every function returns `None` where the value is complex or infinite (K, E, F beyond pi/2 for m >= 1 (E: m > 1),
-//! poles of Pi), for machine arguments, and when the stop flag is raised.
+//! Every function returns `None` where the value is infinite or complex other than K and E beyond 1 (K at m = 1,
+//! F beyond pi/2 for m >= 1, poles of Pi), for machine arguments, and when the stop flag is raised.
 use super::{
     f64_of, float_of, floor_float, hull, int, is_pos, log2_up, lower, mag_up, pi, rat_ball, real, refine, upper,
 };
@@ -694,11 +695,31 @@ pub fn elliptic_k(m: &Real, p: u64) -> Option<CBall> {
     refine(p, 24, |wp| {
         let ma = arg(m, wp)?;
         let mc = one_minus(&ma, wp);
+        if is_neg(&mc) {
+            let (k1, k2, _, _, rt) = above_one(&ma.b, wp)?;
+            return Some(CBall::new(k1.div(&rt, wp)?, k2.div(&rt, wp)?.neg()));
+        }
         Some(real(agm_b(&ma.b, &mc, wp)?.0))
     })
 }
 
-/// The complete integral of the second kind E(m), m <= 1 (E(1) = 1).
+/// K and E at mu = 1/m and at 1 - mu for an m > 1, and sqrt(m): the parts of the reciprocal-modulus
+/// transformation (DLMF 19.7.3 on the lower side of the cut, Im m = -0, the side of the machine values):
+/// K(m) = (K(mu) - i K(1 - mu))/sqrt(m) and E(m) = sqrt(m) (E(mu) - (1 - mu) K(mu) + i (E(1 - mu) - mu K(1 - mu))),
+/// all four real integrals with parameters in (0, 1).
+fn above_one(m: &Ball, wp: u64) -> Option<(Ball, Ball, Ball, Ball, Ball)> {
+    let mu = int(1).div(m, wp)?;
+    let omu = int(1).sub(&mu, wp);
+    if !is_pos(&mu) || !is_pos(&omu) {
+        return None;
+    }
+    let (k1, e1) = agm_b(&mu, &omu, wp)?;
+    let (k2, e2) = agm_b(&omu, &mu, wp)?;
+    let rt = el::sqrt(m, wp)?;
+    Some((k1, k2, e1, e2, rt))
+}
+
+/// The complete integral of the second kind E(m), m <= 1 (E(1) = 1); for m > 1 the value on the cut from below.
 pub fn elliptic_e(m: &Real, p: u64) -> Option<CBall> {
     refine(p, 24, |wp| {
         let ma = arg(m, wp)?;
@@ -706,6 +727,14 @@ pub fn elliptic_e(m: &Real, p: u64) -> Option<CBall> {
             return Some(real(int(1)));
         }
         let mc = one_minus(&ma, wp);
+        if is_neg(&mc) {
+            let (k1, k2, e1, e2, rt) = above_one(&ma.b, wp)?;
+            let mu = int(1).div(&ma.b, wp)?;
+            let omu = int(1).sub(&mu, wp);
+            let re = e1.sub(&omu.mul(&k1, wp), wp).mul(&rt, wp);
+            let im = e2.sub(&mu.mul(&k2, wp), wp).mul(&rt, wp);
+            return Some(CBall::new(re, im));
+        }
         Some(real(agm_b(&ma.b, &mc, wp)?.1))
     })
 }
@@ -1040,7 +1069,10 @@ mod tests {
         let v = jacobi_cn(&q(1, 1), &q(-3, 1), 200).unwrap().re;
         assert_eq!(digits(&v, 25), "1554067037071299762977459e-1");
         // domains
-        assert!(elliptic_k(&q(1, 1), 64).is_none() && elliptic_k(&q(3, 2), 64).is_none());
+        assert!(elliptic_k(&q(1, 1), 64).is_none());
+        // beyond 1 the value on the cut from below (DLMF 19.7.3): K(3/2) = 1.65663817... - 1.41573720... i
+        let k = elliptic_k(&q(3, 2), 64).unwrap();
+        assert_eq!((digits(&k.re, 10), digits(&k.im, 10)), ("1656638170e0".to_string(), "-1415737208e0".to_string()));
         assert!(elliptic_f(&q(2, 1), &q(2, 1), 64).is_none());
         assert_eq!(digits(&elliptic_e(&q(1, 1), 64).unwrap().re, 5), "10000e0");
         assert!(elliptic_pi(&q(1, 1), &q(1, 2), 64).is_none());

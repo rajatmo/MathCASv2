@@ -22,6 +22,28 @@ pub const SLOW_SECS: f64 = 1.0;
 pub fn slow_secs() -> f64 {
     std::env::var("MC_DOCS_SLOW_SECS").ok().and_then(|v| v.trim().parse::<f64>().ok()).filter(|s| *s > 0.0).unwrap_or(SLOW_SECS)
 }
+/// Steps of the fixed computation of [`load_factor`], and its time on an idle development machine.
+const CALIBRATION_STEPS: u64 = 40_000_000;
+const CALIBRATION_IDLE_SECS: f64 = 0.05;
+
+/// How much slower the machine is now than an idle development machine: the time of a fixed computation (a chain
+/// of dependent integer steps on one thread) over its idle time, at least 1. An input's time divided by it measures
+/// its work, so a loaded machine (a parallel build, the test suite) does not make an example slow, while an input
+/// that takes many times the limit (a hang, a regression) still is.
+pub fn load_factor() -> f64 {
+    let t = Instant::now();
+    let mut x: u64 = 0x9E37_79B9_7F4A_7C15;
+    let mut s = 0u64;
+    for _ in 0..CALIBRATION_STEPS {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        s = s.wrapping_add(x);
+    }
+    std::hint::black_box(s);
+    (t.elapsed().as_secs_f64() / CALIBRATION_IDLE_SECS).max(1.0)
+}
+
 /// An input is stopped after this long.
 pub const LIMIT_SECS: u64 = 30;
 
@@ -348,8 +370,15 @@ fn compare_run(
             }
         }
         let limit = slow_secs();
+        // over the limit: measured against the machine's present speed (the work, not the wall time)
         if !cfg!(debug_assertions) && r.secs > limit {
-            problems.push(problem(marker(r.cell), format!("the input took {:.2} s (at most {limit} s)", r.secs)));
+            let factor = load_factor();
+            if r.secs > limit * factor {
+                problems.push(problem(
+                    marker(r.cell),
+                    format!("the input took {:.2} s (at most {limit} s, the machine {factor:.1} times slower than idle)", r.secs),
+                ));
+            }
         }
     }
     clean(name);

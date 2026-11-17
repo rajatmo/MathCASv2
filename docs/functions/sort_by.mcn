@@ -10,7 +10,10 @@
 # Details
 
 #% item
-# Elements with equal keys come in canonical order (as `sort` orders them), not in their input order.
+# The keys are compared as `sort` compares elements: the canonical order (numbers by value, quantities by value in a common unit, then symbols, then compound terms; numerical constants such as `pi` are not ordered by value, for that use `numerical_order` as the predicate). Elements with equal keys come in canonical order (as `sort` orders them), not in their input order.
+
+#% item
+# `sort_by(xs, f, p)` orders the keys as `sort(keys, p)` orders elements: a later key goes first when `p(a, b)` is false (or -1), so a strict predicate such as `greater` puts equal keys in reverse order.
 
 #% item
 # For decreasing order, sort by the negated key or reverse the result.

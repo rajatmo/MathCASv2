@@ -505,10 +505,11 @@ fn logical_expand(e) = {
   let clean = select(map(unique, ts), t => not some(t, l => member(t, bool_neg(l))))
   let kept = unique(clean)
   let absorbed = select(kept, t => not some(kept, u => u != t and every(u, l => member(t, l))))
-  # a sum that is true or false for every assignment of its few symbols is that constant
+  # a sum that is true or false for every assignment of its few symbols is that constant (only when every literal is
+  # a symbol: x == y or x == z or y == z is not true for numbers, though it is for three truth values)
   let vars = bool_vars(absorbed)
   let atoms = unique(map(l => if is_match(l, not(_)) then l[1] else l, flatten(absorbed, 1)))
-  if length(vars) > 0 and length(vars) <= 8 and length(vars) == length(atoms) then {
+  if length(vars) > 0 and length(vars) <= 8 and length(vars) == length(atoms) and every(atoms, is_symbol) then {
     let t = bool_table(bool_or(absorbed), vars)
     if t !== null and every(t, b => b) then true else bool_or(absorbed)
   } else if length(absorbed) == 1 and length(absorbed[1]) == 0 then true

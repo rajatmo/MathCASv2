@@ -972,6 +972,11 @@ fn q_factorial<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         let fs: Vec<T<'h>> = (1..=n).map(|k| fx.add(&(0..k).map(|j| fx.pow(q, fx.int(j))).collect::<Vec<_>>())).collect();
         return Ok(Some(fx.mul(&fs)));
     }
+    // q = 1: each [k]_q is k, and [n]_1! = Gamma(n + 1), the limit q -> 1 of (q; q)_n/(1 - q)^n (DLMF 5.18.4,
+    // 17.2.1: Gamma_q(n + 1) -> Gamma(n + 1)); the product formula below divides 0 by 0 there
+    if let Some(v) = at_q_one(fx, q, &[n], fx.call("gamma", &[fx.add(&[n, fx.int(1)])]))? {
+        return Ok(Some(v));
+    }
     if !numeric(fx, a) {
         return Ok(None);
     }
@@ -984,8 +989,25 @@ fn q_factorial<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     Ok(Some(fx.div(qq, fx.pow(fx.sub(fx.int(1), q), n))))
 }
 
+/// The value `limit` of a q-function at q = 1 (exact, or machine when q or an argument is): the products divide 0
+/// by 0 there, the limit q -> 1 is the classical function (DLMF 17.2.1, 5.18.4: Gamma_q -> Gamma). `None` for
+/// another q or a ball.
+fn at_q_one<'h>(fx: &mut Fx<'_, '_, '_, 'h>, q: T<'h>, args: &[T<'h>], limit: T<'h>) -> R<'h> {
+    if !(fx.num(q).is_some_and(|v| v.kind() != Kind::Ball) && fx.f64_of(q) == Some(1.0)) {
+        return Ok(None);
+    }
+    let machine = |t: &T<'h>| fx.num(*t).is_some_and(|v| v.kind() == Kind::Machine);
+    if machine(&q) || args.iter().any(machine) {
+        return Ok(Some(fx.eval(fx.call("n", &[limit]))?));
+    }
+    Ok(Some(limit))
+}
+
 fn q_binomial<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let (n, k, q) = (a[0], a[1], a[2]);
+    if let Some(v) = at_q_one(fx, q, &[n, k], fx.call("binomial", &[n, k]))? {
+        return Ok(Some(v));
+    }
     if let (Some(nn), Some(kk)) = (fx.int_of(n), fx.int_of(k)) {
         if (0..=1000).contains(&nn) {
             if kk < 0 || kk > nn {
@@ -1005,6 +1027,9 @@ fn q_binomial<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 
 fn q_gamma<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let (z, q) = (a[0], a[1]);
+    if let Some(v) = at_q_one(fx, q, &[z], fx.call("gamma", &[z]))? {
+        return Ok(Some(v));
+    }
     if let Some(n) = fx.int_of(z).filter(|n| (1..=1000).contains(n)) {
         return Ok(Some(fx.call("q_factorial", &[fx.int(n - 1), q])));
     }
@@ -1858,9 +1883,44 @@ pub(crate) fn lommel_exact<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: 
     Ok(None)
 }
 
+/// Lommel's s_(mu, nu)(z) and t_(mu, nu)(z) at an exact or machine z = 0 with numeric orders: z^(mu + 1) times a
+/// series in z^2 whose first term is 1/((mu + 1)^2 - nu^2) (DLMF 11.9.3), so 0 when re(mu + 1) > 0, that first term
+/// -1/nu^2 when mu = -1, and complex infinity when re(mu + 1) < 0. `None` otherwise (a ball zero, a zero first
+/// denominator, mu + 1 imaginary).
+pub(crate) fn lommel_small_at_zero<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    let (mu, nu, z) = (a[0], a[1], a[2]);
+    let zero = fx.num(z).is_some_and(|n| n.is_zero() && n.kind() != Kind::Ball);
+    if !zero || fx.num(mu).is_none() || fx.num(nu).is_none() {
+        return Ok(None);
+    }
+    let e = fx.eval(fx.add(&[mu, fx.int(1)]))?;
+    let Some((re, _)) = parts(fx, e) else { return Ok(None) };
+    let v = if fx.num(e).is_some_and(|n| n.is_zero()) {
+        let d0 = fx.eval(fx.neg(fx.mul(&[nu, nu])))?;
+        if fx.num(d0).is_none_or(|n| n.is_zero()) {
+            return Ok(None);
+        }
+        fx.div(fx.int(1), d0)
+    } else if re > 0.0 {
+        fx.int(0)
+    } else if re < 0.0 {
+        return Ok(Some(fx.sym("complex_infinity")));
+    } else {
+        return Ok(None);
+    };
+    // a machine input gives a machine number
+    if a.iter().any(|&t| fx.num(t).is_some_and(|n| n.kind() == Kind::Machine)) {
+        return Ok(Some(fx.eval(fx.call("n", &[v]))?));
+    }
+    Ok(Some(fx.eval(v)?))
+}
+
 /// Lommel's s_(mu, nu)(z) = sum_k (-1)^k z^(mu + 1 + 2k)/prod_{j<=k} ((mu + 2j + 1)^2 - nu^2).
 fn lommel_s1<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if let Some(v) = lommel_exact(fx, a, 0)? {
+        return Ok(Some(v));
+    }
+    if let Some(v) = lommel_small_at_zero(fx, a)? {
         return Ok(Some(v));
     }
     if !numeric(fx, a) {

@@ -59,7 +59,9 @@ fn ordering_functions_and_up_to() {
     assert_eq!(ev(&format!("position_largest({w}, 3, alphabetic_order)")), "[[5], [7], [6]]");
     assert_eq!(ev(&format!("position_smallest({w}, 3, alphabetic_order)")), "[[1], [3], [2]]");
     // equal elements under the ordering form one group; under greater the largest is the smallest number
-    assert_eq!(ev("position_largest([3, 1, 3, 2], 1, less)"), "[[3, 1]]");
+    // (the positions of the group come in the order `ordering(xs, all, less)` gives equal elements, as `sort`
+    // with a strict predicate does: the group is the set {1, 3})
+    assert_eq!(ev("sort(position_largest([3, 1, 3, 2], 1, less)[1])"), "[1, 3]");
     assert_eq!(ev("position_largest([3, 1, 3, 2], 1, greater)"), "[[2]]");
     let l = "[[3, 7], [2, 7, 2], [0, 1, 3, 4]]";
     assert_eq!(ev(&format!("take_largest({l}, 2, lexicographic_order)")), "[[3, 7], [2, 7, 2]]");

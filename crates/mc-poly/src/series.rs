@@ -787,7 +787,8 @@ pub(crate) type TaylorTable<'h> = FxHashMap<T<'h>, Taylor<'h>>;
 /// The head of an order term `O((x - x0)^p)` (decision 9.3 of the library and kernel gaps).
 pub(crate) const ORDER: &str = "O";
 
-const FUNCS: [&str; 10] = ["exp", "log", "sin", "cos", "tan", "sinh", "cosh", "tanh", "atan", "sqrt"];
+/// `sinc(u)` is expanded as sin(u)/u (its removable point u = 0 included).
+const FUNCS: [&str; 11] = ["exp", "log", "sin", "cos", "tan", "sinh", "cosh", "tanh", "atan", "sqrt", "sinc"];
 
 /// The pieces of the request.
 #[derive(Clone, Copy)]
@@ -1056,6 +1057,10 @@ fn evaluate<'h, R: Ring<'h>>(
                         sa.mul(&s, &sa.inv(&c, m)?, m)?
                     }
                     "atan" => sa.atan(&a, m)?,
+                    "sinc" => {
+                        let s = sa.sincos(&a, false, m)?.0;
+                        sa.mul(&s, &sa.inv(&a, m)?, m)?
+                    }
                     "sqrt" => sa.pow_rat(&a, &Rat::new(Int::from_i64(1), Int::from_i64(2)), m)?,
                     // invariant: FUNCS lists exactly the functions matched here
                     _ => unreachable!("FUNCS lists the functions"),
@@ -1997,6 +2002,16 @@ fn taylor_table_with<'h>(
         let dep: Vec<usize> = (0..fargs.len()).filter(|&i| mentions(h, fargs[i], *x)).collect();
         let [i] = dep.as_slice() else { continue };
         let arg = fargs[*i];
+        // j_k of a positive integer order k: its elementary form in sin and cos (DLMF 10.49.3), whose negative powers
+        // cancel at 0 (the evaluator keeps j_k of a symbol, the form having no value there)
+        if all && *i == 1 && &*h.sym_name(fs) == "spherical_bessel_j" && matches!(h.view(fargs[0]), View::Int(1..=25)) {
+            let sub = cx.eval(h.call(h.sym("function_expand"), &[t]))?;
+            if sub != t {
+                stack.push((sub, want));
+                table.insert(t, Taylor { arg, u0: h.int(0), c: vec![], subst: Some(sub) });
+                continue;
+            }
+        }
         if !all && !(fargs.len() == 1 && NON_ANALYTIC.contains(&h.sym_name(fs).as_str()) && kernel_only(h, arg)) {
             continue;
         }

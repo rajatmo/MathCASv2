@@ -10,7 +10,7 @@
 # Details
 
 #% item
-# Integer orders give elementary functions of sin(z) and cos(z); other numeric orders sqrt(pi/(2 z)) times the Bessel function of order n + 1/2.
+# `spherical_bessel_j(0, z)` is `sinc(z)` = sin(z)/z, with the value 1 at 0, so its domain is every number. For an integer order n >= 1 and a symbolic argument the function stays as it is, odd or even with n (j_n(-z) = (-1)^n j_n(z)): its elementary form in sin(z) and cos(z) has no value at 0, where j_n is 0. That form is what `function_expand` gives, and it is the value at a numeric argument. Other numeric orders give sqrt(pi/(2 z)) times the Bessel function of order n + 1/2.
 
 #% section
 # Examples
@@ -21,12 +21,22 @@
 #% cell
 spherical_bessel_j(0, x)
 #% output
-#= sin(x)/x
+#= sinc(x)
 
 #% cell
 spherical_bessel_j(1, x)
 #% output
+#= spherical_bessel_j(1, x)
+
+#% cell
+function_expand(spherical_bessel_j(1, x))
+#% output
 #= sin(x)/x^2 - cos(x)/x
+
+#% cell
+series(spherical_bessel_j(1, x), x, 0, 4)
+#% output
+#= x/3 - x^3/30 + O(x^5)
 
 #% cell
 spherical_bessel_j(2, 1.5)
@@ -45,4 +55,4 @@ spherical_bessel_j(20, 0.0703)
 # See also
 
 #% text
-# `bessel_j`, `bessel_y`
+# `bessel_j`, `bessel_y`, `sinc`, `function_expand`

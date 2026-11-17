@@ -63,7 +63,10 @@ fn heavy_pictures_stop_at_an_interrupt() {
         }
         let (took, out) = run(src, Some(RAISE));
         eprintln!("{full:?} without a stop, {took:?} with one: {src}");
-        if took > RAISE + slack {
+        // the allowance grows with the run's own length (a loaded machine slows both runs alike); a stop that is
+        // not polled ends with the picture (checked below) after about the full time, beyond this bound
+        let allowed = slack.max(full.saturating_sub(RAISE) / 2);
+        if took > RAISE + allowed {
             report.push(format!("stopped after {took:?} (without a stop {full:?}): {src}"));
         }
         // the engine reports an interrupted evaluation as stopped

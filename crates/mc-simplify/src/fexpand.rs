@@ -248,6 +248,20 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
         ("csch", [x]) => b.powi(b.call_named("sinh", &[*x]), -1),
         ("coth", [x]) => b.div(b.call_named("cosh", &[*x]), b.call_named("sinh", &[*x])),
         ("spherical_bessel_j", [n, x]) if *n == b.int(0) => b.div(b.call_named("sin", &[*x]), *x),
+        // j_n of a positive integer order, which the evaluator keeps for a symbolic argument (the elementary form
+        // has no value at 0, where j_n is 0): j_0 = sin(x)/x, j_1 = sin(x)/x^2 - cos(x)/x, j_(k+1) = (2k + 1)/x j_k -
+        // j_(k-1) (DLMF 10.49.3, 10.51.1)
+        ("spherical_bessel_j", [n, x]) if matches!(b.heap().view(*n), View::Int(k) if (1..=25).contains(&k)) => {
+            let View::Int(k) = b.heap().view(*n) else { return None };
+            let (s, c) = (b.call_named("sin", &[*x]), b.call_named("cos", &[*x]));
+            let mut prev = b.div(s, *x);
+            let mut cur = b.sub(b.div(s, b.powi(*x, 2)), b.div(c, *x));
+            for j in 1..k {
+                let next = b.sub(b.mul(&[b.div(b.int(2 * j + 1), *x), cur]), prev);
+                (prev, cur) = (cur, next);
+            }
+            b.call_named("expand", &[cur])
+        }
         ("spherical_bessel_y", [n, x]) if *n == b.int(0) => b.neg(b.div(b.call_named("cos", &[*x]), *x)),
         ("bessel_j" | "bessel_y" | "bessel_i" | "bessel_k", [nu, x]) => {
             // the half-integer orders: the orders +-1/2 in sines, cosines and exponentials, the others by the

@@ -35,7 +35,10 @@ pub struct Writer<'h> {
     to_ring: Vec<usize>,
     /// substitute a single point's coordinate into the description above it
     pub substitute: bool,
-
+    /// the rational coordinates of the points whose description above is being written (by variable): a factor
+    /// is specialized to them before its root is written, since its k-th distinct root there is not the k-th root
+    /// counted with multiplicity of the substituted factor (y^3 - x y - 2 at x = 3 is (y + 1)^2 (y - 2))
+    fixed: std::cell::RefCell<Vec<Option<Rat>>>,
 }
 
 /// A bound of a piece: the labels of a root and the factor data of a cell where it was read.
@@ -186,7 +189,59 @@ impl<'h> Writer<'h> {
         let hd = Heads::new(h);
         let ring = Conv::rational(&ar, &hd).ring(&[], vars, m)?.0;
         let to_ring = vars.iter().map(|&v| ring.var(v).expect("a variable of the ring")).collect();
-        Ok(Writer { ar, hd, vars: vars.to_vec(), ring, to_ring, substitute: true })
+        let fixed = std::cell::RefCell::new(vec![None; vars.len()]);
+        Ok(Writer { ar, hd, vars: vars.to_vec(), ring, to_ring, substitute: true, fixed })
+    }
+
+    /// `f` at the fixed rational coordinates of the other variables, for writing its k-th distinct root there (root
+    /// objects count roots with multiplicity, and `rewrite` of a coordinate into a root object leaves its body
+    /// unsimplified): the product of the distinct irreducible factors of the substituted polynomial that hold `v`,
+    /// with the sign of its leading coefficient on the cell when that is known (a number, or `f`'s own when the
+    /// substituted polynomial is square-free in `v` and of the same degree, `f` times a positive number then); `None`
+    /// when no variable of `f` but `v` is fixed, or a quadratic whose leading sign is not known.
+    fn specialized(&self, f: &Poly, v: usize, fi: Option<&FacInfo>, m: &mut Meter) -> WorkResult<Option<(Poly, Option<FacInfo>)>> {
+        let fixed = self.fixed.borrow().clone();
+        let mut g = f.clone();
+        let mut any = false;
+        for (u, q) in fixed.iter().enumerate() {
+            let Some(q) = q else { continue };
+            if u == v || g.degree(u).is_none_or(|d| d == 0) {
+                continue;
+            }
+            any = true;
+            let (a, b) = (Z::from_int(q.num.clone()), Z::from_int(Int::from_nat(q.den.clone())));
+            let cs = crate::poly::coeffs(&g, u);
+            let d = cs.len() as u64 - 1;
+            let mut s = Poly::zero(g.nvars());
+            for (e, c) in cs.iter().enumerate() {
+                s = s.add(&c.scale(&a.pow(e as u64).mul(&b.pow(d - e as u64))));
+            }
+            g = s;
+        }
+        if !any || g.degree(v).is_none_or(|d| d == 0) {
+            return Ok(None);
+        }
+        let (_, fs) = crate::poly::factors(&g, m)?;
+        let in_v: Vec<&(Poly, u32)> = fs.iter().filter(|(p, _)| p.degree(v).is_some_and(|d| d > 0)).collect();
+        let repeated = in_v.iter().any(|(_, e)| *e > 1);
+        let mut sq = Poly::constant(g.nvars(), Z::ONE);
+        for (p, _) in &in_v {
+            sq = sq.mul(p, m)?;
+        }
+        let deg = sq.degree(v).unwrap_or(0) as usize;
+        let info = |lc_sign: i32| fi.map(|i| FacInfo { lc_sign, degree: deg, ..i.clone() });
+        if let Some(c) = crate::poly::coeffs(&sq, v).last().and_then(Poly::as_constant) {
+            return Ok(Some((sq, info(if c.is_neg() { -1 } else { 1 }))));
+        }
+        // the sign matters for the quadratic formula only
+        if deg != 2 {
+            return Ok(Some((sq, info(fi.map_or(1, |i| i.lc_sign)))));
+        }
+        if !repeated && g.degree(v) == f.degree(v) {
+            let d = g.degree(v).unwrap_or(0) as usize;
+            return Ok(Some((g, fi.map(|i| FacInfo { degree: d, ..i.clone() }))));
+        }
+        Ok(None)
     }
 
     /// A writer without a ring (for numbers and root objects in one slot variable).
@@ -245,6 +300,9 @@ impl<'h> Writer<'h> {
 
     /// The `k`-th real root (from 1) of the factor `f` in variable `v`, on a cell where its data is `fi`.
     pub fn root(&self, f: &Poly, v: usize, k: usize, fi: Option<&FacInfo>, m: &mut Meter) -> WorkResult<T<'h>> {
+        if let Some((g, gi)) = self.specialized(f, v, fi, m)? {
+            return self.root(&g, v, k, gi.as_ref(), m);
+        }
         let cs = crate::poly::coeffs(f, v);
         let deg = cs.len() - 1;
         let lc_sign = fi.map_or(1, |i| i.lc_sign);
@@ -334,7 +392,12 @@ impl<'h> Writer<'h> {
                 }
             };
             let mut conj: Vec<T<'h>> = cond.into_iter().collect();
-            let above: Vec<T<'h>> = match self.desc_parts(o, inner, v + 1, m)? {
+            // a rational point: the roots above it are written from the factors specialized to it
+            let fix = point.filter(|_| self.substitute).and_then(|r| self.ar.num(r)).and_then(|n| n.as_rat().cloned());
+            let before = std::mem::replace(&mut self.fixed.borrow_mut()[v], fix);
+            let parts = self.desc_parts(o, inner, v + 1, m);
+            self.fixed.borrow_mut()[v] = before;
+            let above: Vec<T<'h>> = match parts? {
                 None => vec![],
                 Some(parts) if parts.len() == 1 => parts.into_iter().next().expect("one piece"),
                 Some(parts) => vec![self.or_term(parts)],

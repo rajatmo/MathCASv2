@@ -324,6 +324,7 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
         return Ok(Some(cx.eval(h.call(h.sym("solve"), &[eq_list, var_list, no_facts_option(h)]))?));
     };
     let mut kept = vec![];
+    let mut complex_values = false;
     // one decider for every solution's conditions (its memo is shared); its arithmetic flag is never raised, the
     // native's stop scope polls the engine's
     let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -416,6 +417,11 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
         if radical && spurious(cx, &equations, &vars, s)? {
             continue;
         }
+        // a value with the imaginary unit and parameters (Cardano's form of a cubic): where it is real is not the
+        // condition on its radicands; the answer of `reduce` is taken instead (below)
+        if dom == "reals" && !no_facts && vars.len() == 1 && equations.len() == 1 && complex_parametric(h, s, &vars) {
+            complex_values = true;
+        }
         // over the reals, values with square roots of the parameters: real (generically) where the radicands are
         // positive, the condition from reduce in the parameters (decision 11C.12)
         let s = if dom == "reals" && !no_facts {
@@ -442,6 +448,22 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
             cx.eval(cx.list(&rules))?
         };
         kept.push(s);
+    }
+    // the real solutions of a polynomial equation with parameters whose radical forms are not real-friendly: the
+    // cylindrical answer of `reduce` (root objects under conditions on the parameters), when it has that form
+    if complex_values && !REAL_BY_REDUCE.with(|f| f.get()) {
+        let mut parts = equations.clone();
+        parts.extend(conds.iter().copied());
+        let c = if parts.len() == 1 { parts[0] } else { h.call(h.sym("and"), &parts) };
+        REAL_BY_REDUCE.with(|f| f.set(true));
+        let r = cx.eval(h.call(h.sym("reduce"), &[c, vars[0], h.sym_term(h.sym("reals"))]));
+        REAL_BY_REDUCE.with(|f| f.set(false));
+        let r = distribute_or(cx, r?);
+        if let Some(rules) = condition_as_conditional_rules(cx, r, &vars)? {
+            return Ok(Some(rules));
+        }
+        // values that are not real where their conditions say: no answer rather than those
+        return Ok(Some(failure_unsolved(h, "the real solutions for these parameters are not found")));
     }
     if sort_real {
         // inexact numbers in the equation or the bounds: inexact roots
@@ -1514,6 +1536,88 @@ fn rules_as_condition<'h>(cx: &mut NativeCx<'_, '_, 'h>, sols: T<'h>) -> Option<
     })
 }
 
+thread_local! {
+    /// Set while `reduce` answers for a solve over the reals (its own solve calls must not come back to it).
+    static REAL_BY_REDUCE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Does a solution have a value with the imaginary unit and a parameter (a symbol other than the unknowns)?
+fn complex_parametric<'h>(h: &'h impl Store, s: T<'h>, vars: &[T<'h>]) -> bool {
+    let i = h.sym_term(h.sym("im"));
+    let mut stack = mc_api::walk::Walk::new(s);
+    let mut has_i = false;
+    while let Some(u) = stack.pop() {
+        if u == i || head_name(h, u).as_deref() == Some("complex") {
+            has_i = true;
+        }
+        // a root of a negative number ((-1)^(1/3)): not real in the principal reading
+        if let View::App { args: &[b, e], .. } = h.view(u) {
+            let negative = match h.view(b) {
+                View::Int(k) => k < 0,
+                View::Rational { num, .. } => matches!(h.view(num), View::Int(k) if k < 0),
+                _ => false,
+            };
+            if head_name(h, u).as_deref() == Some(names::POW) && negative && matches!(h.view(e), View::Rational { .. }) {
+                has_i = true;
+            }
+        }
+        if let View::App { args, .. } = h.view(u) {
+            stack.extend(args.iter().copied());
+        }
+    }
+    let mut ps = vec![];
+    symbols(h, s, vars, &mut ps);
+    has_i && !ps.is_empty()
+}
+
+/// `c` (`and`, `or` nested, as reduce's cylindrical answers are) in disjunctive normal form, every disjunct a
+/// conjunction; `c` itself beyond 256 disjuncts.
+fn distribute_or<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: T<'h>) -> T<'h> {
+    const MAX: usize = 256;
+    fn dnf<'h>(h: &'h impl Store, t: T<'h>) -> Option<Vec<Vec<T<'h>>>> {
+        match (head_name(h, t).as_deref(), h.view(t)) {
+            (Some("or"), View::App { args, .. }) => {
+                let mut out = vec![];
+                for &a in args {
+                    out.extend(dnf(h, a)?);
+                    if out.len() > MAX {
+                        return None;
+                    }
+                }
+                Some(out)
+            }
+            (Some("and"), View::App { args, .. }) => {
+                let mut out: Vec<Vec<T<'h>>> = vec![vec![]];
+                for &a in args {
+                    let alts = dnf(h, a)?;
+                    let mut next = Vec::with_capacity(out.len() * alts.len());
+                    for o in &out {
+                        for alt in &alts {
+                            let mut c = o.clone();
+                            c.extend_from_slice(alt);
+                            next.push(c);
+                        }
+                    }
+                    if next.len() > MAX {
+                        return None;
+                    }
+                    out = next;
+                }
+                Some(out)
+            }
+            _ => Some(vec![vec![t]]),
+        }
+    }
+    let h = cx.heap();
+    let Some(ds) = dnf(h, c) else { return c };
+    let mut out: Vec<T<'h>> = ds.into_iter().map(|d| if d.len() == 1 { d[0] } else { h.call(h.sym("and"), &d) }).collect();
+    if out.len() == 1 {
+        out.pop().expect("one disjunct")
+    } else {
+        h.call(h.sym("or"), &out)
+    }
+}
+
 /// A solution `[x -> v, ...]` over the reals with each value v that has square roots of parameter expressions
 /// written `conditional_expression(expand(v), c)`, c the condition (from `reduce` in the parameters) that the
 /// radicands are positive; `None` when that condition is `false` (no real solution for any parameters).
@@ -1785,8 +1889,18 @@ fn split_abs<'h>(cx: &mut NativeCx<'_, '_, 'h>, eqs: T<'h>, xs: T<'h>) -> Res<Op
 /// `options(assumptions -> false)`: the trailing option of the inner calls of this module, which must not read the
 /// context again.
 pub fn no_facts_option<'h>(h: &'h impl Store) -> T<'h> {
-    let r = h.call(h.sym(names::RULE), &[h.sym_term(h.sym("assumptions")), h.sym_term(h.sym(names::FALSE))]);
-    h.call(h.sym("options"), &[r])
+    let rule = |k: &str, v: bool| h.call(h.sym(names::RULE), &[h.sym_term(h.sym(k)), h.sym_term(h.sym(if v { names::TRUE } else { names::FALSE }))]);
+    let mut rs = vec![rule("assumptions", false)];
+    // the formula settings in force go into the inner call's term: an earlier evaluation of the same call without
+    // them is memoised and would answer for it (root objects where `quartics: true` asks for radicals)
+    let s = crate::front::current();
+    if let Some(c) = s.cubics {
+        rs.push(rule("cubics", c));
+    }
+    if let Some(q) = s.quartics {
+        rs.push(rule("quartics", q));
+    }
+    h.call(h.sym("options"), &rs)
 }
 
 /// The arguments without a trailing [`no_facts_option`], and whether it was there.

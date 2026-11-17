@@ -4,7 +4,7 @@
 # numerical_sort
 
 #% text
-# `numerical_sort(xs)` sorts the elements of `xs` (a list, or any compound term, whose head stays) that have a real numerical value (`inf` and `-inf` included) by that value, and puts the others after them in canonical order. `sort` uses the canonical order instead, which does not order numerical constants by value.
+# `numerical_sort(xs)` sorts the elements of `xs` (a list, or any compound term, whose head stays) in the order of `numerical_order`: numbers (`inf` and `-inf` included, complex numbers by real part, then size of imaginary part) by value; then quantities, by value where the units are compatible and by unit otherwise (lengths before times); then compound terms, by head, then shorter first, then argument by argument numerically; then the other terms in canonical order. `sort` uses the canonical order instead, which does not order numerical constants by value.
 
 #% section
 # Examples
@@ -32,8 +32,21 @@ numerical_sort([b, a, inf, 0])
 #% output
 #= [0, inf, a, b]
 
+#% text
+# Compound terms by their arguments (the shorter first), quantities by unit and then by value:
+
+#% cell
+numerical_sort([h(0, 2, foo), h(inf, 1), h(-inf, 3)])
+#% output
+#= [h(-inf, 3), h(inf, 1), h(0, 2, foo)]
+
+#% cell
+numerical_sort([quantity(1, "Yards"), quantity(1, "Minutes"), quantity(50, "Centimeters"), quantity(30, "Seconds")])
+#% output
+#= [quantity(50, "Centimeters"), quantity(1, "Yards"), quantity(30, "Seconds"), quantity(1, "Minutes")]
+
 #% section
 # See also
 
 #% text
-# `sort`, `sort_by`, `ordering`
+# `sort`, `sort_by`, `ordering`, `numerical_order`

@@ -10,7 +10,10 @@
 # Details
 
 #% item
-# It is `reverse(sort(xs))`.
+# It is `reverse(sort(xs))`: the canonical order (numbers by value, then symbols, then compound terms, numerical constants such as `pi` not by value; `numerical_sort` orders by value) reversed.
+
+#% item
+# `reverse_sort(xs, p)` sorts by the negation of `p`: a later element goes first when `p(a, b)` is true (or 1, for an ordering function such as `alphabetic_order`); pairs that `p` does not decide keep their order.
 
 #% section
 # Examples
@@ -32,7 +35,7 @@ reverse_sort(["b", "c", "a"])
 # Scope
 
 #% text
-# Ordered by a predicate, then reversed:
+# Ordered by the negation of a predicate:
 
 #% cell
 reverse_sort([3, 1, 2], greater)

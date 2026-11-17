@@ -13,7 +13,7 @@
 # Details
 
 #% item
-# `xs[ordering(xs)]` is `sort(xs)`.
+# `xs[ordering(xs)]` is `sort(xs)`, and `xs[ordering(xs, all, p)]` is `sort(xs, p)`: with a strict predicate such as `greater` equal elements come in reverse order of position, as `sort` puts them.
 
 #% section
 # Examples
