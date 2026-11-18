@@ -7,7 +7,7 @@
 # `apart_square_free(e, x)` writes the rational function e of x as a polynomial plus terms `a/d^j`, d running over the square-free factors of its denominator and deg a < deg d.
 
 #% text
-# `apart_square_free(e)` does this in the last variable of e.
+# `apart_square_free(e)` does this in the last variable of e; without a variable, in the one kernel e is rational in (one call such as `sin(x)`, or exponentials `exp(c*w)` with rational `c`, powers of one `exp(g*w)`).
 
 #% section
 # Details
@@ -48,6 +48,14 @@ apart_square_free((x^2 + x*y + y^2)/(x^4 - 2*x^2*y^2 + y^4), x)
 apart_square_free((x - 1)/(x*(x + 1)^2))
 #% output
 #= -1/x + 2/(1 + x)^2 + (1 + x)^-1
+
+#% text
+# Rational in the kernel exp(2*x):
+
+#% cell
+apart_square_free((exp(x)^2 - 2)/(exp(4*x) - 2*exp(2*x) + 1))
+#% output
+#= -1/(-1 + exp(2*x))^2 + (-1 + exp(2*x))^-1
 
 #% section
 # See also

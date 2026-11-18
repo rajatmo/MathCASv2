@@ -27,31 +27,58 @@ fn which<'h>(b: &B<'h>, t: T<'h>, of: &[Sym]) -> Option<(Sym, T<'h>)> {
     }
 }
 
-/// `trig_to_exp(e)`: trigonometric and hyperbolic functions as exponentials, their inverses as logarithms; the
-/// result is expanded (sums distributed, a fraction split over its numerator's terms).
+/// `trig_to_exp(e)`: trigonometric and hyperbolic functions as exponentials, their inverses as logarithms. The
+/// result is expanded (sums distributed, a fraction split over its numerator's terms) when it holds exponentials
+/// (`exp` or `e`); an exponential that evaluates to a power (`exp(5 log(u)) = u^5`) is not one, and the power is
+/// not multiplied out (`sin(5 asin(x))` is `(i/2)(-u^5 + u^-5)`). `tan` and `cot` stay one fraction each,
+/// `i (exp(-i x) - exp(i x))/(exp(-i x) + exp(i x))`: they are rewritten after the expansion.
 pub fn trig_to_exp<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
     let hd = &b.hd;
+    let r = trig_to_exp_of(cx, b, t, &[hd.sin, hd.cos, hd.sec, hd.csc, hd.sinh, hd.cosh, hd.tanh], true)?;
     let h = b.heap();
-    let inv: Vec<Sym> = ["asin", "acos", "atan", "acot", "asec", "acsc", "asinh", "acosh", "atanh", "acoth", "asech", "acsch"]
-        .iter()
-        .map(|n| h.sym(n))
-        .collect();
-    let of = [hd.sin, hd.cos, hd.tan, hd.cot, hd.sec, hd.csc, hd.sinh, hd.cosh, hd.tanh];
+    let holds_exp = {
+        let (exp, e) = (h.sym_term(hd.exp), h.sym_term(hd.e));
+        let mut stack = mc_api::walk::Walk::new(r);
+        let mut found = false;
+        while let Some(u) = stack.pop() {
+            if u == exp || u == e {
+                found = true;
+                break;
+            }
+            if let View::App { head, args } = h.view(u) {
+                stack.push(head);
+                stack.extend_from_slice(args);
+            }
+        }
+        found
+    };
+    let r = if r != t && holds_exp { expand_parts(cx, b, r)? } else { r };
+    trig_to_exp_of(cx, b, r, &[hd.tan, hd.cot], false)
+}
+
+/// The functions `of` in `t` as exponentials (and the inverse functions as logarithms when `inverses`), evaluated.
+fn trig_to_exp_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, of: &[Sym], inverses: bool) -> Res<T<'h>> {
+    let h = b.heap();
+    let inv: Vec<Sym> = if inverses {
+        ["asin", "acos", "atan", "acot", "asec", "acsc", "asinh", "acosh", "atanh", "acoth", "asech", "acsch"].iter().map(|n| h.sym(n)).collect()
+    } else {
+        vec![]
+    };
     let r = rewrite(cx, b, t, &mut |_, b, node| {
         if let Some((s, u)) = which(b, node, &inv) {
             return Ok(Some(inverse_as_log(b, h.sym_name(s).as_str(), u)));
         }
-        let Some((s, u)) = which(b, node, &of) else { return Ok(None) };
+        let Some((s, u)) = which(b, node, of) else { return Ok(None) };
         let hd = &b.hd;
         let iu = b.mul(&[b.i(), u]);
         let (ep, em) = (b.exp(iu), b.exp(b.neg(iu)));
         let (sum, diff) = (b.add(&[ep, em]), b.sub(ep, em));
         let r = if s == hd.sin {
-            b.mul(&[b.complex(b.int(0), b.rat(-1, 2)), diff])
+            b.mul(&[b.complex(b.int(0), b.rat(1, 2)), b.sub(em, ep)])
         } else if s == hd.cos {
             b.mul(&[b.rat(1, 2), sum])
         } else if s == hd.tan {
-            b.mul(&[b.complex(b.int(0), b.int(-1)), diff, b.powi(sum, -1)])
+            b.mul(&[b.i(), b.sub(em, ep), b.powi(sum, -1)])
         } else if s == hd.cot {
             b.mul(&[b.i(), sum, b.powi(diff, -1)])
         } else if s == hd.sec {
@@ -71,11 +98,7 @@ pub fn trig_to_exp<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Re
         };
         Ok(Some(r))
     })?;
-    let r = cx.eval(r)?;
-    if r == t {
-        return Ok(r);
-    }
-    apply(cx, b, "expand", r)
+    cx.eval(r)
 }
 
 /// The logarithmic form of an inverse trigonometric or hyperbolic function of `u`.
@@ -137,9 +160,15 @@ fn split<'h>(b: &B<'h>, u: T<'h>) -> (T<'h>, T<'h>) {
     (b.add(&re), b.add(&im))
 }
 
-/// `exp_to_trig(e)`: exponentials with an imaginary part in the exponent by Euler's formula.
-pub fn exp_to_trig<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
-    let r = exp_to_trig_with(cx, b, t, false)?;
+/// `exp_to_trig(e)`: every exponential written with circular and hyperbolic functions: `exp(a + i c)` as
+/// `(cosh(a) + sinh(a)) (cos(c) + i sin(c))` (a number `a` keeps `exp(a)`), a power `q^u` of a positive rational
+/// `q != 1` as `exp(u log(q))` first, a power `(-1)^u` as `exp(i pi u)` (the principal value: `log(-1) = i pi`); a
+/// rational `u` gives the angle `u pi` reduced to `[0, pi/4]` when its cosine has no closed value. Then expanded
+/// (through lists, rules, relations and connectives), and logarithms that are inverse functions written so. With
+/// `hyperbolic` false only the exponentials with an imaginary part are rewritten (the form the transforms, `d_solve`
+/// and the library read).
+pub fn exp_to_trig<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, hyperbolic: bool) -> Res<T<'h>> {
+    let r = exp_to_trig_with(cx, b, t, hyperbolic)?;
     // logarithms of the forms that are inverse functions (the search of `simplify` does not do this)
     let s = rewrite(cx, b, r, &mut |cx, b, node| log_to_inverse(cx, b, node))?;
     if s == r {
@@ -149,23 +178,150 @@ pub fn exp_to_trig<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Re
     }
 }
 
-/// [`exp_to_trig`]; `real`: also exp(x) = cosh(x) + sinh(x) for a real exponent. Off everywhere for now: the
-/// transforms, d_solve and simplify call exp_to_trig expecting exponentials of real arguments to stay (exp(-t)
-/// would become cosh(t) - sinh(t)); a user-facing option can turn it on later
+/// [`exp_to_trig`] without the logarithms; `real`: also exp(x) = cosh(x) + sinh(x) for a real exponent and the
+/// powers of positive rationals and of -1 (the user-level form); off for simplify's search and the internal callers,
+/// which expect exponentials of real arguments to stay (exp(-t) would become cosh(t) - sinh(t)).
 pub fn exp_to_trig_with<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, real: bool) -> Res<T<'h>> {
-    let r = rewrite(cx, b, t, &mut |_, b, node| {
-        let Some(u) = b.exp_arg(node) else { return Ok(None) };
+    let r = rewrite(cx, b, t, &mut |cx, b, node| {
+        let u = match b.exp_arg(node) {
+            Some(u) => u,
+            None if real => match power_as_exp(cx, b, node)? {
+                Some(Power::Exp(u)) => u,
+                Some(Power::Unit(c, s)) => return Ok(Some(b.add(&[c, b.mul(&[b.i(), s])]))),
+                None => return Ok(None),
+            },
+            None => return Ok(None),
+        };
         let (re, im) = split(b, u);
         let hd = &b.hd;
+        // a real exponent: exp(x) = cosh(x) + sinh(x) (numbers stay numbers)
+        let real_part = |re: T<'h>| {
+            if real && !b.is_number(re) {
+                b.add(&[b.call(hd.cosh, &[re]), b.call(hd.sinh, &[re])])
+            } else {
+                b.exp(re)
+            }
+        };
         if im == b.int(0) {
-            // a real exponent: exp(x) = cosh(x) + sinh(x) (numbers stay numbers)
-            return Ok((real && !b.is_number(re)).then(|| b.add(&[b.call(hd.cosh, &[re]), b.call(hd.sinh, &[re])])));
+            return Ok((real && !b.is_number(re)).then(|| real_part(re)));
         }
         let rot = b.add(&[b.call(hd.cos, &[im]), b.mul(&[b.i(), b.call(hd.sin, &[im])])]);
-        Ok(Some(if re == b.int(0) { rot } else { b.mul(&[b.exp(re), rot]) }))
+        Ok(Some(if re == b.int(0) { rot } else { b.mul(&[real_part(re), rot]) }))
     })?;
     let r = cx.eval(r)?;
-    apply(cx, b, "expand", r)
+    expand_parts(cx, b, r)
+}
+
+/// `expand` applied to the values in `t`: through lists, rules, relations and logical connectives.
+fn expand_parts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
+    const STRUCTURE: &[&str] = &["list", "rule", "equal", "unequal", "less", "less_equal", "greater", "greater_equal", "and", "or", "not"];
+    let h = b.heap();
+    match b.call_of(t) {
+        Some((s, args)) if STRUCTURE.contains(&h.sym_name(s).as_str()) => {
+            let mut out = Vec::with_capacity(args.len());
+            for &a in args {
+                out.push(expand_parts(cx, b, a)?);
+            }
+            if out.as_slice() == args {
+                return Ok(t);
+            }
+            cx.eval(b.call(s, &out))
+        }
+        _ => apply(cx, b, "expand", t),
+    }
+}
+
+/// A power read as an exponential by [`power_as_exp`].
+enum Power<'h> {
+    /// the exponent `w` of `exp(w)`
+    Exp(T<'h>),
+    /// `(-1)^r` for a rational `r`: the cosine and sine of the angle `r pi`
+    Unit(T<'h>, T<'h>),
+}
+
+/// `q^u` for a positive rational `q != 1` and an exponent that is no real number: `exp(u log(q))`; `(-1)^u`:
+/// `exp(i pi u)` (principal values), for a rational `u` directly the cosine and sine of `u pi` with the angle
+/// reduced to `[0, pi/4]` by the symmetries of the unit circle when the cosine has no closed value
+/// (`cos(5 pi/7) = -sin(3 pi/14)`).
+fn power_as_exp<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, node: T<'h>) -> Res<Option<Power<'h>>> {
+    let h = b.heap();
+    let Some((s, &[base, u])) = b.call_of(node) else { return Ok(None) };
+    if s != b.hd.pow {
+        return Ok(None);
+    }
+    let pi = h.sym_term(h.sym("pi"));
+    let real_number = |t: T<'h>| b.is_number(t) && b.complex_parts(t).is_none();
+    if base == b.int(-1) {
+        let rational = match h.view(u) {
+            View::Int(_) => return Ok(None),
+            View::Rational { num, den } => match (h.view(num), h.view(den)) {
+                (View::Int(n), View::Int(d)) => Some((i128::from(n), i128::from(d))),
+                _ => return Ok(None),
+            },
+            _ if b.is_number(u) => return Ok(None),
+            _ => None,
+        };
+        let Some((n, d)) = rational else { return Ok(Some(Power::Exp(b.mul(&[b.i(), pi, u])))) };
+        let (c, s) = (cx.eval(b.call(b.hd.cos, &[b.mul(&[u, pi])]))?, cx.eval(b.call(b.hd.sin, &[b.mul(&[u, pi])]))?);
+        if b.unary(c, b.hd.cos).is_none() {
+            return Ok(Some(Power::Unit(c, s)));
+        }
+        return Ok(Some(reduced_unit(b, n, d).map_or(Power::Unit(c, s), |(c, s)| Power::Unit(c, s))));
+    }
+    if real_number(u) || !matches!(b.ar.num(base), Some(Num::Real(Real::Exact(_)))) || base == b.int(1) {
+        return Ok(None);
+    }
+    if b.ar.compare(base, b.int(0)) != Some(mc_arith::number::Cmp3::Greater) {
+        return Ok(None);
+    }
+    Ok(Some(Power::Exp(b.mul(&[u, b.call(b.hd.log, &[base])]))))
+}
+
+/// `(cos(r pi), sin(r pi))` for `r = n/d` written with sines and cosines of an angle `phi pi`, `phi` in `[0, 1/4]`:
+/// with `r` taken modulo 2, the octant decides (`cos(r pi) = sin((1/2 - r) pi)` for `r` in `(1/4, 1/2]`, ...).
+/// `None` when the numbers are too large.
+fn reduced_unit<'h>(b: &B<'h>, n: i128, d: i128) -> Option<(T<'h>, T<'h>)> {
+    if d <= 0 {
+        return None;
+    }
+    // r mod 2 as m/d with 0 <= m < 2d
+    let m = n.rem_euclid(2 * d);
+    // the octant k (r in (k/4, (k+1)/4]) and phi, the distance of r to the nearest multiple of 1/2, as p/(2d)
+    let k = (4 * m - 1).div_euclid(d).clamp(0, 7);
+    let p = match k {
+        0 => 2 * m,
+        1 => d - 2 * m,
+        2 => 2 * m - d,
+        3 => 2 * d - 2 * m,
+        4 => 2 * m - 2 * d,
+        5 => 3 * d - 2 * m,
+        6 => 2 * m - 3 * d,
+        _ => 4 * d - 2 * m,
+    };
+    let dd = 2 * d;
+    let g = {
+        let (mut a, mut c) = (p.abs(), dd);
+        while c != 0 {
+            (a, c) = (c, a % c);
+        }
+        a.max(1)
+    };
+    let (pn, pd) = (i64::try_from(p / g).ok()?, i64::try_from(dd / g).ok()?);
+    let pi = b.heap().sym_term(b.heap().sym("pi"));
+    let angle = b.mul(&[b.rat(pn, pd), pi]);
+    let (cs, sn) = (b.call(b.hd.cos, &[angle]), b.call(b.hd.sin, &[angle]));
+    let neg = |t: T<'h>| b.neg(t);
+    // r pi = j pi/2 +- phi pi
+    Some(match k {
+        0 => (cs, sn),
+        1 => (sn, cs),
+        2 => (neg(sn), cs),
+        3 => (neg(cs), sn),
+        4 => (neg(cs), neg(sn)),
+        5 => (neg(sn), neg(cs)),
+        6 => (sn, neg(cs)),
+        _ => (cs, neg(sn)),
+    })
 }
 
 /// An angle split for the addition theorems: `u = a + r` (the first term of a sum and the rest), or `u = n x`

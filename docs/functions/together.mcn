@@ -13,7 +13,7 @@
 # Common factors of the numerator and the denominator cancel.
 
 #% item
-# The form: when the denominator in lowest terms is a product of powers of the denominators written in `e` (their least common multiple), it is kept as that product, as in `(1 + 2*x)/(x*(1 + x))`; the numerator is then expanded, except that in a single product the sums written in it stay as factors, and the numerical factor common to its coefficients is written outside, as in `2*(3 + 11*x + 9*x^2 + 2*x^3)/(x*(1 + x)*(2 + x)*(3 + x))`. Otherwise numerator and denominator are expanded polynomials.
+# The form: when the denominator in lowest terms is a product of powers of the denominators written in `e` (their least common multiple; for a term of a sum whose written fraction cancels, its denominator in lowest terms), it is kept as that product, as in `(1 + 2*x)/(x*(1 + x))`; the numerator is then expanded, except that in a single product the sums written in it stay as factors, and the numerical factor common to its coefficients is written outside, as in `2*(3 + 11*x + 9*x^2 + 2*x^3)/(x*(1 + x)*(2 + x)*(3 + x))`. Otherwise numerator and denominator are expanded polynomials.
 
 #% item
 # Functions such as `sin(x)` are treated as variables.

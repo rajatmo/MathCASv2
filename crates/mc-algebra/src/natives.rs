@@ -352,17 +352,45 @@ fn to_radicals<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: 
     if found.is_empty() {
         // `root(p, k)` objects of degree 2 to 4 are written with radicals by the library (`calc_to_radicals`)
         let root = h.sym_term(h.sym("root"));
+        let algebraic = h.sym_term(h.sym("algebraic_number"));
+        let mut roots = vec![];
         let mut stack = mc_api::walk::Walk::new(e);
         while let Some(u) = stack.pop() {
             if let View::App { head, args } = h.view(u) {
-                if head == root {
-                    return Ok(Reply::Again(h.call(h.sym("calc_to_radicals"), &[e])));
+                let is_root = |t: T<'h>| matches!(h.view(t), View::App { head, .. } if head == root);
+                if head == root || head == algebraic && matches!(args, &[r, _] if is_root(r)) {
+                    if !roots.contains(&u) {
+                        roots.push(u);
+                    }
+                    continue;
                 }
                 stack.push(head);
                 stack.extend_from_slice(args);
             }
         }
-        return Ok(Reply::Done(e));
+        if roots.is_empty() {
+            return Ok(Reply::Done(e));
+        }
+        // the radicals of each root of a cubic or quartic in their written form, put in place first;
+        // algebraic_number(r, [c0, c1, ...]) is c0 + c1 r + ...
+        let mut out = e;
+        for u in roots {
+            let v = match h.view(u) {
+                View::App { head, args: &[r, cs] } if head == algebraic => {
+                    let (Some(v), Some(cs)) = (radical_form(cx, &env, r)?, env.as_list(cs)) else { continue };
+                    let terms: Vec<T<'h>> = cs.iter().enumerate().map(|(i, &c)| env.ar.mul(&[c, env.ar.pow(v, env.int(i as i64))])).collect();
+                    cx.eval(env.ar.add(&terms))?
+                }
+                _ => match radical_form(cx, &env, u)? {
+                    Some(v) => v,
+                    None => continue,
+                },
+            };
+            if let Ok(o) = env.subst(out, u, v, &mut m) {
+                out = o;
+            }
+        }
+        return Ok(Reply::Again(h.call(h.sym("calc_to_radicals"), &[out])));
     }
     let mut out = e;
     for (rs, x, body, g) in found {
@@ -384,6 +412,74 @@ fn to_radicals<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: 
         out = r;
     }
     Ok(Reply::Again(out))
+}
+
+/// The radical form of `root(p, k)` (the library's `calc_to_radicals`) when `p` is a cubic or a quartic, written
+/// with each rational factor distributed over the sum it multiplies (at the top and in the terms of a top-level sum:
+/// `(1/3) (a + b/2)` is `a/3 + b/6`), and a power `(z^-1)^r` of a non-real number `z` as `z^-r` (equal on the
+/// principal branch: `arg(1/z) = -arg(z)` off the negative axis). `None` when it stays a root or is no such
+/// polynomial's root.
+fn radical_form<'h>(cx: &mut NativeCx<'_, '_, 'h>, env: &Env<'h>, r: T<'h>) -> Res<Option<T<'h>>> {
+    let h = env.h();
+    let View::App { args: &[p, _], .. } = h.view(r) else { return Ok(None) };
+    let x = h.sym_term(h.sym("to_radicals·x"));
+    let deg = cx.eval(h.call(h.sym("exponent"), &[h.app(p, &[x]), x]))?;
+    if !matches!(h.view(deg), View::Int(3 | 4)) {
+        return Ok(None);
+    }
+    let v = cx.eval(h.call(h.sym("calc_to_radicals"), &[r]))?;
+    let root = h.sym_term(h.sym("root"));
+    let mut stack = mc_api::walk::Walk::new(v);
+    while let Some(u) = stack.pop() {
+        if u == root {
+            return Ok(None);
+        }
+        if let View::App { head, args } = h.view(u) {
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    let (add, mul, pow) = (h.sym_term(h.sym(names::ADD)), h.sym_term(h.sym(names::MUL)), h.sym_term(h.sym(names::POW)));
+    let rational = |t: T<'h>| matches!(h.view(t), View::Int(_) | View::Rational { .. });
+    // q (s1 + s2 + ...) as q s1 + q s2 + ...
+    let distribute = |t: T<'h>| match h.view(t) {
+        View::App { head, args: &[q, s] } if head == mul && rational(q) => match h.view(s) {
+            View::App { head: sh, args: terms } if sh == add => h.app(add, &terms.iter().map(|&u| h.app(mul, &[q, u])).collect::<Vec<_>>()),
+            _ => t,
+        },
+        _ => t,
+    };
+    let mut v = match h.view(v) {
+        View::App { head, args } if head == add => h.app(add, &args.iter().map(|&u| distribute(u)).collect::<Vec<_>>()),
+        _ => distribute(v),
+    };
+    // (z^-1)^r with z not real
+    let mut found = vec![];
+    let mut stack = mc_api::walk::Walk::new(v);
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if let (true, &[inner, rexp]) = (head == pow, args) {
+                if let View::App { head: ih, args: &[z, m1] } = h.view(inner) {
+                    if ih == pow && m1 == h.int(-1) && rational(rexp) && !found.iter().any(|&(w, _)| w == u) {
+                        let s = cx.eval(h.call(h.sym("sign"), &[h.call(h.sym("im_part"), &[z])]))?;
+                        if matches!(h.view(s), View::Int(1 | -1)) {
+                            found.push((u, h.app(pow, &[z, h.app(mul, &[h.int(-1), rexp])])));
+                        }
+                    }
+                }
+            }
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    let mut unlimited = mc_poly::work::Unlimited;
+    let mut m = Meter::new(&mut unlimited);
+    for (w, z) in found {
+        if let Ok(o) = env.subst(v, w, z, &mut m) {
+            v = o;
+        }
+    }
+    Ok(Some(cx.eval(v)?))
 }
 
 fn rootsum_degree<'h>(env: &Env<'h>, x: T<'h>, body: T<'h>, m: &mut Meter) -> Option<usize> {

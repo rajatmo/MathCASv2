@@ -648,8 +648,12 @@ fn simplify_positive<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'h>,
         return Ok(v);
     }
     let mut best = v;
+    let h = b.heap();
+    // exp_to_trig only on the exponentials with an imaginary part
+    let euler = h.call(h.sym("options"), &[h.call(h.sym(names::RULE), &[h.sym_term(h.sym("hyperbolic")), h.sym_term(h.sym("false"))])]);
     for f in ["exp_to_trig", "simplify"] {
-        let r = cx.eval_assuming(&[wpos], b.call(f, &[best]))?;
+        let call = if f == "exp_to_trig" { b.call(f, &[best, euler]) } else { b.call(f, &[best]) };
+        let r = cx.eval_assuming(&[wpos], call)?;
         if !is_failure(b, r) && (size(b, r) < size(b, best) || f == "simplify" && size(b, r) <= size(b, best)) {
             best = r;
         }

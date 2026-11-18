@@ -34,7 +34,7 @@
 # Lists and equations are simplified element by element.
 
 #% item
-# Also: denominators with square roots are made rational, powers of one base are collected, logarithms of rationals are written over primes, linear equations are normalised, `re` and `im_part` are split over sums, and identities of special functions are tried; forms found this way are checked numerically before they are returned.
+# Also: denominators with square roots are made rational, powers of one base are collected, logarithms of rationals are written over primes, linear equations are normalised, `re` and `im_part` are split over sums, and identities of special functions are tried; forms found this way are checked numerically before they are returned. An argument of `max` that another argument exceeds by a positive number is dropped (`max(1 - x, x, 1 + x)` is `max(1 + x, 1 - x)`), and the same for `min`.
 
 #% item
 # Equations are proved from axioms given as facts `for_all(vars, s == t)` by rewriting.

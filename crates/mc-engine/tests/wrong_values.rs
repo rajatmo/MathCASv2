@@ -270,9 +270,10 @@ fn trig_reduce_hyperbolic_products_and_trig_expand_pythagoras() {
 
 #[test]
 fn exp_to_trig_keeps_real_exponentials() {
-    // the real-exponent rule (exp(x) = cosh(x) + sinh(x)) is off: transforms, d_solve and simplify rely on
-    // exp(-t) staying
-    assert_eq!(ev("exp_to_trig(exp(x))"), "exp(x)");
+    // the user-level exp_to_trig writes exp(x) = cosh(x) + sinh(x); transforms, d_solve and simplify rely on
+    // exp(-t) staying and use the imaginary-only rewriting (hyperbolic: false, simplify's own move)
+    assert_eq!(ev("exp_to_trig(exp(x))"), "cosh(x) + sinh(x)");
+    assert_eq!(ev("exp_to_trig(exp(x), hyperbolic: false)"), "exp(x)");
     assert_eq!(ev("simplify(1 - exp(-t))"), "1 - exp(-t)");
     assert_eq!(ev("exp_to_trig(exp(im*x))"), "cos(x) + 1im*sin(x)");
 }
@@ -401,11 +402,14 @@ fn piecewise_expand_keeps_the_jump_at_a_closed_end_of_the_region() {
 
 #[test]
 fn piecewise_expand_of_the_wave_functions() {
-    assert_eq!(ev("piecewise_expand(sawtooth_wave(x), -1 <= x and x <= 1)"), "piecewise([[x, 0 <= x and x < 1], [1 + x, x < 0]], -1 + x)");
-    assert_eq!(ev("piecewise_expand(square_wave(x), 0 < x and x < 1)"), "piecewise([[1, x < 1/2]], -1)");
+    // the stated form (pieces in value order, the last value the default, wave values factored); the same functions
+    // as before: sawtooth 1 + x on [-1, 0), x on [0, 1), x - 1 at 1; square 1 below 1/2, -1 from 1/2; triangle 4x
+    // below 1/4, 2 - 4x on [1/4, 3/4), 4x - 4 from 3/4
+    assert_eq!(ev("piecewise_expand(sawtooth_wave(x), -1 <= x and x <= 1)"), "piecewise([[-1 + x, x >= 1], [x, 0 <= x and x < 1]], 1 + x)");
+    assert_eq!(ev("piecewise_expand(square_wave(x), 0 < x and x < 1)"), "piecewise([[-1, x >= 1/2]], 1)");
     assert_eq!(
         ev("piecewise_expand(triangle_wave(x), 0 < x and x < 1)"),
-        "piecewise([[2 + -4*x, 1/4 <= x and x < 3/4], [4*x, x < 1/4]], -4 + 4*x)"
+        "piecewise([[4*(-1 + x), x >= 3/4], [4*x, x < 1/4]], -2*(-1 + 2*x))"
     );
 }
 

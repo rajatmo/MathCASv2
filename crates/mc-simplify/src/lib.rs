@@ -77,7 +77,10 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("trig_expand", "trig_expand(e): sines and cosines of sums and integer multiples by the addition theorems, expanded"),
     ("trig_reduce", "trig_reduce(e): products and powers of sines and cosines as sums of multiple angles"),
     ("trig_to_exp", "trig_to_exp(e): trigonometric and hyperbolic functions as exponentials"),
-    ("exp_to_trig", "exp_to_trig(e): exponentials of imaginary arguments by Euler's formula, exp(i x) = cos(x) + i sin(x)"),
+    (
+        "exp_to_trig",
+        "exp_to_trig(e): exponentials and powers written with circular and hyperbolic functions, exp(a + i x) = (cosh(a) + sinh(a)) (cos(x) + i sin(x)); with hyperbolic: false only the exponentials with an imaginary part",
+    ),
     (
         "power_expand",
         "power_expand(e): (a b)^c = a^c b^c, (a^b)^c = a^(b c), log(a b) = log(a) + log(b), log(a^b) = b log(a), without side conditions (inside assuming, not for bases proved negative)",
@@ -157,6 +160,8 @@ struct Opts<'h> {
     time: Option<T<'h>>,
     /// `trig: false` was given
     no_trig: bool,
+    /// `hyperbolic: false` was given (`exp_to_trig`: only the exponentials with an imaginary part)
+    no_hyperbolic: bool,
     /// `modulus: p` (`trig_reduce`; `modulus: 0` is no modulus)
     modulus: Option<T<'h>>,
     /// the internal flag of an explicit `assumptions:` on `power_expand`: the branch corrections are kept
@@ -203,6 +208,9 @@ fn split_options<'a, 'h>(h: &'h Heap, args: &'a [T<'h>]) -> (&'a [T<'h>], Opts<'
             }
             if is(k, "trig") && is(v, "false") {
                 o.no_trig = true;
+            }
+            if is(k, "hyperbolic") && is(v, "false") {
+                o.no_hyperbolic = true;
             }
         }
     }
@@ -329,7 +337,7 @@ impl Native for SimplifyNative {
                 Some(p) => trig::trig_reduce_mod(cx, &b, *e, p)?.unwrap_or(*e),
             },
             Fun::TrigToExp => trig::trig_to_exp(cx, &b, *e)?,
-            Fun::ExpToTrig => trig::exp_to_trig(cx, &b, *e)?,
+            Fun::ExpToTrig => trig::exp_to_trig(cx, &b, *e, !opts.no_hyperbolic)?,
             Fun::PowerExpand => {
                 if opts.exact {
                     power_exact::power_expand_exact(cx, &b, f.as_mut(), *e)?

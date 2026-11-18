@@ -128,7 +128,9 @@ fn step_functions_in_piecewise_expand_and_refine() {
         ("map(f => function_range(f(x), x, y), [floor, ceiling, round, integer_part])", "table(element(y, integers), 4)"),
         // variations
         ("piecewise_expand(unit_box(2*x))", "piecewise([[1, -1/4 <= x and x <= 1/4]], 0)"),
-        ("piecewise_expand(mod(x, 2), 0 < x and x < 4)", "piecewise([[x, x < 2]], -2 + x)"),
+        // the stated form: pieces in value order (-2 + x before x), the last value the default; the same function
+        // (x on (0, 2), x - 2 on [2, 4))
+        ("piecewise_expand(mod(x, 2), 0 < x and x < 4)", "piecewise([[-2 + x, x >= 2]], x)"),
     ] {
         same(&mut e, src, want);
     }

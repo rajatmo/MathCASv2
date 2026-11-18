@@ -4,13 +4,28 @@
 # exp_to_trig
 
 #% text
-# `exp_to_trig(e)` writes exponentials of imaginary arguments by Euler's formula, `exp(im*x) = cos(x) + im*sin(x)`.
+# `exp_to_trig(e)` writes every exponential in `e` with circular and hyperbolic functions: `exp(a + im*x)` is `(cosh(a) + sinh(a))*(cos(x) + im*sin(x))` (Euler's formula and `exp(a) = cosh(a) + sinh(a)`). `exp_to_trig(e, hyperbolic: false)` rewrites only the exponentials with an imaginary part.
 
 #% section
 # Details
 
 #% item
-# Exponentials of real arguments are left as they are.
+# The guaranteed form: no `exp` with a symbolic argument is left, and the result is expanded (products of sums multiplied out), through lists, rules, equations, inequalities and logical connectives.
+
+#% item
+# A power `q^u` of a positive rational number `q` other than 1 (and an exponent that is not a real number) is `exp(u*log(q))` first: `3^x` is `cosh(x*log(3)) + sinh(x*log(3))`.
+
+#% item
+# A power `(-1)^u` is `exp(im*pi*u)` (the principal value); for a rational `u` the angle `u*pi` is written in `[0, pi/4]` when its cosine has no closed value: `(-1)^(5/7)` is `-sin((3/14)*pi) + im*cos((3/14)*pi)`.
+
+#% item
+# A number stays a number: `exp(2)` is not rewritten, and in `exp(2 + im*x)` the factor `exp(2)` stays.
+
+#% item
+# Differences of logarithms that are inverse functions are written as such.
+
+#% item
+# With `hyperbolic: false`, exponentials of real arguments and the powers stay as they are.
 
 #% section
 # Examples
@@ -36,10 +51,33 @@ exp_to_trig((exp(im*x) + exp(-im*x))/2)
 #% cell
 exp_to_trig(exp(x) + exp(-x))
 #% output
-#= exp(x) + exp(-x)
+#= 2*cosh(x)
 
 #% subsection
 # Scope
+
+#% text
+# Powers of positive rational numbers and of -1:
+
+#% cell
+exp_to_trig(3^x - 3^(-x))
+#% output
+#= 2*sinh(x*log(3))
+
+#% cell
+exp_to_trig(2^(im*x))
+#% output
+#= cos(x*log(2)) + im*sin(x*log(2))
+
+#% cell
+exp_to_trig((-1)^(1/11))
+#% output
+#= cos((1/11)*pi) + im*sin((1/11)*pi)
+
+#% cell
+exp_to_trig((-1)^(5/7))
+#% output
+#= -sin((3/14)*pi) + im*cos((3/14)*pi)
 
 #% text
 # A difference of logarithms that is an inverse function (the midpoint of the two arguments a positive number):
@@ -65,6 +103,25 @@ exp_to_trig(log(z + sqrt(z^2 + 1)))
 #% cell
 exp_to_trig(exp((1 + im)*t))
 #% output
+#= cos(t)*cosh(t) + cos(t)*sinh(t) + im*cosh(t)*sin(t) + im*sin(t)*sinh(t)
+
+#% text
+# Inside rules and equations:
+
+#% cell
+exp_to_trig([y(t) -> a*exp(t) + b*exp(-t), exp(im*x) == -1])
+#% output
+#= [y(t) -> a*cosh(t) + a*sinh(t) + b*cosh(t) - b*sinh(t), cos(x) + im*sin(x) == -1]
+
+#% subsection
+# Options
+
+#% text
+# `hyperbolic: false` keeps the exponentials of real arguments:
+
+#% cell
+exp_to_trig(exp((1 + im)*t), hyperbolic: false)
+#% output
 #= cos(t)*exp(t) + im*exp(t)*sin(t)
 
 #% subsection
@@ -82,4 +139,4 @@ exp_to_trig(trig_to_exp(cos(x)))
 # See also
 
 #% text
-# `trig_to_exp`, `exp`, `cos`, `sin`
+# `trig_to_exp`, `exp`, `cos`, `sin`, `cosh`, `sinh`

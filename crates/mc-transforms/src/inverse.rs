@@ -485,13 +485,15 @@ pub(crate) fn trig_form<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'
     // powers with imaginary exponents as exponentials (x^(i a) is exp(i a log(x)))
     let v = imaginary_powers(cx, b, v)?;
     let mut best = v;
+    // only the exponentials with an imaginary part (exp(-t) stays, not cosh(t) - sinh(t))
+    let euler = h.call(h.sym("options"), &[h.call(h.sym(names::RULE), &[h.sym_term(h.sym("hyperbolic")), h.sym_term(h.sym("false"))])]);
     // distributions are kept as they are (simplify would put dirac_delta(w) over a denominator with w)
     if !is_free(b, v, h.sym_term(h.sym("dirac_delta"))) {
-        let e = apply(cx, b, "exp_to_trig", &[v])?;
+        let e = apply(cx, b, "exp_to_trig", &[v, euler])?;
         return Ok(if is_failure(b, e) { v } else { e });
     }
     if !is_free(b, v, h.sym_term(h.sym("complex"))) || call_of(b, v).is_some() {
-        let e = apply(cx, b, "exp_to_trig", &[v])?;
+        let e = apply(cx, b, "exp_to_trig", &[v, euler])?;
         for cand in [e, apply(cx, b, "simplify", &[e])?] {
             if !is_failure(b, cand)
                 && (is_free(b, cand, h.sym_term(h.sym("complex"))) || size(b, cand) < size(b, best))

@@ -13,13 +13,22 @@
 # When the conditions are relations the pieces are exclusive: each case's condition is conjoined with the negations of the cases before it, empty pieces are dropped, conditions in one variable that are linear in it are reduced to intervals, and bounds implied by `cond` (or by the assumptions) are left out.
 
 #% item
-# A piece with the value 0 becomes the default, otherwise the last case does; the other pieces are sorted by value.
+# The form of the answer (exclusive pieces): the pieces are in the order of their values; pieces with equal values are one piece whose condition is the `or` of theirs (in the canonical order); the default is 0 when 0 is a value, otherwise the last value in that order (with symbol conditions the input's default), and the piece of the default is left out (its condition is where no other piece holds).
+
+#% item
+# The order of the values: numbers first; when the other values are polynomials with number coefficients in one variable (or in one other term such as `floor(x)`), by degree, then by the coefficients of their primitive part from the leading one down, then by the content (`-1 + x`, `x`, `1 + x`; `4*x` before `-2*(-1 + 2*x)`; `-x` before `x`); otherwise the canonical order of `sort`.
+
+#% item
+# Conditions are written as bounds on the variable: those linear in one variable reduced to intervals (`x < (-1/2)*pi`), other polynomial ones with the constant on the right and without a conjunct the others imply; `max`, `min`, `abs`, `piecewise` and the other piecewise functions inside a condition are expanded too.
+
+#% item
+# The values of `square_wave`, `sawtooth_wave` and `triangle_wave` are factored (`4*(-1 + x)`, `-2*(-1 + 2*x)`); an even power of a sum is written with the base as `factor` writes it (`(-1 + a)^4`).
 
 #% item
 # When a condition is a symbol the first-match order is kept, each piece with the conditions along its path.
 
 #% item
-# `method: [orderless_conditions -> true]` makes exclusive pieces also then; `method: [boolean_result -> true]` gives the disjunction of the pieces' conditions and values; `method: [condition_simplifier -> reduce]` reduces every condition.
+# `method: [orderless_conditions -> true]` makes exclusive pieces also then; `method: [boolean_result -> true]` gives the disjunction of the pieces' conditions and values; `method: [condition_simplifier -> reduce]` reduces every condition; `method: [value_simplifier -> f]` (also written `"ValueSimplifier" -> f`) applies `f` to every value before equal values are merged.
 
 #% section
 # Examples
@@ -72,7 +81,7 @@ assuming(0 < x and x < 3, piecewise_expand(floor(x)))
 #% cell
 piecewise_expand(unit_step(x + 1) - unit_step(x - 1) + 1)
 #% output
-#= piecewise([[1, x < -1], [2, -1 <= x and x < 1]], 1)
+#= piecewise([[1, x >= 1 or x < -1]], 2)
 
 #% text
 # Several functions:
@@ -81,6 +90,22 @@ piecewise_expand(unit_step(x + 1) - unit_step(x - 1) + 1)
 map(piecewise_expand, [min(x, y), unit_step(x), clip(x, [a, b])])
 #% output
 #= [piecewise([[x, x - y <= 0]], y), piecewise([[1, x >= 0]], 0), piecewise([[a, a - x > 0], [b, b - x < 0 and a - x <= 0]], x)]
+
+#% text
+# Waves in an interval, with factored values:
+
+#% cell
+piecewise_expand(triangle_wave(x), 0 < x and x < 1)
+#% output
+#= piecewise([[4*(-1 + x), x >= 3/4], [4*x, x < 1/4]], -2*(-1 + 2*x))
+
+#% text
+# A `max` inside a condition is expanded too:
+
+#% cell
+piecewise_expand(min(x^2 + 2*x - 2, max(2*x^2 - 3*x + 4, x^2 - 3)))
+#% output
+#= piecewise([[-2 + 2*x + x^2, -5*x + x^2 >= -6]], 4 - 3*x + 2*x^2)
 
 #% subsection
 # Options
@@ -97,6 +122,14 @@ piecewise_expand(piecewise([[piecewise([[piecewise([[4, a]], 2), b]], 3), c]], 1
 piecewise_expand(piecewise([[piecewise([[piecewise([[4, a]], 2), b]], 3), c]], 1), method: [orderless_conditions -> true])
 #% output
 #= piecewise([[2, c and b and not a], [3, c and not b], [4, c and b and a]], 1)
+
+#% text
+# The values simplified, then equal values merged:
+
+#% cell
+piecewise_expand(unit_step(x + 1) - unit_step(x - 1)*(sin(x)^2 + cos(x)^2) + 1, method: [value_simplifier -> simplify])
+#% output
+#= piecewise([[1, x >= 1 or x < -1]], 2)
 
 #% cell
 piecewise_expand(if a then b else c, method: [boolean_result -> true])
@@ -123,7 +156,7 @@ f = max(x, 1 - x, x^2 - 3); g = piecewise_expand(f); [rewrite(f - g, x -> -3), r
 #% cell
 [piecewise_expand(x), piecewise_expand(sign(x)), piecewise_expand(frac(x), 0 < x and x < 2), piecewise_expand(mod(x, 2), 0 < x and x < 5)]
 #% output
-#= [x, piecewise([[-1, x < 0], [1, x > 0]], 0), frac(x), piecewise([[x, x < 2], [-2 + x, 2 <= x and x < 4]], -4 + x)]
+#= [x, piecewise([[-1, x < 0], [1, x > 0]], 0), frac(x), piecewise([[-4 + x, x >= 4], [-2 + x, 2 <= x and x < 4]], x)]
 
 #% text
 # Without a condition `floor` is not cut (the interval of `x` is unknown):

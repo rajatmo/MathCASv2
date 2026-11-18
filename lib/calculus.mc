@@ -1095,21 +1095,41 @@ fn factor_list(p) when not is_list(p) = {
 fn calc_content(p) = {
   let ts = calc_terms(expand(p))
   let cs = map(calc_num_part, ts)
-  if length(cs) > 0 and every(cs, is_integer) then apply(gcd, cs) else 1
+  if length(cs) > 0 and every(cs, is_integer) then apply(gcd, cs)
+  else if length(cs) > 0 and every(cs, calc_is_gaussian) and some(cs, c => not is_real(c)) then calc_gauss_content(p, cs)
+  else 1
+}
+# Gaussian integers: the gcd by Euclid's algorithm with the nearest Gaussian quotient (the norm decreases), up to a
+# unit; the content of a polynomial with such coefficients is that gcd times the unit that puts the quotient of the
+# leading coefficient (the highest power of the first variable) in the quadrant re > 0, im >= 0 (5 im x^2 + 20 im x
+# + 10 is 5 im (x^2 + 4 x - 2 im))
+fn calc_is_gaussian(c) = is_number(c) and is_integer(re(c)) and is_integer(im_part(c))
+fn calc_ggcd(a, b) = if b == 0 then a else calc_ggcd(b, expand(a - b*(round(re(a/b)) + im*round(im_part(a/b)))))
+fn calc_gauss_content(p, cs) = {
+  let g = fold(calc_ggcd, 0, cs)
+  let vs = variables(p)
+  let lc = if length(vs) == 0 then g else calc_num_part(last(calc_terms(expand(coefficient(p, vs[1], exponent(p, vs[1]))))))
+  let us = select([1, im, -1, -im], w => re(lc/(g*w)) > 0 and im_part(lc/(g*w)) >= 0)
+  if length(us) == 0 then g else g*us[1]
+}
+# with variables x1, x2, ...: each factor so far is split into its part free of x1 (the gcd of its coefficients in
+# x1) and the rest, then each of those by x2, ...; a part is one expanded polynomial, not factored further, its
+# numerical content joining the content outside: factor_terms(p, x) is 2 (y + a y) (-3 + 2 a y + x^2), with [x, y]
+# 2 (1 + a) y (-3 + 2 a y + x^2)
+fn calc_ft_split(b, v) = {
+  let g = fold((a, q) => polynomial_gcd(a, q), 0, coefficient_list(b, v))
+  if free_of(b, v) or g === 0 or is_number(g) then [b] else [g, cancel(b/g)]
 }
 fn calc_factor_terms(p, vs) = {
-  let c = calc_content(p)
-  var rest = expand(p/c)
-  var out = [c]
+  var c = calc_content(p)
+  var blocks = [expand(p/c)]
   for v in vs {
-    let cl = coefficient_list(rest, v)
-    let g = fold((a, b) => polynomial_gcd(a, b), 0, cl)
-    if not (g === 0) and not is_number(g) then {
-      out = join(out, [factor(g)])
-      rest = cancel(rest/g)
-    }
+    blocks = flat_map(b => calc_ft_split(b, v), blocks)
   }
-  if length(out) == 1 and c === 1 then p else product(join(out, [expand(rest)]))
+  let ks = map(calc_content, blocks)
+  c = c*product(ks)
+  let bs = map(i => expand(blocks[i]/ks[i]), range(length(blocks)))
+  if length(bs) == 1 and c === 1 then p else product(join([c], bs))
 }
 # the same modulo an integer m (factor_terms(p, modulus: m)): the coefficients reduced, then the leading coefficient
 # pulled out when it is invertible (2 x^2 + 2 modulo 3 is 2 (x^2 + 1))
@@ -2675,7 +2695,7 @@ fn calc_hilbert_osc(f, t, s, asm) = {
 # a transform of sines and cosines back in sines and cosines: exp(im u) = cos(u) + im sin(u) for the exponentials
 # with an argument im u (u free of im), then trig_reduce
 fn calc_hb_trig(v) = {
-  let w = simplify(exp_to_trig(v))
+  let w = simplify(exp_to_trig(v, hyperbolic: false))
   if free_of(w, exp) and free_of(w, e) then w
   else simplify(trig_reduce(expand(rewrite(v, exp(u_) :> (if free_of(expand(u/im), im) then cos(expand(u/im)) + im*sin(expand(u/im)) else exp(u))))))
 }

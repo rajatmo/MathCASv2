@@ -311,6 +311,12 @@ impl Native for Apart {
         if let Some(r) = crate::apart::apart(cx, &b, e, x)? {
             return Ok(Reply::Again(r));
         }
+        // no variable but one kernel (sin(x), or the exponentials exp(c w), powers of exp(w)): partial fractions in it
+        if x.is_none() {
+            if let Some(r) = in_kernel(cx, &b, e, |cx, e2, v| crate::apart::apart(cx, &b, e2, Some(v)))? {
+                return Ok(Reply::Done(r));
+            }
+        }
         // several variables and none named: the last variable in the order of `variables` (as apart_square_free
         // does), when every variable is a symbol
         if x.is_none() {
@@ -324,6 +330,155 @@ impl Native for Apart {
         }
         Ok(Reply::Decline)
     }
+}
+
+/// `apart_square_free(e)` for an `e` without variables but rational in one kernel (`exp(2 x)`, `sin(x)`): the
+/// library's decomposition in a new variable standing for the kernel, the kernel put back; every other call is the
+/// library's.
+pub struct ApartSquareFree;
+
+impl Native for ApartSquareFree {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let &[e] = args else { return Ok(Reply::Decline) };
+        let stop = Arc::new(AtomicBool::new(false));
+        let b = Build::new(h, &stop);
+        let r = in_kernel(cx, &b, e, |cx, e2, v| {
+            let r = cx.eval(h.call(h.sym("apart_square_free"), &[e2, v]))?;
+            let open = matches!(h.view(r), View::App { head, .. } if head == h.sym_term(h.sym("apart_square_free")));
+            Ok(if open || crate::common::is_failure(&b, r) { None } else { Some(r) })
+        })?;
+        Ok(r.map_or(Reply::Decline, Reply::Done))
+    }
+}
+
+/// The most kernels [`in_kernel`] reads (exponentials of one family).
+const MAX_KERNELS: usize = 16;
+
+/// `f` applied to `e` written in a new variable `v` for its one kernel, and `v` put back in the result: when every
+/// variable of `e` stands inside calls that are either one elementary function call (`sin(x)`, `log(x)`) or
+/// exponentials `exp(c_i w)` with rational `c_i` (the powers `v^(c_i/g)` of `v = exp(g w)`, g the rational gcd of
+/// the `c_i`), and `e` is a rational function of those. The substitution is an identity, so the result equals `e`.
+/// `None` when `e` has a variable outside such calls, no kernel, or `f` gives `None`.
+fn in_kernel<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    b: &Build<'h>,
+    e: T<'h>,
+    f: impl FnOnce(&mut NativeCx<'_, '_, 'h>, T<'h>, T<'h>) -> Res<Option<T<'h>>>,
+) -> Res<Option<T<'h>>> {
+    const CONSTANTS: &[&str] = &["pi", "e", "euler_gamma", "catalan", "golden_ratio", "im"];
+    const ELEMENTARY: &[&str] = &["sin", "cos", "tan", "cot", "sec", "csc", "sinh", "cosh", "tanh", "coth", "log"];
+    let h = b.heap();
+    let name = |t: T<'h>| b.sym_of(t).map(|s| h.sym_name(s));
+    // a term without variables
+    let constant = |t: T<'h>| {
+        let mut stack = mc_api::walk::Walk::new(t);
+        while let Some(u) = stack.pop() {
+            match h.view(u) {
+                View::Sym(s) if !CONSTANTS.contains(&h.sym_name(s).as_str()) => return false,
+                View::App { head, args } => {
+                    stack.push(head);
+                    stack.extend_from_slice(args);
+                }
+                _ => {}
+            }
+        }
+        true
+    };
+    let mut kernels: Vec<T<'h>> = vec![];
+    let mut stack = vec![e];
+    while let Some(u) = stack.pop() {
+        if constant(u) {
+            continue;
+        }
+        let View::App { head, args } = h.view(u) else { return Ok(None) };
+        match (name(head).as_deref(), args) {
+            (Some("add" | "mul"), _) => stack.extend_from_slice(args),
+            (Some("pow"), &[base, k]) if matches!(h.view(k), View::Int(_)) => stack.push(base),
+            // e^u is the exponential exp(u)
+            (Some("pow"), &[base, _]) if name(base).as_deref() == Some("e") => {
+                if !kernels.contains(&u) {
+                    kernels.push(u);
+                }
+                if kernels.len() > MAX_KERNELS {
+                    return Ok(None);
+                }
+            }
+            (Some(n), &[_]) if n == "exp" || ELEMENTARY.contains(&n) => {
+                if !kernels.contains(&u) {
+                    kernels.push(u);
+                }
+                if kernels.len() > MAX_KERNELS {
+                    return Ok(None);
+                }
+            }
+            _ => return Ok(None),
+        }
+    }
+    let Some(&first) = kernels.first() else { return Ok(None) };
+    let v = h.sym_term(h.sym("apart·kernel"));
+    let rule = |a: T<'h>, c: T<'h>| h.call(h.sym(names::RULE), &[a, c]);
+    let exp_arg = |k: T<'h>| match h.view(k) {
+        View::App { head, args: &[u] } if name(head).as_deref() == Some("exp") => Some(u),
+        View::App { head, args: &[base, u] } if name(head).as_deref() == Some("pow") && name(base).as_deref() == Some("e") => Some(u),
+        _ => None,
+    };
+    let (forward, back) = if kernels.len() == 1 && exp_arg(first).is_none() {
+        (vec![rule(first, v)], first)
+    } else {
+        // exponentials: the ratios c_i = u_i/u_0, rational
+        let Some(u0) = exp_arg(first) else { return Ok(None) };
+        let mut ratios: Vec<(i128, i128)> = vec![];
+        for &k in &kernels {
+            let Some(u) = exp_arg(k) else { return Ok(None) };
+            let r = cx.eval(b.div(u, u0))?;
+            ratios.push(match h.view(r) {
+                View::Int(n) => (i128::from(n), 1),
+                View::Rational { num, den } => match (h.view(num), h.view(den)) {
+                    (View::Int(n), View::Int(d)) => (i128::from(n), i128::from(d)),
+                    _ => return Ok(None),
+                },
+                _ => return Ok(None),
+            });
+        }
+        let gcd = |mut a: i128, mut c: i128| {
+            (a, c) = (a.abs(), c.abs());
+            while c != 0 {
+                (a, c) = (c, a % c);
+            }
+            a
+        };
+        // g = gcd(numerators)/lcm(denominators)
+        let (mut gn, mut gd) = (0i128, 1i128);
+        for &(n, d) in &ratios {
+            gn = gcd(gn, n);
+            let Some(l) = (gd / gcd(gd, d)).checked_mul(d) else { return Ok(None) };
+            gd = l;
+        }
+        let (Ok(gn64), Ok(gd64)) = (i64::try_from(gn), i64::try_from(gd)) else { return Ok(None) };
+        let mut forward = vec![];
+        for (&k, &(n, d)) in kernels.iter().zip(&ratios) {
+            // (n/d)/(gn/gd), an integer
+            let (Some(num), Some(den)) = (n.checked_mul(gd), d.checked_mul(gn)) else { return Ok(None) };
+            if den == 0 || num % den != 0 {
+                return Ok(None);
+            }
+            let Ok(j) = i64::try_from(num / den) else { return Ok(None) };
+            forward.push(rule(k, b.powi(v, j)));
+        }
+        let w = cx.eval(b.mul(&[b.rat(gn64, gd64), u0]))?;
+        (forward, b.call("exp", &[w]))
+    };
+    let list = |xs: Vec<T<'h>>| h.call(h.sym(names::LIST), &xs);
+    let e2 = cx.eval(b.call("rewrite", &[e, list(forward)]))?;
+    if !crate::common::is_free(b, e2, first) {
+        return Ok(None);
+    }
+    let Some(r) = f(cx, e2, v)? else { return Ok(None) };
+    if crate::common::is_failure(b, r) {
+        return Ok(None);
+    }
+    Ok(Some(cx.eval(b.call("rewrite", &[r, list(vec![rule(v, back)])]))?))
 }
 
 /// The derivative of a function with a definition (decision 2A.8): `f` applied to fresh variables evaluates to its

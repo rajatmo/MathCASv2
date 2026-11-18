@@ -6,9 +6,11 @@
 //!   condition is conjoined with the negations of the cases before it (`max(a, b, c)`: `a` where `a - b >= 0 and
 //!   a - c >= 0`, `b` where `a - b < 0 and b - c >= 0`, else `c`); sums, products and functions of piecewise
 //!   terms take the product of their cases, dropping the empty ones. Conditions in one variable are reduced
-//!   (`x > 0 and x - 1 >= 0` is `x >= 1`), and bounds that the call's condition implies are left out. A piece
-//!   whose value is 0 becomes the default (the value of `piecewise` where no condition holds), otherwise the last
-//!   case does; the other pieces are sorted by value.
+//!   (`x > 0 and x - 1 >= 0` is `x >= 1`), and bounds that the call's condition implies are left out; piecewise
+//!   functions inside a condition are expanded too. Pieces with equal values merge (`or`), the pieces are in the
+//!   order of their values (`order_values`), and the default (the value of `piecewise` where no condition holds)
+//!   is 0 when that is a value, otherwise the last value (with symbol conditions the input's default); its piece is
+//!   left out. Wave values are factored.
 //! - **Ordered pieces** when a condition is a symbol (`piecewise([[piecewise([[4, a]], 2), b]], 3)`): the
 //!   first-match order is kept and each piece's condition is the conjunction along its path (`[[4, b and a],
 //!   [2, b]], 3`).
@@ -35,29 +37,53 @@ type Case<'h> = (T<'h>, T<'h>);
 
 /// The `method:` suboptions read.
 #[derive(Default)]
-struct Opts {
+struct Opts<'h> {
     /// `orderless_conditions -> true`: exclusive conditions even with symbols
     orderless: bool,
     /// `boolean_result -> true`: a disjunction instead of a piecewise
     boolean: bool,
     /// `condition_simplifier -> reduce`: every condition reduced
     reduce: bool,
+    /// `value_simplifier -> f`: `f` applied to every value
+    values: Option<T<'h>>,
 }
 
 /// Read `method: [name -> value, ...]`.
-fn read_method<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'h>, o: &mut Opts) {
+fn read_method<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'h>, o: &mut Opts<'h>) {
     let h = b.heap();
     let Some(rules) = cx.as_list(v) else { return };
     for &r in rules {
         let View::App { args: &[k, val], .. } = h.view(r) else { continue };
-        let View::Sym(name) = h.view(k) else { continue };
-        match h.sym_name(name).as_str() {
+        // the name as a symbol or a string (`"ValueSimplifier"` is `value_simplifier`)
+        let name = match h.view(k) {
+            View::Sym(name) => h.sym_name(name).to_string(),
+            View::Str(s) => snake(s),
+            _ => continue,
+        };
+        match name.as_str() {
             "orderless_conditions" => o.orderless = cx.is_true(val),
             "boolean_result" => o.boolean = cx.is_true(val),
             "condition_simplifier" => o.reduce = val == h.sym_term(h.sym("reduce")),
+            "value_simplifier" if !cx.is_false(val) && val != h.sym_term(h.sym("none")) => o.values = Some(val),
             _ => {}
         }
     }
+}
+
+/// `ValueSimplifier` as `value_simplifier`.
+fn snake(s: &str) -> String {
+    let mut out = String::new();
+    for (i, ch) in s.chars().enumerate() {
+        if ch.is_ascii_uppercase() {
+            if i > 0 {
+                out.push('_');
+            }
+            out.push(ch.to_ascii_lowercase());
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 /// `piecewise_expand` for its arguments.
@@ -92,16 +118,16 @@ pub fn expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) 
         [f, c, d] if *d == h.sym_term(h.sym("reals")) => (*f, Some(*c)),
         _ => return Ok(None),
     };
-    // the waves as floor expressions (defined in the calculus library)
-    let h2 = b.heap();
+    // the waves as floor expressions (defined in the calculus library); their values are then factored
+    let mut f = f;
+    let mut waves = false;
     let wave_heads = ["sawtooth_wave", "square_wave", "triangle_wave"];
-    if wave_heads.iter().any(|n| h2.mask(f) & h2.mask(h2.sym_term(h2.sym(n))) != 0) {
+    if wave_heads.iter().any(|n| h.mask(f) & h.mask(h.sym_term(h.sym(n))) != 0) {
         // (the mask can match by chance: nothing to rewrite means the usual expansion)
-        let plain = cx.eval(h2.call(h2.sym("calc_waves"), &[f]))?;
+        let plain = cx.eval(h.call(h.sym("calc_waves"), &[f]))?;
         if plain != f {
-            let mut call = vec![plain];
-            call.extend(args.iter().skip(1).copied());
-            return Ok(Some(cx.eval(h2.call(h2.sym("piecewise_expand"), &call))?));
+            f = plain;
+            waves = true;
         }
     }
     let mut cond = cond;
@@ -130,7 +156,14 @@ pub fn expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) 
         return Ok(Some(cx.eval(b.call("piecewise", &[pl, d]))?));
     }
     let f = step_forms(cx, b, f, reg.is_some())?;
-    let vars = variables(b, f);
+    // the variables: symbols that are not numeric constants (pi)
+    let mut vars = vec![];
+    for x in variables(b, f) {
+        let nx = cx.eval(b.call("n", &[x]))?;
+        if b.ar.num(nx).is_none() {
+            vars.push(x);
+        }
+    }
     let t = cx.bool(true);
     let Some(cases) = cases_of(cx, b, f, reg, &vars, t)? else { return Ok(None) };
     if opts.boolean {
@@ -146,31 +179,164 @@ pub fn expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) 
         return Ok(Some(f));
     }
     // simplify each condition; drop the empty ones
-    let mut simp: Vec<Case<'h>> = vec![];
+    // pieces with equal values merged: the value and the alternatives of its condition
+    let mut groups: Vec<(T<'h>, Vec<T<'h>>)> = vec![];
+    // with symbol conditions (orderless) the input's default (the last case) stays the default
+    let symbolic = has_symbol_condition(b, f);
+    let mut last_value = None;
     for (v, c) in cases {
         cx.tick(1)?;
         let Some(c) = simplify_cond(cx, b, c, reg, &vars, opts.reduce)? else { continue };
-        let v = cx.eval(v)?;
-        simp.push((v, c));
-    }
-    if simp.is_empty() {
-        return Ok(None);
-    }
-    // the default: a zero piece, else the last
-    let zero = b.zero();
-    let di = simp.iter().position(|&(v, _)| v == zero).unwrap_or(simp.len() - 1);
-    let (d, _) = simp.remove(di);
-    let mut vals: Vec<T<'h>> = simp.iter().map(|p| p.0).collect();
-    cx.sort(&mut vals);
-    let mut sorted = vec![];
-    for v in vals {
-        if let Some(i) = simp.iter().position(|p| p.0 == v) {
-            sorted.push(simp.remove(i));
+        let v = value_form(cx, b, v, &vars, waves, opts.values)?;
+        last_value = Some(v);
+        match groups.iter_mut().find(|g| g.0 == v) {
+            Some(g) => {
+                if !g.1.contains(&c) {
+                    g.1.push(c)
+                }
+            }
+            None => groups.push((v, vec![c])),
         }
     }
-    let pieces: Vec<T<'h>> = sorted.iter().map(|&(v, c)| cx.list(&[v, c])).collect();
+    if groups.is_empty() {
+        return Ok(None);
+    }
+    // the pieces in the canonical order of their values; the default is 0 when that is a value, else the last
+    let mut vals: Vec<T<'h>> = groups.iter().map(|g| g.0).collect();
+    order_values(cx, b, &mut vals)?;
+    let zero = b.zero();
+    let d = match last_value {
+        _ if vals.contains(&zero) => zero,
+        Some(l) if symbolic => l,
+        _ => vals[vals.len() - 1],
+    };
+    let mut pieces = vec![];
+    for v in vals {
+        if v == d {
+            continue;
+        }
+        let Some(i) = groups.iter().position(|g| g.0 == v) else { continue };
+        let (_, mut cs) = groups.remove(i);
+        // the alternatives of a merged piece in the canonical order
+        cx.sort(&mut cs);
+        let c = if cs.len() == 1 { cs[0] } else { cx.eval(b.call("or", &cs))? };
+        pieces.push(cx.list(&[v, c]));
+    }
     let pl = cx.list(&pieces);
     Ok(Some(cx.eval(b.call("piecewise", &[pl, d]))?))
+}
+
+/// The values in the order of the pieces: the canonical order, except that when every value that is not a number
+/// is a polynomial with real number coefficients in one variable, those polynomials come after the numbers ordered
+/// as polynomials: by degree, then by the coefficients of the primitive part (the content taken out with the sign of
+/// the leading coefficient, as `factor` writes it) from the leading one down, then by the content (`-1 + x`, `x`,
+/// `1 + x`, `-1 + 2*x`; `4*(-1 + x)` before `4*x` before `-2*(-1 + 2*x)`; `1 - x` before `1 + x`; `-x` before `x`).
+fn order_values<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, vals: &mut Vec<T<'h>>) -> Res<()> {
+    let h = b.heap();
+    cx.sort(vals);
+    let is_num = |v: T<'h>| b.ar.num(v).is_some();
+    // the one kernel: a variable, or one other term (`floor(x)`, `sin(x)`) the values are polynomials in
+    let mut used: Vec<T<'h>> = vec![];
+    for &v in vals.iter() {
+        kernels(b, v, &mut used);
+    }
+    let [x] = used.as_slice() else { return Ok(()) };
+    let x = *x;
+    // the coefficients (leading first) of each value that is not a number
+    let mut keyed: Vec<(Vec<f64>, T<'h>)> = vec![];
+    let approx = |cx: &mut NativeCx<'_, '_, 'h>, c: T<'h>| -> Res<Option<f64>> {
+        if !b.ar.num(c).is_some_and(|n| n.as_real().is_some()) {
+            return Ok(None);
+        }
+        Ok(match h.view(cx.eval(b.call("n", &[c]))?) {
+            View::Real(y) => Some(y),
+            View::Int(k) => Some(k as f64),
+            _ => None,
+        })
+    };
+    for &v in vals.iter().filter(|&&v| !is_num(v)) {
+        if sets::poly_degree(b, v, &[x]).is_none() {
+            return Ok(());
+        }
+        let cl = cx.eval(b.call("coefficient_list", &[b.call("expand", &[v]), x]))?;
+        let Some(cs) = cx.as_list(cl).map(|c| c.to_vec()) else { return Ok(()) };
+        let Some(&lead) = cs.last() else { return Ok(()) };
+        // the content: the gcd of the coefficients with the sign of the leading one
+        let g = cx.eval(b.call("gcd", &cs))?;
+        let Some(sl) = approx(cx, lead)? else { return Ok(()) };
+        let content = if sl < 0.0 { cx.eval(b.neg(g))? } else { g };
+        if b.ar.num(content).is_none() || content == b.zero() {
+            return Ok(());
+        }
+        let mut key = vec![cs.len() as f64];
+        for &c in cs.iter().rev() {
+            let q = cx.eval(b.div(c, content))?;
+            let Some(f) = approx(cx, q)? else { return Ok(()) };
+            key.push(f);
+        }
+        let Some(fc) = approx(cx, content)? else { return Ok(()) };
+        key.push(fc);
+        keyed.push((key, v));
+    }
+    // a stable sort: equal keys keep the canonical order
+    keyed.sort_by(|a, c| a.0.iter().zip(&c.0).map(|(p, q)| p.total_cmp(q)).find(|o| o.is_ne()).unwrap_or(a.0.len().cmp(&c.0.len())));
+    let nums: Vec<T<'h>> = vals.iter().copied().filter(|&v| is_num(v)).collect();
+    *vals = nums.into_iter().chain(keyed.into_iter().map(|k| k.1)).collect();
+    Ok(())
+}
+
+/// The terms `t` is a polynomial in (sums, products and integer powers taken apart; numbers left out).
+fn kernels<'h>(b: &Build<'h>, t: T<'h>, out: &mut Vec<T<'h>>) {
+    let h = b.heap();
+    if b.ar.num(t).is_some() || out.len() > 1 {
+        return;
+    }
+    if let View::App { head, args } = h.view(t) {
+        let s = b.sym_of(head);
+        if s == Some(b.hd.add) || s == Some(b.hd.mul) {
+            args.iter().for_each(|&a| kernels(b, a, out));
+            return;
+        }
+        if let (true, &[base, e]) = (s == Some(b.hd.pow), args) {
+            if matches!(h.view(e), View::Int(k) if k > 0) {
+                kernels(b, base, out);
+                return;
+            }
+        }
+    }
+    if !out.contains(&t) {
+        out.push(t);
+    }
+}
+
+/// A piece's value in its stated form: the value simplifier applied; a wave's value factored (`4*(-1 + x)`); an
+/// even power of a sum with the base's leading coefficient positive (`(-1 + a)^4`, as `factor` writes the base).
+fn value_form<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'h>, vars: &[T<'h>], waves: bool, simp: Option<T<'h>>) -> Res<T<'h>> {
+    let h = b.heap();
+    let mut v = cx.eval(v)?;
+    if let Some(s) = simp {
+        v = cx.eval(h.app(s, &[v]))?;
+    }
+    // a wave's polynomial value, or one not written expanded (`1 - 4*(-1/4 + x)`), factored
+    if b.ar.num(v).is_none() && sets::poly_degree(b, v, vars).is_some() {
+        let expanded = cx.eval(b.call("expand", &[v]))?;
+        if waves || expanded != v {
+            v = cx.eval(b.call("factor", &[v]))?;
+        }
+    }
+    // (-w)^k = w^k for an even integer k
+    if let View::App { head, args: &[base, ex] } = h.view(v) {
+        if b.sym_of(head) == Some(b.hd.pow) && matches!(h.view(ex), View::Int(k) if k % 2 == 0) && matches!(h.view(base), View::App { head: bh, .. } if b.sym_of(bh) == Some(b.hd.add)) {
+            let fv = cx.eval(b.call("factor", &[v]))?;
+            if let View::App { head: ph, args: &[w, e2] } = h.view(fv) {
+                // only the sign of the base changes
+                if b.sym_of(ph) == Some(b.hd.pow) && e2 == ex && cx.eval(b.add(&[w, base]))? == b.zero() {
+                    v = fv;
+                }
+            }
+        }
+    }
+    Ok(v)
 }
 
 /// Does `t` contain a piecewise head (or a step function)?
@@ -354,6 +520,23 @@ fn negate<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: T<'h>) -> Res<T<'
             }
         }
     }
+    // De Morgan over a connective of relations, so that the negation stays a formula of relations
+    if let View::App { head, args } = h.view(c) {
+        let dual = match b.sym_of(head).map(|s| h.sym_name(s).to_string()).as_deref() {
+            Some("and") => Some("or"),
+            Some("or") => Some("and"),
+            _ => None,
+        };
+        if let Some(d) = dual {
+            if args.iter().all(|&a| is_relation(b, a)) {
+                let mut ns = vec![];
+                for &a in args {
+                    ns.push(negate(cx, b, a)?);
+                }
+                return cx.eval(b.call(d, &ns));
+            }
+        }
+    }
     cx.eval(b.call("not", &[c]))
 }
 
@@ -504,14 +687,18 @@ fn cases_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, reg: Opt
             if cx.is_false(p) {
                 continue;
             }
-            // a step function left whole (no bounded region) is a value
-            if v == t {
-                out.push((v, p));
-                continue;
-            }
-            match cases_of(cx, b, v, reg, vars, p)? {
-                Some(vs) => out.extend(vs),
-                None => return Ok(None),
+            // piecewise functions inside the condition split it (left whole when they cannot be)
+            let ps = if contains_piecewise(b, p) { cond_cases(cx, b, p, reg, vars)?.unwrap_or_else(|| vec![p]) } else { vec![p] };
+            for p in ps {
+                // a step function left whole (no bounded region) is a value
+                if v == t {
+                    out.push((v, p));
+                    continue;
+                }
+                match cases_of(cx, b, v, reg, vars, p)? {
+                    Some(vs) => out.extend(vs),
+                    None => return Ok(None),
+                }
             }
         }
         return Ok(Some(out));
@@ -542,7 +729,98 @@ fn cases_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, reg: Opt
             return Ok(None);
         }
     }
-    Ok(Some(combos.into_iter().map(|(vals, c)| (h.app(head, &vals), c)).collect()))
+    let mut out = vec![];
+    for (vals, c) in combos {
+        let v = h.app(head, &vals);
+        // the function of the cases' values may split now (`abs(u - floor(u))` with the floor a number)
+        if vals.as_slice() != args && contains_piecewise(b, v) {
+            let ve = cx.eval(v)?;
+            if ve != t && contains_piecewise(b, ve) {
+                if let Some(cs) = cases_of(cx, b, ve, reg, vars, c)? {
+                    out.extend(cs);
+                    continue;
+                }
+            }
+        }
+        out.push((v, c));
+    }
+    Ok(Some(out))
+}
+
+/// The alternatives of a condition with piecewise functions inside, each free of them where it can be: a relation
+/// of piecewise arguments is split by their cases (`max(a, b) <= c` is `a - b >= 0 and a <= c` or `a - b < 0 and
+/// b <= c`), `and` takes the product of its parts' alternatives, `or` their union. The alternatives together are
+/// equivalent to the condition (those refuted are dropped); `None` when it is too large.
+fn cond_cases<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: T<'h>, reg: Option<T<'h>>, vars: &[T<'h>]) -> Res<Option<Vec<T<'h>>>> {
+    let h = b.heap();
+    cx.tick(1)?;
+    if !contains_piecewise(b, c) {
+        return Ok(Some(vec![c]));
+    }
+    let View::App { head, args } = h.view(c) else { return Ok(Some(vec![c])) };
+    let name = b.sym_of(head).map(|s| h.sym_name(s).to_string()).unwrap_or_default();
+    let mut out = vec![];
+    match name.as_str() {
+        "and" => {
+            out.push(cx.bool(true));
+            for &a in args {
+                let Some(sub) = cond_cases(cx, b, a, reg, vars)? else { return Ok(None) };
+                let mut next = vec![];
+                for &p in &out {
+                    for &s in &sub {
+                        let t = cx.eval(b.call("and", &[p, s]))?;
+                        if !cx.is_false(t) && satisfiable(cx, b, t, reg, vars)? {
+                            next.push(t);
+                        }
+                    }
+                }
+                out = next;
+                if out.len() > 64 {
+                    return Ok(None);
+                }
+            }
+        }
+        "or" => {
+            for &a in args {
+                let Some(sub) = cond_cases(cx, b, a, reg, vars)? else { return Ok(None) };
+                out.extend(sub);
+            }
+            if out.len() > 64 {
+                return Ok(None);
+            }
+        }
+        "not" if args.len() == 1 && is_relation(b, args[0]) => {
+            let n = negate(cx, b, args[0])?;
+            if is_head(b, n, "not") {
+                return Ok(None);
+            }
+            return cond_cases(cx, b, n, reg, vars);
+        }
+        _ if is_relation(b, c) => {
+            // the relation of each case of its arguments, under that case's condition
+            let t = cx.bool(true);
+            let Some(cs) = cases_of(cx, b, c, reg, vars, t)? else { return Ok(None) };
+            if cs.len() > 64 {
+                return Ok(None);
+            }
+            for (rel, cc) in cs {
+                let r = cx.eval(rel)?;
+                let a = cx.eval(b.call("and", &[cc, r]))?;
+                if !cx.is_false(a) && satisfiable(cx, b, a, reg, vars)? {
+                    out.push(a);
+                }
+            }
+        }
+        _ => return Ok(Some(vec![c])),
+    }
+    Ok(Some(out))
+}
+
+/// Is `t` a relation (`==`, `!=`, `<`, `<=`, `>`, `>=`)?
+fn is_relation<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    let View::App { head, args: &[_, _] } = h.view(t) else { return false };
+    b.sym_of(head).is_some_and(|s| matches!(h.sym_name(s).as_str(), "equal" | "unequal" | "less" | "less_equal" | "greater" | "greater_equal"))
 }
 
 /// Not refuted: one variable by `reduce`, otherwise by the evaluation of the condition.
@@ -610,10 +888,7 @@ fn simplify_cond<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: T<'h>, reg
     for (x, ps) in groups {
         let all = if ps.len() == 1 { ps[0] } else { cx.eval(b.call("and", &ps))? };
         // linear conditions reduced to intervals; others with the constants moved right
-        let linear = ps.iter().all(|&p| match h.view(p) {
-            View::App { args, .. } => args.iter().all(|&a| sets::poly_degree(b, a, &[x]).is_some_and(|d| d <= 1)),
-            _ => false,
-        });
+        let linear = ps.iter().all(|&p| linear_formula(b, p, x));
         let r = if linear || full_reduce {
             let r = cx.eval(b.call("reduce", &[all, x, h.sym_term(h.sym("reals"))]))?;
             if is_head(b, r, "reduce") || is_head(b, r, names::FAILURE) {
@@ -623,9 +898,21 @@ fn simplify_cond<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: T<'h>, reg
             }
         } else {
             let mut v = vec![];
-            for &p in &ps {
+            let mut dropped = vec![false; ps.len()];
+            for (i, &p) in ps.iter().enumerate() {
+                // a polynomial conjunct the others kept imply (or true for every real x) is left out
+                if ps.len() <= 4 && sets::polynomial_formula(b, p, &[x]) {
+                    let mut rest: Vec<T<'h>> = ps.iter().enumerate().filter(|&(j, _)| j != i && !dropped[j]).map(|(_, &q)| q).collect();
+                    rest.push(negate(cx, b, p)?);
+                    let r = cx.eval(b.call("reduce", &[b.call("and", &rest), x, h.sym_term(h.sym("reals"))]))?;
+                    if cx.is_false(r) {
+                        dropped[i] = true;
+                        continue;
+                    }
+                }
                 let moved = move_right(cx, b, p)?;
-                v.push(sets::tidy_rel(cx, b, moved)?);
+                let tidy = sets::tidy_rel(cx, b, moved)?;
+                v.push(positive_lead(cx, b, tidy, x)?);
             }
             if v.len() == 1 {
                 v[0]
@@ -649,6 +936,60 @@ fn simplify_cond<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: T<'h>, reg
         [o] => *o,
         _ => cx.eval(b.call("and", &out))?,
     }))
+}
+
+/// Is `p` a relation of linear polynomials in `x`, or `and`, `or`, `not` of such?
+fn linear_formula<'h>(b: &Build<'h>, p: T<'h>, x: T<'h>) -> bool {
+    let h = b.heap();
+    let View::App { head, args } = h.view(p) else { return false };
+    if is_relation(b, p) {
+        return args.iter().all(|&a| linear_in(b, a, x));
+    }
+    b.sym_of(head).is_some_and(|s| matches!(h.sym_name(s).as_str(), "and" | "or" | "not")) && args.iter().all(|&a| linear_formula(b, a, x))
+}
+
+/// Is `a` of degree at most 1 in `x`, with coefficients free of it (constants such as `pi` allowed)?
+fn linear_in<'h>(b: &Build<'h>, a: T<'h>, x: T<'h>) -> bool {
+    let h = b.heap();
+    if a == x || is_free(b, a, x) {
+        return true;
+    }
+    let View::App { head, args } = h.view(a) else { return false };
+    match b.sym_of(head) {
+        Some(s) if s == b.hd.add => args.iter().all(|&t| linear_in(b, t, x)),
+        Some(s) if s == b.hd.mul => {
+            let with: Vec<T<'h>> = args.iter().copied().filter(|&t| !is_free(b, t, x)).collect();
+            matches!(with.as_slice(), [t] if linear_in(b, *t, x))
+        }
+        _ => false,
+    }
+}
+
+/// `p op c` for a polynomial `p` in `x` with a negative leading coefficient and a number `c` as `-p op' -c` (the
+/// relation flipped): the leading coefficient positive (`5*x - x^2 <= 6` is `-5*x + x^2 >= -6`).
+fn positive_lead<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, r: T<'h>, x: T<'h>) -> Res<T<'h>> {
+    let h = b.heap();
+    let View::App { head, args: &[l, c] } = h.view(r) else { return Ok(r) };
+    let Some(s) = b.sym_of(head) else { return Ok(r) };
+    let flip = match h.sym_name(s).as_str() {
+        "less" => "greater",
+        "less_equal" => "greater_equal",
+        "greater" => "less",
+        "greater_equal" => "less_equal",
+        "equal" => "equal",
+        "unequal" => "unequal",
+        _ => return Ok(r),
+    };
+    if b.ar.num(c).is_none() || sets::poly_degree(b, l, &[x]).is_none_or(|d| d < 1) {
+        return Ok(r);
+    }
+    let cl = cx.eval(b.call("coefficient_list", &[l, x]))?;
+    let Some(&lead) = cx.as_list(cl).and_then(|cs| cs.last()) else { return Ok(r) };
+    let neg = cx.eval(b.call("less", &[lead, b.zero()]))?;
+    if !cx.is_true(neg) {
+        return Ok(r);
+    }
+    cx.eval(b.call(flip, &[b.neg(l), b.neg(c)]))
 }
 
 /// `l op r` as `l - r op 0` (for the tidying of constants).

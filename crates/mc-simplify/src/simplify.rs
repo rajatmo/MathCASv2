@@ -693,7 +693,7 @@ fn run<'h>(
             Some((s, &[l, r])) if b.heap().sym_name(s) == "equal" => (b.sub(l, r), b.heap().sym_term(b.heap().sym(mc_api::names::TRUE))),
             _ => (f, b.int(0)),
         };
-        if crate::gammanorm::gamma_zero(cx, b, d)? {
+        if crate::gammanorm::gamma_zero(cx, b, d)? || crate::moves::log_prime_zero(cx, b, d)? {
             return Ok(answer);
         }
     }
@@ -895,6 +895,33 @@ fn prepare<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, '_,
                     return Ok(Some(v[0]));
                 }
                 Ok((v.as_slice() != args).then(|| b.call(s, &v)))
+            }
+            ("max" | "min", _) if args.len() > 1 => {
+                // an argument below another by a positive number is never the maximum (above it, never the
+                // minimum): `max(x, 1 + x, 1 - x)` is `max(1 + x, 1 - x)` for every real x, and max and min are
+                // defined for real arguments only
+                let is_max = name == "max";
+                let mut keep = vec![];
+                for (i, &a) in args.iter().enumerate() {
+                    let mut dominated = false;
+                    for (j, &c) in args.iter().enumerate() {
+                        if i == j {
+                            continue;
+                        }
+                        let d = cx.eval(if is_max { b.sub(c, a) } else { b.sub(a, c) })?;
+                        if b.is_number(d) && cx.eval(b.call_named("greater", &[d, b.int(0)]))? == h.sym_term(h.sym(mc_api::names::TRUE)) {
+                            dominated = true;
+                            break;
+                        }
+                    }
+                    if !dominated {
+                        keep.push(a);
+                    }
+                }
+                if keep.len() == args.len() || keep.is_empty() {
+                    return Ok(None);
+                }
+                Ok(Some(if keep.len() == 1 { keep[0] } else { b.call(s, &keep) }))
             }
             ("add", _) if args.len() > 1 => {
                 // exp(u) terms whose exponents agree after expansion (`exp((p^2 + s^2)/4)` and `exp(p^2/4 +

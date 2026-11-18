@@ -7,7 +7,7 @@
 # `apart(e, x)` writes the rational function `e` of `x` as a sum of partial fractions.
 
 #% text
-# `apart(e)` does the same in the variable of `e`; with several variables, in the last of them in the order of `variables(e)`.
+# `apart(e)` does the same in the variable of `e`; with several variables, in the last of them in the order of `variables(e)`. Without a variable, an `e` that is rational in one kernel (one call such as `sin(x)`, or exponentials `exp(c*w)` with rational `c`, powers of one `exp(g*w)`) is decomposed in that kernel.
 
 #% section
 # Details
@@ -166,6 +166,14 @@ apart(1/(x^2 - 2))
 apart(1/(x^2 - 1.0))
 #% output
 #= apart((-1.0 + x^2)^-1)
+
+#% text
+# Rational in the kernel sin(x):
+
+#% cell
+apart(3*sin(x)/((sin(x) + 1)*(sin(x) + 4)))
+#% output
+#= -1/(1 + sin(x)) + 4/(4 + sin(x))
 
 #% section
 # See also

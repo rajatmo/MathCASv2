@@ -73,7 +73,9 @@ fn transforms() {
         ("exp_to_trig(exp(2 + 3im*x))", "cos(3*x)*exp(2) + 1im*exp(2)*sin(3*x)"),
         ("exp_to_trig(trig_to_exp(cos(x)))", "cos(x)"),
         ("exp_to_trig(trig_to_exp(sin(x)))", "sin(x)"),
-        ("exp_to_trig(exp(x))", "exp(x)"),
+        // exp_to_trig writes real exponentials with hyperbolic functions too; hyperbolic: false keeps them
+        ("exp_to_trig(exp(x))", "cosh(x) + sinh(x)"),
+        ("exp_to_trig(exp(x), hyperbolic: false)", "exp(x)"),
         ("power_expand(sqrt(x^2))", "x"),
         ("power_expand(log(x^2*y))", "log(y) + 2*log(x)"),
         ("power_expand((a*b)^n)", "a^n*b^n"),

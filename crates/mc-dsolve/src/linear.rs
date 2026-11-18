@@ -443,7 +443,8 @@ fn undetermined<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, coefs: &[T<'h>], f: T<'h>, x
     }
     let yp = c.eval(b.add(&parts))?;
     let yp = if trig {
-        let t = c.ev("exp_to_trig", &[yp])?;
+        let euler = c.b.call("options", &[c.rule(c.sym("hyperbolic"), c.sym("false"))]);
+        let t = c.ev("exp_to_trig", &[yp, euler])?;
         c.expand(t)?
     } else {
         yp

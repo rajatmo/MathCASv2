@@ -464,6 +464,49 @@ pub fn log_primes<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res
     }
 }
 
+/// The prime factorisation of a positive rational with machine parts, `None` otherwise.
+fn rational_primes<'h>(b: &B<'h>, q: T<'h>) -> Option<Vec<(u64, i64)>> {
+    let (n, d) = match b.heap().view(q) {
+        View::Int(n) if n > 1 => (n as u64, 1u64),
+        View::Rational { num, den } => match (b.heap().view(num), b.heap().view(den)) {
+            (View::Int(n), View::Int(d)) if n > 0 => (n as u64, d as u64),
+            _ => return None,
+        },
+        _ => return None,
+    };
+    let (num, den) = (factorize(n)?, factorize(d)?);
+    Some(num.into_iter().chain(den.into_iter().map(|(p, k)| (p, -k))).collect())
+}
+
+/// A zero test: is `t` 0 once every `log(q)` of a positive rational `q` is written over the logarithms of the
+/// primes of `q` (`log(8) = 3 log(2)`, `log(4/3) = 2 log(2) - log(3)`: the logarithm of a product of positive
+/// reals is the sum of the logarithms) and the result is brought over one denominator? An answer `true` is a
+/// proof (each step is an identity); `false` says nothing. The power series of `log2` and `log10` meet it:
+/// `1/log(8)` against `1/(3 log(2))`.
+pub fn log_prime_zero<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<bool> {
+    let h = b.heap();
+    if h.mask(t) & h.mask(h.sym_term(b.hd.log)) == 0 {
+        return Ok(false);
+    }
+    let r = rewrite(cx, b, t, &mut |_, b, node| {
+        let Some(q) = b.unary(node, b.hd.log) else { return Ok(None) };
+        let Some(fs) = rational_primes(b, q) else { return Ok(None) };
+        if fs.len() == 1 && fs[0].1 == 1 {
+            return Ok(None);
+        }
+        let terms: Vec<T<'h>> = fs.into_iter().map(|(p, k)| b.mul(&[b.int(k), b.call(b.hd.log, &[b.int(p as i64)])])).collect();
+        Ok(Some(b.add(&terms)))
+    })?;
+    if r == t {
+        return Ok(false);
+    }
+    let r = cx.eval(r)?;
+    if r == b.int(0) {
+        return Ok(true);
+    }
+    Ok(apply(cx, b, "together", r)? == b.int(0))
+}
+
 /// Is `t` linear in its symbols with rational coefficients (a sum of rationals and rational multiples of
 /// symbols)?
 fn linear_terms<'h>(b: &B<'h>, t: T<'h>) -> Option<Vec<(T<'h>, T<'h>)>> {

@@ -1210,7 +1210,32 @@ fn written_fraction<'h, S: Store + ?Sized>(c: &Conv<'_, 'h, S>, t: T<'h>, f: &ra
     if f.num.is_zero() || f.den.is_constant() || ring.kernels.iter().any(|&k| matches!(c.ar.num(k), Some(mc_arith::Num::Complex(..)))) {
         return Ok(None);
     }
-    let Some((den_parts, rest)) = split_by_bases(c, &f.den, &written_bases(c, t, true), ring, m)? else { return Ok(None) };
+    let mut bases = written_bases(c, t, true);
+    // the denominators of the terms of a sum in lowest terms, after the written ones: a term whose written fraction
+    // cancels contributes its reduced denominator ((x - 1)/(x^2 - 1) is 1/(1 + x))
+    if let crate::convert::Node::Add(xs) = c.node(t) {
+        for &u in xs.iter() {
+            if bases.len() >= 8 {
+                break;
+            }
+            // the term read in its own ring (the ring of t may merge the term's kernels differently)
+            let (ru, _) = c.ring(&[u], &[], m)?;
+            if let Ok(fu) = ratfun::read(c, u, &ru, m)? {
+                if !fu.den.is_constant() {
+                    let b = c.int_poly_term(&fu.den, &ru, m)?;
+                    // only a base whose kernels are kernels of the ring of t can be read in it
+                    let (rb, _) = c.ring(&[b], &[], m)?;
+                    if !rb.kernels.iter().all(|&k| ring.var(k).is_some()) {
+                        continue;
+                    }
+                    if !bases.contains(&b) {
+                        bases.push(b);
+                    }
+                }
+            }
+        }
+    }
+    let Some((den_parts, rest)) = split_by_bases(c, &f.den, &bases, ring, m)? else { return Ok(None) };
     // invariant: an exact quotient of a nonzero polynomial is nonzero
     let Some(mut dk) = rest.as_constant() else { return Ok(None) };
     // one simple factor: the expanded quotient says the same
@@ -1283,6 +1308,15 @@ pub(crate) fn together<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter, cancel:
                 out.push(r);
                 factored = true;
                 continue;
+            }
+            // cancel over a numerical denominator: the whole numerical content outside, (3/2) (7 + x)
+            if cancel && !f.num.is_constant() {
+                if let Some(d) = f.den.as_constant().filter(|d| *d != Z::ONE) {
+                    let g = f.num.content();
+                    let prim = c.int_poly_term(&f.num.div_exact_scalar(&g), &ring, m)?;
+                    out.push(env.ar.mul(&[c.rat_term(&crate::qpoly::rat_of(&g, &d)), prim]));
+                    continue;
+                }
             }
             out.push(ratfun::to_term(&c, &f, &ring, m)?);
         }

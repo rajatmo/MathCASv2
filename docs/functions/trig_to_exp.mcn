@@ -10,7 +10,16 @@
 # Details
 
 #% item
-# `sin(x)` becomes `(exp(im*x) - exp(-im*x))/(2*im)`, `cosh(x)` becomes `(exp(x) + exp(-x))/2`, and the other functions are quotients of these.
+# `sin(x)` becomes `(exp(im*x) - exp(-im*x))/(2*im)`, `cosh(x)` becomes `(exp(x) + exp(-x))/2`, and the other functions are quotients of these; the inverse functions become logarithms.
+
+#% item
+# The guaranteed form: no trigonometric or hyperbolic function is left; the result is expanded (sums distributed, a fraction split over the terms of its numerator) when it holds exponentials, through lists, rules, equations, inequalities and logical connectives.
+
+#% item
+# `tan(x)` and `cot(x)` stay one fraction each: `tan(x)` is `im*(exp(-im*x) - exp(im*x))/(exp(-im*x) + exp(im*x))`.
+
+#% item
+# An exponential that is a power, such as `exp(5*log(u)) = u^5` from an inverse function, is not an exponential: such a result is not expanded.
 
 #% section
 # Examples
@@ -37,6 +46,19 @@ trig_to_exp(cosh(x))
 trig_to_exp(tanh(x))
 #% output
 #= exp(x)/(exp(x) + exp(-x)) - exp(-x)/(exp(x) + exp(-x))
+
+#% subsection
+# Scope
+
+#% cell
+trig_to_exp(tan(x))
+#% output
+#= im*(-exp(im*x) + exp(-im*x))/(exp(-im*x) + exp(im*x))
+
+#% cell
+trig_to_exp(sin(5*asin(x)))
+#% output
+#= (im/2)*(-(im*x + (1 - x^2)^(1/2))^5 + (im*x + (1 - x^2)^(1/2))^-5)
 
 #% subsection
 # Applications

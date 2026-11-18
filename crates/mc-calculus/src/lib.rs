@@ -200,6 +200,7 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     // the properties read the assumption context (decision 2C4.5)
     let reads = Attributes { uses_assumptions: true, ..Attributes::default() };
     k.register(h.sym("apart"), Attributes::default(), Box::new(natives::Apart { stop: stop.clone() }));
+    k.register(h.sym("apart_square_free"), Attributes::default(), Box::new(natives::ApartSquareFree));
     for (name, p) in [
         ("function_domain", props::Prop::Domain),
         ("function_singularities", props::Prop::Singularities),

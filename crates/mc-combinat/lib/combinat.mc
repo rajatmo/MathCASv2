@@ -851,13 +851,19 @@ fn md_together(e, m) = {
     f[1]/f[2]
   }
 }
+# a written denominator whose coefficients are residues already (and monic) is kept as written: 1/(x (1 + x))
+fn md_together_written(e, m) = {
+  let r = md_together(e, m)
+  let d = denominator(together(e))
+  if not is_number(d) and md_red(d, m) === expand(d) and expand(denominator(r)) === expand(d) then numerator(r)/d else r
+}
 # det and inverse of an integer matrix modulo m: det(a) reduced; the inverse is the adjugate det(a) a^-1 times the
 # inverse of det(a) modulo m, when gcd(det(a), m) = 1
 fn md_int_matrix(a) = is_list(a) and length(a) > 0 and every(a, r => is_list(r) and length(r) == length(a) and every(r, is_integer))
 rule det(a_, o_) := mod(det(a), md_m(o)) when md_only(o) and md_int_matrix(a)
 rule inverse(a_, o_) := mod(expand(det(a)*inverse(a))*power_mod(det(a), -1, md_m(o)), md_m(o)) when md_only(o) and md_int_matrix(a) and gcd(det(a), md_m(o)) == 1
-rule together(e_, o_) := md_together(e, md_m(o)) when md_opt(e, o) and md_ok(together(e), md_m(o))
-rule cancel(e_, o_) := (if head(e) === add then apply(add, map(t => md_together(t, md_m(o)), ex_parts(e))) else md_together(e, md_m(o))) when md_opt(e, o) and md_ok(together(e), md_m(o))
+rule together(e_, o_) := md_together_written(e, md_m(o)) when md_opt(e, o) and md_ok(together(e), md_m(o))
+rule cancel(e_, o_) := (if head(e) === add then apply(add, map(t => md_together_written(t, md_m(o)), ex_parts(e))) else md_together_written(e, md_m(o))) when md_opt(e, o) and md_ok(together(e), md_m(o))
 
 # --- the trig: true option of the fraction and expansion functions ---
 # The trigonometric and hyperbolic functions are read as rational functions of sin and cos (sinh and cosh):

@@ -4,10 +4,10 @@
 # factor_terms
 
 #% text
-# `factor_terms(p)` pulls out the numerical content of p: the gcd of its integer coefficients.
+# `factor_terms(p)` pulls out the numerical content of p: the gcd of its integer coefficients; for Gaussian integer coefficients (some not real) their Gaussian gcd, times the unit that puts the leading coefficient of the rest (the highest power of the first variable) in the quadrant re > 0, im >= 0.
 
 #% text
-# `factor_terms(p, x)` also pulls out the factors free of x (the gcd of the coefficients of the powers of x); `factor_terms(p, [x1, x2, ...])` does so for each variable in turn.
+# `factor_terms(p, x)` also pulls out the factor free of x (the gcd of the coefficients of the powers of x) as one expanded polynomial, its numerical content joining the content outside, not factored further; `factor_terms(p, [x1, x2, ...])` splits each part found so far into its factor free of x1 and the rest, then each of those by x2, and so on: `2*y*(1 + a)*(-3 + 2*a*y + x^2)` with `[x, y]`.
 
 #% section
 # Details
@@ -53,6 +53,22 @@ factor_terms(5*x^2 + 2, modulus: 3)
 factor_terms(3*x + 10, modulus: 7)
 #% output
 #= 3*(1 + x)
+
+#% text
+# With Gaussian integer coefficients:
+
+#% cell
+factor_terms(5*im*x^2 + 20*im*x + 10)
+#% output
+#= 5im*(-2im + 4*x + x^2)
+
+#% text
+# The factor free of x stays one polynomial:
+
+#% cell
+factor_terms(2*x^2*y + 2*a*x^2*y - 6*y - 6*a*y, x)
+#% output
+#= 2*(-3 + x^2)*(y + a*y)
 
 #% section
 # See also

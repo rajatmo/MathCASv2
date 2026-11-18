@@ -16,6 +16,9 @@
 # Each term has the form `together` gives it: a denominator that is a product of the factors written in the term stays that product.
 
 #% item
+# A term whose denominator in lowest terms is a number has the whole numerical content of the numerator written outside: `(3/2)*(7 + x)`, not `(1/2)*(21 + 3*x)`.
+
+#% item
 # `cancel` works over the rationals and treats non-polynomial subexpressions as variables.
 
 #% section
@@ -65,6 +68,14 @@ cancel((x^2 - 1)/(x + 1) + (x^2 - 4)/(x - 2))
 e = 1/(x - 1) - 1/(x + 1); [cancel(e), together(e)]
 #% output
 #= [-1/(1 + x) + (-1 + x)^-1, 2/((-1 + x)*(1 + x))]
+
+#% text
+# A numerical denominator:
+
+#% cell
+cancel((3*x + 21)/2)
+#% output
+#= (3/2)*(7 + x)
 
 #% section
 # See also

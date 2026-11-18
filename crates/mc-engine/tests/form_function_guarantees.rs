@@ -152,3 +152,228 @@ fn the_other_written_forms() {
     is(&mut e, "full_simplify(golden_ratio^4 - golden_ratio)", "3 + 5^(1/2)");
     is(&mut e, "simplify(sqrt((x - y)^2) + sqrt((y - x)^2))", "2*((x - y)^2)^(1/2)");
 }
+
+// `piecewise_expand`: pieces in the order of their values (polynomials of one variable by degree, then by their
+// coefficients from the leading one), equal values merged, the default 0 or the last value, the waves' values
+// factored, `max` inside a condition expanded; each answer also equal to the input at points of every piece.
+#[test]
+fn piecewise_expand_orders_merges_and_factors() {
+    let mut e = CoreEngine::new();
+    is(&mut e, "piecewise_expand(sawtooth_wave(x), -1 <= x and x <= 1)", "piecewise([[-1 + x, x >= 1], [x, 0 <= x and x < 1]], 1 + x)");
+    is(&mut e, "piecewise_expand(square_wave(x), 0 < x and x < 1)", "piecewise([[-1, x >= 1/2]], 1)");
+    is(
+        &mut e,
+        "piecewise_expand(triangle_wave(x), -1 <= x and x <= 1)",
+        "piecewise([[4*(-1 + x), x >= 3/4], [4*x, -1/4 <= x and x < 1/4], [4*(1 + x), x < -3/4], [-2*(-1 + 2*x), 1/4 <= x and x < 3/4]], -2*(1 + 2*x))",
+    );
+    is(&mut e, "piecewise_expand(min(x^2 + 2*x - 2, max(2*x^2 - 3*x + 4, x^2 - 3)))", "piecewise([[-2 + 2*x + x^2, -5*x + x^2 >= -6]], 4 - 3*x + 2*x^2)");
+    for (f, c) in [("triangle_wave(3*x)", "0 < x and x < 2"), ("sawtooth_wave(x/2) + square_wave(x)", "-2 < x and x < 2"), ("max(x, 2 - x^2)", "-3 < x and x < 3")] {
+        let r = ev(&mut e, &format!("piecewise_expand({f}, {c})"));
+        for k in -24..=24 {
+            let p = format!("{k}/8");
+            if ev(&mut e, &format!("rewrite({c}, x -> {p})")) == "true" {
+                assert_eq!(ev(&mut e, &format!("rewrite(({f}) - ({r}), x -> {p})")), "0", "{f} = {r} at x = {p}");
+            }
+        }
+    }
+}
+
+// The forms of exp_to_trig, trig_to_exp, cancel, together, factor_terms, apart in a kernel and to_radicals: each
+// family runs over many inputs within a time budget (it stops early, after at least a few inputs).
+
+/// The time each family below may take.
+const FAMILY_BUDGET: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// `a - b` vanishes at the points `xs` of x (t, y and a set to numbers too): |value| < 10^-15 at 20 digits (the 1
+/// added keeps an exact zero away from zero, where `n` cannot reach a relative precision).
+fn zero_at_points(e: &mut CoreEngine, a: &str, b: &str, xs: &[&str]) -> bool {
+    xs.iter().all(|x| {
+        let d = format!("rewrite(({a}) - ({b}), [x -> {x}, t -> {x} + 1/3, y -> 2/7, a -> 5/3])");
+        let src = format!("abs(n(1 + 10^12*{d}, 20) - 1) < 10^-3");
+        ev(e, &src) == "true"
+    })
+}
+
+#[test]
+fn exp_to_trig_leaves_no_exponential_of_a_variable() {
+    let mut e = CoreEngine::new();
+    is(&mut e, "exp_to_trig(3^x - 3^(-x))", "2*sinh(x*log(3))");
+    is(&mut e, "exp_to_trig([exp(im*x) == -1, (-1)^(1/11)])", "[cos(x) + im*sin(x) == -1, cos((1/11)*pi) + im*sin((1/11)*pi)]");
+    is(&mut e, "exp_to_trig((-1)^(5/7))", "-sin((3/14)*pi) + im*cos((3/14)*pi)");
+    is(&mut e, "exp_to_trig([y(t) -> a*exp(t) + b*exp(-t)])", "[y(t) -> a*cosh(t) + a*sinh(t) + b*cosh(t) - b*sinh(t)]");
+    is(&mut e, "exp_to_trig(exp(x) + exp(2 + im*x), hyperbolic: false)", "exp(x) + cos(x)*exp(2) + im*exp(2)*sin(x)");
+    let start = std::time::Instant::now();
+    let mut n = 0;
+    'outer: for c in 1..=4 {
+        for k in 2..=5 {
+            if start.elapsed() > FAMILY_BUDGET && n >= 4 {
+                break 'outer;
+            }
+            let src = format!("{c}*exp({k}*x) - exp(-x)/{c} + {k}^(x/{c}) + exp(im*{k}*x + {c}*t)");
+            let r = ev(&mut e, &format!("exp_to_trig({src})"));
+            assert!(zero_at_points(&mut e, &r, &src, &["3/10", "-7/5"]), "{src}: {r}");
+            assert_eq!(ev(&mut e, &format!("free_of({r}, exp) and free_of({r}, e)")), "true", "{src}: {r}");
+            let r = ev(&mut e, &format!("exp_to_trig({src}, hyperbolic: false)"));
+            assert!(zero_at_points(&mut e, &r, &src, &["3/10"]), "{src}: {r}");
+            assert_eq!(ev(&mut e, &format!("free_of({r}, cosh) and free_of({r}, sinh)")), "true", "{src}: {r}");
+            n += 1;
+        }
+    }
+    // powers of -1: the value kept, no power of -1 left
+    for q in 2..=13 {
+        for p in [1, q - 1, q + 1, 3 * q - 1] {
+            let src = format!("(-1)^({p}/{q})");
+            let r = ev(&mut e, &format!("exp_to_trig({src})"));
+            assert!(zero_at_points(&mut e, &r, &src, &["0"]), "{src}: {r}");
+            assert_eq!(ev(&mut e, &format!("length(cases([{r}], (-1)^_, inf))")), "0", "{src}: {r}");
+        }
+    }
+}
+
+#[test]
+fn trig_to_exp_keeps_tan_one_fraction_and_powers_whole() {
+    let mut e = CoreEngine::new();
+    is(&mut e, "trig_to_exp(tan(x))", "im*(-exp(im*x) + exp(-im*x))/(exp(-im*x) + exp(im*x))");
+    is(&mut e, "trig_to_exp(sin(5*asin(x)))", "(im/2)*(-(im*x + (1 - x^2)^(1/2))^5 + (im*x + (1 - x^2)^(1/2))^-5)");
+    let start = std::time::Instant::now();
+    for k in 1..=6 {
+        if start.elapsed() > FAMILY_BUDGET && k > 3 {
+            break;
+        }
+        for f in ["tan", "cot"] {
+            let r = ev(&mut e, &format!("trig_to_exp({f}({k}*x))"));
+            assert!(zero_at_points(&mut e, &r, &format!("{f}({k}*x)"), &["3/10", "-7/5"]), "{f}({k} x): {r}");
+            assert_eq!(ev(&mut e, &format!("head({r}) === mul")), "true", "{f}({k} x): {r}");
+        }
+        let src = format!("sin({k}*x) + cos(x)^2 + tan(x)");
+        let r = ev(&mut e, &format!("trig_to_exp({src})"));
+        assert!(zero_at_points(&mut e, &r, &src, &["3/10", "-7/5"]), "{src}: {r}");
+        assert_eq!(ev(&mut e, &format!("free_of({r}, sin) and free_of({r}, cos) and free_of({r}, tan)")), "true", "{src}: {r}");
+        let src = format!("sin({}*asin(x))", k + 1);
+        let r = ev(&mut e, &format!("trig_to_exp({src})"));
+        assert!(zero_at_points(&mut e, &r, &src, &["3/10", "-2/5"]), "{src}: {r}");
+        assert_eq!(ev(&mut e, &format!("free_of({r}, asin) and head({r}) === mul")), "true", "{src}: {r}");
+    }
+}
+
+#[test]
+fn cancel_and_together_written_forms() {
+    let mut e = CoreEngine::new();
+    is(&mut e, "cancel((3*x^3 + 21*x^2 - 7*x + 55 - (257/2 + (7/2)*x))/(2*x^2 - 7))", "(3/2)*(7 + x)");
+    is(&mut e, "together((x - 1)/(x^2 - 1) + (x - 2)/(x^2 - 4))", "(3 + 2*x)/((1 + x)*(2 + x))");
+    is(&mut e, "together(1/x + 1/(1 + x), modulus: 2)", "1/(x*(1 + x))");
+    let start = std::time::Instant::now();
+    'outer: for a in 1..=6 {
+        for d in 2..=5 {
+            if start.elapsed() > FAMILY_BUDGET && a > 2 {
+                break 'outer;
+            }
+            // the content of the numerator is a, written outside with the denominator d (when d divides a the
+            // evaluator has divided already)
+            if a % d != 0 {
+                let src = format!("({a}*{d}*x^2 + {}*x + {})/{d}", 2 * a, 3 * a);
+                is(&mut e, &format!("cancel({src})"), &format!("({a}/{d})*({d}*x^2 + 2*x + 3)"));
+            }
+            // a term whose written fraction cancels keeps its reduced denominator as a factor
+            let src = format!("(x - {a})/(x^2 - {}) + 1/(x + {})", a * a, a + d);
+            let r = ev(&mut e, &format!("together({src})"));
+            assert!(same(&mut e, &r, &src), "{src}: {r}");
+            assert_eq!(ev(&mut e, &format!("head(denominator({r})) === mul")), "true", "{src}: {r}");
+        }
+    }
+}
+
+#[test]
+fn factor_terms_keeps_the_factor_free_of_the_variable_whole() {
+    let mut e = CoreEngine::new();
+    is(&mut e, "factor_terms(5*im*x^2 + 20*x*im + 10)", "5im*(-2im + 4*x + x^2)");
+    is(
+        &mut e,
+        "factor_terms(-6*y - 6*a*y + 2*x^2*y + 2*a*x^2*y + 4*a*y^2 + 4*a^2*y^2, x)",
+        "2*(y + a*y)*(-3 + 2*a*y + x^2)",
+    );
+    let start = std::time::Instant::now();
+    for k in 1..=4 {
+        if start.elapsed() > FAMILY_BUDGET && k > 2 {
+            break;
+        }
+        for g in ["5im", "-3im", "2 + 2im", "4*im"] {
+            let src = format!("expand(({g})*(x^2 + {k}*x + {}*im))", k + 1);
+            is(&mut e, &format!("factor_terms({src})"), &format!("({g})*(x^2 + {k}*x + {}*im)", k + 1));
+        }
+        let src = format!("expand(2*(y + {k}*a*y)*(x^2 - 3 + a*y))");
+        let r = ev(&mut e, &format!("factor_terms({src}, x)"));
+        assert!(same(&mut e, &r, &src), "{src}: {r}");
+        // three factors: the content, the factor free of x as one sum, the rest
+        assert_eq!(ev(&mut e, &format!("length({r}) == 3 and ({r})[1] == 2 and head(({r})[2]) === add")), "true", "{src}: {r}");
+    }
+}
+
+#[test]
+fn apart_in_one_kernel() {
+    let mut e = CoreEngine::new();
+    is(&mut e, "apart_square_free((exp(x)^2 - 2)/(exp(4*x) - 2*exp(2*x) + 1))", "-1/(-1 + exp(2*x))^2 + (-1 + exp(2*x))^-1");
+    is(&mut e, "apart(3*sin(x)/((sin(x) + 1)*(sin(x) + 4)))", "-1/(1 + sin(x)) + 4/(4 + sin(x))");
+    let start = std::time::Instant::now();
+    for k in 1..=5 {
+        if start.elapsed() > FAMILY_BUDGET && k > 2 {
+            break;
+        }
+        for src in [
+            format!("(exp(x) + {k})/((exp(2*x) - {})*(exp(x) + {}))", (k + 1) * (k + 1), k + 2),
+            format!("1/((sin(x) - {})*(sin(x) + {k}))", k + 1),
+            format!("exp(-x)/(exp(x) + {k})"),
+        ] {
+            let r = ev(&mut e, &format!("apart({src})"));
+            assert!(zero_at_points(&mut e, &r, &src, &["3/10", "-7/5"]), "{src}: {r}");
+            assert_eq!(ev(&mut e, &format!("head({r}) === add and free_of({r}, apart)")), "true", "{src}: {r}");
+            let r = ev(&mut e, &format!("apart_square_free({src})"));
+            assert!(zero_at_points(&mut e, &r, &src, &["3/10", "-7/5"]), "{src}: {r}");
+            assert_eq!(ev(&mut e, &format!("free_of({r}, apart_square_free)")), "true", "{src}: {r}");
+        }
+    }
+}
+
+#[test]
+fn to_radicals_distributes_rational_factors() {
+    let mut e = CoreEngine::new();
+    is(
+        &mut e,
+        "to_radicals(root(&(&1^3 + &1 + 11), 1))",
+        "(-1/3)*2^(1/3)*3^(2/3)*((-99 + 9813^(1/2))^-1)^(1/3) + (1/6)*2^(2/3)*3^(1/3)*(-99 + 9813^(1/2))^(1/3)",
+    );
+    let start = std::time::Instant::now();
+    'outer: for k in 1..=4 {
+        for m in [3, 7, 11] {
+            if start.elapsed() > FAMILY_BUDGET && k > 1 {
+                break 'outer;
+            }
+            let rt = format!("root(&(&1^3 + {k}*&1 + {m}), 1)");
+            let r = ev(&mut e, &format!("to_radicals({rt})"));
+            assert_eq!(ev(&mut e, &format!("abs(n(({r}) - ({rt}), 30)) < 10^-20")), "true", "{rt}: {r}");
+            // no term is a rational number times a sum
+            let terms = format!("if head({r}) === add then apply(list, {r}) else [{r}]");
+            let ok = ev(&mut e, &format!("every({terms}, u => not (head(u) === mul and length(u) == 2 and is_rational(u[1]) and head(u[2]) === add))"));
+            assert_eq!(ok, "true", "{rt}: {r}");
+        }
+    }
+}
+
+// `simplify`: the logarithms of positive rationals over their primes in the zero test (the power series of log2
+// and log10 against coefficients written with log(4), log(8)), and the arguments of max and min that another
+// argument passes by a positive number dropped.
+#[test]
+fn simplify_log_primes_zero_and_dominated_max_min() {
+    let mut e = CoreEngine::new();
+    for (k, n) in [(2, 2), (3, 2), (4, 2), (5, 2), (2, 10), (3, 10), (2, 3), (4, 6)] {
+        let pk = (n as i64).pow(k);
+        is(&mut e, &format!("simplify(expand(x^{k}/log({pk}) - x^{k}/({k}*log({n}))))"), "0");
+        is(&mut e, &format!("simplify((1 + x)^2*(1/log({pk}) - 1/({k}*log({n}))))"), "0");
+    }
+    is(&mut e, "simplify(1/log(4/9) - 1/(2*log(2) - 2*log(3)))", "0");
+    is(&mut e, "simplify(max(1 - x, x, 1 + x))", "max(1 + x, 1 - x)");
+    is(&mut e, "simplify(min(1 - x, x, 1 + x))", "min(x, 1 - x)");
+    is(&mut e, "simplify(max(x, x + 1/2))", "1/2 + x");
+    is(&mut e, "simplify(min(a, b))", "min(a, b)");
+    is(&mut e, "simplify(max(x, y, 2))", "max(2, x, y)");
+}
