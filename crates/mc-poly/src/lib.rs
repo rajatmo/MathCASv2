@@ -28,6 +28,7 @@ pub mod resultant;
 mod ringfns;
 pub mod ring;
 mod series;
+mod series_forms;
 pub mod work;
 pub mod unipoly;
 pub mod z;

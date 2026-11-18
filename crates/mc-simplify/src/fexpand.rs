@@ -17,7 +17,12 @@
 //! | `dirac_delta(x, y, ...)` | `dirac_delta(x) dirac_delta(y) ...` |
 //! | `elliptic_nome_q(m)` | `exp(-pi elliptic_k(1 - m)/elliptic_k(m))` |
 //! | `logistic_sigmoid(x)`, `factorial2(n)` (symbolic n), `gamma_regularized(n + 1/2, z)` | exponentials, gamma functions, erf |
-//! | `spherical_hankel_h1(n, z)`, `spherical_hankel_h2(n, z)` (0 <= n <= 20) | `exp(+-i z)` times a polynomial in `1/z` |
+//! | `spherical_hankel_h1(n, z)`, `spherical_hankel_h2(n, z)` (0 <= n <= 20) | `exp(+-i z)` times a polynomial in `z` over `z^(n+1)` |
+//! | `hankel_h1(n + 1/2, z)`, `hankel_h2(n + 1/2, z)` (`|n + 1/2| <= 41/2`); order `+-1/3` | exponentials over `z^(n+1/2)`; Airy functions at `-(3z/2)^(2/3)` |
+//! | `digamma(p/q)` (`q <= 24`), `golden_ratio`, `elliptic_e(1/2)`, `elliptic_e(-1)` | Gauss's theorem; `(1 + sqrt(5))/2`; `Gamma(1/4)` |
+//! | `dirac_delta(p(x))` (simple real roots, rational or quadratic) | `sum dirac_delta(x - r)/abs(p'(r))` |
+//! | `legendre_p(nu, mu, x)` (mu not an integer), `hypergeometric_1f1(1, 3/2, z)`, `hypergeometric_1f1(1/2, 3/2, z)` | `2F1`; `erf` |
+//! | `triangle_wave(x)` of a real x (facts given to `function_expand`) | `2 asin(sin(2 pi x))/pi` |
 //!
 //! Gamma ratios whose arguments differ by an integer are then written as rising factorials (`powers::gamma_ratio`).
 //!
@@ -40,6 +45,7 @@ use mc_eval::{NativeCx, Res};
 pub fn function_expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, t: T<'h>) -> Res<T<'h>> {
     let t = degrees(cx, b, t)?;
     let t = heaviside_shapes(cx, b, t)?;
+    let t = dirac_compose(cx, b, t)?;
     let t = multiple_angles(cx, b, f, t)?;
     // the basic forms first (the reciprocal functions only here, so that an identity's csc stays)
     let t = fixed(cx, b, t, 8, &mut |_cx, b, n| Ok(rule(b, n, true)))?;
@@ -75,6 +81,44 @@ pub fn function_expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Fac
     let r = crate::powers::gamma_ratio(cx, b, r)?;
     // sqrt(u^2) as u where the sign does not matter (`sin(sqrt(x^2))/sqrt(x^2)` is `sin(x)/x`)
     crate::moves::sqrt_parity(cx, b, r)
+}
+
+/// `golden_ratio` as `(1 + sqrt(5))/2`. Only the user-level `function_expand` writes it: as a move of `simplify` and
+/// `full_simplify` the radical would be expanded in powers (`golden_ratio^20 + golden_ratio^-20`), where the
+/// constant reaches the integer by the minimal polynomial.
+pub fn golden_ratio_radical<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
+    let h = b.heap();
+    let phi = h.sym("golden_ratio");
+    if h.mask(t) & h.mask(h.sym_term(phi)) == 0 {
+        return Ok(t);
+    }
+    let to = b.mul(&[b.rat(1, 2), b.add(&[b.int(1), b.pow(b.int(5), b.rat(1, 2))])]);
+    let rule = b.call(h.sym(mc_api::names::RULE), &[h.sym_term(phi), to]);
+    cx.eval(b.call_named("rewrite", &[t, rule]))
+}
+
+/// `triangle_wave(u)` of a real `u` (by the facts `f`) as `2 asin(sin(2 pi u))/pi`: both are 1-periodic, odd, and
+/// linear with slope 4 on [-1/4, 1/4], where asin(sin(t)) = t for |t| <= pi/2 and sin(2 pi (1/2 - u)) = sin(2 pi u)
+/// reflects the rest of a period.
+pub fn triangle_wave_closed<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, t: T<'h>) -> Res<T<'h>> {
+    let h = b.heap();
+    let wave = h.sym("triangle_wave");
+    if h.mask(t) & h.mask(h.sym_term(wave)) == 0 {
+        return Ok(t);
+    }
+    let pi = h.sym_term(h.sym("pi"));
+    rewrite(cx, b, t, &mut |cx, b, node| {
+        let Some((s, &[u])) = b.call_of(node) else { return Ok(None) };
+        if s != wave || b.ar.num(u).is_some() {
+            return Ok(None);
+        }
+        use crate::facts::Kind;
+        let real = matches!(f.info(cx, u)?.kind, Kind::Integer | Kind::Rational | Kind::Real);
+        Ok(real.then(|| {
+            let asin = b.call_named("asin", &[b.call_named("sin", &[b.mul(&[b.int(2), pi, u])])]);
+            b.div(b.mul(&[b.int(2), asin]), pi)
+        }))
+    })
 }
 
 /// Functions of number theory by their definitions: `quotient(m, n)` is `floor(m/n)`; `euler_phi(p)` is
@@ -176,25 +220,27 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
             };
             b.mul(&[ratio, diff])
         }
-        // Gauss's digamma theorem at p/q, q = 2, 3, 4, 6 (DLMF 5.4.19), with the recurrence for the integer part
+        // Gauss's digamma theorem at p/q, 2 <= q <= 24 (DLMF 5.4.19), with the recurrence for the integer part
         // (DLMF 5.5.2)
         ("digamma", [x]) => {
             let View::Rational { .. } = h.view(*x) else { return None };
             let (num, den) = small_fraction(h, *x)?;
-            if ![2, 3, 4, 6].contains(&den) || num.abs() > 50 * den {
+            if !(2..=24).contains(&den) || num.abs() > 50 * den {
                 return None;
             }
             let p = num.rem_euclid(den);
             let n = (num - p) / den;
             let frac = b.rat(p, den);
-            let arg = |k: i64| b.mul(&[pi, b.rat(k, den)]);
             let mut terms = vec![
                 b.neg(h.sym_term(h.sym("euler_gamma"))),
                 b.neg(b.call_named("log", &[b.int(2 * den)])),
-                b.neg(b.mul(&[b.rat(1, 2), pi, b.call_named("cot", &[b.mul(&[pi, frac])])])),
+                b.neg(b.mul(&[b.rat(1, 2), pi, octant(b, "cot", p, den)])),
             ];
             for k in 1..=(den - 1) / 2 {
-                terms.push(b.mul(&[b.int(2), b.call_named("cos", &[arg(2 * k * p)]), b.call_named("log", &[b.call_named("sin", &[arg(k)])])]));
+                // the angle 2 pi k p/q reduced to [0, pi] (cos is even and 2 pi periodic)
+                let j = (2 * k * p).rem_euclid(2 * den);
+                let j = if j > den { 2 * den - j } else { j };
+                terms.push(b.mul(&[b.int(2), octant(b, "cos", j, den), b.call_named("log", &[octant(b, "sin", k, den)])]));
             }
             // psi(f + n) = psi(f) + sum_(j < n) 1/(f + j); psi(f - n) = psi(f) - sum_(j = 1..n) 1/(f - j)
             if n > 0 {
@@ -261,7 +307,9 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
                 let next = b.sub(b.mul(&[b.div(b.int(2 * j + 1), *x), cur]), prev);
                 (prev, cur) = (cur, next);
             }
-            b.call_named("expand", &[cur])
+            // the coefficients of sin and cos each one fraction (`(3 - x^2) sin(x)/x^3 - 3 cos(x)/x^2`)
+            let trig = b.call(b.hd.list, &[s, c]);
+            b.call_named("collect", &[b.call_named("expand", &[cur]), trig, h.sym_term(h.sym("together"))])
         }
         ("spherical_bessel_y", [n, x]) if *n == b.int(0) => b.neg(b.div(b.call_named("cos", &[*x]), *x)),
         // Kelvin functions of half-integer order nu = m + 1/2 (DLMF 10.61.1-2 with 10.49.3, 10.49.12): with
@@ -329,7 +377,7 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
                 b.mul(&[b.pow(b.div(pi, b.int(2)), half), part(&a, real)])
             };
             // (the imaginary parts of the halves cancel: simplify drops them)
-            b.mul(&[b.pow(*x, b.neg(half)), b.call_named("simplify", &[b.call_named("complex_expand", &[body])])])
+            b.mul(&[inv_sqrt(b, *x), b.call_named("simplify", &[b.call_named("complex_expand", &[body])])])
         }
         ("bessel_j" | "bessel_y" | "bessel_i" | "bessel_k", [nu, x]) => {
             // the half-integer orders: the orders +-1/2 in sines, cosines and exponentials, the others by the
@@ -392,6 +440,12 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
         // Binet's formulas continued in the order (Koshy, Fibonacci and Lucas Numbers with Applications, 2001,
         // ch. 37): with r = sqrt(x^2 + 4) and a = (x + r)/2, F_n(x) = (a^n - cos(pi n) a^-n)/r and
         // L_n(x) = a^n + cos(pi n) a^-n; a^(+-n) is written 2^(-+n) (x + r)^(+-n) (2 > 0, so the power splits)
+        // L_n(x) of a symbolic x as a^n + cos(pi n) a^-n with a = x/2 + sqrt(1 + x^2/4) itself
+        ("lucas_l", [n, x]) if !is_integer(b, *n) && b.ar.num(*x).is_none() => {
+            let a = b.add(&[b.mul(&[half, *x]), b.pow(b.add(&[one, b.mul(&[b.rat(1, 4), b.powi(*x, 2)])]), half)]);
+            let c = b.call_named("cos", &[b.mul(&[*n, pi])]);
+            b.add(&[b.pow(a, *n), b.mul(&[c, b.pow(a, b.neg(*n))])])
+        }
         ("fibonacci" | "lucas_l", [n, x]) if !is_integer(b, *n) => {
             let r = b.pow(b.add(&[b.int(4), b.powi(*x, 2)]), half);
             let s = b.add(&[*x, r]);
@@ -435,7 +489,8 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
 /// Hurwitz zeta at a nonpositive integer -B_(n+1)(a)/(n + 1) (DLMF 25.11.14); the upper incomplete gamma function of
 /// a half-integer n + 1/2 > 0 by erf and the recurrence Gamma(a + 1, z) = a Gamma(a, z) plus z^a e^-z (DLMF 8.8.2,
 /// 8.4.6); psi'(1/4) = pi^2 + 8 G, psi'(3/4) = pi^2 - 8 G; K(-1) and K(1/2) by Gamma(1/4) (DLMF 19.20.2 with the
-/// imaginary-modulus transformation 19.7.5).
+/// imaginary-modulus transformation 19.7.5); 1F1(n + 1/2; 2n + 2; w) and U(n + 3/2; 2n + 2; w) by modified Bessel
+/// functions (`confluent_bessel_form`).
 fn special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
     let h = b.heap();
     let one = b.int(1);
@@ -461,9 +516,34 @@ fn special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
             let e = b.call_named("exp", &[b.mul(&[b.rat(-1, 2), *z])]);
             b.mul(&[b.call_named(f, &[first, second, *z]), e, b.pow(*z, b.add(&[half, *m]))])
         }
+        // 1F1(1/2; 3/2; -s^2) = sqrt(pi) erf(s)/(2 s) (DLMF 13.6.7) and
+        // by Kummer's transformation (DLMF 13.2.39) 1F1(1; 3/2; s^2) = sqrt(pi) e^(s^2) erf(s)/(2 s); erf(s)/s is even
+        // and entire in s, so any square root of the argument serves (u for an argument u^2)
+        ("hypergeometric_1f1", [a, c, z]) if *c == b.rat(3, 2) && (*a == half || *a == one) => {
+            let w = if *a == half { b.neg(*z) } else { *z };
+            let s = match b.call_of(w) {
+                Some((p, &[u, two])) if p == b.hd.pow && two == b.int(2) => u,
+                _ => b.pow(w, half),
+            };
+            let r = b.div(b.mul(&[b.pow(pi, half), b.call_named("erf", &[s])]), b.mul(&[b.int(2), s]));
+            if *a == half {
+                r
+            } else {
+                b.mul(&[b.call_named("exp", &[*z]), r])
+            }
+        }
+        // at w = 0 the powers w^-n and K_n(0) are poles: the function's own value stands
+        ("hypergeometric_1f1" | "hypergeometric_u", [a, c, w])
+            if confluent_bessel(b, name, *a, *c).is_some() && !b.ar.num(*w).is_some_and(|n| n.is_zero()) =>
+        {
+            confluent_bessel_form(b, name, confluent_bessel(b, name, *a, *c)?, *w)
+        }
         ("hankel_h1" | "hankel_h2", [nu, z]) => {
             let i = h.sym_term(h.sym("im"));
             let s = if name == "hankel_h1" { 1 } else { -1 };
+            if let Some(r) = hankel_half(b, s, *nu, *z).or_else(|| hankel_third(b, s, *nu, *z)) {
+                return Some(r);
+            }
             let y = b.mul(&[b.int(s), i, b.call_named("bessel_y", &[*nu, *z])]);
             b.add(&[b.call_named("bessel_j", &[*nu, *z]), y])
         }
@@ -516,6 +596,15 @@ fn special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
         ("legendre_p", [nu, x]) if *x == b.int(0) && !is_integer(b, *nu) => {
             b.div(b.pow(pi, half), b.mul(&[g(b.sub(half, b.mul(&[half, *nu]))), g(b.add(&[one, b.mul(&[half, *nu])]))]))
         }
+        // the Ferrers function of an order mu that is not an integer by Gauss's function,
+        // ((1 + x)/(1 - x))^(mu/2) 2F1(nu + 1, -nu; 1 - mu; (1 - x)/2)/Gamma(1 - mu) (DLMF 14.3.1), the power split
+        // as (1 + x)^(mu/2) (1 - x)^(-mu/2) (both bases positive on -1 < x < 1, where the function is defined)
+        ("legendre_p", [nu, mu, x]) if rat(*mu).map_or(b.ar.num(*mu).is_none(), |q| !q.is_int()) => {
+            let f = b.call_named("hypergeometric_2f1", &[b.add(&[*nu, one]), b.neg(*nu), b.sub(one, *mu), b.mul(&[half, b.sub(one, *x)])]);
+            let hm = b.mul(&[half, *mu]);
+            let p = b.mul(&[b.pow(b.add(&[one, *x]), hm), b.pow(b.sub(one, *x), b.neg(hm))]);
+            b.div(b.mul(&[f, p]), g(b.sub(one, *mu)))
+        }
         ("legendre_q", [nu, x]) if *x == b.int(0) && !is_integer(b, *nu) => {
             let tan = b.call_named("tan", &[b.mul(&[half, *nu, pi])]);
             let den = b.mul(&[*nu, g(b.sub(half, b.mul(&[half, *nu]))), g(b.mul(&[half, *nu]))]);
@@ -545,8 +634,9 @@ fn special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
         // q < 0 with the principal power q^(n + 1), complex at a non-integer n: the definition the numeric value
         // takes)
         ("q_factorial", [n, q]) if matches!(small_fraction(b.heap(), *q), Some((k, d)) if k != 0 && k.abs() < d) => {
+            let (k, d) = small_fraction(b.heap(), *q)?;
             let num = b.call_named("q_pochhammer", &[*q, *q]);
-            let den = b.mul(&[b.call_named("q_pochhammer", &[b.pow(*q, b.add(&[*n, one])), *q]), b.pow(b.sub(one, *q), *n)]);
+            let den = b.mul(&[b.call_named("q_pochhammer", &[unit_pow(b, k, d, b.add(&[*n, one])), *q]), unit_pow(b, d - k, d, *n)]);
             b.div(num, den)
         }
         ("weber_e", [n, z]) if int(*n).is_some_and(|n| (1..=40).contains(&n)) => {
@@ -595,6 +685,17 @@ fn special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
             b.div(b.mul(&[b.pow(b.int(2), half), b.powi(g(b.rat(1, 4)), 2)]), b.mul(&[b.int(8), b.pow(pi, half)]))
         }
         ("elliptic_k", [m]) if *m == half => b.div(b.mul(&[b.int(8), b.pow(pi, b.rat(3, 2))]), b.powi(g(b.rat(-1, 4)), 2)),
+        // E(1/2) = pi/(4 K) + K/2 by Legendre's relation 2 E K - K^2 = pi/2 at m = 1/2 (DLMF 19.7.1) with
+        // K(1/2) = Gamma(1/4)^2/(4 sqrt(pi)); E(-1) = sqrt(2) E(1/2) (DLMF 19.7.5)
+        ("elliptic_e", [m]) if *m == half || *m == b.int(-1) => {
+            let g2 = b.powi(g(b.rat(1, 4)), 2);
+            let e = b.add(&[b.div(b.pow(pi, b.rat(3, 2)), g2), b.div(g2, b.mul(&[b.int(8), b.pow(pi, half)]))]);
+            if *m == half {
+                e
+            } else {
+                b.mul(&[b.pow(b.int(2), half), e])
+            }
+        }
         _ => return more_special_rule(b, name, args),
     })
 }
@@ -667,8 +768,12 @@ fn more_special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>>
             let qp = |a: T<'h>, base: T<'h>| b.call_named("q_pochhammer", &[a, base]);
             let form = |p: T<'h>| {
                 let num = qp(p, p);
-                let den = qp(b.pow(p, b.add(&[*x, one])), p);
-                b.mul(&[b.div(num, den), b.pow(b.sub(one, p), b.neg(*x))])
+                // a rational base p = k/d: the powers of unit fractions as integer powers (`(1/2)^-z` is `2^z`)
+                let (up, down) = match small_fraction(h, p) {
+                    Some((k, d)) => (unit_pow(b, k, d, b.add(&[*x, one])), unit_pow(b, d - k, d, b.neg(*x))),
+                    None => (b.pow(p, b.add(&[*x, one])), b.pow(b.sub(one, p), b.neg(*x))),
+                };
+                b.mul(&[b.div(num, qp(up, p)), down])
             };
             match b.ar.num(*q) {
                 None => form(*q),
@@ -680,7 +785,11 @@ fn more_special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>>
                     } else if v > 0.0 && v < 1.0 {
                         form(*q)
                     } else if v > 1.0 {
-                        let p = b.powi(*q, -1);
+                        let p = match (small_int(*q), small_fraction(h, *q)) {
+                            (Some(m), _) => b.rat(1, m),
+                            (_, Some((k, d))) => b.rat(d, k),
+                            _ => b.powi(*q, -1),
+                        };
                         b.mul(&[b.pow(*q, b.mul(&[half, *x, b.sub(*x, one)])), form(p)])
                     } else {
                         return None;
@@ -763,6 +872,7 @@ fn last_special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>>
             let p = b.pow(pi, b.mul(&[b.rat(1, 4), b.sub(c, one)]));
             b.mul(&[two, p, g(b.add(&[one, b.mul(&[b.rat(1, 2), *n])]))])
         }
+        // (the polynomial in 1/z written as one fraction, as `together` writes it)
         ("spherical_hankel_h1" | "spherical_hankel_h2", [n, z]) => {
             let mc_api::View::Int(n) = h.view(*n) else { return None };
             if !(0..=20).contains(&n) {
@@ -770,18 +880,173 @@ fn last_special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>>
             }
             let i = h.sym_term(h.sym("im"));
             let s = if name == "spherical_hankel_h1" { i } else { b.neg(i) };
-            let mut terms = vec![];
-            for k in 0..=n {
-                // a_k = binomial(n + k, k) n!/(n - k)! 2^-k (each factor below 2^63 for n <= 20)
-                let binom = (1..=k).fold(1i64, |c, j| c * (n + j) / j);
-                let falling = (0..k).fold(1i64, |c, j| c * (n - j));
-                let a = b.mul(&[b.int(binom), b.int(falling), b.pow(b.int(2), b.int(-k))]);
-                terms.push(b.mul(&[a, b.pow(s, b.int(k - n - 1)), b.pow(*z, b.int(-(k + 1)))]));
-            }
-            b.mul(&[b.call_named("exp", &[b.mul(&[s, *z])]), b.add(&terms)])
+            b.mul(&[b.call_named("exp", &[b.mul(&[s, *z])]), b.powi(*z, -n - 1), hankel_sum(b, n, s, *z)])
         }
         _ => return None,
     })
+}
+
+/// `z^n sum_(k <= n) s^(k - n - 1) a_k z^-k`, `a_k = (n + k)!/(2^k k! (n - k)!)`, for `0 <= n <= 20` and `s = +-i`:
+/// the Hankel functions of half-integer order and the spherical ones are `e^(s z)` times it over a power of z (DLMF
+/// 10.49.6, 10.47.10). The polynomial is written with a real leading coefficient: for an even n the unit
+/// `s^(-n-1) = +-i` comes out (`i (-3 + 3 i z + z^2)`).
+fn hankel_sum<'h>(b: &B<'h>, n: i64, s: T<'h>, z: T<'h>) -> T<'h> {
+    let unit = n % 2 == 0;
+    let mut terms = vec![];
+    for k in 0..=n {
+        // a_k = binomial(n + k, k) n!/(n - k)! 2^-k (each factor below 2^63 for n <= 20)
+        let binom = (1..=k).fold(1i64, |c, j| c * (n + j) / j);
+        let falling = (0..k).fold(1i64, |c, j| c * (n - j));
+        let a = b.mul(&[b.int(binom), b.int(falling), b.pow(b.int(2), b.int(-k))]);
+        let e = if unit { k } else { k - n - 1 };
+        terms.push(b.mul(&[a, b.pow(s, b.int(e)), b.pow(z, b.int(n - k))]));
+    }
+    if unit {
+        b.mul(&[b.pow(s, b.int(-n - 1)), b.add(&terms)])
+    } else {
+        b.add(&terms)
+    }
+}
+
+/// The Hankel functions of a half-integer order `+-(n + 1/2)`, `0 <= n <= 20`, in exponentials:
+/// `H1_(n+1/2)(z) = sqrt(2/pi) z^(-1/2) e^(iz) sum_(k <= n) i^(k - n - 1) a_k z^-k` (`sqrt(2 z/pi) h1_n(z)`, DLMF
+/// 10.47.10 with 10.49.6), `H2` the same with `-i`, and the negative orders by `H1_(-v) = e^(i pi v) H1_v`,
+/// `H2_(-v) = e^(-i pi v) H2_v` (DLMF 10.4.6). The sum is written as a polynomial over `z^(n + 1/2)`.
+fn hankel_half<'h>(b: &B<'h>, s: i64, nu: T<'h>, z: T<'h>) -> Option<T<'h>> {
+    let h = b.heap();
+    let k2 = b.ar.num(b.mul(&[b.int(2), nu])).and_then(|n| n.as_rat().cloned()).filter(|q| q.is_int())?.num.to_i64()?;
+    if k2 % 2 == 0 || !(-41..=41).contains(&k2) {
+        return None;
+    }
+    let n = (k2.abs() - 1) / 2;
+    let i = h.sym_term(h.sym("im"));
+    let si = b.mul(&[b.int(s), i]);
+    let pi = h.sym_term(h.sym("pi"));
+    let half = b.rat(1, 2);
+    // e^(+-i pi (n + 1/2)) = (-1)^n (+-i) for a negative order
+    let turn = if k2 < 0 { b.mul(&[b.int(if n % 2 == 0 { 1 } else { -1 }), si]) } else { b.int(1) };
+    let pre = b.mul(&[b.pow(b.int(2), half), b.pow(b.powi(pi, -1), half), b.pow(z, b.rat(-1 - 2 * n, 2))]);
+    Some(b.mul(&[turn, pre, b.call_named("exp", &[b.mul(&[si, z])]), hankel_sum(b, n, si, z)]))
+}
+
+/// The Hankel functions of order `+-1/3` by the Airy functions at `w = -(3z/2)^(2/3)`: with
+/// `c = sqrt(3)/sqrt(-w) = 2^(1/3) 3^(1/6) z^(-1/3)`, DLMF 9.6.6 (`Ai(-t) = (sqrt(t)/3)(J_(1/3) + J_(-1/3))`,
+/// `Bi(-t) = sqrt(t/3)(J_(-1/3) - J_(1/3))` at `zeta = (2/3) t^(3/2)`) and 10.4.7 give
+/// `J_(1/3) = -c (Bi - sqrt(3) Ai)/2`, `Y_(1/3) = -c (Ai + sqrt(3) Bi)/2`, `J_(-1/3) = c (sqrt(3) Ai + Bi)/2`,
+/// `Y_(-1/3) = c (Ai - sqrt(3) Bi)/2`, and `H = J +- i Y`. Both sides are analytic in `z` off the negative axis,
+/// where the principal powers are, and equal for `z > 0`.
+fn hankel_third<'h>(b: &B<'h>, s: i64, nu: T<'h>, z: T<'h>) -> Option<T<'h>> {
+    let h = b.heap();
+    let plus = if nu == b.rat(1, 3) {
+        true
+    } else if nu == b.rat(-1, 3) {
+        false
+    } else {
+        return None;
+    };
+    let i = h.sym_term(h.sym("im"));
+    let r3 = b.pow(b.int(3), b.rat(1, 2));
+    let w = b.mul(&[b.rat(-1, 2), b.pow(b.int(2), b.rat(1, 3)), b.pow(b.int(3), b.rat(2, 3)), b.pow(z, b.rat(2, 3))]);
+    let (ai, bi) = (b.call_named("airy_ai", &[w]), b.call_named("airy_bi", &[w]));
+    let c = b.mul(&[b.pow(b.int(2), b.rat(1, 3)), b.pow(b.int(3), b.rat(1, 6)), b.pow(z, b.rat(-1, 3))]);
+    let (j, y) = if plus {
+        (
+            b.mul(&[b.rat(-1, 2), b.sub(bi, b.mul(&[r3, ai])), c]),
+            b.mul(&[b.rat(-1, 2), b.add(&[ai, b.mul(&[r3, bi])]), c]),
+        )
+    } else {
+        let half = b.rat(1, 2);
+        (b.mul(&[half, b.add(&[b.mul(&[r3, ai]), bi]), c]), b.mul(&[half, b.sub(ai, b.mul(&[r3, bi])), c]))
+    };
+    Some(b.add(&[j, b.mul(&[b.int(s), i, y])]))
+}
+
+/// `cos`, `sin` or `cot` of `pi j/q`, `0 <= j <= q` (`0 < j < q` for cot), with the angle reduced to `[0, pi/4]`:
+/// `cos(pi - t) = -cos(t)`, `cot(pi - t) = -cot(t)`, and above `pi/4` the cofunction of `pi/2 - t` (`cos(4 pi/13)` is
+/// `sin(5 pi/26)`, `cot(7 pi/13)` is `-tan(pi/26)`).
+fn octant<'h>(b: &B<'h>, f: &str, j: i64, q: i64) -> T<'h> {
+    let pi = b.heap().sym_term(b.heap().sym("pi"));
+    let at = |g: &str, n: i64, d: i64| b.call_named(g, &[b.mul(&[pi, b.rat(n, d)])]);
+    let (mut j, mut sign) = (j, 1);
+    if f != "sin" && 2 * j > q {
+        j = q - j;
+        sign = -1;
+    }
+    // the angle is now pi j/q in [0, pi/2]; above pi/4 it is pi/2 - pi (q - 2j)/(2q)
+    let g = if 4 * j > q {
+        let co = match f {
+            "cos" => "sin",
+            "sin" => "cos",
+            _ => "tan",
+        };
+        at(co, q - 2 * j, 2 * q)
+    } else {
+        at(f, j, q)
+    };
+    if sign < 0 {
+        b.neg(g)
+    } else {
+        g
+    }
+}
+
+/// The order `n` (`0 <= n <= 20`) of the confluent functions next to the Bessel cases: `1F1(n + 1/2; 2n + 2; w)` and
+/// `U(n + 3/2; 2n + 2; w)`.
+fn confluent_bessel<'h>(b: &B<'h>, name: &str, a: T<'h>, c: T<'h>) -> Option<i64> {
+    let int = |t: T<'h>| b.ar.num(t).and_then(|n| n.as_rat().cloned()).filter(|q| q.is_int()).and_then(|q| q.num.to_i64());
+    let shift = if name == "hypergeometric_1f1" { b.rat(-1, 2) } else { b.rat(-3, 2) };
+    let n = int(b.add(&[a, shift])).filter(|n| (0..=20).contains(n))?;
+    (int(c)? == 2 * n + 2).then_some(n)
+}
+
+/// With `nu = a - 1/2` and the Bessel cases `1F1(a; 2a; 2z) = Gamma(1 + nu) e^z (z/2)^-nu I_nu(z)` and
+/// `U(a; 2a; 2z) = pi^(-1/2) e^z (2z)^-nu K_nu(z)` (DLMF 13.6.9, 13.6.10), the derivatives
+/// `d/dz (e^-z 1F1(a; b; z)) = ((a - b)/b) e^-z 1F1(a; b + 1; z)` and `d/dz U(a; b; z) = -a U(a + 1; b + 1; z)` (the
+/// differentiation formulas of DLMF 13.3(ii)) with `(z^-nu I_nu)' = z^-nu I_(nu+1)`, `(z^-nu K_nu)' = -z^-nu K_(nu+1)` (DLMF 10.29.4) give, at `nu = n`, `w = 2z`:
+/// `1F1(n + 1/2; 2n + 2; w) = n! e^(w/2) (w/4)^-n (I_n(w/2) - I_(n+1)(w/2))` and
+/// `U(n + 3/2; 2n + 2; w) = pi^(-1/2) e^(w/2) w^-n (K_(n+1)(w/2) - K_n(w/2))/(2n + 1)`. Both sides are analytic off the
+/// negative axis (1F1 is entire: the powers of w cancel against I_n of integer order).
+fn confluent_bessel_form<'h>(b: &B<'h>, name: &str, n: i64, w: T<'h>) -> T<'h> {
+    let hw = b.mul(&[b.rat(1, 2), w]);
+    let e = b.call_named("exp", &[hw]);
+    if name == "hypergeometric_1f1" {
+        let i = |k: i64| b.call_named("bessel_i", &[b.int(k), hw]);
+        let f = b.call_named("factorial", &[b.int(n)]);
+        b.mul(&[f, e, b.pow(b.mul(&[b.rat(1, 4), w]), b.int(-n)), b.sub(i(n), i(n + 1))])
+    } else {
+        let k = |k: i64| b.call_named("bessel_k", &[b.int(k), hw]);
+        let pi = b.heap().sym_term(b.heap().sym("pi"));
+        b.mul(&[b.rat(1, 2 * n + 1), b.pow(pi, b.rat(-1, 2)), e, b.pow(w, b.int(-n)), b.sub(k(n + 1), k(n))])
+    }
+}
+
+/// `x^(-1/2)` with the positive constant factors of a product taken out, `(c u)^(-1/2) = c^(-1/2) u^(-1/2)` for
+/// `c > 0` (a positive rational or a rational power of one): `(x 2^(1/2))^(-1/2)` is `2^(-1/4) x^(-1/2)`.
+fn inv_sqrt<'h>(b: &B<'h>, x: T<'h>) -> T<'h> {
+    let minus_half = b.rat(-1, 2);
+    let positive = |t: T<'h>| b.ar.num(t).and_then(|n| n.as_rat().cloned()).is_some_and(|q| !q.num.neg && !q.num.is_zero());
+    let constant = |t: T<'h>| match b.call_of(t) {
+        Some((p, &[base, e])) if p == b.hd.pow => positive(base) && b.ar.num(e).and_then(|n| n.as_rat().cloned()).is_some(),
+        _ => positive(t),
+    };
+    let factors = match b.call_of(x) {
+        Some((m, fs)) if m == b.hd.mul => fs.to_vec(),
+        _ => return b.pow(x, minus_half),
+    };
+    let (cs, us): (Vec<T<'h>>, Vec<T<'h>>) = factors.into_iter().partition(|&t| constant(t));
+    if cs.is_empty() || us.is_empty() {
+        return b.pow(x, minus_half);
+    }
+    b.mul(&[b.pow(b.mul(&cs), minus_half), b.pow(b.mul(&us), minus_half)])
+}
+
+/// `(k/d)^e` for a fraction in lowest terms, a unit fraction `1/d` written `d^-e` (`(1/2)^-n` is `2^n`).
+fn unit_pow<'h>(b: &B<'h>, k: i64, d: i64, e: T<'h>) -> T<'h> {
+    if k == 1 && d > 1 {
+        b.pow(b.int(d), b.neg(e))
+    } else {
+        b.pow(b.rat(k, d), e)
+    }
 }
 
 /// Is `t` an integer (then the polynomial or the number is the closed form)?
@@ -813,6 +1078,89 @@ fn heaviside_shapes<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> R
     }
     let r = cx.eval(r)?;
     crate::term::apply(cx, b, "expand", r)
+}
+
+/// `dirac_delta(p(x))` of a polynomial of degree 2 to 24 in one variable with rational coefficients, whose real
+/// roots are simple and rational or quadratic irrationals: `sum_r dirac_delta(x - r)/abs(p'(r))` over the real roots
+/// (the composition of the delta distribution with a function whose zeros are simple, Hormander, The Analysis of
+/// Linear Partial Differential Operators I, Theorem 6.1.2; Gel'fand and Shilov, Generalized Functions I, B.3.1),
+/// 0 when p has no real root. A real root of higher multiplicity, or one of an irreducible factor of degree 3 or
+/// more, leaves the delta as it is.
+fn dirac_compose<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
+    let h = b.heap();
+    let delta = h.sym("dirac_delta");
+    if h.mask(t) & h.mask(h.sym_term(delta)) == 0 {
+        return Ok(t);
+    }
+    let r = rewrite(cx, b, t, &mut |cx, b, node| match b.call_of(node) {
+        Some((s, &[p])) if s == delta && b.ar.num(p).is_none() => delta_of_polynomial(cx, b, p),
+        _ => Ok(None),
+    })?;
+    if r == t {
+        Ok(t)
+    } else {
+        cx.eval(r)
+    }
+}
+
+fn delta_of_polynomial<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, p: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let int = |t: T<'h>| match h.view(t) {
+        View::Int(n) => Some(n),
+        _ => None,
+    };
+    let items = |t: T<'h>| match b.call_of(t) {
+        Some((s, xs)) if s == b.hd.list => Some(xs.to_vec()),
+        _ => None,
+    };
+    let vars = cx.eval(b.call_named("variables", &[p]))?;
+    let Some(&[x]) = items(vars).as_deref() else { return Ok(None) };
+    if !matches!(h.view(x), View::Sym(_)) || cx.eval(b.call_named("is_polynomial", &[p, x]))? != h.sym_term(h.sym("true")) {
+        return Ok(None);
+    }
+    let Some(deg) = int(cx.eval(b.call_named("exponent", &[p, x]))?) else { return Ok(None) };
+    if !(2..=24).contains(&deg) {
+        return Ok(None);
+    }
+    let Some(cs) = items(cx.eval(b.call_named("coefficient_list", &[p, x]))?) else { return Ok(None) };
+    if cs.iter().any(|&c| b.ar.num(c).and_then(|n| n.as_rat().cloned()).is_none()) {
+        return Ok(None);
+    }
+    let Some(factors) = items(cx.eval(b.call_named("factor_list", &[p]))?) else { return Ok(None) };
+    let mut roots = vec![];
+    for fm in factors.iter().skip(1) {
+        let Some(&[f, m]) = items(*fm).as_deref() else { return Ok(None) };
+        let Some(d) = int(cx.eval(b.call_named("exponent", &[f, x]))?) else { return Ok(None) };
+        let Some(real) = int(cx.eval(b.call_named("count_roots", &[f, x]))?) else { return Ok(None) };
+        if real == 0 {
+            continue;
+        }
+        if m != b.int(1) || d > 2 {
+            return Ok(None);
+        }
+        let Some(fc) = items(cx.eval(b.call_named("coefficient_list", &[f, x]))?) else { return Ok(None) };
+        if d == 1 {
+            roots.push(b.neg(b.div(fc[0], fc[1])));
+        } else {
+            // two real roots (-b +- sqrt(b^2 - 4 a c))/(2 a)
+            let disc = b.pow(b.sub(b.powi(fc[1], 2), b.mul(&[b.int(4), fc[2], fc[0]])), b.rat(1, 2));
+            for sign in [1, -1] {
+                roots.push(b.div(b.add(&[b.neg(fc[1]), b.mul(&[b.int(sign), disc])]), b.mul(&[b.int(2), fc[2]])));
+            }
+        }
+    }
+    let dp = cx.eval(b.call_named("d", &[p, x]))?;
+    let mut terms = vec![];
+    for r in roots {
+        let r = cx.eval(r)?;
+        let rule = b.call(h.sym(mc_api::names::RULE), &[x, r]);
+        let slope = cx.eval(b.call_named("abs", &[b.call_named("rewrite", &[dp, rule])]))?;
+        if slope == b.int(0) ||h.mask(slope) & h.mask(h.sym_term(h.sym("abs"))) != 0 {
+            return Ok(None);
+        }
+        terms.push(b.div(b.call(h.sym("dirac_delta"), &[b.sub(x, r)]), slope));
+    }
+    Ok(Some(b.add(&terms)))
 }
 
 /// A rational number with small numerator and denominator as (num, den).

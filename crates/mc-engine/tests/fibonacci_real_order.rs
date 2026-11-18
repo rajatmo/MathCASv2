@@ -39,7 +39,7 @@ fn documented_inputs() {
         for (src, want) in [
             ("function_expand(fibonacci(n_u, x))", "(2^-n_u*(x + (4 + x^2)^(1/2))^n_u - cos(n_u*pi)*2^n_u*(x + (4 + x^2)^(1/2))^-n_u)/(4 + x^2)^(1/2)"),
             ("function_expand(fibonacci(1 / 2, x))", "2^(1/2)*(x + (4 + x^2)^(1/2))^(1/2)/(2*(4 + x^2)^(1/2))"),
-            ("function_expand(lucas_l(1 / 2, x))", "(1/2)*2^(1/2)*(x + (4 + x^2)^(1/2))^(1/2)"),
+            ("function_expand(lucas_l(1 / 2, x))", "((1/2)*x + (1 + (1/4)*x^2)^(1/2))^(1/2)"),
             ("d(fibonacci(n, x), x)", "(n*lucas_l(n, x) - x*fibonacci(n, x))/(4 + x^2)"),
             ("d(lucas_l(n, x), x)", "n*fibonacci(n, x)"),
         ] {

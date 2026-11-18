@@ -377,3 +377,214 @@ fn simplify_log_primes_zero_and_dominated_max_min() {
     is(&mut e, "simplify(min(a, b))", "min(a, b)");
     is(&mut e, "simplify(max(x, y, 2))", "max(2, x, y)");
 }
+
+// `series`: trigonometric functions of inverse trigonometric functions in the coefficients are algebraic functions
+// (principal branches, every complex argument): the identities at points on each side of the cuts and off the axis,
+// and the series of the inverse Jacobi functions in the parameter.
+#[test]
+fn series_writes_trig_of_inverse_trig_algebraically() {
+    let mut e = CoreEngine::new();
+    let pairs = [
+        ("sin(acot(z))", "1/(z*((1 + z^2)/z^2)^(1/2))"),
+        ("cos(acot(z))", "1/((1 + z^2)/z^2)^(1/2)"),
+        ("sin(asec(z))", "((-1 + z^2)/z^2)^(1/2)"),
+        ("cos(asec(z))", "1/z"),
+        ("sin(acsc(z))", "1/z"),
+        ("cos(acsc(z))", "((-1 + z^2)/z^2)^(1/2)"),
+        ("sin(atan(z))", "z/(1 + z^2)^(1/2)"),
+        ("cos(atan(z))", "1/(1 + z^2)^(1/2)"),
+        ("sin(acos(z))", "(1 - z^2)^(1/2)"),
+        ("cos(asin(z))", "(1 - z^2)^(1/2)"),
+    ];
+    let points = ["3/7", "-3/7", "5/2", "-5/2", "4", "-4", "2 + 3*im", "-2 - im/3", "1/5 - 2*im", "-1/5 + 2*im", "3*im/2", "-3*im/2"];
+    for (l, r) in pairs {
+        for p in points {
+            // each side as a number first (an exact difference of 0 has no relative precision to reach)
+            let src = format!("abs(n(rewrite({l}, z -> {p}), 20) - n(rewrite({r}, z -> {p}), 20)) < 10^-15");
+            assert_eq!(ev(&mut e, &src), "true", "{l} = {r} at z = {p}");
+        }
+    }
+    is(&mut e, "normal(series(inverse_jacobi_cs(x, m), m, 0, 1))", "acot(x) + (acot(x) - x + acot(x)*x^2)*m/(4 + 4*x^2)");
+    is(&mut e, "normal(series(inverse_jacobi_nc(z, m), m, 0, 1))", "asec(z) + (-((-1 + z^2)/z^2)^(1/2) + z*asec(z))*m/(4*z)");
+    is(&mut e, "normal(series(inverse_jacobi_ns(z, m), m, 0, 1))", "acsc(z) + (-((-1 + z^2)/z^2)^(1/2) + z*acsc(z))*m/(4*z)");
+    // cos(asec(z))^3/sin(asec(z)) reduced by cos^2 = 1 - sin^2 before it is written algebraically
+    is(&mut e, "normal(series(inverse_jacobi_dc(z, m), m, 0, 1))", "asec(z) + (z*asec(z) + ((-1 + z^2)/z^2)^(1/2))*m/(4*z)");
+    // the coefficient of m against a difference quotient of the function at a point
+    let q = "abs(n(rewrite(coefficient(normal(series(inverse_jacobi_dc(z, m), m, 0, 1)), m) - (inverse_jacobi_dc(z, 10^-12) - inverse_jacobi_dc(z, 0))/10^-12, z -> 7/3), 30)) < 10^-9";
+    assert_eq!(ev(&mut e, q), "true");
+}
+
+// `series` at an infinity: the logarithms are written as log(x) or log(-x), whichever agrees with the function off
+// the direction of expansion (on the negative axis, on each side of it and on the imaginary axis); log(1/x) stays
+// when it is the function's own form or when the input has symbolic parameters. Each answer ends quickly for exact,
+// machine and interval constants and at -inf.
+#[test]
+fn series_at_infinity_writes_the_logarithm_of_the_function_branch() {
+    let mut e = CoreEngine::new();
+    is(&mut e, "normal(series(acosh(x), x, inf, 3))", "log(2) + log(x) - 1/(4*x^2)");
+    is(&mut e, "normal(series(log(x), x, inf, 2))", "log(x)");
+    is(&mut e, "normal(series(log(1/x), x, inf, 2))", "log(1/x)");
+    is(&mut e, "normal(series(hypergeometric_2f1(2, 3, 4, x), x, inf, 5))", "-9/x^4 - 6/x^5 + 3/x^2 + (-3 + 6*log(-x))/x^3");
+    is(&mut e, "normal(series(log(x + 1)/x, x, inf, 3))", "log(x)/x + x^-2 - 1/(2*x^3)");
+    is(&mut e, "normal(series(log(-x), x, -inf, 2))", "log(-x)");
+    // the series agrees with the function off the positive axis too
+    for f in ["acosh(x)", "log(1/x)", "log(x + 1)/x", "hypergeometric_2f1(2, 3, 4, x)", "log(x)^2 + 1/x"] {
+        for p in ["-100", "-100 + im", "-100 - im", "100*im", "-100*im", "100"] {
+            let src = format!("abs(n(rewrite(({f}) - normal(series({f}, x, inf, 5)), x -> {p}), 30)) < 10^-6");
+            assert_eq!(ev(&mut e, &src), "true", "{f} at {p}");
+        }
+    }
+    let start = std::time::Instant::now();
+    for src in [
+        "series(a*acosh(x), x, inf, 2)",
+        "series(acosh(x) + 0.5, x, inf, 2)",
+        "series(1.5*acosh(x), x, inf, 2)",
+        "series(acosh(x) + n(pi, 30), x, inf, 2)",
+        "series(acosh(x), x, -inf, 2)",
+        "series(log(x)*acosh(x), x, -inf, 2)",
+        "series(log(1 + 1/x), x, inf, 3)",
+    ] {
+        let r = ev(&mut e, src);
+        assert!(r.contains("O(") && !r.contains("failure") && !r.starts_with("series("), "{src} gave {r}");
+    }
+    assert!(start.elapsed().as_secs() < 60, "took {:?}", start.elapsed());
+    is(&mut e, "normal(series(a*acosh(x), x, inf, 2))", "a*log(2) - a*log(x^-1) - a/(4*x^2)");
+    // constants left by the branch written cancelled
+    is(&mut e, "normal(series(log(x)*acosh(x), x, -inf, 2))", "log(2)*log(x) - log(x)/(4*x^2) + log(x)^2");
+}
+
+// `series` at an infinity: an imaginary constant that comes from the branch of the function (the input has none) is
+// written with `i = sqrt(-x^2)/x` (equal on the direction of expansion) when that agrees with the function off it;
+// terms with x keep their constants.
+#[test]
+fn series_at_infinity_writes_branch_constants_with_the_sign_of_the_side() {
+    let mut e = CoreEngine::new();
+    is(&mut e, "normal(series(atanh(x), x, inf, 3))", "-pi*(-x^2)^(1/2)/(2*x) + x^-1 + 1/(3*x^3)");
+    is(&mut e, "normal(series(atanh(x), x, -inf, 3))", "-pi*(-x^2)^(1/2)/(2*x) + x^-1 + 1/(3*x^3)");
+    is(&mut e, "normal(series(sqrt(1 - x^2), x, inf, 2))", "im*x - im/(2*x)");
+    is(&mut e, "normal(series(erfi(x), x, inf, 2))", "-im + exp(x^2)/(pi^(1/2)*x)");
+    is(&mut e, "normal(series(atanh(x) + im, x, inf, 1))", "im - (im/2)*pi + x^-1");
+    for p in ["-100", "-100 + im", "-100 - im", "100*im", "-100*im", "100 + im", "100 - im"] {
+        let src = format!("abs(n(rewrite(atanh(x) - normal(series(atanh(x), x, inf, 5)), x -> {p}), 30)) < 10^-6");
+        assert_eq!(ev(&mut e, &src), "true", "atanh at {p}");
+    }
+    let start = std::time::Instant::now();
+    for src in ["series(atanh(x) + 0.5, x, inf, 2)", "series(atanh(x) + n(1/3, 30), x, inf, 2)", "series(a*atanh(x), x, inf, 2)", "series(atanh(x), x, -inf, 0)"] {
+        let r = ev(&mut e, src);
+        assert!(r.contains("O(") && !r.contains("failure") && !r.starts_with("series("), "{src} gave {r}");
+    }
+    assert!(start.elapsed().as_secs() < 60, "took {:?}", start.elapsed());
+}
+
+// `series`: gamma functions at rational arguments in the coefficients are shifted to the fractional part where
+// that is shorter (leaf_count), never longer, and not reflected (gamma functions stay on their side of the fraction
+// bar); each coefficient equals the computed one.
+#[test]
+fn series_coefficients_with_gamma_at_rational_arguments_are_shortest() {
+    let mut e = CoreEngine::new();
+    is(&mut e, "normal(series(legendre_p(1/2, x), x, 0, 2))", "4*pi^(1/2)/gamma(1/4)^2 + pi^(1/2)*x/(2*gamma(3/4)^2) - 3*pi^(1/2)*x^2/(2*gamma(1/4)^2)");
+    is(&mut e, "normal(series(legendre_q(1/2, x), x, 0, 2))", "-2*pi^(3/2)/gamma(1/4)^2 + pi^(3/2)*x/(4*gamma(3/4)^2) + 3*pi^(3/2)*x^2/(4*gamma(1/4)^2)");
+    // gamma functions in the denominators stay there (no reflection into the numerator)
+    let r = ev(&mut e, "full_simplify(series(hermite_h(1/2, x), x, 0, 3))");
+    assert_eq!(
+        r,
+        "2^(1/2)*pi^(1/2)/gamma(1/4) + (1/2)*2^(1/2)*pi^(1/2)/gamma(3/4)*x + (-1/8)*2^(1/2)*pi^(1/2)/gamma(5/4)*x^2 \
+         + (1/16)*2^(1/2)*pi^(1/2)/gamma(7/4)*x^3 + O(x^4)"
+    );
+    for (f, n) in [("legendre_p(1/2, x)", 3), ("legendre_q(1/2, x)", 3), ("legendre_p(-1/3, x)", 2), ("scorer_hi(x)", 3), ("airy_ai(x)", 3)] {
+        // the coefficients against the derivatives of the function at 0, numerically
+        for k in 0..=n {
+            let src = format!(
+                "abs(n(coefficient(normal(series({f}, x, 0, {n})), x, {k}) - rewrite(d({f}, [x, {k}]), x -> 0)/factorial({k}), 30)) < 10^-20"
+            );
+            assert_eq!(ev(&mut e, &src), "true", "{f} coefficient {k}");
+        }
+    }
+    // gamma at arguments far from (0, 1), at machine numbers and at intervals: no change, each ends quickly
+    let start = std::time::Instant::now();
+    for src in [
+        "series(gamma(x + 101/3), x, 0, 1)",
+        "series(gamma(x - 101/3), x, 0, 1)",
+        "series(gamma(x + 1/3) + gamma(5/7), x, 0, 1)",
+        "series(gamma(x)*gamma(1/5)*gamma(2/5)*gamma(3/5)*gamma(4/5)*gamma(6/5), x, 1, 1)",
+        "series(gamma(-1/2 + x)*gamma(7/2 + x), x, 0, 2)",
+    ] {
+        let r = ev(&mut e, src);
+        assert!(r.contains("O(") && !r.contains("failure"), "{src} gave {r}");
+    }
+    // a machine or interval argument of gamma (no series: the call stays)
+    for src in [
+        "series(gamma(x + 0.5), x, 0, 1)",
+        "series(gamma(x + interval([1/3, 1/2])), x, 0, 1)",
+        "series(atanh(x) + interval([1, 2]), x, inf, 2)",
+    ] {
+        let r = ev(&mut e, src);
+        assert!(!r.contains("failure"), "{src} gave {r}");
+    }
+    assert!(start.elapsed().as_secs() < 60, "took {:?}", start.elapsed());
+}
+
+// `function_expand`: the Hankel functions of half-integer order as exponentials and of order 1/3 by Airy functions,
+// the spherical Bessel and Hankel functions with each coefficient one fraction (a real leading coefficient), the
+// Kelvin functions with the positive constants of the argument outside the root, q-factorials with integer bases,
+// the delta of a polynomial over its simple real roots, golden_ratio as a radical, the Ferrers function by 2F1,
+// 1F1(1; 3/2; z) by erf, the triangle wave of a real argument and Lucas functions of a symbolic x.
+#[test]
+fn function_expand_written_forms() {
+    let mut e = CoreEngine::new();
+    is(&mut e, "function_expand(hankel_h1(1/2, x))", "-im*2^(1/2)*exp(im*x)*(pi^-1)^(1/2)/x^(1/2)");
+    is(&mut e, "function_expand(hankel_h2(1/2, x))", "im*2^(1/2)*exp(-im*x)*(pi^-1)^(1/2)/x^(1/2)");
+    is(&mut e, "function_expand(hankel_h1(5/2, x))", "im*(-3 + 3im*x + x^2)*2^(1/2)*exp(im*x)*(pi^-1)^(1/2)/x^(5/2)");
+    is(
+        &mut e,
+        "function_expand(hankel_h1(1/3, x))",
+        "(-1/2)*(airy_bi((-1/2)*2^(1/3)*3^(2/3)*x^(2/3)) - airy_ai((-1/2)*2^(1/3)*3^(2/3)*x^(2/3))*3^(1/2))*2^(1/3)*3^(1/6)/x^(1/3) \
+         - (im/2)*(airy_ai((-1/2)*2^(1/3)*3^(2/3)*x^(2/3)) + airy_bi((-1/2)*2^(1/3)*3^(2/3)*x^(2/3))*3^(1/2))*2^(1/3)*3^(1/6)/x^(1/3)",
+    );
+    is(&mut e, "function_expand(spherical_bessel_j(2, x))", "-3*cos(x)/x^2 + (3 - x^2)*sin(x)/x^3");
+    is(&mut e, "function_expand(spherical_hankel_h1(1, x))", "(-im - x)*exp(im*x)/x^2");
+    is(&mut e, "function_expand(spherical_hankel_h1(2, x))", "im*(-3 + 3im*x + x^2)*exp(im*x)/x^3");
+    is(&mut e, "function_expand(spherical_hankel_h2(2, x))", "-im*(-3 - 3im*x + x^2)*exp(-im*x)/x^3");
+    is(
+        &mut e,
+        "function_expand(kelvin_ber(1/2, x*sqrt(2)))",
+        "((-1/2)*cosh(x)*(2 - 2^(1/2))^(1/2)*sin(x) + (1/2)*cos(x)*(2 + 2^(1/2))^(1/2)*sinh(x))*2^(1/4)/(pi^(1/2)*x^(1/2))",
+    );
+    is(&mut e, "function_expand(q_factorial(n, 1/2))", "2^n*q_pochhammer(1/2, 1/2)/q_pochhammer(2^(-1 - n), 1/2)");
+    is(&mut e, "function_expand(q_factorial(n, 2))", "2^(n + (1/2)*n*(-1 + n))*q_pochhammer(1/2, 1/2)/q_pochhammer(2^(-1 - n), 1/2)");
+    is(&mut e, "function_expand(dirac_delta(x^5 - 1))", "(1/5)*dirac_delta(-1 + x)");
+    is(&mut e, "function_expand(dirac_delta(x^2 - 2))", "(1/4)*dirac_delta(x - 2^(1/2))*2^(1/2) + (1/4)*dirac_delta(x + 2^(1/2))*2^(1/2)");
+    is(&mut e, "function_expand(dirac_delta(x^2 + 1))", "0");
+    // a double root and a cubic irrational root leave the delta
+    is(&mut e, "function_expand(dirac_delta((x - 1)^2))", "dirac_delta((-1 + x)^2)");
+    is(&mut e, "function_expand(dirac_delta(x^3 - 2))", "dirac_delta(-2 + x^3)");
+    is(&mut e, "function_expand([degree, golden_ratio])", "[(1/180)*pi, (1/2)*(1 + 5^(1/2))]");
+    is(&mut e, "full_simplify(golden_ratio^20 + golden_ratio^-20)", "15127");
+    is(
+        &mut e,
+        "function_expand(spheroidal_ps(n, m, 0, x))",
+        "hypergeometric_2f1(1 + n, -n, 1 - m, (1/2)*(1 - x))*(1 + x)^((1/2)*m)*(1 - x)^((-1/2)*m)/gamma(1 - m)",
+    );
+    is(&mut e, "function_expand(whittaker_m(-1/4, 1/4, x^2))", "erf(x)*exp((1/2)*x^2)*pi^(1/2)*(x^2)^(3/4)/(2*x)");
+    is(&mut e, "function_expand(triangle_wave(x), element(x, reals))", "2*asin(sin(2*pi*x))/pi");
+    is(&mut e, "function_expand(triangle_wave(z))", "triangle_wave(z)");
+    is(&mut e, "function_expand(lucas_l(1/2, x))", "((1/2)*x + (1 + (1/4)*x^2)^(1/2))^(1/2)");
+    // the Whittaker functions next to the Bessel cases by modified Bessel functions
+    is(&mut e, "function_expand(whittaker_m(1/2, 1/2, x))", "x*(bessel_i(0, (1/2)*x) - bessel_i(1, (1/2)*x))");
+    is(&mut e, "function_expand(whittaker_w(-1/2, 1/2, x))", "x*(bessel_k(1, (1/2)*x) - bessel_k(0, (1/2)*x))/pi^(1/2)");
+    is(&mut e, "function_expand(hypergeometric_1f1(3/2, 4, x))", "4*(bessel_i(1, (1/2)*x) - bessel_i(2, (1/2)*x))*exp((1/2)*x)/x");
+}
+
+// `simplify` of an equation or inequation with a constant on one side only writes the other side first; the sides
+// keep their terms, and inequalities keep their direction as written.
+#[test]
+fn simplify_writes_the_constant_side_of_an_equation_last() {
+    let mut e = CoreEngine::new();
+    is(&mut e, "simplify(2 == x)", "x == 2");
+    is(&mut e, "simplify(3*sqrt(34) == abs(a - b))", "abs(a - b) == 3*34^(1/2)");
+    is(&mut e, "full_simplify(asinh(sqrt(2)) != b)", "b != asinh(2^(1/2))");
+    is(&mut e, "simplify(x - 3 == (a + b)^2)", "-3 + x == (a + b)^2");
+    is(&mut e, "simplify(1 == 1)", "true");
+    is(&mut e, "simplify(pi == e)", "pi == e");
+    is(&mut e, "simplify(2 < x)", "2 < x");
+}

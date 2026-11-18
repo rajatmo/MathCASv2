@@ -84,7 +84,7 @@ fn function_expand_of_anger_j_and_q_factorial() {
     assert_eq!(ev(&format!("abs(n(rewrite({a}, [ν -> 3/7, x -> 2]) - anger_j(3/7, 2), 20)) < 10^-15")), "true");
     assert_eq!(ev(&format!("abs(n(rewrite({a}, [ν -> -13/5, x -> 7/2]) - anger_j(-13/5, 7/2), 20)) < 10^-15")), "true");
     let q = "function_expand(q_factorial(n_u, 1/2))";
-    assert_eq!(ev(q), "(1/2)^-n_u/q_pochhammer((1/2)^(1 + n_u), 1/2)*q_pochhammer(1/2, 1/2)");
+    assert_eq!(ev(q), "2^n_u/q_pochhammer(2^(-1 - n_u), 1/2)*q_pochhammer(1/2, 1/2)");
     assert_eq!(ev(&format!("abs(n(rewrite({q}, n_u -> 5) - q_factorial(5, 1/2), 20)) < 10^-15")), "true");
     assert_eq!(ev("abs(n(rewrite(function_expand(q_factorial(n_u, 1/3)), n_u -> 7/2) - q_factorial(7/2, 1/3), 20)) < 10^-15"), "true");
     // a negative q: the same quotient with the principal power q^(n + 1) (complex at a non-integer n), the

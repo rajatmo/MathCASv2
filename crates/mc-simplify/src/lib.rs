@@ -261,10 +261,20 @@ impl Native for SimplifyNative {
             if self.f == Fun::PowerExpand && assumed.is_some() {
                 passed.push(h.call(h.sym(mc_api::names::RULE), &[h.sym_term(h.sym("exact_branches")), h.sym_term(h.sym("true"))]));
             }
-            let inner = if passed.is_empty() {
-                h.call(h.sym(self.f.name()), &[args[0]])
+            // function_expand(triangle_wave(x), facts): the closed form for a real x before the facts evaluate the wave
+            // (to its piecewise linear form)
+            let first = if self.f == Fun::FunctionExpand {
+                let _scope = StopScope::enter(Some(&self.stop));
+                let b = B::new(h, &self.stop);
+                let mut f = Facts::new(cx, &b, &self.syms, &extra)?;
+                fexpand::triangle_wave_closed(cx, &b, &mut f, args[0])?
             } else {
-                h.call(h.sym(self.f.name()), &[args[0], h.call(h.sym("options"), &passed)])
+                args[0]
+            };
+            let inner = if passed.is_empty() {
+                h.call(h.sym(self.f.name()), &[first])
+            } else {
+                h.call(h.sym(self.f.name()), &[first, h.call(h.sym("options"), &passed)])
             };
             let v = if assumed.is_some() { cx.eval_replacing(&extra, inner)? } else { cx.eval_assuming(&extra, inner)? };
             return Ok(Reply::Done(v));
@@ -319,6 +329,15 @@ impl Native for SimplifyNative {
                         r = k;
                     }
                 }
+                // an equation or inequation with a constant on one side only: the other side first
+                if let Some((s, &[l, rt])) = b.call_of(r) {
+                    if matches!(h.sym_name(s).as_str(), "equal" | "unequal")
+                        && simplify::is_free_of_symbols_but_constants(&b, l)
+                        && !simplify::is_free_of_symbols_but_constants(&b, rt)
+                    {
+                        r = b.call(s, &[rt, l]);
+                    }
+                }
                 if back.is_empty() {
                     r
                 } else {
@@ -347,7 +366,10 @@ impl Native for SimplifyNative {
                 }
             }
             Fun::FunctionExpand => match f.as_mut() {
-                Some(f) => fexpand::function_expand(cx, &b, f, *e)?,
+                Some(f) => {
+                    let r = fexpand::function_expand(cx, &b, f, *e)?;
+                    fexpand::golden_ratio_radical(cx, &b, r)?
+                }
                 None => *e,
             },
             Fun::Refine => match f.as_mut() {

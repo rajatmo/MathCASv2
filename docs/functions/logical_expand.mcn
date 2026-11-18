@@ -16,7 +16,7 @@
 # `implies`, `equivalent`, `xor`, `nand` and `nor` are replaced by `and`, `or` and `not`, and negations are pushed to the atoms.
 
 #% item
-# Any other subexpression (an equation, a comparison, a call) is an atom.
+# Any other subexpression (an equation, a comparison, a call) is an atom. `unequal(a, b, c)` becomes the inequations of every pair with the earlier argument on the left, `a != b and a != c and b != c`; the sides of each equation and comparison stay as written.
 
 #% item
 # Repeated factors and terms that are contradictory or contain another term are dropped; `boolean_convert` finds a smaller form.

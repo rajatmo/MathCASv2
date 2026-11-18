@@ -137,8 +137,8 @@ fn asymptotic_relations_of_separable_ratios_in_several_variables() {
 fn series_of_inverse_functions_at_infinity_and_branch_points() {
     // documented inputs
     assert_eq!(same("normal(series(atan(x), x, inf, 5))", "pi/2 - 1/x + 1/(3*x^3) - 1/(5*x^5)"), "true");
-    assert_eq!(same("normal(series(acosh(x), x, inf, 3))", "log(2) - log(1/x) - 1/(4*x^2)"), "true");
-    assert_eq!(same("normal(series(asinh(x), x, inf, 3))", "log(2) - log(1/x) + 1/(4*x^2)"), "true");
+    assert_eq!(same("normal(series(acosh(x), x, inf, 3))", "log(2) + log(x) - 1/(4*x^2)"), "true");
+    assert_eq!(same("normal(series(asinh(x), x, inf, 3))", "log(2) + log(x) + 1/(4*x^2)"), "true");
     assert_eq!(
         same("normal(series(acosh(x), x, 1, 3))", "2^(1/2)*(-1 + x)^(1/2) - (1/12)*2^(1/2)*(-1 + x)^(3/2) + (3/160)*2^(1/2)*(-1 + x)^(5/2)"),
         "true"

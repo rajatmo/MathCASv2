@@ -16,6 +16,12 @@
 # Bessel functions of order 1/2 and -1/2 become sines, cosines, hyperbolic functions and exponentials; `spherical_bessel_j(0, x)` is `sin(x)/x`.
 
 #% item
+# Hankel functions of half-integer order become exponentials times a polynomial in `1/x`, and of order `1/3` and `-1/3` Airy functions; spherical Bessel and Hankel functions of integer order have each coefficient written as one fraction. `hypergeometric_1f1(n + 1/2, 2 n + 2, x)` and `hypergeometric_u(n + 3/2, 2 n + 2, x)` (and the Whittaker functions that lead to them) become modified Bessel functions.
+
+#% item
+# `golden_ratio` becomes `(1 + sqrt(5))/2`; `digamma` at a rational with denominator up to 24 follows Gauss's theorem; `dirac_delta(p(x))` of a polynomial with simple real roots becomes a sum of deltas at the roots; `triangle_wave(x)` of a real `x` becomes `2*asin(sin(2*pi*x))/pi`.
+
+#% item
 # `sec`, `csc`, `cot`, `sech`, `csch`, `coth` and `sinc` are written with `sin`, `cos`, `sinh` and `cosh`.
 
 #% item
@@ -180,6 +186,24 @@ function_expand(cos(pi/5))
 function_expand(gamma(n + 3)/gamma(n), element(n, integers))
 #% output
 #= n*(1 + n)*(2 + n)
+
+#% text
+# A Hankel function of half-integer order, the delta of a polynomial, and the golden ratio:
+
+#% cell
+function_expand(hankel_h1(1/2, x))
+#% output
+#= -im*2^(1/2)*exp(im*x)*(pi^-1)^(1/2)/x^(1/2)
+
+#% cell
+function_expand(dirac_delta(x^5 - 1))
+#% output
+#= (1/5)*dirac_delta(-1 + x)
+
+#% cell
+function_expand(golden_ratio)
+#% output
+#= (1/2)*(1 + 5^(1/2))
 
 #% subsection
 # Options

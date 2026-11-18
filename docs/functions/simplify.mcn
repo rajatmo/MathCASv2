@@ -31,7 +31,7 @@
 # Inside `assuming`, the assumptions are used as well, so such rewritings become possible. The option `assumptions: a` replaces the surrounding assumptions by `a`.
 
 #% item
-# Lists and equations are simplified element by element.
+# Lists and equations are simplified element by element. Each side of an equation keeps its terms (nothing is moved across the sign); when one side of an equation or inequation (`==`, `!=`) is a constant and the other is not, the other side is written first: `simplify(2 == x)` is `x == 2`.
 
 #% item
 # Also: denominators with square roots are made rational, powers of one base are collected, logarithms of rationals are written over primes, linear equations are normalised, `re` and `im_part` are split over sums, and identities of special functions are tried; forms found this way are checked numerically before they are returned. An argument of `max` that another argument exceeds by a positive number is dropped (`max(1 - x, x, 1 + x)` is `max(1 + x, 1 - x)`), and the same for `min`.

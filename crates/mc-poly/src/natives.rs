@@ -297,6 +297,11 @@ impl Native for PolyNative {
             }
         }
         match r {
+            // series: the written form of the coefficients (crate::series_forms)
+            Ok(Out::Done(t) | Out::Again(t)) if self.f == PolyFn::Series && args.len() >= 4 => {
+                let t = tick.cx.eval(t)?;
+                Ok(Reply::Done(crate::series_forms::tidy(tick.cx, args, t)?))
+            }
             Ok(Out::Done(t)) => Ok(Reply::Done(t)),
             Ok(Out::Again(t)) => Ok(Reply::Again(t)),
             Ok(Out::Decline) => Ok(Reply::Decline),

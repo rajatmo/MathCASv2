@@ -1032,7 +1032,7 @@ fn prepare<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, '_,
 }
 
 /// Is `t` built from numbers and the constants `pi`, `e`, `euler_gamma`, ... only (no free symbols)?
-fn is_free_of_symbols_but_constants<'h>(b: &B<'h>, t: T<'h>) -> bool {
+pub(crate) fn is_free_of_symbols_but_constants<'h>(b: &B<'h>, t: T<'h>) -> bool {
     let h = b.heap();
     // shared subterms are visited once (a term can be a tree exponentially larger than itself)
     let mut seen = std::collections::HashSet::new();

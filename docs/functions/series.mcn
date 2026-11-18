@@ -31,7 +31,13 @@
 # `series(e, x -> x0)` gives the leading term and the order of the next one; a list `e` is expanded elementwise.
 
 #% item
-# At `x0 = inf` the series is in powers of `1/x`: `n` keeps every term whose power of `1/x` is at most `n`, fractional powers included (`x^(-9/2)` is kept for `n = 5`), and the order term is the next power present. An expansion with factors such as `exp(x)` or `cos(x)` (Kelvin, Struve, Airy functions) keeps the same terms in the series that multiplies each factor. So does `exp(g) r` with a polynomial `g` in x: `exp(g)` times the series of `r`; the expansions of `erfi` and `dawson_f` keep the constant `-i` and the factor `exp(-x^2)` of their sector (DLMF 7.12.1).
+# At `x0 = inf` the series is in powers of `1/x`: `n` keeps every term whose power of `1/x` is at most `n`, fractional powers included (`x^(-9/2)` is kept for `n = 5`), and the order term is the next power present. An expansion with factors such as `exp(x)` or `cos(x)` (Kelvin, Struve, Airy functions) keeps the same terms in the series that multiplies each factor. So does `exp(g) r` with a polynomial `g` in x: `exp(g)` times the series of `r`; the expansions of `erfi` and `dawson_f` keep the constant `-i` and the factor `exp(-x^2)` of their sector (DLMF 7.12.1). Logarithms at `inf` are written as `log(x)`, `log(-x)` or `log(1/x)` (equal for `x > 0`), whichever agrees with the function at the most points off the positive axis (the negative axis, each side of it, the imaginary axis), the shortest among equals; `log(1/x)` stays when the input has symbolic parameters. In the same way an imaginary constant term that the input does not have (it comes from the branch of the function) is written with `i = sqrt(-x^2)/x` (at `-inf`: `-sqrt(-x^2)/x`) when that agrees with the function on more of those points: `atanh(x)` at `inf` starts with `-pi sqrt(-x^2)/(2 x)`, which is `-i pi/2` for `x > 0` and `i pi/2` above the cut and for `x < 0`. The order term and the order of the terms are those of the series in `1/x`: a polynomial of degree d at `inf` is its own series, written from `x^d` down, with the order term `O(x^-(n + 1))`.
+
+#% item
+# Sines and cosines of inverse trigonometric functions in the coefficients are written as algebraic functions (`cos(asec(z)) = 1/z`, `sin(asec(z)) = ((z^2 - 1)/z^2)^(1/2)`), identities of the principal values for every complex argument; a coefficient rational in them is first reduced by `cos^2 = 1 - sin^2` when that gives fewer leaves.
+
+#% item
+# Gamma functions at rational arguments in the coefficients are written with the fewest leaves (`leaf_count`) among the forms given by `gamma(q + 1) = q gamma(q)` (to the fractional part of q); the computed form stays among equals.
 
 #% item
 # At an essential singularity the call stays unevaluated.
@@ -193,6 +199,32 @@ series(log(x), x, 0, 2)
 series(cos(sqrt(x)), x, 0, 3)
 #% output
 #= 1 - x/2 + x^2/24 - x^3/720 + O(x^4)
+
+#% text
+# At infinity the logarithm is written in the branch of the function: `log(x)` for `acosh`, `log(-x)` for a hypergeometric function cut along the positive axis:
+
+#% cell
+series(acosh(x), x, inf, 3)
+#% output
+#= log(2) + log(x) - 1/(4*x^2) + O(x^-4)
+
+#% cell
+normal(series(hypergeometric_2f1(2, 3, 4, x), x, inf, 5))
+#% output
+#= -9/x^4 - 6/x^5 + 3/x^2 + (-3 + 6*log(-x))/x^3
+
+#% text
+# The constant of `atanh` at infinity with the sign of the side of the cut, and a polynomial at infinity:
+
+#% cell
+series(atanh(x), x, inf, 3)
+#% output
+#= -pi*(-x^2)^(1/2)/(2*x) + x^-1 + 1/(3*x^3) + O(x^-4)
+
+#% cell
+series(x^3 + 2x^2 + 2x + 1, x, inf, 6)
+#% output
+#= x^3 + 2*x^2 + 2*x + 1 + O(x^-7)
 
 #% text
 # Truncated series combine in arithmetic, to the precision their terms determine:
