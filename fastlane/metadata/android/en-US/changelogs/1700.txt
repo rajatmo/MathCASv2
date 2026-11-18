@@ -1,0 +1,1 @@
+Typing a letter after a number puts a space between them. A space that multiplies is shown as a space. More answers and corrected answers from the kernel (see the changelog).

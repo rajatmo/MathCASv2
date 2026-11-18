@@ -1,6 +1,6 @@
 # Changelog
 
-## Not released yet
+## 0.17.0 (2026-11-18)
 
 **Notebook.** A space that multiplies is shown as a space, as in written mathematics (`m c^2`, `2 pi r`); the
 multiplication sign that is not typed appears only between two numbers (`2 3`, which would read as 23) and
