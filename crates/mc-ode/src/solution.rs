@@ -57,6 +57,8 @@ pub(crate) struct Solution {
     pub hi: f64,
     /// accepted steps
     pub steps: usize,
+    /// the nodes of the space grid of a partial differential equation (`crate::pde`), node j being unknown j
+    pub space: Option<Vec<f64>>,
     pub data: Data,
 }
 
@@ -75,6 +77,18 @@ impl Solution {
         let d = name.len() - base.len();
         let u = self.unknowns.iter().find(|u| u.name == base)?;
         Some(if d < u.order { (u.at + d, 0) } else { (u.at + u.order - 1, d + 1 - u.order) })
+    }
+
+    /// The components of a vector unknown `z` (or `z'`, ...): those of `z[1]`, `z[2]`, ... in order; `None` when
+    /// the solution has no component `z[1]`.
+    pub fn vector(&self, name: &str) -> Option<Vec<(usize, usize)>> {
+        let base = name.trim_end_matches('\'');
+        let primes = &name[base.len()..];
+        let mut out = vec![];
+        while let Some(c) = self.component(&format!("{}{primes}", crate::vector::component_name(base, out.len() + 1))) {
+            out.push(c);
+        }
+        (!out.is_empty()).then_some(out)
     }
 
     /// Component `i` (differentiated `order` times) at `x`; `None` outside the domain or for a non-real `x`.
@@ -102,6 +116,9 @@ impl Solution {
         salt.hash(&mut s);
         self.unknowns.hash(&mut s);
         (self.n, self.steps, self.lo.to_bits(), self.hi.to_bits()).hash(&mut s);
+        if let Some(xs) = &self.space {
+            xs.iter().for_each(|x| x.to_bits().hash(&mut s));
+        }
         match &self.data {
             Data::Machine(p) => p.words().for_each(|w| w.to_bits().hash(&mut s)),
             Data::Taylor(tl) => {

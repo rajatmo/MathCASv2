@@ -24,6 +24,8 @@ fn every_new_plot_draws() {
         "region_plot([x^2 + y^2 < 1, x + y > 0], [x, -2, 2], [y, -2, 2])",
         "region_plot(implicit_region(x^2 + y^2 <= 1 and x > 0, [x, y]))",
         "region_plot(implicit_region(x^2 + y^2 == 1, [x, y]))",
+        // an unbounded implicit region over the plot range
+        "region_plot(implicit_region(y^2 < x*(-1 + x^4), [x, y]), plot_range: [[-2, 2], [-2, 2]])",
         "region_plot(disk())",
         "complex_region_plot(abs(z) < 1, [z, -2 - 2*im, 2 + 2*im])",
         "complex_contour_plot(abs(z^2 - 1), [z, -2 - 2*im, 2 + 2*im])",

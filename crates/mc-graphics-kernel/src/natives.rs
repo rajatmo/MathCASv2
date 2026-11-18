@@ -14,6 +14,9 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     for name in PRIMITIVES {
         k.register(h.sym(name), a(), Box::new(Primitive(name)));
     }
+    for name in ["sphere", "cuboid", "cylinder", "cone"] {
+        k.register(h.sym(name), a(), Box::new(Placed(name)));
+    }
     for name in DIRECTIVES.iter().filter(|n| **n != "scaled") {
         k.register(h.sym(name), a(), Box::new(Directive(name)));
     }
@@ -150,6 +153,11 @@ impl Native for Primitive {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         cx.tick(1)?;
+        if args.is_empty() {
+            if let Some(t) = default_placement(cx, self.0) {
+                return Ok(Reply::Done(t));
+            }
+        }
         Ok(match model::shape(h, self.0, args) {
             // coordinates in three (or more) dimensions: a primitive of 3D graphics or a region
             Err(Bad::Arg(k))
@@ -165,6 +173,33 @@ impl Native for Primitive {
             // indices into the points of a graphics_complex or mesh region (`disk(1, 0.5)`, `line([1, 2, 3])`)
             Err(Bad::Arg(1)) if args.first().is_some_and(|&a| indices_only(h, a)) => Reply::Decline,
             Err(Bad::Arg(k)) => bad(h, self.0, k),
+            _ => Reply::Decline,
+        })
+    }
+}
+
+/// The primitives whose docs pages state where the call without arguments lies, with that placement written out:
+/// `disk()`, `circle()` and `rectangle()` at the origin of the plane, `sphere()` and `cuboid()` at the origin of
+/// space, `cylinder()` and `cone()` on the axis from [0, 0, -1] to [0, 0, 1]. The size stays the default.
+fn default_placement<'h>(cx: &NativeCx<'_, '_, 'h>, name: &str) -> Option<T<'h>> {
+    let h = cx.heap();
+    let point = |c: &[i64]| cx.list(&c.iter().map(|&x| h.int(x)).collect::<Vec<_>>());
+    let arg = match name {
+        "disk" | "circle" | "rectangle" => point(&[0, 0]),
+        "sphere" | "cuboid" => point(&[0, 0, 0]),
+        "cylinder" | "cone" => cx.list(&[point(&[0, 0, -1]), point(&[0, 0, 1])]),
+        _ => return None,
+    };
+    Some(h.call(h.sym(name), &[arg]))
+}
+
+/// The solids of space whose call without arguments is written out by [`default_placement`].
+struct Placed(&'static str);
+
+impl Native for Placed {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        Ok(match (args, default_placement(cx, self.0)) {
+            ([], Some(t)) => Reply::Done(t),
             _ => Reply::Decline,
         })
     }

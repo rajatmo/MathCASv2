@@ -12,6 +12,9 @@
 #% item
 # Half-integer arguments are allowed; the value is 0 outside the selection rules (`m = m1 + m2`, the triangle condition).
 
+#% item
+# With six symbols as arguments the coefficient is written by its 3j symbol: `(-1)^(j1 - j2 + m) sqrt(2 j + 1) three_j_symbol([j1, m1], [j2, m2], [j, -m])`.
+
 #% section
 # Examples
 
@@ -32,6 +35,11 @@ clebsch_gordan([1/2, -1/2], [1, 0], [1/2, -1/2])
 clebsch_gordan([2, 1], [2, 4], [4, 2])
 #% output
 #= 0
+
+#% cell
+clebsch_gordan([a, b], [c, d], [j, m])
+#% output
+#= (-1)^(a + m - c)*(1 + 2*j)^(1/2)*three_j_symbol([a, b], [c, d], [j, -m])
 
 #% section
 # See also

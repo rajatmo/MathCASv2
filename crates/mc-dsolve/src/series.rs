@@ -226,8 +226,9 @@ fn frobenius<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, ode: &super::Ode<'h>, x0: T<'h>
         let at = c.subst(e, &[c.rule(t, b.zero())])?;
         if c.bad(at) {
             let l = c.ev("limit", &[e, c.rule(t, b.zero())])?;
-            if c.bad(l) || c.stuck(l, "limit") {
-                return Ok(None);
+            if c.bad(l) || c.stuck(l, "limit") || c.stuck(l, "inf") {
+                // an irregular singular point: for order 1 the solution is an exponential in closed form
+                return if ode.n == 1 { irregular_first_order(c, coefs[0], coefs[1], x, x0, n) } else { Ok(None) };
             }
         }
     }
@@ -315,6 +316,71 @@ fn frobenius<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, ode: &super::Ode<'h>, x0: T<'h>
         parts.push(b.mul(&[pre, ser, c.constant(i + 1)]));
     }
     Ok(Some(c.eval(b.add(&parts))?))
+}
+
+/// The highest pole order of the coefficient at an irregular singular point of a first-order equation.
+const MAX_POLE: i64 = 20;
+
+/// `c1 y' + c0 y = 0` at an irregular singular point x0 (`Q = c0/c1` with a pole of order m >= 2 at t = x - x0):
+/// `y = c(1) exp(-int Q)`, written with the Laurent coefficients `Q = sum_(k >= -m) q_k t^k` as
+/// `c(1) t^(-q_(-1)) exp(-sum_(k <= -2) q_k t^(k + 1)/(k + 1))` times the Taylor polynomial of degree n of
+/// `exp(-sum_(k >= 0) q_k t^(k + 1)/(k + 1))` (the exponential factor exactly, the rest to the order asked; Bender and
+/// Orszag 3.5).
+fn irregular_first_order<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, c0: T<'h>, c1: T<'h>, x: T<'h>, x0: T<'h>, n: usize) -> Res<Option<T<'h>>> {
+    let b = c.b;
+    let t = c.sym("d_solve·t·irregular");
+    let q = c.eval(b.div(c0, c1))?;
+    let q = c.subst(q, &[c.rule(x, b.add(&[t, x0]))])?;
+    let q = c.simp(q)?;
+    // t^MAX_POLE times the Laurent polynomial of Q up to t^n: a polynomial in t
+    let s = c.ev("series", &[q, t, b.zero(), b.int(n as i64)])?;
+    if c.stuck(s, "series") || c.bad(s) {
+        return Ok(None);
+    }
+    let s = c.ev("normal", &[s])?;
+    let w = c.ev("expand", &[b.mul(&[s, b.powi(t, MAX_POLE)])])?;
+    let is_poly = c.ev("is_polynomial_expression", &[w, c.list(&[t])])?;
+    if is_poly != c.sym("true") {
+        return Ok(None);
+    }
+    let coef = |c: &mut Cx<'_, '_, '_, '_, 'h>, k: i64| -> Res<Option<T<'h>>> {
+        let v = c.ev("coefficient", &[w, t, b.int(k + MAX_POLE)])?;
+        let v = c.simp(v)?;
+        Ok(is_free(b, v, t).then_some(v))
+    };
+    let mut singular = vec![];
+    let mut pole = false;
+    for k in -MAX_POLE..=-2 {
+        let Some(qk) = coef(c, k)? else { return Ok(None) };
+        if qk != b.zero() {
+            pole = true;
+            singular.push(b.div(b.mul(&[b.int(-1), qk, b.powi(t, k + 1)]), b.int(k + 1)));
+        }
+    }
+    if !pole {
+        return Ok(None);
+    }
+    let Some(q_1) = coef(c, -1)? else { return Ok(None) };
+    let mut regular = vec![];
+    for k in 0..n as i64 {
+        let Some(qk) = coef(c, k)? else { return Ok(None) };
+        regular.push(b.div(b.mul(&[b.int(-1), qk, b.powi(t, k + 1)]), b.int(k + 1)));
+    }
+    let reg = c.eval(b.add(&regular))?;
+    let e = c.ev("exp", &[reg])?;
+    let taylor = c.ev("series", &[e, t, b.zero(), b.int(n as i64)])?;
+    if c.stuck(taylor, "series") || c.bad(taylor) {
+        return Ok(None);
+    }
+    let taylor = c.ev("normal", &[taylor])?;
+    let dx = c.eval(b.sub(x, x0))?;
+    let back = [c.rule(t, dx)];
+    let taylor = c.subst(taylor, &back)?;
+    let sing = c.eval(b.add(&singular))?;
+    let sing = c.subst(sing, &back)?;
+    let ex = c.ev("exp", &[sing])?;
+    let power = c.eval(b.pow(dx, b.neg(q_1)))?;
+    Ok(Some(c.eval(b.mul(&[taylor, c.constant(1), ex, power]))?))
 }
 
 /// The second Frobenius solution when the indicial roots `r1 >= r2` differ by the integer `nn >= 0`:

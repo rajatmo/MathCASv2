@@ -70,7 +70,11 @@ impl Native for Optimize {
         if let Some(r) = crate::instances::optimize_integers(cx, &self.stop, self.goal, args)? {
             return Ok(Reply::Done(r));
         }
-        Ok(match optimize(cx, &self.stop, self.goal, args)? {
+        if let Some(r) = optimize(cx, &self.stop, self.goal, args)? {
+            return Ok(Reply::Done(r));
+        }
+        // regions as constraints, objectives with cases, variables the objective does not hold
+        Ok(match crate::recast::recast(cx, self.goal, args)? {
             Some(r) => Reply::Done(r),
             None => Reply::Decline,
         })

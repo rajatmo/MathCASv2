@@ -475,6 +475,13 @@ pub fn polygon_form<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], which: &str)
         return Ok(Reply::Done(e.f("empty_region", &[e.int(2)])));
     }
     let (pts, idx) = indexed(cx, &parts)?;
+    // corners built from the region (`rectangle([0, 0])` has the far corner [0 + 1, 0 + 1]) are evaluated
+    let mut done = Vec::with_capacity(pts.len());
+    for p in &pts {
+        let v = cx.eval(e.list(p))?;
+        done.push(cx.as_list(v).map(|l| l.to_vec()).unwrap_or_else(|| p.clone()));
+    }
+    let pts = done;
     Ok(Reply::Done(match which {
         "coordinates" => e.list(&pts.iter().map(|p| e.list(p)).collect::<Vec<_>>()),
         "inner" => indexed_term(e, &pts, &idx, false),

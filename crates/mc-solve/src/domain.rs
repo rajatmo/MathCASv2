@@ -747,6 +747,32 @@ fn real_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, conds: &[T<'h>]) -> 
     Ok((lo, hi))
 }
 
+/// A bound on |x| from `euler_phi(x) == n` among the equations or `euler_phi(x) <= n` (`< n`) among the conditions
+/// (n a nonnegative integer): phi(m) >= sqrt(m/2) for m >= 1 (Hardy and Wright, *An Introduction to the Theory of
+/// Numbers*, section 18.4; phi(-m) = phi(m)), so |x| <= 2 n^2.
+fn totient_bound<'h>(h: &'h mc_core::Heap, x: T<'h>, equations: &[T<'h>], conds: &[T<'h>]) -> Option<i64> {
+    let phi_of_x = |t: T<'h>| matches!(h.view(t), View::App { args: &[a], .. } if a == x && head_name(h, t).as_deref() == Some("euler_phi"));
+    let mut best: Option<i64> = None;
+    for &c in equations.iter().chain(conds) {
+        let Some(name) = head_name(h, c) else { continue };
+        let View::App { args: &[l, r], .. } = h.view(c) else { continue };
+        let n = match name.as_str() {
+            "equal" if phi_of_x(l) => r,
+            "equal" if phi_of_x(r) => l,
+            "less_equal" | "less" if phi_of_x(l) => r,
+            "greater_equal" | "greater" if phi_of_x(r) => l,
+            _ => continue,
+        };
+        let View::Int(n) = h.view(n) else { continue };
+        if !(0..=1_000_000).contains(&n) {
+            continue;
+        }
+        let b = 2 * n * n;
+        best = Some(best.map_or(b, |a| a.min(b)));
+    }
+    best
+}
+
 /// The integer bounds of `x` the conditions give: `(lo, hi)` (inclusive).
 fn bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, conds: &[T<'h>]) -> Res<(Option<i64>, Option<i64>)> {
     let h = cx.heap();
@@ -854,8 +880,12 @@ fn search_box<'h>(cx: &mut NativeCx<'_, '_, 'h>, vars: &[T<'h>], equations: &[T<
     let los: Vec<Option<i64>> = bs.iter().map(|b| b.0).collect();
     // bounds the equations give (a sum of nonnegative terms equal to a constant)
     let eq_bounds = crate::bounds::equation_bounds(h, vars, &los, equations);
-    for (&(lo, hi), eb) in bs.iter().zip(&eq_bounds) {
-        let (lo, hi) = match *eb {
+    for ((&(lo, hi), eb), &x) in bs.iter().zip(&eq_bounds).zip(vars) {
+        let eb = match (*eb, totient_bound(h, x, equations, conds)) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        let (lo, hi) = match eb {
             Some(b) => (Some(lo.map_or(-b, |l| l.max(-b))), Some(hi.map_or(b, |u| u.min(b)))),
             None => (lo, hi),
         };
@@ -1314,6 +1344,59 @@ fn sparse_terms<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: T<'h>) -> Res<Op
 }
 
 /// The integer roots of sum a_i x^(e_i) (see [`sparse_integer_roots`]); `None` when one cannot be decided.
+/// Is `sum c_i d^(e_i) == 0` for the integer `d`? Computed exactly when the value has at most
+/// [`MAX_EXACT_BITS`] bits; a larger one is cut at a gap of the exponents first: for |d| >= 2 and
+/// p = A + x^k B with deg A = j and ||A||_1 < 2^(k - j), |A(d)| <= ||A||_1 |d|^j < |d|^k <= |d^k B(d)| unless
+/// B(d) = 0, so p(d) = 0 exactly when A(d) = 0 and B(d) = 0 (the gap lemma for lacunary polynomials: Cucker,
+/// Koiran and Smale, "A polynomial time algorithm for Diophantine equations in one variable", J. Symbolic
+/// Computation 27, 1999; Lenstra, "Finding small degree factors of lacunary polynomials", 1999). `None` when a
+/// piece is too large and has no such gap.
+fn gap_zero<'h>(cx: &mut NativeCx<'_, '_, 'h>, ts: &[(u64, mc_arith::num::Int)], d: &mc_arith::num::Int) -> Res<Option<bool>> {
+    use mc_arith::num::Int;
+    let h = cx.heap();
+    let ar = mc_arith::Arith::new(h);
+    let mut ts: Vec<(u64, Int)> = ts.to_vec();
+    ts.sort_by_key(|t| t.0);
+    let (_, dhi) = log2_bounds(d);
+    let bits = ts.iter().map(|(e, c)| log2_bounds(c).1 + *e as f64 * dhi).fold(f64::NEG_INFINITY, f64::max);
+    if bits <= MAX_EXACT_BITS || ts.len() < 2 {
+        if bits > MAX_EXACT_BITS {
+            // one term: zero only for a zero coefficient (d != 0 here)
+            return Ok(Some(ts.iter().all(|t| t.1.is_zero())));
+        }
+        let dt = ar.integer(d);
+        let mut sum = vec![];
+        for (e, c) in &ts {
+            sum.push(h.call(h.sym(names::MUL), &[ar.integer(c), h.call(h.sym(names::POW), &[dt, h.int(*e as i64)])]));
+        }
+        let v = cx.eval(h.call(h.sym(names::ADD), &sum))?;
+        return Ok(Some(v == h.int(0)));
+    }
+    if d.mag.bits() < 2 {
+        // |d| <= 1 has a small value: not reached; |d| >= 2 is needed for the gap lemma
+        return Ok(None);
+    }
+    // the first gap wider than the 1-norm of the part below it
+    let mut norm_bits = 0.0f64;
+    let mut norm = Int::from_i64(0);
+    for j in 0..ts.len() - 1 {
+        norm = norm.add(&Int::from_nat(ts[j].1.mag.clone()));
+        norm_bits = norm_bits.max(log2_bounds(&norm).1);
+        let gap = ts[j + 1].0 - ts[j].0;
+        if (gap as f64) > norm_bits + 1.0 {
+            let k = ts[j + 1].0;
+            let low: Vec<(u64, Int)> = ts[..=j].to_vec();
+            let high: Vec<(u64, Int)> = ts[j + 1..].iter().map(|(e, c)| (e - k, c.clone())).collect();
+            let Some(a) = gap_zero(cx, &low, d)? else { return Ok(None) };
+            if !a {
+                return Ok(Some(false));
+            }
+            return gap_zero(cx, &high, d);
+        }
+    }
+    Ok(None)
+}
+
 fn factor_integer_roots<'h>(cx: &mut NativeCx<'_, '_, 'h>, terms: &[(u64, mc_arith::num::Int)]) -> Res<Option<Vec<mc_arith::num::Int>>> {
     use mc_arith::num::Int;
     let h = cx.heap();
@@ -1376,16 +1459,9 @@ fn factor_integer_roots<'h>(cx: &mut NativeCx<'_, '_, 'h>, terms: &[(u64, mc_ari
             if !zero_mod {
                 continue;
             }
-            let bits = logs.iter().map(|v| v.1).fold(f64::NEG_INFINITY, f64::max);
-            if bits > MAX_EXACT_BITS {
-                return Ok(None);
-            }
-            let mut sum = vec![];
-            for (e, c) in &ts {
-                sum.push(h.call(h.sym(names::MUL), &[ar.integer(c), h.call(h.sym(names::POW), &[dt, h.int(*e as i64)])]));
-            }
-            let v = cx.eval(h.call(h.sym(names::ADD), &sum))?;
-            if v == h.int(0) && !out.contains(&d) {
+            // the value exactly, the lacunary polynomial cut at its large gaps first
+            let Some(zero) = gap_zero(cx, &ts, &d)? else { return Ok(None) };
+            if zero && !out.contains(&d) {
                 out.push(d);
             }
         }

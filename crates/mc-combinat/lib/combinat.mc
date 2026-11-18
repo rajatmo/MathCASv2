@@ -662,6 +662,10 @@ fn am_ready(j1, m1, j2, m2, j, m) = is_numeric(j1) and is_numeric(m1) and is_num
 fn am_valid(j1, m1, j2, m2, j, m) = am_ready(j1, m1, j2, m2, j, m) and am_hint(j1) and am_hint(j2) and am_hint(j) and am_hint(m1) and am_hint(m2) and am_hint(m)
 fn am_zero(j1, m1, j2, m2, j, m) = not (m == m1 + m2 and am_tri(j1, j2, j) and am_int(j1 - m1) and am_int(j1 + m1) and am_int(j2 - m2) and am_int(j2 + m2) and am_int(j - m) and am_int(j + m))
 rule clebsch_gordan([j1_, m1_], [j2_, m2_], [j_, m_]) := { if am_zero(j1, m1, j2, m2, j, m) then 0 else cg_value(j1, m1, j2, m2, j, m) } when am_valid(j1, m1, j2, m2, j, m)
+# six independent symbols: the coefficient written by its 3j symbol, (-1)^(j1 - j2 + m) sqrt(2 j + 1) times
+# three_j_symbol([j1, m1], [j2, m2], [j, -m]) (DLMF 34.1.1), the form the symbols are tabulated in
+fn am_syms(j1, m1, j2, m2, j, m) = is_symbol(j1) and is_symbol(m1) and is_symbol(j2) and is_symbol(m2) and is_symbol(j) and is_symbol(m)
+rule clebsch_gordan([j1_, m1_], [j2_, m2_], [j_, m_]) := (-1)^(j1 - j2 + m)*sqrt(2*j + 1)*three_j_symbol([j1, m1], [j2, m2], [j, -m]) when am_syms(j1, m1, j2, m2, j, m)
 
 # three_j_symbol([j1, m1], [j2, m2], [j3, m3]): Wigner's 3j symbol, (-1)^(j1 - j2 - m3)/sqrt(2 j3 + 1) times the
 # Clebsch-Gordan coefficient of j1, j2 to j3 with -m3

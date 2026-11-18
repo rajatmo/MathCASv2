@@ -27,6 +27,7 @@ pub mod derived;
 pub mod ex;
 pub mod flat;
 pub mod hrep;
+pub mod lens;
 pub mod mesh;
 pub mod shapes;
 pub mod metric;
@@ -59,7 +60,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("signed_region_distance", "signed_region_distance(reg, p): the distance from p to the region's boundary, negative inside a solid region"),
     ("region_nearest", "region_nearest(reg, p): the point of the region nearest to p"),
     ("region_union", "region_union(r1, r2, ...): the union of plane polygons (rectangles, triangles, disks as fine polygons) as a polygon; of mesh regions (line meshes, boundary meshes of the plane and of space) as a mesh"),
-    ("region_intersection", "region_intersection(r1, r2, ...): the intersection of plane polygons as a polygon (empty_region(2) when empty); of mesh regions as a mesh; of segments of the line as a line"),
+    ("region_intersection", "region_intersection(r1, r2, ...): the intersection of plane polygons as a polygon (empty_region(2) when empty); of a circle and a disk the arc inside the disk; of mesh regions as a mesh; of segments of the line as a line"),
     ("region_difference", "region_difference(r1, r2): the part of the plane polygon r1 outside r2, as a polygon (with holes where r2 lies inside r1); of mesh regions as a mesh"),
     ("region_integrate", "region_integrate(f, [x, y, ...], reg): the integral of f over the region, as iterated integrals of its parametrisation (also region_integrate(f, element([x, y], reg)))"),
     ("pyramid", "pyramid([p1, p2, p3, p4, p5]): the solid pyramid with base p1 p2 p3 p4 and apex p5 (a region and a graphics primitive)"),

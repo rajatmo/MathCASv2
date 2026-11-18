@@ -454,9 +454,33 @@ fn quantity_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         // a quantity of a quantity: the inner magnitude in the product unit
         [m, u] => match parts(fx, *m) {
             Some((mm, mu)) => Ok(Some(fx.call("quantity", &[mm, fx.mul(&[mu, *u])]))),
-            None => Ok(None),
+            None => {
+                // a unit written by another name of the table ("foot", "ft"): its first name ("Feet")
+                let c = canonical_names(fx, *u);
+                Ok((c != *u).then(|| fx.call("quantity", &[*m, c])))
+            }
         },
         _ => Ok(None),
+    }
+}
+
+/// The unit `u` with each name of the table written by the first name of its entry (`"ft"` and `"foot"` are
+/// `"Feet"`), through products and integer powers; unknown names stay.
+fn canonical_names<'h>(fx: &Fx<'_, '_, '_, 'h>, u: T<'h>) -> T<'h> {
+    match fx.h.view(u) {
+        View::Str(s) => match UNITS.iter().find(|e| e.0.contains(&s)) {
+            Some(e) if e.0[0] != s => fx.h.string(e.0[0]),
+            _ => u,
+        },
+        View::App { head, args } if head == fx.sym("mul") => {
+            let xs: Vec<T<'h>> = args.iter().map(|&a| canonical_names(fx, a)).collect();
+            if xs.as_slice() == args { u } else { fx.mul(&xs) }
+        }
+        View::App { head, args: &[b, e] } if head == fx.sym("pow") && fx.int_of(e).is_some() => {
+            let c = canonical_names(fx, b);
+            if c == b { u } else { fx.pow(c, e) }
+        }
+        _ => u,
     }
 }
 

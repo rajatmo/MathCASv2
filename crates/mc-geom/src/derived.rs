@@ -285,7 +285,8 @@ pub fn transformed<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<
             }
             Some(e.f("polygon", &[if parts.len() == 1 { parts[0] } else { e.list(&parts) }]))
         }
-        Region::Simplex(v) if v.len() == 3 && n == 2 => map(cx, v)?.map(|v| e.f("polygon", &[e.list(&v)])),
+        // an affine image of a triangle is a triangle (of a tetrahedron a tetrahedron)
+        Region::Simplex(v) if v.len() == 3 && n == 2 => map(cx, v)?.map(|v| e.f("triangle", &[e.list(&v)])),
         Region::Simplex(v) if v.len() == 4 && n == 3 => map(cx, v)?.map(|v| e.f("tetrahedron", &[e.list(&v)])),
         Region::Boxed { lo, hi } if n == 2 => {
             let corners = vec![lo.clone(), vec![hi[0], lo[1]], hi.clone(), vec![lo[0], hi[1]]];

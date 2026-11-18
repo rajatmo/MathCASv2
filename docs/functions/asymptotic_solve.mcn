@@ -13,7 +13,16 @@
 # Details
 
 #% item
-# The series comes from Newton's iteration on truncated power series, which needs an invertible Jacobian in the unknowns at the starting point. For one polynomial equation with a singular starting point, or branches that go to infinity (the degree in y drops at x0), every branch is given by Newton's polygon as a series in fractional powers (Puiseux series); in other such cases the answer is a failure, since a list without those branches would be incomplete. With `reals`, only the real branches are given.
+# The series comes from Newton's iteration on truncated power series, which needs an invertible Jacobian in the unknowns at the starting point. For one polynomial equation with a singular starting point, or branches that go to infinity (the degree in y drops at x0), every branch is given by Newton's polygon as a series in fractional powers (Puiseux series); for one equation analytic at a given singular start, the branches through it come from the polygon of its Taylor polynomial. In other such cases (systems with a singular Jacobian) the answer is a failure, since a list without those branches would be incomplete. With `reals`, only the real branches are given.
+
+#% item
+# `direction: from_below` gives the expansion for x < x0, in powers of x0 - x (with `reals`, the branches real there).
+
+#% item
+# When x enters the equations only through log(x), at x0 = 0 or `inf`, the solution is a series in 1/log(x) to order k.
+
+#% item
+# `asymptotic_solve(eqs, [y, y0], [[x1, x2], [a1, a2], k])` expands in several variables at a regular point: the terms of total degree up to k in x1 - a1, x2 - a2.
 
 #% item
 # Order of the branches: through regular starting points, in the order of the roots at x0 as `solve` lists them; by Newton's polygon, by the exponent of the leading power of x - x0 (bounded branches first, then those that grow faster), and among equal exponents by the real part, then the imaginary part of the leading coefficient.
@@ -43,6 +52,41 @@ asymptotic_solve(y^3 - x*y == 24, [y, 3], [x, 1, 3])
 asymptotic_solve(sin(t + x) + cos(y) == t + 1 and log(1 + x + y) - sin(t) == 0, [[x, y], [0, 0]], [t, 0, 4])
 #% output
 #= [[x -> (1/2)*t^2 + (1/6)*t^3 + (1/24)*t^4, y -> t - (1/6)*t^3 - (1/6)*t^4]]
+
+#% subsection
+# Scope
+
+#% text
+# An analytic equation through a singular start: two branches in powers of x^(1/2):
+
+#% cell
+asymptotic_solve(sin(x*y) - y^2 + x == 0, [y, 0], [x, 0, 3])
+#% output
+#= [[y -> -x^(1/2) + (1/2)*x - (1/8)*x^(3/2) + (1/128)*x^(5/2)], [y -> x^(1/2) + (1/2)*x + (1/8)*x^(3/2) - (1/128)*x^(5/2)]]
+
+#% text
+# The real branch for x < 0 only:
+
+#% cell
+asymptotic_solve(y^5 - x*y + x^2 == 0, [y, 0], [x, 0, 5], reals, direction: from_below)
+#% output
+#= [[y -> x + x^4]]
+
+#% text
+# A series in 1/log(x) as x -> 0:
+
+#% cell
+asymptotic_solve(sin(y) - y^2 + cos(y)/log(x) == 0, [y, 0], [x, 0, 3])
+#% output
+#= [[y -> -5/(3*log(x)^3) - log(x)^-1 + log(x)^-2]]
+
+#% text
+# Two variables, to total degree 3:
+
+#% cell
+asymptotic_solve(z^5 - 2*z^3 + 2*z + x^2 - y == 0, [z, 0], [[x, y], [0, 0], 3])
+#% output
+#= [[z -> (-1/2)*x^2 + (1/8)*y^3 + (1/2)*y]]
 
 #% section
 # See also

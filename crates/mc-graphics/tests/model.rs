@@ -31,7 +31,8 @@ fn primitives_stay_and_are_checked() {
         ("line([[0, 0], [1, 1]])", "line([[0, 0], [1, 1]])"),
         ("line([[[0, 0], [1, 1]], [[2, 2], [3, 1]]])", "line([[[0, 0], [1, 1]], [[2, 2], [3, 1]]])"),
         ("polygon([[0, 0], [1, 0], [0, 1]])", "polygon([[0, 0], [1, 0], [0, 1]])"),
-        ("rectangle()", "rectangle()"),
+        // the stated default corner written out
+        ("rectangle()", "rectangle([0, 0])"),
         ("rectangle([0, 0], [1, 2])", "rectangle([0, 0], [1, 2])"),
         ("circle([0, 0], r)", "circle([0, 0], r)"),
         ("disk([0, 0], [1, 2], [0, pi])", "disk([0, 0], [1, 2], [0, pi])"),

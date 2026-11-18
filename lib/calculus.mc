@@ -4571,7 +4571,28 @@ fn cb_branch(f, y, x, k, g, c, beta) = {
 }
 fn cb_puiseux(f, y, x, k, y0, realq) = {
   let f1 = if y0 === null then f else expand(rewrite(f, y -> y0 + y))
-  let cs = coefficient_list(f1, y)
+  cb_puiseux_on(f1, f1, y, x, k, y0, realq)
+}
+# cb_lowest(e, v, b): the exponent of the lowest power of v in the series of e at v = 0 (below v^b), null when the
+# series vanishes to that order
+fn cb_lowest(e, v, b) = {
+  let s = expand(normal(series(e, v, 0, b)))
+  if s === 0 then null else cb_ord(s, v)
+}
+# cb_analytic_poly(f1, y, x): for an equation analytic at (x, y) = (0, 0), the Taylor polynomial of total degree
+# m + a, with m the order of f1(0, y) in y and a that of f1(x, 0) in x: every point of the Newton polygon on the way
+# from (0, a) down to (m, 0) has i + ord <= m + a, so the polygon's edges of positive slope and their characteristic
+# polynomials are those of f1 (null when f1(0, y) or f1(x, 0) vanishes to order 12)
+fn cb_analytic_poly(f1, y, x) = {
+  let m = cb_lowest(rewrite(f1, x -> 0), y, 12)
+  let a = cb_lowest(rewrite(f1, y -> 0), x, 12)
+  if m === null or a === null then null
+  else expand(rewrite(normal(series(rewrite(f1, [x -> cb_pl*x, y -> cb_pl*y]), cb_pl, 0, m + a)), cb_pl -> 1))
+}
+# cb_puiseux_on(f1, p1, y, x, k, y0, realq): the branches of f1 (shifted to y0 when y0 is not null) from the Newton
+# polygon of the polynomial p1 (f1 itself, or its Taylor polynomial for an analytic f1 through (0, 0))
+fn cb_puiseux_on(f1, p1, y, x, k, y0, realq) = {
+  let cs = coefficient_list(p1, y)
   let pts = map(i => [i - 1, cb_ord(cs[i], x)], select(range(length(cs)), i => not (expand(cs[i]) === 0)))
   let hull = fold((hl, p) => cb_hull_push(hl, p), [], pts)
   let edges = select(map(j => [hull[j], hull[j + 1]], range(length(hull) - 1)), e => y0 === null or e[2][2] < e[1][2])
@@ -4600,7 +4621,10 @@ rule asymptotic_solve(eqs_, yspec_, xspec_, opts___) := {
   let ys = if several then yspec[1] else [yspec[1]]
   let x = cb_shift
   let x0 = 0
-  let fs = map(e => rewrite(e, xspec[1] -> xspec[2] + cb_shift), fs0)
+  # direction: from_below expands in powers of x0 - x (fractional powers of a positive quantity there)
+  let below = cb_opt([opts], direction) === from_below
+  let sgn = if below then -1 else 1
+  let fs = map(e => rewrite(e, xspec[1] -> xspec[2] + sgn*cb_shift), fs0)
   let k = xspec[3]
   let starts = if length(yspec) == 2 then [if several then yspec[2] else [yspec[2]]] else {
     let sols = solve(map(f => rewrite(f, x -> x0) == 0, fs), ys)
@@ -4614,17 +4638,60 @@ rule asymptotic_solve(eqs_, yspec_, xspec_, opts___) := {
   # to infinity (x y^4 - (x + 1) y^2 + x == 1: the degree in y drops at x = 0) need Puiseux expansions in fractional
   # powers, which are not implemented; leaving them out would give an incomplete list
   let lost = length(ys) == 1 and length(fs) == 1 and is_polynomial_expression(fs[1], [ys[1]]) and exponent(rewrite(fs[1], x -> x0), ys[1]) < exponent(fs[1], ys[1])
-  # one polynomial equation in x and y: every branch by Newton's polygon
-  let single = length(ys) == 1 and length(fs) == 1 and is_polynomial_expression(fs[1], [ys[1], x]) and every(flatten([opts]), o => o === reals)
-  let pu = if single and (not is_list(starts1) or length(starts) == 0 or length(good) < length(starts1) or lost) then cb_puiseux(fs[1], ys[1], x, k, if length(yspec) == 2 then (if several then yspec[2][1] else yspec[2]) else null, realq) else null
-  if not (pu === null) then map(r => [ys[1] -> rewrite(r, x -> xspec[1] - xspec[2])], pu)
-  else if not is_list(starts1) or length(starts) == 0 or length(good) < length(starts1) or lost then
+  # one polynomial equation in x and y: every branch by Newton's polygon; one equation analytic at a given start:
+  # the branches through it by the polygon of its Taylor polynomial
+  let ystart = if length(yspec) == 2 then (if several then yspec[2][1] else yspec[2]) else null
+  let poly = length(ys) == 1 and length(fs) == 1 and is_polynomial_expression(fs[1], [ys[1], x])
+  let single = length(ys) == 1 and length(fs) == 1 and (poly or not (ystart === null)) and every(cb_opt_items([opts]), o => o === reals or cb_is_rule(o) and o[1] === direction)
+  let singular = not is_list(starts1) or length(starts) == 0 or length(good) < length(starts1) or lost
+  let pu = if not (single and singular) then null
+    else if poly then cb_puiseux(fs[1], ys[1], x, k, ystart, realq)
+    else {
+      let f1 = rewrite(fs[1], ys[1] -> ystart + ys[1])
+      let p1 = cb_analytic_poly(f1, ys[1], x)
+      if p1 === null then null else {
+        let r = cb_puiseux_on(f1, p1, ys[1], x, k, ystart, realq)
+        if r === null then null else map(b => expand(ystart + b), r)
+      }
+    }
+  let back = if below then xspec[2] - xspec[1] else xspec[1] - xspec[2]
+  if not (pu === null) then map(r => [ys[1] -> rewrite(r, x -> back)], pu)
+  else if singular then
     failure(unevaluated, asymptotic_solve, "a branch through a singular point or to infinity needs a Puiseux expansion")
   else map(pt => {
     let r = cb_newton(fs, ys, pt, x, x0, k, k + 2)
-    map(i => ys[i] -> rewrite(r[i], cb_shift -> xspec[1] - xspec[2]), range(length(ys)))
+    map(i => ys[i] -> rewrite(r[i], cb_shift -> back), range(length(ys)))
   }, good)
-} when is_list(yspec) and is_list(xspec) and length(xspec) == 3 and is_symbol(xspec[1]) and not (xspec[2] === inf)
+} when is_list(yspec) and is_list(xspec) and length(xspec) == 3 and is_symbol(xspec[1]) and not (xspec[2] === inf) and not cb_log_scale(eqs, xspec)
+
+# cb_opt_items(opts): the arguments after the fixed ones, with options(...) opened into its rules
+fn cb_opt_items(opts) = flatten(map(o => if not is_atom(o) and head(o) === options then apply(list, o) else [o], flatten(opts)))
+# cb_opt(opts, name): the value of the option name among opts, null when it is not given
+fn cb_opt(opts, nm) = {
+  let hits = select(cb_opt_items(opts), o => cb_is_rule(o) and o[1] === nm)
+  if length(hits) == 0 then null else hits[1][2]
+}
+
+# cb_log_scale(eqs, xspec): x enters the equations only through log(x), at x0 = 0 or inf (where log(x) is
+# unbounded): the solution is a series in w = 1/log(x) -> 0
+fn cb_log_scale(eqs, xspec) = is_symbol(xspec[1]) and (xspec[2] === 0 or xspec[2] === inf) and not free_of(eqs, log(xspec[1])) and free_of(rewrite(eqs, log(xspec[1]) -> 1/cb_lw), xspec[1])
+rule asymptotic_solve(eqs_, yspec_, xspec_, opts___) := {
+  let r = asymptotic_solve(rewrite(eqs, log(xspec[1]) -> 1/cb_lw), yspec, [cb_lw, 0, xspec[3]], opts)
+  if is_failure(r) or not is_list(r) then r else rewrite(r, cb_lw -> 1/log(xspec[1]))
+} when is_list(yspec) and is_list(xspec) and length(xspec) == 3 and cb_log_scale(eqs, xspec)
+
+# several variables [[x1, x2], [a1, a2], k]: x_i = a_i + l u_i makes the solution a series in l whose term of
+# degree j is homogeneous of degree j in the u_i; to order k in l, then l = 1, gives the terms of total degree up to
+# k (a regular point: fractional powers of l are no expansion in the x_i)
+rule asymptotic_solve(eqs_, yspec_, xspec_, opts___) := {
+  let xs = xspec[1]
+  let x0s = xspec[2]
+  let r = asymptotic_solve(rewrite(eqs, map(i => xs[i] -> x0s[i] + cb_ml*xs[i], range(length(xs)))), yspec, [cb_ml, 0, xspec[3]], opts)
+  if is_failure(r) or not is_list(r) then r
+  else if not every(flatten(map(b => map(e => e[2], b), r)), v => is_polynomial_expression(v, [cb_ml])) then
+    failure(unevaluated, asymptotic_solve, "a branch through a singular point needs a Puiseux expansion, which is not defined in several variables")
+  else map(b => map(e => e[1] -> expand(rewrite(rewrite(e[2], cb_ml -> 1), map(i => xs[i] -> xs[i] - x0s[i], range(length(xs))))), b), r)
+} when is_list(yspec) and is_list(xspec) and length(xspec) == 3 and is_list(xspec[1]) and is_list(xspec[2]) and length(xspec[1]) == length(xspec[2]) and length(xspec[1]) >= 1 and every(xspec[1], is_symbol) and every(xspec[2], p => not (p === inf))
 
 # --- stability of equilibria: d_stability_conditions, r_stability_conditions ---
 

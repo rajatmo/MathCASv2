@@ -125,7 +125,10 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     reg("circumsphere", crate::construct::circumsphere);
     reg("region_moment", |cx, a| match lens(cx, a, 2)? {
         Some(r) => Ok(r),
-        None => crate::construct::region_moment(cx, a),
+        None => match crate::lens::mapped_moment(cx, a)? {
+            Some(v) => Ok(Reply::Done(v)),
+            None => crate::construct::region_moment(cx, a),
+        },
     });
     reg("is_constant_region", crate::construct::is_constant_region);
     reg("is_simple_polygon", |cx, a| crate::construct::polygon_test(cx, a, false));
@@ -306,6 +309,16 @@ fn measure_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], want: Option<usize
                     if let Some(v) = lens_area(cx, &d)? {
                         return Ok(Reply::Done(v));
                     }
+                }
+            }
+        }
+    }
+    // the intersection of two exact balls of space: the two caps
+    if let ([t], None | Some(3)) = (a, want) {
+        if let Some((n, args)) = call_parts(h, *t) {
+            if n == "region_intersection" {
+                if let Some(v) = crate::lens::ball_lens_volume(cx, args)? {
+                    return Ok(Reply::Done(v));
                 }
             }
         }
@@ -1207,6 +1220,12 @@ fn boolean<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], op: Op) -> Res<Reply<
     // the polygon), not replaced by the intersection of two 256-gons, whose area is off by 2e-4
     if op == Op::Intersection && two_disks(cx, a)?.is_some() {
         return Ok(Reply::Decline);
+    }
+    // a disk and a circle with exact data: the arc of the circle inside the disk
+    if op == Op::Intersection {
+        if let Some(t) = crate::lens::disk_circle(cx, a)? {
+            return Ok(Reply::Done(t));
+        }
     }
     boolean_polygons(cx, a, op)
 }

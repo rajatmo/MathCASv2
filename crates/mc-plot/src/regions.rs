@@ -180,8 +180,17 @@ fn region_picture<'h>(cx: &mut NativeCx<'_, '_, 'h>, conds: &[T<'h>], x: Sym, y:
 fn region_term<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: T<'h>, look: Look<'h>, o: Option<T<'h>>) -> Res<Reply<'h>> {
     let h = cx.heap();
     let Some(reg) = mc_geom::read(cx, r) else { return Ok(bad(h, "region_plot", 1)) };
+    // an implicit region of the plane with a plot range in both coordinates: drawn over that range (the region need
+    // not be bounded)
+    let given = match look.range {
+        [[Some(a), Some(b)], [Some(c), Some(d)]] if a < b && c < d => Some([(a, b), (c, d)]),
+        _ => None,
+    };
     // the bounds, padded
-    let b = cx.eval(h.call(h.sym("region_bounds"), &[r]))?;
+    let b = match (&reg, given) {
+        (mc_geom::Region::Implicit { vars, .. }, Some([(a, b), (c, d)])) if vars.len() == 2 => cx.list(&[h.reals(&[a, b]), h.reals(&[c, d])]),
+        _ => cx.eval(h.call(h.sym("region_bounds"), &[r]))?,
+    };
     let mut bounds = vec![];
     if let Some(rows) = cx.as_list(b) {
         for &row in rows {

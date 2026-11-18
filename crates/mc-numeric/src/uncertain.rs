@@ -1180,15 +1180,40 @@ const MAX_BOX_CELLS: usize = 96;
 fn from_ball<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<T<'h>> {
     match fx.num(t)? {
         Num::Real(Real::Ball(b, _)) => {
-            let mid = Real::Ball(mc_arith::num::Ball::exact(b.mid.clone()), BALL_BITS as u64).to_f64();
-            let rad = (b.rad.m as f64) * 2f64.powi(b.rad.e as i32);
-            // the rounding of the midpoint to a machine number (half an ulp) belongs to the radius too
-            let rad = (rad + 0.5 * mid.abs() * f64::EPSILON) * (1.0 + 4.0 * f64::EPSILON) + f64::from_bits(1);
+            let (mid, rad) = machine_ball(&b);
             Some(fx.call("centered_interval", &[fx.real(mid), fx.real(rad)]))
         }
         Num::Real(Real::Exact(_)) => Some(fx.call("centered_interval", &[t, fx.int(0)])),
         _ => None,
     }
+}
+
+/// The machine midpoint of a ball and a machine radius that encloses the ball (rounded up).
+fn machine_ball(b: &mc_arith::num::Ball) -> (f64, f64) {
+    let mid = Real::Ball(mc_arith::num::Ball::exact(b.mid.clone()), BALL_BITS as u64).to_f64();
+    let rad = (b.rad.m as f64) * 2f64.powi(b.rad.e as i32);
+    // the rounding of the midpoint to a machine number (half an ulp) belongs to the radius too
+    let rad = (rad + 0.5 * mid.abs() * f64::EPSILON) * (1.0 + 4.0 * f64::EPSILON) + f64::from_bits(1);
+    (mid, rad)
+}
+
+/// `centered_interval(x)` of an exact number or a numeric constant (`1/3`, `e + i pi`): the machine enclosure of a
+/// ball of x (a box for a complex x), so that the interval holds x itself.
+fn exact_enclosure<'h>(fx: &mut Fx<'_, '_, '_, 'h>, p: T<'h>) -> Res<Option<T<'h>>> {
+    let b = fx.eval(fx.call("n", &[p, fx.int(40)]))?;
+    Ok(match fx.num(b) {
+        Some(Num::Real(Real::Ball(rb, _))) => {
+            let (m, r) = machine_ball(&rb);
+            Some(fx.call("centered_interval", &[fx.real(m), fx.real(r)]))
+        }
+        Some(Num::Complex(Real::Ball(re, _), Real::Ball(im, _))) => {
+            let ((mr, rr), (mi, ri)) = (machine_ball(&re), machine_ball(&im));
+            let c = fx.ar.complex(fx.real(mr), fx.real(mi));
+            let r = fx.ar.complex(fx.real(rr), fx.real(ri));
+            Some(fx.call("centered_interval", &[c, r]))
+        }
+        _ => None,
+    })
 }
 
 fn centered_apply<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>]) -> Res<Option<T<'h>>> {
@@ -1290,11 +1315,30 @@ fn centered_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>
     if let [p] = a {
         // a real number (a ball, a machine real, an exact number): the midpoint and the radius of its enclosure
         if fx.as_list(*p).is_none() {
-            return Ok(match fx.num(*p) {
-                Some(Num::Real(Real::Ball(..) | Real::Exact(_))) => from_ball(fx, *p),
-                Some(Num::Real(_)) => Some(fx.call("centered_interval", &[*p, fx.int(0)])),
-                _ => None,
-            });
+            // an interval [lo, hi]: its midpoint and half-width, enclosed in machine numbers
+            if let Some(&[iv]) = fx.call_of(*p, "interval") {
+                if let Some(&[lo, hi]) = fx.as_list(iv) {
+                    let (Some(l), Some(u)) = (fx.f64_of(lo), fx.f64_of(hi)) else { return Ok(None) };
+                    if !(l.is_finite() && u.is_finite()) {
+                        return Ok(None);
+                    }
+                    // the ends rounded to machine numbers (half an ulp each), the midpoint and the half-width
+                    // rounded once more: all of it goes into the radius
+                    let (m, h) = (0.5 * l + 0.5 * u, 0.5 * u - 0.5 * l);
+                    let slack = (l.abs() + u.abs() + m.abs()) * f64::EPSILON;
+                    let rad = (h + slack) * (1.0 + 4.0 * f64::EPSILON) + f64::from_bits(1);
+                    return Ok(Some(fx.call("centered_interval", &[fx.real(m), fx.real(rad)])));
+                }
+                return Ok(None);
+            }
+            return match fx.num(*p) {
+                Some(Num::Real(Real::Ball(..))) => Ok(from_ball(fx, *p)),
+                Some(Num::Real(Real::Machine(_))) => Ok(Some(fx.call("centered_interval", &[*p, fx.int(0)]))),
+                Some(Num::Real(Real::Exact(_))) | Some(Num::Complex(Real::Exact(_), _)) => exact_enclosure(fx, *p),
+                Some(_) => Ok(None),
+                // a numeric constant (e + i pi): the enclosure of its value; a symbol stays
+                None => exact_enclosure(fx, *p),
+            };
         }
         // the mantissa/exponent form [[m, e, rm, re], prec]
         let Some(&[parts, _]) = fx.as_list(*p) else { return Ok(None) };

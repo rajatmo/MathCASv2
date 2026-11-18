@@ -187,9 +187,10 @@ impl Native for OptNative {
     }
 }
 
-/// The pieces of `reduce(cond, x, reals)`: closed and open ends and single points. `None` when not reduced.
+/// The pieces of `reduce(cond, x, reals)`: closed and open ends (with the side of the domain: true above the end)
+/// and single points. `None` when not reduced.
 #[allow(clippy::type_complexity)]
-fn pieces<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, x: T<'h>) -> Res<Option<(Vec<(T<'h>, bool)>, Vec<T<'h>>)>> {
+fn pieces<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, x: T<'h>) -> Res<Option<(Vec<(T<'h>, bool, bool)>, Vec<T<'h>>)>> {
     let h = c.b.heap();
     let reals = h.sym_term(h.sym("reals"));
     let r = c.ev("reduce", &[cond, x, reals])?;
@@ -214,7 +215,9 @@ fn pieces<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, x: T<'h>) -> Res<Optio
                 if op == "equal" {
                     points.push(other);
                 } else {
-                    ends.push((other, op.ends_with("equal")));
+                    // the domain lies above the end for x > a (a < x)
+                    let above = (l == x) == op.starts_with("greater");
+                    ends.push((other, op.ends_with("equal"), above));
                 }
             }
             _ => return Ok(None),
@@ -327,11 +330,12 @@ fn minimize1<'h>(
         Some(k) => {
             let Some((ends, points)) = pieces(c, k, x)? else { return Ok(None) };
             cands.extend(points);
-            for (e, closed) in ends {
+            for (e, closed, above) in ends {
                 if closed {
                     cands.push(e);
                 } else {
-                    limits.push((e, 0));
+                    // an open end: 2 approached from above (the domain lies above it), -2 from below
+                    limits.push((e, if above { 2 } else { -2 }));
                 }
             }
             // unbounded sides
@@ -408,15 +412,23 @@ fn minimize1<'h>(
     }
     // the limits at open ends and infinities
     for (pt, sign) in limits {
+        let open = sign.abs() == 2;
         let rule = c.rule(x, pt);
-        let dir = h.call(h.sym("options"), &[c.rule(h.sym_term(h.sym("direction")), h.sym_term(h.sym(if sign < 0 { "from_above" } else { "from_below" })))]);
-        let l = if sign == 0 {
-            // an open end: both sides (the side inside the domain is the one that matters; both agree for a
-            // continuous function)
-            c.ev("limit", &[g, rule])?
+        let from_above = sign == -1 || sign == 2;
+        let dir = h.call(h.sym("options"), &[c.rule(h.sym_term(h.sym("direction")), h.sym_term(h.sym(if from_above { "from_above" } else { "from_below" })))]);
+        let l = if open {
+            // an open end: both sides (both agree for a continuous function); when there is no two-sided limit
+            // (x^(1/x) at 0 is not real below 0), the side inside the domain, which is the one that matters
+            let l = c.ev("limit", &[g, rule])?;
+            if c.is_call(l, "limit") || c.is_call(l, "failure") {
+                c.ev("limit", &[g, rule, dir])?
+            } else {
+                l
+            }
         } else {
             c.ev("limit", &[g, rule, dir])?
         };
+        let sign = if open { 0 } else { sign };
         if c.is_call(l, "limit") || c.is_call(l, "failure") {
             // no limit at an infinity: an oscillating g; with sampled family members the grid scan below decides
             if sampled && sign != 0 {
@@ -708,6 +720,20 @@ fn minimize_n<'h>(c: &mut C<'_, '_, '_, '_, 'h>, g: T<'h>, cond: Option<T<'h>>, 
             return Ok(None);
         }
     }
+    // so can a root u^(p/q), 0 < p/q < 1, where u vanishes: its gradient is not defined there (the norm
+    // (x^2 + y^2)^(1/2) has its minimum at the origin, where no gradient vanishes), unless u == 0 is proved
+    // infeasible (`find_instance` gives [])
+    for u in radical_kink(b, g, vars) {
+        let at = b.call("equal", &[u, b.zero()]);
+        let at = match cond {
+            Some(k) => b.call("and", &[at, k]),
+            None => at,
+        };
+        let fi = c.ev("find_instance", &[at, c.list(vars)])?;
+        if !c.cx.as_list(fi).is_some_and(|v| v.is_empty()) {
+            return Ok(None);
+        }
+    }
     let branches = match cond {
         None => vec![vec![]],
         Some(k) => match constraints(c, k)? {
@@ -795,6 +821,34 @@ fn minimize_n<'h>(c: &mut C<'_, '_, '_, '_, 'h>, g: T<'h>, cond: Option<T<'h>>, 
         }
     }
     Ok(best.map(|(_, v, p, _)| (v, p)))
+}
+
+/// The bases `u` of the powers `u^(p/q)` in `g` with 0 < p/q < 1 and `u` depending on one of `vars` (a point where
+/// u vanishes has no gradient).
+fn radical_kink<'h>(b: &Build<'h>, g: T<'h>, vars: &[T<'h>]) -> Vec<T<'h>> {
+    let mut out = vec![];
+    let h = b.heap();
+    let mut stack = mc_api::walk::Walk::new(g);
+    while let Some(u) = stack.pop() {
+        let View::App { head, args } = h.view(u) else { continue };
+        if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == names::POW) {
+            if let [base, e] = args {
+                let fractional = match h.view(*e) {
+                    View::Rational { num, den } => match (h.view(num), h.view(den)) {
+                        (View::Int(p), View::Int(q)) => p > 0 && q > p,
+                        _ => false,
+                    },
+                    View::Real(v) => v > 0.0 && v < 1.0,
+                    _ => false,
+                };
+                if fractional && vars.iter().any(|&x| !is_free(b, *base, x)) && !out.contains(base) {
+                    out.push(*base);
+                }
+            }
+        }
+        stack.extend(args.iter().copied());
+    }
+    out
 }
 
 /// Take the solution `rules` as a candidate when it is a real feasible point smaller than the best so far.
@@ -1040,7 +1094,7 @@ fn find_instance<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, vars: &[T<'h>],
             Ok(c.cx.is_true(r))
         };
         let mut cands: Vec<T<'h>> = points.clone();
-        for &(e, _) in &ends {
+        for &(e, _, _) in &ends {
             for d in [0, 1, -1] {
                 let f = c.ev("floor", &[e])?;
                 cands.push(c.cx.eval(b.add(&[f, b.int(d)]))?);

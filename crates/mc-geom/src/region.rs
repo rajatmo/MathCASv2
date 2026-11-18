@@ -281,7 +281,14 @@ pub fn read<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Option<Region<'h>> {
         ("cuboid", []) => Region::Boxed { lo: zeros(h, 3), hi: vec![one(), one(), one()] },
         ("rectangle" | "cuboid", [a]) => {
             let lo = vector(cx, *a)?;
-            let hi = lo.iter().map(|&x| h.call(h.sym("add"), &[x, one()])).collect();
+            // integer corners (the default `rectangle([0, 0])`) give integer far corners
+            let hi = lo
+                .iter()
+                .map(|&x| match h.view(x) {
+                    View::Int(k) if k.checked_add(1).is_some() => h.int(k + 1),
+                    _ => h.call(h.sym("add"), &[x, one()]),
+                })
+                .collect();
             Region::Boxed { lo, hi }
         }
         ("rectangle" | "cuboid", [a, b]) => {

@@ -255,10 +255,10 @@ fn asymptotic_integrals_of_antiderivatives_without_closed_form() {
 #[test]
 fn asymptotic_solve_declines_where_a_puiseux_expansion_is_needed() {
     let declined = "failure(unevaluated, asymptotic_solve, \"a branch through a singular point or to infinity needs a Puiseux expansion\")";
-    // one polynomial equation is solved by Newton's polygon (tests in puiseux_branches.rs); an
-    // equation that is not polynomial and systems still decline
+    // one polynomial equation is solved by Newton's polygon (tests in puiseux_branches.rs), one analytic equation
+    // at a given start by the polygon of its Taylor polynomial (mc-calculus asymptotic_solve_branches.rs);
+    // systems with a singular Jacobian still decline
     for src in [
-        "asymptotic_solve(sin(x * y) - y^2 + x == 0, [y, 0], [x, 0, 5])",
         "asymptotic_solve(y^2 - t * x + t == 0 and x^2 + t * y == 0, [[x, y], [0, 0]], [t, 0, 2])",
         "asymptotic_solve(y^3 - t * x * y == 0 and x^2 - t^2 * y == 1, [[x, y]], [t, 0, 3])",
     ] {

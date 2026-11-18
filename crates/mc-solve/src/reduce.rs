@@ -305,6 +305,58 @@ fn regions_node<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, memo: &mut mc_api::
     }
 }
 
+/// The condition with every comparison of a `max` or `min` of two or more arguments with a term free of them
+/// written as comparisons of the arguments: `max(a, b) > c` is `a > c or b > c`, `max(a, b) < c` is
+/// `a < c and b < c` (`>=`, `<=` alike; `min` the other way round; `c < max(a, b)` as `max(a, b) > c`). `None` when
+/// there is none.
+fn split_extrema<'h>(env: &Env<'h>, t: T<'h>) -> Option<T<'h>> {
+    let (name, args) = env.head_name(t)?;
+    match name.as_str() {
+        "and" | "or" | "not" | "list" => {
+            let mut any = false;
+            let new: Vec<T<'h>> = args
+                .iter()
+                .map(|&a| match split_extrema(env, a) {
+                    Some(b) => {
+                        any = true;
+                        b
+                    }
+                    None => a,
+                })
+                .collect();
+            any.then(|| env.call(&name, &new))
+        }
+        "less" | "less_equal" | "greater" | "greater_equal" => {
+            let [l, r] = args else { return None };
+            let extreme = |u: T<'h>| match env.head_name(u) {
+                Some((n, a)) if (n == "max" || n == "min") && a.len() >= 2 && a.iter().all(|&b| env.head_name(b).is_none_or(|(m, _)| m != "max" && m != "min")) => {
+                    Some((n == "max", a))
+                }
+                _ => None,
+            };
+            // `other rel extreme` read as `extreme rel' other`
+            let (is_max, items, other, rel) = match (extreme(*l), extreme(*r)) {
+                (Some((mx, a)), None) => (mx, a, *r, name.clone()),
+                (None, Some((mx, a))) => {
+                    let flipped = match name.as_str() {
+                        "less" => "greater",
+                        "less_equal" => "greater_equal",
+                        "greater" => "less",
+                        _ => "less_equal",
+                    };
+                    (mx, a, *l, flipped.to_string())
+                }
+                _ => return None,
+            };
+            // max above c: some argument is; max below c: every argument is (min the other way round)
+            let some = is_max == rel.starts_with("greater");
+            let parts: Vec<T<'h>> = items.iter().map(|&a| env.call(&rel, &[a, other])).collect();
+            Some(env.call(if some { "or" } else { "and" }, &parts))
+        }
+        _ => None,
+    }
+}
+
 /// Is `t` `false` or a disjunction of conjunctions of `x == integer`?
 fn integer_points<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
     let name = |u: T<'h>| match h.view(u) {
@@ -408,6 +460,12 @@ pub(crate) fn reduce<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkRe
         // one function of x (exp, log, sin, cos, tan) in conditions that separate into x alone and the function
         if let Some(out) = crate::reduce_fn::reduce(env, &c, &diffs, x, m)? {
             return Ok(out);
+        }
+        // max(a, b) > c is a > c or b > c (and the like): the comparisons of the arguments separately
+        if let Some(split) = split_extrema(env, cond) {
+            let mut new = args.to_vec();
+            new[0] = split;
+            return Ok(Out::Again(env.call("reduce", &new)));
         }
         return Ok(env.failure("unsolved", "reduce handles one real variable with rational coefficients"));
     }

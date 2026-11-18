@@ -15,7 +15,7 @@
 #% cell
 style([graphics(disk())], image_size_multipliers: [0.4, 0.2])
 #% output
-#= style([graphics(disk())], image_size_multipliers: [0.4, 0.2])
+#= style([graphics(disk([0, 0]))], image_size_multipliers: [0.4, 0.2])
 
 #% section
 # See also

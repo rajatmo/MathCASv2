@@ -145,7 +145,8 @@ fn quantities_and_uncertain_numbers_in_reductions() {
     check(&[
         ("total([around(1.0, 0.3), around(2.0, 0.4)])", "around(3.0, 0.5)"),
         ("total([interval([0, 1]), interval([2, 3])])", "interval([2, 4])"),
-        ("total([quantity(1, \"m\"), quantity(2, \"m\")])", "quantity(3, \"m\")"),
+        // a unit written by its abbreviation is printed by the first name of its table entry ("m" is "Meters")
+        ("total([quantity(1, \"m\"), quantity(2, \"m\")])", "quantity(3, \"Meters\")"),
         ("total([x, interval([0, 1])])", "interval([x, 1 + x])"),
         ("mean([around(1.0, 0.3), around(3.0, 0.4)])", "around(2.0, 0.25)"),
     ]);

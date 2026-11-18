@@ -13,6 +13,12 @@
 # Details
 
 #% item
+# `n_dsolve(eqs, u, [t, t0, t1], [x, a, b])` solves a partial differential equation in t and x by the method of lines: one equation for `d(u(t, x), t)` (or the second derivative in t) in terms of u, its first and second derivatives in x, t and x; the initial values `u(t0, x) == f(x)` (and of `derivative(1, 0)(u)(t0, x)` for a second derivative in t); one condition at each end, `u(t, a) == g(t)` or `derivative(0, 1)(u)(t, a) == g(t)`. The interval [a, b] is divided into 100 equal parts, the derivatives in x are central differences (second order in the spacing), and the values at the nodes are solved as a system of ordinary equations; the result `interpolating_function("u", [[t0, t1], [a, b]], ...)` takes `(t, x)` and interpolates in x by cubics through the nearest nodes. Other forms stay unevaluated.
+
+#% item
+# An unknown whose initial value is a list, `z(0) == [1, 0]`, is vector-valued: equations between lists hold component by component, and its interpolating function gives the list of the components' values.
+
+#% item
 # Derivatives are written with primes: `y'(t)`, `y''(t)`. Initial conditions give the value of each unknown, and of its derivatives up to one less than the order, at `t0`.
 
 #% item
@@ -107,6 +113,28 @@ x(pi) /. osc
 [y(0), y(5), y(10)] /. logistic
 #% output
 #= [0.1, 0.9428256207705609, 0.9995915655941424]
+
+#% text
+# A vector-valued unknown: a rotation in the plane.
+
+#% cell
+rot = n_dsolve([z'(t) == dot([[0, 1], [-1, 0]], z(t)), z(0) == [1, 0]], z, [t, 0, 10])
+
+#% cell
+z(1) /. rot
+#% output
+#= [0.5403023042030178, -0.8414709830825576]
+
+#% text
+# The heat equation on [0, 1] with an oscillating temperature at one end:
+
+#% cell
+heat = n_dsolve([d(u(t, x), t) == d(u(t, x), x, x), u(0, x) == 0, u(t, 0) == sin(t), u(t, 1) == 0], u, [t, 0, 5], [x, 0, 1])
+
+#% cell
+u(5, 0.5) /. heat
+#% output
+#= -0.4908253496804033
 
 #% subsection
 # Options

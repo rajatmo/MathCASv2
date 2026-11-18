@@ -17,6 +17,14 @@ region_intersection(rectangle([0, 0], [2, 2]), triangle([[1, 1], [3, 1], [1, 3]]
 #% output
 #= polygon([[1, 1], [2, 1], [2, 2], [1, 2]])
 
+#% text
+# A circle and a disk with exact data meet in the arc of the circle inside the disk:
+
+#% cell
+region_intersection(disk([0, 0], 1), circle([0, 1], 1))
+#% output
+#= circle([0, 1], 1, [(7/6)*pi, (11/6)*pi])
+
 #% section
 # See also
 

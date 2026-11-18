@@ -31,12 +31,14 @@ mod model;
 mod natives;
 mod options;
 mod parametric;
+mod pde;
 mod rodas;
 mod solution;
 mod step;
 mod system;
 mod taylor;
 mod util;
+mod vector;
 
 use mc_core::{Heap, Store};
 use mc_eval::{Attributes, Kernel};
@@ -47,7 +49,7 @@ use std::sync::Arc;
 pub const FUNCTIONS: &[(&str, &str)] = &[
     (
         "n_dsolve",
-        "n_dsolve(eqs, y, [t, t0, t1]): the numerical solution of ordinary differential equations with initial conditions as [y -> interpolating_function(...)]; [y, z] for systems; method: auto | rk45 | stiff | taylor, accuracy_goal, precision_goal, max_steps, max_step_size, max_step_fraction, events: [g == 0], event_action: stop | record, compile: auto | true | false; digits: d for balls (Taylor series; error estimated, not guaranteed)",
+        "n_dsolve(eqs, y, [t, t0, t1]): the numerical solution of ordinary differential equations with initial conditions as [y -> interpolating_function(...)]; [y, z] for systems; a list initial value z(0) == [1, 0] for a vector unknown; n_dsolve(eqs, u, [t, t0, t1], [x, a, b]) for a partial differential equation in t and x (method of lines); method: auto | rk45 | stiff | taylor, accuracy_goal, precision_goal, max_steps, max_step_size, max_step_fraction, events: [g == 0], event_action: stop | record, compile: auto | true | false; digits: d for balls (Taylor series; error estimated, not guaranteed)",
     ),
     (
         "n_dsolve_value",

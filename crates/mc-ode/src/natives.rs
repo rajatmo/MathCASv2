@@ -16,9 +16,11 @@ use crate::model::{self, Model};
 use crate::options::{self, Method, OptionError, Options};
 use crate::solution::{self, Data, Solution, Store, Value};
 use crate::parametric;
+use crate::pde;
 use crate::system::{self, printed_name, System};
 use crate::taylor;
 use crate::util::{bad_argument, failure, mentions, number, real, rules};
+use crate::vector;
 use mc_api::names;
 use mc_arith::num::StopScope;
 use mc_arith::text::digits_to_bits;
@@ -234,6 +236,7 @@ impl Solve {
             lo: bwd.t.min(s),
             hi: fwd.t.max(s),
             steps,
+            space: sys.space.clone(),
             data: Data::Machine(crate::dense::Piecewise::new(n, &bwd.steps, &fwd.steps)),
         };
         let mut found = events.map(|e| e.found).unwrap_or_default();
@@ -378,6 +381,7 @@ impl Solve {
             lo: rlo.min(lo.1),
             hi: rhi.max(hi.1),
             steps,
+            space: sys.space.clone(),
             data: Data::Taylor(solution::Taylor { p, out, fine, coarse }),
         };
         let (sol, key, fresh) = self.keep(sol);
@@ -462,6 +466,10 @@ impl Solve {
     ) -> Res<Reply<'h>> {
         let name = self.name();
         let h = cx.heap();
+        // a partial differential equation in t and x: the method of lines
+        if let (Kind::Rules | Kind::Value, &[eqs, second, r, xr]) = (self.kind, args) {
+            return self.pde(cx, ar, eqs, second, (r, xr), opts);
+        }
         let (eqs, second, range_term, params) = match (self.kind, args) {
             (Kind::Parametric, &[eqs, expr, r, ps]) => (eqs, expr, r, Some(ps)),
             (Kind::Rules | Kind::Value, &[eqs, second, r]) => (eqs, second, r, None),
@@ -491,7 +499,17 @@ impl Solve {
         if ps.iter().any(|p| ys.contains(p)) {
             return Ok(Reply::Done(bad_argument(h, name, h.string("a parameter is also an unknown"))));
         }
-        let (sys, a, b) = match self.reduce(cx, ar, eqs, &ys, range_term, opts, &ps)? {
+        // vector-valued unknowns (an initial value that is a list): solved as their components
+        let vectors = if params.is_none() { vector::find(cx, eqs, &ys)? } else { vector::Vectors::default() };
+        let (eqs, scalars) = if vectors.is_empty() {
+            (eqs, ys.clone())
+        } else {
+            match vector::thread(cx, eqs, &vectors)? {
+                Ok(e) => (e, vectors.scalars(&ys)),
+                Err(m) => return Ok(Reply::Done(bad_argument(h, name, h.string(&m)))),
+            }
+        };
+        let (sys, a, b) = match self.reduce(cx, ar, eqs, &scalars, range_term, opts, &ps)? {
             Ok(v) => v,
             Err(f) => return Ok(Reply::Done(f)),
         };
@@ -504,9 +522,21 @@ impl Solve {
             Err(f) => return Ok(Reply::Done(f)),
         };
         if self.kind == Kind::Value {
+            let second = if vectors.is_empty() {
+                second
+            } else {
+                vectors.spread(h, second, Some(&|n: &str| function_term(h, &solved.sol, solved.key, n)))
+            };
             return Ok(Reply::Done(self.value(cx, &solved, second)?));
         }
-        let mut out = solution_rules(h, &solved);
+        let mut out = if vectors.is_empty() {
+            solution_rules(h, &solved)
+        } else {
+            // one rule per unknown as given; a vector unknown's function gives the list of its components
+            let pairs: Vec<(T<'h>, T<'h>)> =
+                ys.iter().map(|&y| (h.sym_term(y), function_term(h, &solved.sol, solved.key, &h.sym_name(y)))).collect();
+            rules(h, &pairs)
+        };
         if opts.events.is_some() {
             let list = |items: &[T<'h>]| h.call(h.sym(names::LIST), items);
             let found: Vec<T<'h>> = solved.events.iter().map(|&(t, k)| list(&[h.real(t), h.int(k as i64 + 1)])).collect();
@@ -517,6 +547,43 @@ impl Solve {
             out = list(&all);
         }
         Ok(Reply::Done(out))
+    }
+}
+
+impl Solve {
+    /// `n_dsolve(eqs, u, [t, t0, t1], [x, a, b])` and `n_dsolve_value(eqs, u, ...)` ([`pde`]); any other form
+    /// stays unevaluated.
+    fn pde<'h>(
+        &self,
+        cx: &mut NativeCx<'_, '_, 'h>,
+        ar: &Arith<'h, Heap>,
+        eqs: T<'h>,
+        second: T<'h>,
+        (r, xr): (T<'h>, T<'h>),
+        opts: &Options<'h>,
+    ) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let View::Sym(u) = h.view(second) else { return Ok(Reply::Decline) };
+        if self.kind == Kind::Value && pde::unknown(h, eqs) != Some(u) {
+            return Ok(Reply::Decline);
+        }
+        // monitors would see the time only, not the solution so far that their expressions in u(t, x) mean
+        if opts.high_precision() || opts.events.is_some() || opts.monitors.any() || cx.as_list(r).map(<[_]>::len) != Some(3) || cx.as_list(xr).map(<[_]>::len) != Some(3) {
+            return Ok(Reply::Decline);
+        }
+        let _scope = StopScope::enter(Some(&self.stop));
+        let (Some((t, t0, t1)), Some((x, a, b))) = (range(cx, ar, r, None)?, range(cx, ar, xr, None)?) else { return Ok(Reply::Decline) };
+        let (af, bf) = (real(&a).expect("checked"), real(&b).expect("checked"));
+        if af >= bf || x == t || x == u || t == u {
+            return Ok(Reply::Decline);
+        }
+        let Some(sys) = pde::system(cx, ar, eqs, u, t, &t0, x, (af, bf))? else { return Ok(Reply::Decline) };
+        let solved = match self.integrate(cx, ar, sys, opts, t0, t1)? {
+            Ok(s) => s,
+            Err(f) => return Ok(Reply::Done(f)),
+        };
+        let f = pde::function_term(h, &solved.sol, solved.key, &h.sym_name(u));
+        Ok(Reply::Done(if self.kind == Kind::Value { f } else { rules(h, &[(h.sym_term(u), f)]) }))
     }
 }
 
@@ -586,6 +653,7 @@ impl Native for ParametricCall {
             initial_terms: vec![],
             free: vec![],
             targets: vec![],
+            space: None,
         };
         let solved = match solve.integrate(cx, &ar, sys, &opts, p.a, p.b)? {
             Ok(s) => s,
@@ -632,22 +700,63 @@ impl Interpolating {
     }
 }
 
+impl Interpolating {
+    /// The value at `(t, x)` of the solution of a partial differential equation: the node values at t interpolated
+    /// in x ([`pde::interpolate`]); a symbolic argument leaves the call as it is.
+    fn at_space<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, sol: &Solution, xs: &[f64], tv: T<'h>, xv: T<'h>) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let (Some(tn), Some(xn)) = (number(cx, ar, tv, None)?, number(cx, ar, xv, None)?) else { return Ok(Reply::Decline) };
+        let (Some(_), Some(xf)) = (real(&tn), real(&xn)) else { return Ok(Reply::Decline) };
+        let (a, b) = (xs[0], xs[xs.len() - 1]);
+        if !(a <= xf && xf <= b) {
+            return Ok(Reply::Done(failure(h, "out_of_range", &[xv, cx.list(&[h.real(a), h.real(b)])])));
+        }
+        let mut ys = Vec::with_capacity(xs.len());
+        for u in &sol.unknowns {
+            match sol.value(u.at, 0, &tn) {
+                Some(Value::Machine(v)) => ys.push(v),
+                _ => return Ok(Reply::Done(failure(h, "out_of_range", &[tv, cx.list(&[h.real(sol.lo), h.real(sol.hi)])]))),
+            }
+        }
+        Ok(Reply::Done(h.real(pde::interpolate(xs, &ys, xf))))
+    }
+}
+
 impl Native for Interpolating {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         // only the curried call f(x) of f = interpolating_function(name, domain, steps, key)
         let View::App { head, .. } = h.view(t) else { return Ok(Reply::Decline) };
         let View::App { args: &[name, _, _, key], .. } = h.view(head) else { return Ok(Reply::Decline) };
-        let &[x] = args else { return Ok(Reply::Decline) };
         let (View::Str(name), View::Str(key)) = (h.view(name), h.view(key)) else { return Ok(Reply::Decline) };
         let Some(sol) = u64::from_str_radix(key, 16).ok().and_then(|k| self.store.get(k)) else {
             return Ok(Reply::Done(bad_argument(h, "interpolating_function", h.string("no such solution in this session"))));
         };
-        let Some((i, order)) = sol.component(name) else {
-            return Ok(Reply::Done(bad_argument(h, "interpolating_function", h.int(1))));
-        };
         let _scope = StopScope::enter(Some(&self.stop));
         let ar = Arith::new(h).with_stop(self.stop.clone());
+        if let (&[tv, xv], Some(xs)) = (args, sol.space.as_ref()) {
+            return self.at_space(cx, &ar, &sol, xs, tv, xv);
+        }
+        let &[x] = args else { return Ok(Reply::Decline) };
+        let Some((i, order)) = sol.component(name) else {
+            // a vector unknown: the list of its components' values (a list of times gives a list of such lists)
+            let Some(comps) = sol.vector(name) else {
+                return Ok(Reply::Done(bad_argument(h, "interpolating_function", h.int(1))));
+            };
+            let times: Vec<T<'h>> = cx.as_list(x).map_or_else(|| vec![x], <[_]>::to_vec);
+            let mut rows = Vec::with_capacity(times.len());
+            for &tm in &times {
+                let mut row = Vec::with_capacity(comps.len());
+                for &(i, order) in &comps {
+                    match self.at(cx, &ar, &sol, i, order, tm)? {
+                        Some(v) => row.push(v),
+                        None => return Ok(Reply::Decline),
+                    }
+                }
+                rows.push(cx.list(&row));
+            }
+            return Ok(Reply::Done(if cx.as_list(x).is_some() { cx.list(&rows) } else { rows[0] }));
+        };
         Ok(match self.at(cx, &ar, &sol, i, order, x)? {
             Some(v) => Reply::Done(v),
             None => Reply::Decline,

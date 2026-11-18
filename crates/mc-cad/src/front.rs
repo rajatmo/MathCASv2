@@ -213,9 +213,15 @@ impl<'h> Front<'h> {
         Ok(if out.len() == 1 { out.pop().expect("one") } else { QFm::And(out) })
     }
 
-    /// The exponent 1/2.
-    fn half(&self) -> T<'h> {
-        self.ar.div(self.ar.int(1), self.ar.int(2))
+    /// `q` for the exponent `1/q`, 2 <= q <= 6: the principal q-th root, real exactly where its radicand is
+    /// nonnegative (the principal root of a negative number is not real), and then the nonnegative root.
+    fn root_index(&self, e: T<'h>) -> Option<i64> {
+        let h = self.h();
+        let View::Rational { num, den } = h.view(e) else { return None };
+        match (h.view(num), h.view(den)) {
+            (View::Int(1), View::Int(q)) if (2..=6).contains(&q) => Some(q),
+            _ => None,
+        }
     }
 
     /// A fresh variable for a bound one.
@@ -585,7 +591,8 @@ impl<'h> Front<'h> {
         let c = Conv::rational(&self.ar, &self.hd);
         let mut params: Vec<T<'h>> = vec![];
         // square roots become variables (decision CAD.12): sqrt(t) is r with r^2 == t and r >= 0, bound by the
-        // quantifier of the innermost variable of t (exists for free variables)
+        // quantifier of the innermost variable of t (exists for free variables); a principal root t^(1/q) alike,
+        // with r^q == t
         let mut rounds = 0;
         loop {
             rounds += 1;
@@ -606,20 +613,20 @@ impl<'h> Front<'h> {
                     continue;
                 }
                 match self.head(k) {
-                    Some((n, [base, e])) if n == names::POW && *e == self.half() => {
+                    Some((n, [base, e])) if n == names::POW && self.root_index(*e).is_some() => {
                         if radical.is_none() {
-                            radical = Some((k, *base));
+                            radical = Some((k, *base, self.root_index(*e).expect("a root index")));
                         }
                     }
                     _ => return Ok(Err("not a polynomial formula with rational coefficients")),
                 }
             }
-            let Some((k, base)) = radical else { break };
+            let Some((k, base, q_index)) = radical else { break };
             if rounds > 8 {
                 return Ok(Err("too many radicals"));
             }
             // a sentence with a radical of a nonnegative radicand: squared out of its atoms (decision CAD.21)
-            if free.is_empty() && params.is_empty() && self.square_out(k, base, &ring, &mut diffs, &mut rels, &mut fm, m)? {
+            if q_index == 2 && free.is_empty() && params.is_empty() && self.square_out(k, base, &ring, &mut diffs, &mut rels, &mut fm, m)? {
                 continue;
             }
             let r = self.fresh_var();
@@ -639,7 +646,7 @@ impl<'h> Front<'h> {
                 None => (0, Quant::Exists),
             };
             prefix.insert(at, (q, r));
-            diffs.push(self.ar.sub(self.ar.pow(r, self.ar.int(2)), base));
+            diffs.push(self.ar.sub(self.ar.pow(r, self.ar.int(q_index)), base));
             rels.push(Rel::Eq);
             let eq = Fm::Atom(diffs.len() - 1);
             diffs.push(r);

@@ -110,6 +110,6 @@ fn interface_wrappers_are_inert() {
         ("popup_menu(a, [a, b])", "popup_menu(a, [a, b])"),
         ("short(x^2, 3)", "short(x^2, 3)"),
         ("highlighted(x + 1, \"Dropline\")", "highlighted(1 + x, \"Dropline\")"),
-        ("list_animate([graphics(disk()), 2])", "graphics(disk())"),
+        ("list_animate([graphics(disk()), 2])", "graphics(disk([0, 0]))"),
     ]);
 }

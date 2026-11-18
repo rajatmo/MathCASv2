@@ -1,8 +1,10 @@
-//! `reduce` for conditions that hold one function of the unknown (`exp`, `b^x`, `log`, `sin`, `cos`, `tan` of `x`
-//! itself) next to polynomial and rational atoms (`exp(x) > 1`, `sin(x) > 1/2 and 0 < x < 2 pi`).
+//! `reduce` for conditions that hold functions of the unknown (`exp`, `b^x`, `log`, `sin`, `cos`, `tan` of `x`
+//! itself) next to polynomial and rational atoms (`exp(x) > 1`, `sin(x) > 1/2 and 0 < x < 2 pi`,
+//! `(sin(x) > 0 or cos(x) > 0) and 0 < x < 20`).
 //!
-//! Every atom depends on `x` alone or on the function `y = F(x)` alone (a mixed atom such as `x < sin(x)` is not
-//! handled). The set of real `x` of an atom is
+//! Every atom depends on `x` alone or on one function `y = F(x)` alone (a mixed atom such as `x < sin(x)` or
+//! `sin(x) + cos(x) > 0` is not handled; different atoms may hold different functions). The set of real `x` of an
+//! atom is
 //!
 //! - for an atom in `x`: the intervals of the rational algorithm of [`crate::reduce`];
 //! - for an atom in `y`: the intervals of the same algorithm in `y`, mapped back through the branches of `F` on
@@ -239,43 +241,53 @@ fn reduce_kernel<'h>(env: &Env<'h>, cond: &Cond, diffs: &[T<'h>], x: T<'h>, m: &
         }
         None => diffs,
     };
-    // the function: the one non-polynomial kernel
+    // the functions: the non-polynomial kernels (each atom may hold one of them: sin(x) > 0 or cos(x) > 0)
     let ring = env.ring(diffs, &[x], m)?;
     let kernels: Vec<T<'h>> = ring.kernels.iter().copied().filter(|&k| k != x && env.contains_any(k, &[x])).collect();
-    let [k] = kernels.as_slice() else { return Ok(None) };
-    let k = *k;
-    let Some((name, args)) = env.head_name(k) else { return Ok(None) };
-    let (kind, base) = match (name.as_str(), args) {
-        ("pow", [b, e]) if *e == x && !env.contains_any(*b, &[x]) => {
-            let Some((bv, im)) = env.machine(*b) else { return Ok(None) };
-            if im != 0.0 || bv <= 0.0 || same(bv, 1.0) {
-                return Ok(None);
+    if kernels.is_empty() || kernels.len() > 4 {
+        return Ok(None);
+    }
+    let mut kinds: Vec<(Kind, Option<(T<'h>, f64)>)> = vec![];
+    for &k in &kernels {
+        let Some((name, args)) = env.head_name(k) else { return Ok(None) };
+        kinds.push(match (name.as_str(), args) {
+            ("pow", [b, e]) if *e == x && !env.contains_any(*b, &[x]) => {
+                let Some((bv, im)) = env.machine(*b) else { return Ok(None) };
+                if im != 0.0 || bv <= 0.0 || same(bv, 1.0) {
+                    return Ok(None);
+                }
+                (Kind::Exp, Some((*b, bv)))
             }
-            (Kind::Exp, Some((*b, bv)))
-        }
-        ("log", [a]) if *a == x => (Kind::Log, None),
-        ("sin", [a]) if *a == x => (Kind::Sin, None),
-        ("cos", [a]) if *a == x => (Kind::Cos, None),
-        ("tan", [a]) if *a == x => (Kind::Tan, None),
-        _ => return Ok(None),
-    };
+            ("log", [a]) if *a == x => (Kind::Log, None),
+            ("sin", [a]) if *a == x => (Kind::Sin, None),
+            ("cos", [a]) if *a == x => (Kind::Cos, None),
+            ("tan", [a]) if *a == x => (Kind::Tan, None),
+            _ => return Ok(None),
+        });
+    }
     let y = env.sym("reduce`y");
     let mut rels: Vec<Option<Rel>> = vec![None; diffs.len()];
     collect_rels(cond, &mut rels);
-    // the atoms: x alone or y alone
-    let mut y_atoms: Vec<Option<T<'h>>> = vec![];
+    // the atoms: x alone or y = one of the functions alone (with the index of that function)
+    let mut y_atoms: Vec<Option<(T<'h>, usize)>> = vec![];
     let mut atom_sets: Vec<Option<Vec<Iv<'h>>>> = vec![None; diffs.len()];
     for &d in diffs.iter() {
-        let dy = env.subst(d, &[(k, y)], m)?;
-        let (in_x, in_y) = (env.contains_any(dy, &[x]), env.contains_any(dy, &[y]));
-        if in_x && in_y {
-            return Ok(None);
+        let held: Vec<usize> = (0..kernels.len()).filter(|&j| env.contains_any(d, &[kernels[j]])).collect();
+        match held.as_slice() {
+            [] => y_atoms.push(None),
+            [j] => {
+                let dy = env.subst(d, &[(kernels[*j], y)], m)?;
+                if env.contains_any(dy, &[x]) {
+                    return Ok(None);
+                }
+                y_atoms.push(Some((dy, *j)));
+            }
+            _ => return Ok(None),
         }
-        y_atoms.push(in_y.then_some(dy));
     }
     // the window and domain
     let mut window = all();
-    if kind == Kind::Log {
+    if kinds.iter().any(|k| k.0 == Kind::Log) {
         let zero = End { term: Some(env.int(0)), val: 0.0, closed: false };
         window = vec![Iv { lo: zero, hi: pos_inf() }];
     }
@@ -296,14 +308,15 @@ fn reduce_kernel<'h>(env: &Env<'h>, cond: &Cond, diffs: &[T<'h>], x: T<'h>, m: &
             window = intersect(&window, s);
         }
     }
-    if matches!(kind, Kind::Sin | Kind::Cos | Kind::Tan) {
+    if kinds.iter().any(|k| matches!(k.0, Kind::Sin | Kind::Cos | Kind::Tan)) {
         let bounded = !window.is_empty() && window.iter().all(|i| i.lo.val.is_finite() && i.hi.val.is_finite());
         if !bounded {
             return Ok(None);
         }
     }
     for i in 0..diffs.len() {
-        let Some(dy) = y_atoms[i] else { continue };
+        let Some((dy, j)) = y_atoms[i] else { continue };
+        let (kind, base) = kinds[j];
         let Some(rel) = rels[i] else { return Ok(None) };
         let Some(ys) = solve_atom(env, dy, rel, y, m)? else { return Ok(None) };
         let Some(s) = map_back(env, kind, base, &ys, &window) else { return Ok(None) };

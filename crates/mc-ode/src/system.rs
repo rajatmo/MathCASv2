@@ -50,6 +50,9 @@ pub(crate) struct System<'h> {
     pub free: Vec<usize>,
     /// see [`System::free`]
     pub targets: Vec<(usize, Num, Num)>,
+    /// a partial differential equation by the method of lines (`crate::pde`): the nodes of the space grid, the
+    /// value at node j being the state component of unknown j
+    pub space: Option<Vec<f64>>,
 }
 
 impl<'h> System<'h> {
@@ -211,7 +214,7 @@ pub(crate) fn unknowns<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Option<(Vec<S
 
 /// The equations: a list (nested lists flattened) or a single equation; a conjunction `e1 and e2` (as a chain
 /// `x(0) == y(0) == 1` is written) gives its equations.
-fn equations<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Vec<T<'h>>> {
+pub(crate) fn equations<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Vec<T<'h>>> {
     let h = cx.heap();
     let and = h.sym_term(h.sym("and"));
     let mut out = vec![];
@@ -440,7 +443,7 @@ pub(crate) fn reduce<'h>(
     if free.len() != targets.len() {
         return Ok(Err(format!("{} boundary conditions for {} unknown initial values", targets.len(), free.len())));
     }
-    Ok(Ok(System { t, unknowns, state, rhs, start: ar.number(&start), initial: init, initial_terms, free, targets }))
+    Ok(Ok(System { t, unknowns, state, rhs, start: ar.number(&start), initial: init, initial_terms, free, targets, space: None }))
 }
 
 /// `y`, `y'`, `y''`, ... for messages.

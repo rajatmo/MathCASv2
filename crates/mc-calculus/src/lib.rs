@@ -185,7 +185,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("asymptotic_integrate", "asymptotic_integrate(f, [t, a, b], [x, x0, k]): the expansion of the integral to order k in x at x0; x -> x0 the leading term"),
     ("asymptotic_sum", "asymptotic_sum(f, [k, a, b], [x, x0, m]): the expansion of the sum to order m in x at x0; x -> x0 the leading term"),
     ("asymptotic_product", "asymptotic_product(f, [k, a, b], [x, x0, m]): the expansion of the closed-form product to order m in x at x0"),
-    ("asymptotic_solve", "asymptotic_solve(eqs, [y, y0], [x, x0, k]): the solution y(x) through y(x0) = y0 as a power series to order k (regular points; systems with [[y1, y2], [a1, a2]])"),
+    ("asymptotic_solve", "asymptotic_solve(eqs, [y, y0], [x, x0, k]): the solution y(x) through y(x0) = y0 as a power series to order k (Puiseux branches at singular points of one equation; systems with [[y1, y2], [a1, a2]]; several variables [[x1, x2], [a1, a2], k]; direction: from_below)"),
     ("d_stability_conditions", "d_stability_conditions(eqs, vs, t), (..., points): [equilibrium, condition for asymptotic stability] for autonomous differential equations"),
     ("r_stability_conditions", "r_stability_conditions(eqs, vs, n), (..., points): [equilibrium, condition for asymptotic stability] for autonomous recurrence equations"),
     ("difference_root_reduce", "difference_root_reduce(expr, n): the sequence as one difference_root (periodic, hypergeometric and C-finite sequences); difference_root_reduce(lhs == rhs, n): true when the identity is proved, false at a counterexample"),

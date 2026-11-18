@@ -702,6 +702,8 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
             Shape::Polygon(vec![vec![at(0.0, 0.0), at(1.0, 0.0), at(1.0, 1.0), at(0.0, 1.0)]])
         }
         ("parallelogram", []) => Shape::Polygon(vec![vec![origin, Pt { x: 1.0, y: 0.0, scaled: false }, Pt { x: 1.0, y: 1.0, scaled: false }, Pt { x: 0.0, y: 1.0, scaled: false }]]),
+        // ball(2): the unit ball of two dimensions
+        ("ball", [n]) if matches!(h.view(*n), View::Int(2)) => return shape(h, "disk", &[]),
         ("ball", _) if args.len() <= 2 => return shape(h, "disk", args),
         // the sphere of two dimensions is the circle
         ("sphere", _) if args.len() <= 2 && args.first().is_none_or(|&c| point(h, c, 1).is_ok()) => return shape(h, "circle", args),
@@ -1753,6 +1755,9 @@ fn length<S: Store + ?Sized>(h: &S, t: T<'_>, arg: usize) -> Result<f64, Bad> {
     }
 }
 
+/// The size directives that may also be written as a rule `name -> value` among the primitives.
+const RULE_DIRECTIVES: [&str; 4] = ["point_size", "absolute_point_size", "thickness", "absolute_thickness"];
+
 /// Apply the directive `t` to `style`. `Ok(false)` when `t` is not a directive (nor a colour).
 pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Result<bool, Bad> {
     if let View::Sym(s) = h.view(t) {
@@ -1777,6 +1782,14 @@ pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Resul
         });
     }
     let Some((name, args)) = head_name(h, t) else { return Ok(false) };
+    // a size directive written as a rule in the list (`point_size -> large`): the directive of that value
+    let (name, args) = match (name.as_str(), args) {
+        (r, [k, v]) if r == names::RULE => match h.view(*k) {
+            View::Sym(s) if RULE_DIRECTIVES.contains(&h.sym_name(s).as_str()) => (h.sym_name(s), std::slice::from_ref(v)),
+            _ => (name, args),
+        },
+        _ => (name, args),
+    };
     // lighting and material directives: accepted, not drawn
     if crate::three::IGNORED_DIRECTIVES.contains(&name.as_str()) {
         return Ok(true);
