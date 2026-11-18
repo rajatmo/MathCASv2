@@ -1,5 +1,11 @@
 # Changelog
 
+## Not released yet
+
+**Documentation window.** A roomier layout: a taller bar with the search box in the middle, guides as cards on
+the start page, function lists with a wider name column and more space between rows, a function's area and
+topic above its name, example inputs on tinted cards as in the notebook, and "See also" names as chips.
+
 ## 0.17.0 (2026-11-18)
 
 **Notebook.** A space that multiplies is shown as a space, as in written mathematics (`m c^2`, `2 pi r`); the

@@ -23,6 +23,13 @@ const CODE: f32 = 14.0;
 const OUTPUT_INDENT: i8 = 14;
 /// The widest the content gets (wider windows centre it).
 pub const MAX_WIDTH: f32 = 980.0;
+/// The space above a screen's title, between its sections, and between cards; the corner radius of cards.
+const TOP: f32 = 30.0;
+const SECTION: f32 = 28.0;
+const GAP: f32 = 14.0;
+const RADIUS: u8 = 8;
+/// The width of the name column of a list of functions (the longest names fit).
+const NAME_COLUMN: f32 = 250.0;
 
 /// A place in the documentation.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -479,6 +486,15 @@ impl Draw<'_> {
         self.text(ui, job, vec![]);
     }
 
+    /// A thin rule under a section's heading, with space on both sides.
+    fn rule(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(6.0);
+        let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
+        let color = if self.p.dark { self.p.rule() } else { self.p.border };
+        ui.painter().hline(r.x_range(), r.center().y, Stroke::new(1.0, color));
+        ui.add_space(10.0);
+    }
+
     /// A function name as a link (accent when it has a page).
     fn name_link(&mut self, ui: &mut egui::Ui, name: &str, size: f32) {
         let has_page = self.pages.contains_key(name);
@@ -498,8 +514,9 @@ impl Draw<'_> {
 
     /// The home page: a title and one tile per area.
     pub fn home(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(18.0);
-        self.heading(ui, "MathCAS Documentation", 28.0, self.p.text);
+        ui.add_space(TOP);
+        self.heading(ui, "MathCAS Documentation", 30.0, self.p.text);
+        ui.add_space(6.0);
         self.prose(
             ui,
             "Every function of the system, sorted into five areas. Type in the search box above to find a function \
@@ -508,33 +525,32 @@ impl Draw<'_> {
             self.p.weak,
         );
         ui.add_space(14.0);
-        ui.add_space(6.0);
         ui.horizontal(|ui| {
             let r = ui.link(
-                RichText::new(format!("Index of all {} functions", self.cat.entries.len())).size(14.0).color(self.p.blue),
+                RichText::new(format!("Index of all {} functions", self.cat.entries.len())).size(14.5).color(self.p.blue),
             );
             ui.add(mc_ui::icons::image(ui.ctx(), mc_ui::icons::Icon::ArrowRight, 13.0, self.p.blue));
             if r.clicked() {
                 self.go = Some(Loc::Index);
             }
         });
-        ui.add_space(8.0);
         self.guide_list(ui);
         // every area as a heading over a uniform grid of topic cards: the same width and height in every row
-        let gap = 12.0;
+        let gap = GAP;
         let width = ui.available_width();
         let columns = ((width + gap) / (260.0 + gap)).floor().clamp(1.0, 4.0) as usize;
         let card_w = ((width - gap * (columns as f32 - 1.0)) / columns as f32).floor();
-        let card_h = 150.0;
+        let card_h = 158.0;
         for area in Area::ALL {
-            ui.add_space(14.0);
+            ui.add_space(SECTION);
             let title =
-                ui.add(egui::Link::new(RichText::new(area.title()).font(Face::ProseBold.font(20.0)).color(self.p.text)));
+                ui.add(egui::Link::new(RichText::new(area.title()).font(Face::ProseBold.font(21.0)).color(self.p.text)));
             if title.clicked() {
                 self.go = Some(Loc::Guide(area));
             }
-            self.prose(ui, area.blurb(), 13.5, self.p.weak);
-            ui.add_space(8.0);
+            ui.add_space(2.0);
+            self.prose(ui, area.blurb(), 14.0, self.p.weak);
+            ui.add_space(12.0);
             let topics = self.cat.topics(area);
             for row in topics.chunks(columns) {
                 ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
@@ -558,11 +574,12 @@ impl Draw<'_> {
     fn topic_card(&mut self, ui: &mut egui::Ui, area: Area, topic: &str, entries: &[&Entry], size: egui::Vec2) {
         let p = self.p;
         let margin = 14.0;
-        let inner = size - egui::vec2(2.0 * margin, 2.0 * margin);
+        // the frame's border lies inside the card's size
+        let inner = size - egui::vec2(2.0 * margin + 2.0, 2.0 * margin + 2.0);
         let mut names: Vec<&str> = entries.iter().map(|e| e.name).collect();
         names.sort_by_key(|n| (!self.pages.contains_key(*n), *n));
         // as many names as fit in three lines of the card (monospaced links, about 0.6 em per character)
-        let per_line = (inner.x / (13.5 * 0.6)).floor().max(8.0) as usize;
+        let per_line = (inner.x / (13.5 * 0.64)).floor().max(8.0) as usize;
         let (mut line, mut lines, mut shown) = (0usize, 1usize, Vec::new());
         for n in &names {
             let w = n.chars().count() + 1;
@@ -579,7 +596,7 @@ impl Draw<'_> {
         Frame::new()
             .fill(p.card)
             .stroke(Stroke::new(1.0, if p.dark { p.rule() } else { p.border }))
-            .corner_radius(CornerRadius::same(6))
+            .corner_radius(CornerRadius::same(RADIUS))
             .inner_margin(Margin::same(margin as i8))
             .show(ui, |ui| {
                 ui.set_min_size(inner);
@@ -589,7 +606,7 @@ impl Draw<'_> {
                     if t.clicked() {
                         self.go = Some(Loc::Guide(area));
                     }
-                    ui.add_space(6.0);
+                    ui.add_space(8.0);
                     ui.horizontal_wrapped(|ui| {
                         for n in &shown {
                             self.name_link(ui, n, 13.5);
@@ -616,40 +633,69 @@ impl Draw<'_> {
 
     // ----- topic guides -----
 
-    /// The topic guides on the home page: a heading, then one row each (title as a link, what it covers).
+    /// The topic guides on the home page: a heading, then a grid of cards (the title as a link, what the guide
+    /// covers in a few lines), all of one size.
     fn guide_list(&mut self, ui: &mut egui::Ui) {
         if self.guides.is_empty() {
             return;
         }
-        ui.add_space(10.0);
-        self.heading(ui, "Guides", 20.0, self.p.text);
+        ui.add_space(SECTION);
+        self.heading(ui, "Guides", 21.0, self.p.text);
+        ui.add_space(2.0);
         self.prose(
             ui,
             "Short tours of a topic with worked examples, common mistakes and the functions to reach for.",
-            13.5,
+            14.0,
             self.p.weak,
         );
-        ui.add_space(6.0);
+        ui.add_space(12.0);
+        let p = self.p;
         let guides = self.guides;
-        for g in guides {
-            ui.horizontal_top(|ui| {
-                ui.allocate_ui_with_layout(vec2(250.0, 18.0), Layout::left_to_right(Align::Min), |ui| {
-                    ui.set_width(250.0);
-                    let r = ui.add(egui::Link::new(RichText::new(&g.title).font(Face::ProseBold.font(15.0)).color(self.p.blue)));
-                    if r.clicked() {
-                        self.go = Some(Loc::Topic(g.slug.clone()));
-                    }
-                    self.link_rects.push((r.rect, format!("topic:{}", g.slug)));
-                });
-                ui.vertical(|ui| self.prose(ui, g.summary(), 13.5, self.p.weak));
+        let gap = GAP;
+        let width = ui.available_width();
+        let columns = ((width + gap) / (300.0 + gap)).floor().clamp(1.0, 3.0) as usize;
+        let card = vec2(((width - gap * (columns as f32 - 1.0)) / columns as f32).floor(), 108.0);
+        let margin = 14.0;
+        let inner = card - vec2(2.0 * margin + 2.0, 2.0 * margin + 2.0);
+        for row in guides.chunks(columns) {
+            ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
+                ui.spacing_mut().item_spacing.x = gap;
+                for g in row {
+                    ui.allocate_ui_with_layout(card, Layout::top_down(Align::Min), |ui| {
+                        ui.set_min_size(card);
+                        ui.set_max_size(card);
+                        Frame::new()
+                            .fill(p.card)
+                            .stroke(Stroke::new(1.0, if p.dark { p.rule() } else { p.border }))
+                            .corner_radius(CornerRadius::same(RADIUS))
+                            .inner_margin(Margin::same(margin as i8))
+                            .show(ui, |ui| {
+                                ui.set_min_size(inner);
+                                ui.set_max_size(inner);
+                                let r = ui.add(egui::Link::new(
+                                    RichText::new(&g.title).font(Face::ProseBold.font(15.5)).color(p.blue),
+                                ));
+                                if r.clicked() {
+                                    self.go = Some(Loc::Topic(g.slug.clone()));
+                                }
+                                self.link_rects.push((r.rect, format!("topic:{}", g.slug)));
+                                ui.add_space(4.0);
+                                // what it covers, as plain text cut to the lines the card has
+                                let text: String = g.summary().chars().filter(|c| *c != '`').collect();
+                                let mut job = LayoutJob::simple(text, Face::Prose.font(13.5), p.weak, inner.x);
+                                job.wrap.max_rows = 3;
+                                ui.add(egui::Label::new(job).selectable(false));
+                            });
+                    });
+                }
             });
-            ui.add_space(3.0);
+            ui.add_space(gap);
         }
     }
 
     /// A topic guide: title, prose, bullets, and examples with the engine's outputs.
     pub fn topic(&mut self, ui: &mut egui::Ui, slug: &str) {
-        ui.add_space(14.0);
+        ui.add_space(TOP);
         let Some(guide) = self.guides.iter().find(|g| g.slug == slug) else {
             self.heading(ui, "Guide", 26.0, self.p.text);
             self.prose(ui, &format!("There is no guide `{slug}`."), BODY, self.p.weak);
@@ -720,8 +766,8 @@ impl Draw<'_> {
 
     /// Every function of the system, by area and topic, as links (accent: with a page).
     pub fn index(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(14.0);
-        self.heading(ui, "Index", 26.0, self.p.text);
+        ui.add_space(TOP);
+        self.heading(ui, "Index", 28.0, self.p.text);
         let documented = self.cat.entries.iter().filter(|e| self.pages.contains_key(e.name)).count();
         self.prose(
             ui,
@@ -759,22 +805,24 @@ impl Draw<'_> {
     /// Every function of `area`, by topic, with its description and how many of the topic's functions have a page;
     /// at the end, the functions of the area without a page yet.
     pub fn guide(&mut self, ui: &mut egui::Ui, area: Area) {
-        ui.add_space(14.0);
-        self.heading(ui, area.title(), 26.0, self.p.text);
+        ui.add_space(TOP);
+        self.heading(ui, area.title(), 28.0, self.p.text);
+        ui.add_space(4.0);
         self.prose(ui, area.blurb(), BODY, self.p.weak);
         let cat = self.cat;
         let topics = cat.topics(area);
         let mut without: Vec<&str> = vec![];
         for (topic, entries) in &topics {
-            ui.add_space(14.0);
+            ui.add_space(SECTION);
             let documented = entries.iter().filter(|e| self.pages.contains_key(e.name)).count();
             ui.horizontal(|ui| {
-                self.heading(ui, topic, 18.0, self.p.blue);
+                self.heading(ui, topic, 19.0, self.p.text);
+                ui.add_space(4.0);
                 ui.label(
                     RichText::new(format!("{documented} of {} with a page", entries.len())).size(12.5).color(self.p.faint),
                 );
             });
-            ui.add_space(2.0);
+            self.rule(ui);
             for e in entries {
                 self.entry_row(ui, e);
                 if !self.pages.contains_key(e.name) {
@@ -822,24 +870,25 @@ impl Draw<'_> {
     fn area_navigation(&mut self, ui: &mut egui::Ui, name: &str) {
         let Some(area) = self.cat.get(name).map(|e| e.area) else { return };
         let (prev, next) = self.neighbours(name);
-        ui.add_space(14.0);
-        ui.separator();
+        ui.add_space(SECTION);
+        self.rule(ui);
+        ui.add_space(4.0);
         ui.horizontal(|ui| {
             if let Some(p) = prev {
                 ui.add(mc_ui::icons::image(ui.ctx(), mc_ui::icons::Icon::ArrowLeft, 14.0, self.p.blue));
-                if ui.link(RichText::new(p).font(Face::Code.font(CODE))).clicked() {
+                if ui.link(RichText::new(p).font(Face::Code.font(CODE))).on_hover_text("The function before this one").clicked() {
                     self.go = Some(Loc::Page(p.to_string()));
                 }
+                ui.add_space(20.0);
             }
-            ui.add_space(16.0);
-            if ui.link(RichText::new(area.title()).size(13.5).color(self.p.blue)).clicked() {
+            if ui.link(RichText::new(area.title()).size(14.0).color(self.p.weak)).clicked() {
                 self.go = Some(Loc::Guide(area));
             }
             if let Some(n) = next {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     // right to left: the arrow first, then the name before it
                     ui.add(mc_ui::icons::image(ui.ctx(), mc_ui::icons::Icon::ArrowRight, 14.0, self.p.blue));
-                    if ui.link(RichText::new(n).font(Face::Code.font(CODE))).clicked() {
+                    if ui.link(RichText::new(n).font(Face::Code.font(CODE))).on_hover_text("The function after this one").clicked() {
                         self.go = Some(Loc::Page(n.to_string()));
                     }
                 });
@@ -849,13 +898,15 @@ impl Draw<'_> {
 
     fn entry_row(&mut self, ui: &mut egui::Ui, e: &Entry) {
         ui.horizontal_top(|ui| {
-            ui.allocate_ui_with_layout(vec2(190.0, 18.0), Layout::left_to_right(Align::Min), |ui| {
-                ui.set_width(190.0);
+            ui.allocate_ui_with_layout(vec2(NAME_COLUMN, 20.0), Layout::top_down(Align::Min), |ui| {
+                ui.set_width(NAME_COLUMN);
+                ui.add_space(3.0);
                 self.name_link(ui, e.name, CODE);
             });
-            ui.vertical(|ui| self.prose(ui, &summary_text(e), 13.5, self.p.weak));
+            ui.add_space(8.0);
+            ui.vertical(|ui| self.prose(ui, &summary_text(e), 14.0, self.p.weak));
         });
-        ui.add_space(2.0);
+        ui.add_space(6.0);
     }
 
     // ----- search -----
@@ -868,19 +919,20 @@ impl Draw<'_> {
         guide_hits: &[usize],
         results: &[(String, crate::search::Rank)],
     ) {
-        ui.add_space(14.0);
-        self.heading(ui, &format!("Search: {query}"), 22.0, self.p.text);
+        ui.add_space(TOP);
+        self.heading(ui, &format!("Search: {query}"), 24.0, self.p.text);
+        ui.add_space(12.0);
         let guides = self.guides;
         if !guide_hits.is_empty() {
             ui.label(RichText::new("Guides").font(Face::ProseBold.font(14.0)).color(self.p.weak));
-            ui.add_space(2.0);
+            ui.add_space(6.0);
             for (k, &gi) in guide_hits.iter().enumerate() {
                 let g = &guides[gi];
                 let fill = if k == self.selected { self.p.over_bg(self.p.accent, 0.12) } else { Color32::TRANSPARENT };
                 let r = Frame::new()
                     .fill(fill)
-                    .corner_radius(CornerRadius::same(4))
-                    .inner_margin(Margin::symmetric(6, 3))
+                    .corner_radius(CornerRadius::same(6))
+                    .inner_margin(Margin::symmetric(10, 7))
                     .show(ui, |ui| {
                         ui.set_width(ui.available_width());
                         ui.horizontal_top(|ui| {
@@ -901,10 +953,10 @@ impl Draw<'_> {
                     r.response.scroll_to_me(None);
                 }
             }
-            ui.add_space(8.0);
+            ui.add_space(18.0);
             if !results.is_empty() {
                 ui.label(RichText::new("Functions").font(Face::ProseBold.font(14.0)).color(self.p.weak));
-                ui.add_space(2.0);
+                ui.add_space(4.0);
             }
         }
         let offset = guide_hits.len();
@@ -938,8 +990,8 @@ impl Draw<'_> {
             let fill = if k + offset == self.selected { self.p.over_bg(self.p.accent, 0.12) } else { Color32::TRANSPARENT };
             let r = Frame::new()
                 .fill(fill)
-                .corner_radius(CornerRadius::same(4))
-                .inner_margin(Margin::symmetric(6, 3))
+                .corner_radius(CornerRadius::same(6))
+                .inner_margin(Margin { left: 10, right: 10, top: 7, bottom: 1 })
                 .show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     match self.cat.get(name) {
@@ -957,21 +1009,35 @@ impl Draw<'_> {
 
     /// The page of function `name`: its page when it has one, else its description from the catalogue.
     pub fn page(&mut self, ui: &mut egui::Ui, name: &str) {
-        ui.add_space(14.0);
+        ui.add_space(TOP - 8.0);
         let pages = self.pages;
+        // where the function belongs, above its name: the area (a link to its list) and the topic
+        if let Some(e) = self.cat.get(name) {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 6.0;
+                if ui.link(RichText::new(e.area.title()).size(13.0).color(self.p.weak)).clicked() {
+                    self.go = Some(Loc::Guide(e.area));
+                }
+                ui.label(RichText::new("›").size(13.0).color(self.p.faint));
+                ui.label(RichText::new(e.topic).size(13.0).color(self.p.weak));
+            });
+            ui.add_space(2.0);
+        }
         ui.horizontal(|ui| {
             let mut job = LayoutJob::default();
             job.append(
                 name,
                 0.0,
-                TextFormat { font_id: Face::CodeBold.font(26.0), color: self.p.text, ..TextFormat::default() },
+                TextFormat { font_id: Face::CodeBold.font(30.0), color: self.p.text, ..TextFormat::default() },
             );
             ui.add(egui::Label::new(job).selectable(true));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let open = egui::Button::image_and_text(
                     mc_ui::icons::image(ui.ctx(), mc_ui::icons::Icon::Notebook, 15.0, ui.visuals().text_color()),
-                    "Open as notebook",
-                );
+                    RichText::new("Open as notebook").size(13.5),
+                )
+                .corner_radius(CornerRadius::same(6))
+                .min_size(vec2(0.0, 30.0));
                 if pages.contains_key(name)
                     && ui
                         .add(open)
@@ -980,24 +1046,22 @@ impl Draw<'_> {
                 {
                     self.open_notebook = true;
                 }
-                if let Some(e) = self.cat.get(name) {
-                    ui.label(RichText::new(format!("{} · {}", e.area.title(), e.topic)).size(12.0).color(self.p.faint));
-                }
             });
         });
-        ui.add_space(6.0);
+        ui.add_space(12.0);
         let Some(page) = pages.get(name) else {
             self.stub(ui, name);
             return;
         };
         self.usage(ui, page);
         let open = (self.expand || self.find.as_ref().is_some_and(|f| !f.0.is_empty())).then_some(true);
-        ui.add_space(10.0);
+        ui.add_space(22.0);
         let target = self.target;
         let reveal = self.reveal_target;
         let to_detail = matches!(target, Some(Target::Detail(_))) && reveal;
         let to_group = |k: usize| reveal && matches!(target, Some(Target::Group(g) | Target::Input(g, _)) if g == k);
-        egui::CollapsingHeader::new(RichText::new("Details").font(Face::ProseBold.font(18.0)).color(self.p.blue))
+        ui.spacing_mut().indent = 20.0;
+        egui::CollapsingHeader::new(RichText::new("Details").font(Face::ProseBold.font(20.0)).color(self.p.text))
             .icon(mc_ui::icons::collapsing_marker)
             .id_salt(("details", name))
             .default_open(false)
@@ -1017,20 +1081,22 @@ impl Draw<'_> {
                         let r = egui::Rect::from_min_max(pos2(ui.min_rect().left(), top), pos2(ui.min_rect().right(), ui.cursor().top()));
                         self.mark_target(ui, r);
                     }
-                    ui.add_space(3.0);
+                    ui.add_space(6.0);
                 }
             });
-        ui.add_space(6.0);
-        egui::CollapsingHeader::new(RichText::new("Examples").font(Face::ProseBold.font(18.0)).color(self.p.blue))
+        ui.add_space(14.0);
+        egui::CollapsingHeader::new(RichText::new("Examples").font(Face::ProseBold.font(20.0)).color(self.p.text))
             .icon(mc_ui::icons::collapsing_marker)
             .id_salt(("examples", name))
             .default_open(true)
             .open(if target.is_some() && reveal && !to_detail { Some(true) } else { open })
             .show(ui, |ui| {
+                ui.add_space(4.0);
                 for (k, group) in page.examples.iter().enumerate() {
+                    ui.add_space(6.0);
                     let title = format!("{}  ({})", group.title, group.inputs());
                     let header = egui::CollapsingHeader::new(
-                        RichText::new(title).font(Face::ProseBold.font(15.5)).color(self.p.text),
+                        RichText::new(title).font(Face::ProseBold.font(16.0)).color(self.p.text),
                     )
                     .icon(mc_ui::icons::collapsing_marker)
                     .id_salt(("group", name, k))
@@ -1043,12 +1109,20 @@ impl Draw<'_> {
                 }
             });
         if !page.see_also.is_empty() {
-            ui.add_space(10.0);
-            self.heading(ui, "See also", 18.0, self.p.blue);
+            ui.add_space(SECTION - 6.0);
+            self.heading(ui, "See also", 20.0, self.p.text);
+            ui.add_space(8.0);
+            // each name on its own small card
+            let stroke = Stroke::new(1.0, if self.p.dark { self.p.rule() } else { self.p.border });
             ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
                 for n in &page.see_also {
-                    self.name_link(ui, n, CODE);
-                    ui.add_space(6.0);
+                    Frame::new()
+                        .fill(self.p.card)
+                        .stroke(stroke)
+                        .corner_radius(CornerRadius::same(6))
+                        .inner_margin(Margin::symmetric(10, 5))
+                        .show(ui, |ui| self.name_link(ui, n, CODE));
                 }
             });
         }
@@ -1060,20 +1134,24 @@ impl Draw<'_> {
         Frame::new()
             .fill(self.p.code_bg())
             .stroke(Stroke::new(1.0, if self.p.dark { self.p.rule() } else { self.p.border }))
-            .corner_radius(CornerRadius::same(6))
-            .inner_margin(Margin::symmetric(16, 10))
+            .corner_radius(CornerRadius::same(RADIUS))
+            .inner_margin(Margin::symmetric(20, 16))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 for (k, u) in page.usage.iter().enumerate() {
                     if k > 0 {
-                        ui.add_space(4.0);
-                        ui.separator();
+                        ui.add_space(10.0);
+                        let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
+                        let rule = if self.p.dark { self.p.rule() } else { self.p.border };
+                        ui.painter().hline(r.x_range(), r.center().y, Stroke::new(1.0, rule));
+                        ui.add_space(10.0);
                     }
                     let mut job = LayoutJob::default();
-                    let links = self.colours.append_code(&mut job, &u.call, self.p, 15.0, true, None);
+                    let links = self.colours.append_code(&mut job, &u.call, self.p, 15.5, true, None);
                     self.text(ui, job, links);
+                    ui.add_space(4.0);
                     ui.horizontal_top(|ui| {
-                        ui.add_space(24.0);
+                        ui.add_space(22.0);
                         ui.vertical(|ui| self.prose(ui, &u.text, BODY, self.p.text));
                     });
                 }
@@ -1108,11 +1186,11 @@ impl Draw<'_> {
         for (b, block) in blocks.iter().enumerate() {
             match block {
                 Block::Text(t) => {
-                    ui.add_space(6.0);
+                    ui.add_space(if b == 0 { 8.0 } else { 16.0 });
                     self.prose(ui, t, BODY, self.p.text);
                 }
                 Block::Input { source, output, .. } => {
-                    ui.add_space(4.0);
+                    ui.add_space(8.0);
                     let top = ui.cursor().top();
                     self.example_input(ui, source);
                     if !output.is_empty() {
@@ -1141,23 +1219,30 @@ impl Draw<'_> {
     /// clipboard as text, which pastes into a notebook cell as it reads here (at an insertion point it makes an
     /// Input cell). The button is faint until the pointer is over the input, and shows a check mark once it copied.
     fn example_input(&mut self, ui: &mut egui::Ui, source: &str) {
-        const BUTTON: f32 = 22.0;
-        let width = ui.available_width();
-        let row = ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = 4.0;
-            let text = ui
-                .allocate_ui(vec2(width - BUTTON - 8.0, 0.0), |ui| {
+        const BUTTON: f32 = 24.0;
+        // the input on a tinted card, as an input cell of the notebook
+        let card = Frame::new()
+            .fill(self.p.code_bg())
+            .corner_radius(CornerRadius::same(6))
+            .inner_margin(Margin { left: 14, right: 8, top: 9, bottom: 9 })
+            .show(ui, |ui| {
+                let width = ui.available_width();
+                ui.set_width(width);
+                ui.allocate_ui(vec2(width - BUTTON - 8.0, 0.0), |ui| {
                     let mut job = LayoutJob::default();
                     let links = self.colours.append_code(&mut job, source, self.p, CODE, true, None);
                     self.text(ui, job, links)
                 })
-                .inner;
-            text.rect
-        });
-        let text = row.inner;
-        let hot = ui.rect_contains_pointer(row.response.rect.expand2(vec2(BUTTON + 8.0, 2.0)));
+                .inner
+                .rect
+            });
+        let text = card.inner;
+        let hot = ui.rect_contains_pointer(card.response.rect);
         let done = self.copied.as_deref() == Some(source);
-        let rect = egui::Rect::from_min_size(pos2(ui.max_rect().right() - BUTTON, text.top()), vec2(BUTTON, BUTTON));
+        let rect = egui::Rect::from_min_size(
+            pos2(card.response.rect.right() - BUTTON - 6.0, text.top() - 3.0),
+            vec2(BUTTON, BUTTON),
+        );
         let tint = if done {
             self.p.green
         } else if hot {
@@ -1178,7 +1263,7 @@ impl Draw<'_> {
     /// drawn), indented behind a thin vertical rule so that they read apart from the input above.
     fn outputs(&mut self, ui: &mut egui::Ui, name: &str, lines: &[OutputLine]) {
         let rule = if self.p.dark { self.p.rule() } else { self.p.border };
-        let r = Frame::new().inner_margin(Margin { left: OUTPUT_INDENT, right: 0, top: 1, bottom: 1 }).show(ui, |ui| {
+        let r = Frame::new().inner_margin(Margin { left: OUTPUT_INDENT, right: 0, top: 6, bottom: 4 }).show(ui, |ui| {
             let mut k = 0;
             while k < lines.len() {
                 let kind = lines[k].kind;
@@ -1221,8 +1306,8 @@ impl Draw<'_> {
             }
         });
         let rect = r.response.rect;
-        let x = rect.left() + 3.0;
-        ui.painter().line_segment([pos2(x, rect.top() + 3.0), pos2(x, rect.bottom() - 1.0)], Stroke::new(2.0, rule));
+        let x = rect.left() + 5.0;
+        ui.painter().line_segment([pos2(x, rect.top() + 8.0), pos2(x, rect.bottom() - 4.0)], Stroke::new(2.0, rule));
     }
 
     /// A value drawn typeset as in the notebook; find-in-page counts its matches in the printed text and frames it

@@ -427,7 +427,10 @@ impl DocsApp {
         ui.horizontal_centered(|ui| {
             let nav = |ui: &mut egui::Ui, icon: Icon, tip: &str, enabled: bool| {
                 let tint = if enabled { p.text } else { p.faint };
-                let b = egui::Button::image(icons::image(ui.ctx(), icon, 16.0, tint)).frame(false).min_size(egui::vec2(26.0, 24.0));
+                let b = egui::Button::image(icons::image(ui.ctx(), icon, 18.0, tint))
+                    .frame_when_inactive(false)
+                    .corner_radius(egui::CornerRadius::same(6))
+                    .min_size(egui::vec2(32.0, 32.0));
                 ui.add_enabled(enabled, b).on_hover_text(tip).on_disabled_hover_text(tip).clicked()
             };
             if nav(ui, Icon::ArrowLeft, "Back (Alt+Left)", self.at > 0) {
@@ -439,12 +442,27 @@ impl DocsApp {
             if nav(ui, Icon::Home, "Home (Alt+Home)", true) {
                 self.go(Loc::Home);
             }
-            let index = ui.add(egui::Button::new(RichText::new("Index").size(13.0).color(p.text)).frame(false));
+            ui.spacing_mut().item_spacing.x = 4.0;
+            let index = ui.add(
+                egui::Button::new(RichText::new("Index").size(14.0).color(p.text))
+                    .frame_when_inactive(false)
+                    .corner_radius(egui::CornerRadius::same(6))
+                    .min_size(egui::vec2(0.0, 32.0)),
+            );
             if index.on_hover_text("Every function by area and topic").clicked() {
                 self.go(Loc::Index);
             }
-            ui.add_space(8.0);
-            ui.add(icons::image(ui.ctx(), Icon::Search, 15.0, p.weak));
+            // the search box: in the middle of the bar when there is room, its icon inside it
+            const SEARCH: f32 = 460.0;
+            let room = ui.available_width();
+            let lead = ((ui.max_rect().width() - SEARCH) / 2.0 - (ui.max_rect().width() - room)).max(12.0);
+            ui.add_space(lead);
+            {
+                let w = &mut ui.visuals_mut().widgets;
+                for st in [&mut w.inactive, &mut w.hovered, &mut w.active, &mut w.noninteractive] {
+                    st.corner_radius = egui::CornerRadius::same(8);
+                }
+            }
             // the result keys act before the box sees them
             let (down, up, enter, escape) = ui.input_mut(|i| {
                 (
@@ -456,10 +474,14 @@ impl DocsApp {
             });
             let edit = ui.add(
                 egui::TextEdit::singleline(&mut self.query)
-                    .hint_text("Search functions (F1)")
-                    .desired_width(340.0)
+                    .hint_text("Search functions and guides (F1)")
+                    .font(egui::FontId::proportional(14.5))
+                    .desired_width((room - lead - 150.0).clamp(160.0, SEARCH) - 44.0)
+                    .margin(Margin { left: 34, right: 10, top: 7, bottom: 7 })
                     .id_salt("search"),
             );
+            let at = egui::Rect::from_center_size(egui::pos2(edit.rect.left() + 18.0, edit.rect.center().y), egui::vec2(15.0, 15.0));
+            icons::paint(ui.painter(), Icon::Search, at, p.weak);
             if std::mem::take(&mut self.focus_search) {
                 edit.request_focus();
             }
@@ -489,8 +511,12 @@ impl DocsApp {
                     ThemeChoice::Light => ("Theme: light", Icon::ThemeLight, ThemeChoice::Dark),
                     ThemeChoice::Dark => ("Theme: dark", Icon::ThemeDark, ThemeChoice::System),
                 };
-                let img = icons::image(ui.ctx(), icon, 15.0, p.yellow);
-                if ui.add(egui::Button::image_and_text(img, RichText::new(label).size(12.5)).frame(false)).clicked() {
+                let img = icons::image(ui.ctx(), icon, 16.0, p.yellow);
+                let b = egui::Button::image_and_text(img, RichText::new(label).size(13.0).color(p.weak))
+                    .frame_when_inactive(false)
+                    .corner_radius(egui::CornerRadius::same(6))
+                    .min_size(egui::vec2(0.0, 32.0));
+                if ui.add(b).on_hover_text("Switch between the system's, the light and the dark theme").clicked() {
                     self.theme = next;
                     // kept in the settings the notebook shares, so the next window opens in it (read fresh, so
                     // a notebook's own changes since start-up are kept)
@@ -725,9 +751,16 @@ impl eframe::App for DocsApp {
         self.outputs.begin_frame();
         self.keys(&ctx);
         egui::Panel::top("bar")
-            .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(8, 4)))
-            .exact_size(38.0)
-            .show(ui, |ui| self.top_bar(ui, &p));
+            .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(12, 8)))
+            .exact_size(50.0)
+            .show_separator_line(false)
+            .show(ui, |ui| {
+                self.top_bar(ui, &p);
+                // a hairline under the bar
+                let r = ui.max_rect().expand2(egui::vec2(12.0, 8.0));
+                let rule = if p.dark { p.rule() } else { p.border };
+                ui.painter().hline(r.x_range(), r.bottom() - 0.5, egui::Stroke::new(1.0, rule));
+            });
         if self.find.is_some() {
             egui::Panel::bottom("find")
                 .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(8, 3)))
