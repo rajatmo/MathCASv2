@@ -107,19 +107,37 @@ const INPUTS: &[&str] = &[
 /// The lowest rate of fuel per millisecond allowed for an evaluation of more than 2 ms.
 const FLOOR: f64 = 5.0;
 
+/// The time in ms and the fuel of one evaluation of `src`, in a fresh session (values are remembered) whose start
+/// is not measured.
+fn measure(src: &str) -> (f64, f64) {
+    let mut e = CoreEngine::with_config(EngineConfig { threads: 1, ..EngineConfig::default() });
+    e.install(install);
+    let _ = e.eval("work_of(sin(1.5))", &StopFlag::new());
+    let t0 = Instant::now();
+    let out = e.eval(&format!("work_of({src})"), &StopFlag::new()).map(|v| v.printed).unwrap_or_else(|err| err.to_string());
+    let ms = t0.elapsed().as_secs_f64() * 1e3;
+    let fuel: f64 = out.trim_start_matches('[').split(',').next().and_then(|f| f.trim().parse().ok()).unwrap_or(-1.0);
+    (ms, fuel)
+}
+
 #[test]
 fn long_special_function_evaluations_report_their_work() {
     let survey = std::env::var_os("MC_SPECIAL_WORK_SURVEY").is_some();
     let mut bad = vec![];
     for src in INPUTS {
-        // a fresh session for each (values are remembered), its start not measured
-        let mut e = CoreEngine::with_config(EngineConfig { threads: 1, ..EngineConfig::default() });
-        e.install(install);
-        let _ = e.eval("work_of(sin(1.5))", &StopFlag::new());
-        let t0 = Instant::now();
-        let out = e.eval(&format!("work_of({src})"), &StopFlag::new()).map(|v| v.printed).unwrap_or_else(|err| err.to_string());
-        let ms = t0.elapsed().as_secs_f64() * 1e3;
-        let fuel: f64 = out.trim_start_matches('[').split(',').next().and_then(|f| f.trim().parse().ok()).unwrap_or(-1.0);
+        // the fuel is the same on every run; the time of one run can be stretched by the load of the machine, so an
+        // input under the floor is measured twice more and judged by its shortest time
+        let mut best = (f64::INFINITY, 0.0);
+        for _ in 0..3 {
+            let (ms, fuel) = measure(src);
+            if ms < best.0 {
+                best = (ms, fuel);
+            }
+            if !(best.0 > 2.0 && best.1 / best.0 < FLOOR) {
+                break;
+            }
+        }
+        let (ms, fuel) = best;
         let rate = fuel / ms.max(1e-9);
         if survey {
             eprintln!("{ms:9.2} ms {fuel:10} units {rate:9.1}/ms  {src}");

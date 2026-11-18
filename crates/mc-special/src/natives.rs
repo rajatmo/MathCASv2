@@ -229,6 +229,20 @@ fn machine_by_balls(f: Special, zs: &[C64], all_complex: bool) -> Option<Mach> {
     Some(if r.is_real() || negligible { Mach::Real(re) } else { Mach::Complex(C64::new(re, im)) })
 }
 
+/// The value at machine reals from the enclosure of the real-argument ball path (the elliptic integrals of the
+/// second and third kinds beyond m = 1, whose complex values that path splits into real integrals), rounded to a
+/// machine number when it holds 14 digits.
+fn machine_by_real_balls(f: Special, xs: &[f64]) -> Option<C64> {
+    const P: u64 = 128;
+    let ball = |v: f64| mc_arith::num::float::f64_to_dyadic(v).map(|(neg, man, exp)| mc_arith::num::Ball::exact(mc_arith::num::Float::new(neg, man, exp)));
+    let args: Option<Vec<Real>> = xs.iter().map(|&x| Some(Real::Ball(ball(x)?, P))).collect();
+    let r = f.ball_value(&args?, P)?;
+    if !r.has_digits(14) {
+        return None;
+    }
+    Some(C64::new(Real::Ball(r.re.clone(), P).to_f64(), Real::Ball(r.im.clone(), P).to_f64()))
+}
+
 fn zs_by_balls(f: Special, nums: &[Option<Num>]) -> Option<Mach> {
     let zs: Option<Vec<C64>> = nums.iter().flatten().map(machine_c64).collect();
     machine_by_balls(f, &zs?, true)
@@ -389,6 +403,11 @@ impl Native for Fun {
                 }
                 if f == Special::EllipticK && xs.len() == 1 {
                     if let Some(z) = crate::fast_elliptic::elliptic_k_above_one(xs[0]) {
+                        return Some(z);
+                    }
+                }
+                if matches!(f, Special::EllipticEInc | Special::EllipticPi) {
+                    if let Some(z) = machine_by_real_balls(f, xs) {
                         return Some(z);
                     }
                 }

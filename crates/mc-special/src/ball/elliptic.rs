@@ -28,7 +28,11 @@
 //!   [phi - d, phi + d] and sn = sin, cn = cos of that ball, dn = sqrt(cn^2 + (1 - m) sn^2). m = 1 by tanh and sech,
 //!   m > 1 by the reciprocal-modulus transformation. inverse_jacobi_sn(v, m) = v R_F(1 - v^2, 1 - m v^2, 1).
 //!
-//! Every function returns `None` where the value is infinite or complex other than K and E beyond 1 (K at m = 1,
+//! - **m > 1** for F, E (incomplete) and Pi (complete, n < 1): the integral splits where 1 - m sin^2 t changes
+//!   sign; the part before is the reciprocal-modulus transformation (DLMF 19.7.4), the part after a real integral
+//!   with parameter 1 - 1/m by cos t = sqrt(1 - 1/m) sin u.
+//!
+//! Every function returns `None` where the value is infinite or complex other than the m > 1 cases (K at m = 1,
 //! F beyond pi/2 for m >= 1, poles of Pi), for machine arguments, and when the stop flag is raised.
 use super::{
     f64_of, float_of, floor_float, hull, int, is_pos, log2_up, lower, mag_up, pi, rat_ball, real, refine, upper,
@@ -846,6 +850,103 @@ pub fn elliptic_pi_inc(n: &Real, phi: &Real, m: &Real, p: u64) -> Option<CBall> 
             v = v.add(&pc.mul(&int(2 * red.j), wp), wp);
         }
         Some(real(v))
+    })
+}
+
+/// E(phi | m) for m > 1 (the side of the machine path, as for [`elliptic_f_beyond`]: m on the cut from below, so
+/// sqrt(1 - m sin^2 t) = +i sqrt(m sin^2 t - 1) where it is negative), with phi = j pi + psi. Where m sin^2 psi > 1
+/// the integral splits at t0 with sin t0 = 1/sqrt(m): the part up to t0 is real, sqrt(m) E(mu) - ((m - 1)/sqrt(m))
+/// K(mu) with mu = 1/m (sin t = sin b/sqrt(m), the reciprocal-modulus transformation, DLMF 19.7.4 at b = pi/2); the
+/// part beyond is i times the integral of sqrt(m sin^2 t - 1), which cos t = sqrt(q) sin u (q = 1 - mu) turns into
+/// ((m - 1)/sqrt(m)) times the integral of cos^2 u/sqrt(1 - q sin^2 u) from u1 to pi/2, sin u1 = cos psi/sqrt(q),
+/// that is (m (E(q) - E(u1 | q)) - (K(q) - F(u1 | q)))/sqrt(m). F(u1 | q) and E(u1 | q) are the Carlson forms with
+/// cos^2 u1 = (m sin^2 psi - 1)/(m - 1) and 1 - q sin^2 u1 = sin^2 psi, all real integrals with parameters in
+/// (0, 1), so the enclosure is rigorous. E is odd in psi, and E(phi + j pi | m) = E(psi | m) + 2 j E(m).
+pub fn elliptic_e_beyond(phi: &Real, m: &Real, p: u64) -> Option<CBall> {
+    refine(p, 32, |wp| {
+        let pb = super::real_ball(phi, wp)?;
+        let ma = arg(m, wp)?;
+        let mc = one_minus(&ma, wp);
+        if !is_neg(&mc) {
+            return None;
+        }
+        let ph = reduce(&pb, wp)?;
+        let one = int(1);
+        let s2 = sq(&ph.s, wp);
+        let c2 = sq(&ph.c, wp);
+        let a = ma.b.mul(&s2, wp).sub(&one, wp);
+        let (k1, k2, e1, e2, rt) = above_one(&ma.b, wp)?;
+        let mu = one.div(&ma.b, wp)?;
+        let q = one.sub(&mu, wp);
+        let m1 = ma.b.sub(&one, wp);
+        let part = if is_pos(&a) {
+            let sign = if is_pos(&ph.s) {
+                1
+            } else if is_neg(&ph.s) {
+                -1
+            } else {
+                return None;
+            };
+            let re = e1.mul(&ma.b, wp).sub(&m1.mul(&k1, wp), wp).div(&rt, wp)?;
+            // sin u1 = |cos psi|/sqrt(q) (cos psi >= 0 for |psi| < pi/2)
+            let su = ph.c.div(&el::sqrt(&q, wp)?, wp)?;
+            let cu2 = a.div(&m1, wp)?;
+            let f1 = su.mul(&rf_b(&cu2, &s2, &one, wp)?, wp);
+            let su3 = sq(&su, wp).mul(&su, wp);
+            let e1u = f1.sub(&su3.mul(&rd_b(&cu2, &s2, &one, wp)?, wp).mul(&q, wp).div(&int(3), wp)?, wp);
+            let im = ma.b.mul(&e2.sub(&e1u, wp), wp).sub(&k2.sub(&f1, wp), wp).div(&rt, wp)?;
+            let v = CBall::new(re, im);
+            if sign < 0 {
+                v.neg()
+            } else {
+                v
+            }
+        } else if is_neg(&a) {
+            // the real integral up to |psi| (1 - m sin^2 t > 0 on it)
+            let d2 = a.neg();
+            let s3 = s2.mul(&ph.s, wp);
+            let f = ph.s.mul(&rf_b(&c2, &d2, &one, wp)?, wp);
+            let d = s3.mul(&rd_b(&c2, &d2, &one, wp)?, wp).mul(&ma.b, wp).div(&int(3), wp)?;
+            real(f.sub(&d, wp))
+        } else {
+            return None;
+        };
+        if ph.j == 0 {
+            return Some(part);
+        }
+        let re = e1.sub(&q.mul(&k1, wp), wp).mul(&rt, wp);
+        let im = e2.sub(&mu.mul(&k2, wp), wp).mul(&rt, wp);
+        let two_j = CBall::from_i64(2 * ph.j);
+        Some(part.add(&CBall::new(re, im).mul(&two_j, wp), wp))
+    })
+}
+
+/// Pi(n | m) for m > 1 and n < 1 (m on the cut from below, as for [`elliptic_e`]): split at t0 with sin t0 =
+/// 1/sqrt(m); up to t0, sin t = sin b/sqrt(m) gives Pi(n/m | mu)/sqrt(m) with mu = 1/m (DLMF 19.7.4); beyond, where
+/// sqrt(1 - m sin^2 t) = +i sqrt(m sin^2 t - 1), cos t = sqrt(q) sin u (q = 1 - mu) gives -i Pi(N | q)/((1 - n)
+/// sqrt(m)) with N = n q/(n - 1) < 1, since 1 - n sin^2 t = (1 - n) + n q sin^2 u. Both are complete integrals of
+/// the third kind with parameters in (0, 1) and characteristics below 1. At n = 0 it is K(m) of [`elliptic_k`].
+pub fn elliptic_pi_beyond(n: &Real, m: &Real, p: u64) -> Option<CBall> {
+    refine(p, 32, |wp| {
+        let na = arg(n, wp)?;
+        let ma = arg(m, wp)?;
+        let mc = one_minus(&ma, wp);
+        let omn = one_minus(&na, wp);
+        if !is_neg(&mc) || !is_pos(&omn) {
+            return None;
+        }
+        let one = int(1);
+        let mu = one.div(&ma.b, wp)?;
+        let q = one.sub(&mu, wp);
+        if !is_pos(&mu) || !is_pos(&q) {
+            return None;
+        }
+        let rt = el::sqrt(&ma.b, wp)?;
+        let n1 = na.b.mul(&mu, wp);
+        let re = pi_complete_b(&n1, &mu, &q, &one.sub(&n1, wp), || None, wp)?.div(&rt, wp)?;
+        let nn = na.b.mul(&q, wp).div(&na.b.sub(&one, wp), wp)?;
+        let im = pi_complete_b(&nn, &q, &mu, &one.sub(&nn, wp), || None, wp)?.div(&omn.mul(&rt, wp), wp)?.neg();
+        Some(CBall::new(re, im))
     })
 }
 

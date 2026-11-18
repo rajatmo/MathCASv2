@@ -51,6 +51,8 @@ pub(crate) fn coulomb_fg(l: f64, eta: f64, rho: f64) -> Option<(f64, f64)> {
             break;
         }
     }
+    // the work: about 60 operations per double-double step of CF1 and 10 per step of the recurrence below
+    mc_api::work::charge(70 * steps as u64 + 16);
     if !converged {
         return None;
     }
@@ -80,7 +82,9 @@ pub(crate) fn coulomb_fg(l: f64, eta: f64, rho: f64) -> Option<(f64, f64)> {
     let mut g = tiny_c;
     let (mut c2, mut d2) = (g, CD::ZERO);
     let mut ok = false;
+    let mut cf2_steps = 0u64;
     for n in 1..100_000usize {
+        cf2_steps = n as u64;
         let nf = (n - 1) as f64;
         let an = (a0 + CD::f(nf)) * (b0 + CD::f(nf));
         let bn = CD::new(rme.mul_f(2.0), DD::new(2.0 * n as f64));
@@ -100,6 +104,8 @@ pub(crate) fn coulomb_fg(l: f64, eta: f64, rho: f64) -> Option<(f64, f64)> {
             break;
         }
     }
+    // about 150 operations per complex double-double step of CF2
+    mc_api::work::charge(150 * cf2_steps + 16);
     if !ok {
         return None;
     }
@@ -134,7 +140,9 @@ pub(crate) fn coulomb_f_complex(l: f64, eta: f64, rho: crate::cdd::CD) -> Option
     let mut pw = CD::ONE;
     let (mut sum, mut big) = (CD::ONE, 1.0f64);
     let mut converged = false;
+    let mut terms = 0u64;
     for j in 1..600usize {
+        terms = j as u64;
         let jf = DD::new(j as f64);
         let next = (ed.mul_f(2.0) * a - a_prev) / (jf * (jf + ld.mul_f(2.0) + DD::ONE));
         a_prev = a;
@@ -148,6 +156,7 @@ pub(crate) fn coulomb_f_complex(l: f64, eta: f64, rho: crate::cdd::CD) -> Option
             break;
         }
     }
+    mc_api::work::charge(120 * terms + 64);
     if !converged || !sum.finite() || big > 1e14 * sum.abs() {
         return None;
     }

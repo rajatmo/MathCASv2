@@ -69,6 +69,17 @@ pub(crate) struct Lib {
 /// allocation that brings the process down (decision I.6).
 pub(crate) const MAX_LEN: usize = 1 << 28;
 
+/// The bytes one element of a built list costs at its peak: the native's vector of term handles and the store's
+/// copy of it.
+pub(crate) const ELEM_BYTES: usize = 16;
+
+/// Would a list of `n` elements exceed the memory the evaluation may still allocate (the session's budget or an
+/// enclosing `memory_constrained` cap)? Asked before the list is allocated, so that a result the memory cannot hold
+/// is `failure(limit, memory, call)` and not a failed allocation that ends the process.
+pub(crate) fn over_memory(cx: &NativeCx<'_, '_, '_>, n: usize) -> bool {
+    n > MAX_LEN || n.saturating_mul(ELEM_BYTES) > cx.memory_left()
+}
+
 impl Lib {
     pub fn new(h: &Heap, stop: &Arc<AtomicBool>) -> Lib {
         Lib { s: Syms::new(h), stop: stop.clone() }

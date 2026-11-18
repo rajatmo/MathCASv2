@@ -1460,6 +1460,16 @@ fn dirichlet_exponent(k: Int, j: Int, a: Int) = {
   if zero then null else mod(r, 1)
 }
 
+# dirichlet_character(k, j, n): the value at the integer n of the character of modulus k and Conrey label j
+# (gcd(j, k) = 1): 0 when gcd(n, k) > 1, else exp(2 pi i r) with the exponent of dirichlet_exponent; modulus 1 is the
+# constant 1; lists of n thread
+rule dirichlet_character(k_, j_, ns_) := map(n => dirichlet_character(k, j, n), ns) when is_list(ns)
+rule dirichlet_character(1, j_, a_) := 1 when is_integer(j) and is_integer(a)
+rule dirichlet_character(k_, j_, a_) := {
+  let r = dirichlet_exponent(k, j, a)
+  if r === null then 0 else exp(2*pi*sqrt(-1)*r)
+} when is_integer(k) and k > 1 and is_integer(j) and gcd(j, k) == 1 and is_integer(a)
+
 # dirichlet_l(k, j, s): the Dirichlet L-function of the character of modulus k and Conrey label j (gcd(j, k) = 1),
 # k^(-s) times the sum over a of chi(a) zeta(s, a/k) (Hurwitz zeta values); k = 1 is the zeta function. Evaluated for
 # inexact s at machine precision, symbolic otherwise; lists of s thread

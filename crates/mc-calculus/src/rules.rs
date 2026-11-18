@@ -51,7 +51,7 @@ fn one_plus_sq<'h>(b: &Build<'h>, u: T<'h>, s: i64) -> T<'h> {
 
 /// `if cmp(a0, a1) then 1 else 0` (`first`) or `if cmp(a0, a1) then 0 else 1`.
 fn pick<'h>(b: &Build<'h>, cmp: &str, a: &[T<'h>], first: bool) -> T<'h> {
-    let c = b.call(cmp, &[a[0], a[1]]);
+    let c = b.compare(cmp, a[0], a[1]);
     let (t, f) = if first { (b.one(), b.zero()) } else { (b.zero(), b.one()) };
     b.call("if", &[c, t, f])
 }

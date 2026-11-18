@@ -532,6 +532,7 @@ symmetric_polynomial	symbolic	Number sequences	symmetric_polynomial(k, xs): the 
 residue	symbolic	Number sequences	residue(f, [x, a]): the residue of f at x = a
 riemann_r	symbolic	Number sequences	riemann_r(x): Riemann's prime counting function R(x), for inexact x
 dirichlet_l	symbolic	Number sequences	dirichlet_l(k, j, s): the Dirichlet L-function of the character with modulus k and Conrey label j
+dirichlet_character	symbolic	Number sequences	dirichlet_character(k, j, n): the value at n of the Dirichlet character with modulus k and Conrey label j
 fox_h	symbolic	Further functions	fox_h([[an], [ap]], [[bm], [bq]], z): the Fox H function of the parameter pairs [a_j, A_j], [b_j, B_j]
 fox_h_reduce	symbolic	Further functions	fox_h_reduce(e, x): e as a combination of inactive Fox H functions of x (for x > 0)
 meijer_g_reduce	symbolic	Further functions	meijer_g_reduce(e, x): e as a combination of inactive Meijer G functions of x (for x > 0)

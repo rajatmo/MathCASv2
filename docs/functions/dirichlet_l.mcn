@@ -7,6 +7,12 @@
 # `dirichlet_l(k, j, s)` gives the Dirichlet L-function of the character with modulus `k` and Conrey label `j`: `k^(-s)` times the sum of `chi(a) zeta(s, a/k)`. Evaluated for inexact `s` (machine precision); `k = 1` is the zeta function.
 
 #% section
+# Details
+
+#% item
+# The characters are labelled as Conrey does (`dirichlet_character` states the construction): label 1 is the principal character, and modulo 8 the labels 3, 5 and 7 are the characters (-8/n), (8/n) and the one induced from the odd character modulo 4. Other systems number the characters of a modulus 1, 2, ..., euler_phi(k) in their own order, so the same index can name another character.
+
+#% section
 # Examples
 
 #% subsection

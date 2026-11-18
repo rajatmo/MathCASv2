@@ -148,7 +148,7 @@ pub(crate) fn catenate<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
         charge_copy(cx, out.len())?;
         return Ok(Reply::Done(cx.list(&out)));
     }
-    if total > MAX_LEN {
+    if crate::ctx::over_memory(cx, total) {
         return Ok(Reply::Done(lib.too_large(h, t)));
     }
     charge_copy(cx, total)?;
@@ -633,7 +633,7 @@ pub(crate) fn constant_array<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<
     let [c, ds] = *args else { return Ok(Reply::Decline) };
     let ds = take!(dims_operand(lib, h, t, ds, 2));
     // the rows are shared, but rows of machine numbers are packed into one array of all the cells
-    if cells(&ds) > MAX_CELLS {
+    if cells(&ds) > MAX_CELLS || crate::ctx::over_memory(cx, cells(&ds) as usize) {
         return Ok(Reply::Done(lib.too_large(h, t)));
     }
     let mut v = c;

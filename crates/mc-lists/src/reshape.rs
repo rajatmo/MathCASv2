@@ -68,7 +68,7 @@ pub(crate) fn join<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
         parts.push(xs);
     }
     let n: usize = parts.iter().map(|p| p.len()).sum();
-    if n > MAX_LEN {
+    if crate::ctx::over_memory(cx, n) {
         return Ok(Reply::Done(lib.too_large(h, t)));
     }
     charge_copy(cx, n)?;
@@ -225,7 +225,7 @@ pub(crate) fn flatten<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
         match h.view(x) {
             View::App { head: g, args } if g == splice && d < depth => stack.push((args, 0, d + 1)),
             _ => {
-                if out.len() == MAX_LEN {
+                if out.len() == out.capacity() && crate::ctx::over_memory(cx, out.len().saturating_mul(2).max(16)) {
                     return Ok(Reply::Done(lib.too_large(h, t)));
                 }
                 out.push(x);
@@ -317,7 +317,7 @@ fn transpose_levels<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a: T
         out_dims[q] = out_dims[q].min(dims[l]);
     }
     let total: usize = out_dims.iter().try_fold(1usize, |acc, &d| acc.checked_mul(d)).unwrap_or(usize::MAX);
-    if total > MAX_LEN {
+    if crate::ctx::over_memory(cx, total) {
         return Ok(Reply::Done(lib.too_large(h, t)));
     }
     charge_copy(cx, total)?;

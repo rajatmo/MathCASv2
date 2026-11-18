@@ -131,7 +131,11 @@ impl Native for MemoryConstrained {
             k.mem_cap.store(outer, Ordering::Relaxed);
         }
         // the arena grows by whole chunks: a small value is measured by its own size
-        let over = h.young_bytes() > cap || matches!(&r, Ok(v) if term_bytes(h, *v, bytes as usize) > bytes as usize);
+        // a builder that refused a result beyond the memory left (`failure(limit, memory, call)`, decided before it
+        // allocated) under our cap counts as going over it
+        let over = h.young_bytes() > cap
+            || matches!(&r, Ok(v) if term_bytes(h, *v, bytes as usize) > bytes as usize)
+            || matches!(&r, Ok(v) if mine && is_memory_failure(h, *v));
         match r {
             Ok(_) if over => failed(cx, fail, "memory"),
             Ok(v) => Ok(Reply::Done(v)),
@@ -142,6 +146,15 @@ impl Native for MemoryConstrained {
             }
             Err(a) => Err(a),
         }
+    }
+}
+
+/// Is `t` the term `failure(limit, memory, ...)`?
+fn is_memory_failure<'h>(h: &'h Heap, t: T<'h>) -> bool {
+    let name = |u: T<'h>, n: &str| matches!(h.view(u), View::Sym(s) if h.sym_name(s) == n);
+    match h.view(t) {
+        View::App { head, args } => name(head, "failure") && args.len() >= 2 && name(args[0], "limit") && name(args[1], "memory"),
+        _ => false,
     }
 }
 

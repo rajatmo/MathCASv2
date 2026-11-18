@@ -18,6 +18,9 @@
 #% item
 # Machine numbers, balls and complex numbers give numerical values; `n > 1` takes the Cauchy principal value.
 
+#% item
+# For `m > 1` the value is complex, on the cut from below as for `elliptic_k`: up to the angle where `m*sin(t)^2 = 1` the integral is real, beyond it `sqrt(1 - m*sin(t)^2)` is `i*sqrt(m*sin(t)^2 - 1)`.
+
 #% section
 # Examples
 
@@ -49,6 +52,14 @@ elliptic_pi(0.3, pi/4, 0.5)
 n_integrate(1/((1 - 0.3*sin(t)^2)*sqrt(1 - 0.5*sin(t)^2)), [t, 0, pi/2]) - elliptic_pi(0.3, 0.5)
 #% output
 #= 0.0
+
+#% text
+# A parameter beyond 1:
+
+#% cell
+n(elliptic_pi(1/2, 3/2))
+#% output
+#= 2.0855461250249028 - 2.4344171414321125im
 
 #% section
 # See also

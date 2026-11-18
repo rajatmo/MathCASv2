@@ -204,7 +204,7 @@ impl RandomNative {
 }
 
 impl Native for RandomNative {
-    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let (job, dims) = match self.job(cx, args)? {
             Ok(v) => v,
             Err(reply) => return Ok(reply),
@@ -242,6 +242,12 @@ impl Native for RandomNative {
             _ => {}
         }
         let n: usize = dims.as_ref().map_or(1, |d| d.iter().product());
+        // the leaves and the store's copy of them, against the memory the evaluation may still allocate: a result
+        // the memory cannot hold is `failure(limit, memory, call)` before anything is drawn
+        if n.saturating_mul(16) > cx.memory_left() {
+            let tags = [h.sym_term(h.sym("limit")), h.sym_term(h.sym("memory")), t];
+            return Ok(Reply::Done(h.call(h.sym("failure"), &tags)));
+        }
         // the draws, in the stream's order; machine numbers as plain leaves (decision P.1: the result is built
         // from them as one payload, never as element terms)
         let leaves = {

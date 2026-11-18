@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# dirichlet_character
+
+#% text
+# `dirichlet_character(k, j, n)` gives the value at the integer `n` of the Dirichlet character with modulus `k` and Conrey label `j` (an integer coprime to `k`): 0 when `n` shares a factor with `k`, otherwise a root of unity. Lists of `n` thread.
+
+#% section
+# Details
+
+#% item
+# The labelling is Conrey's: for an odd prime power q = p^e with g the least primitive root modulo q, the character with label j takes the value exp(2 pi i ind(j) ind(n)/phi(q)) at n, ind the index (discrete logarithm) to the base g; modulo 2^e (e >= 3) j and n are written as (-1)^a 5^b and the value is exp(2 pi i (a(j) a(n)/2 + b(j) b(n)/2^(e - 2))); modulo 4 only the sign part enters and modulo 2 the value is 1. A modulus with several prime powers takes the product of the characters of its prime powers, with j and n reduced modulo each.
+
+#% item
+# Label 1 is the principal character. Conrey's labels are symmetric: `dirichlet_character(k, j, n)` equals `dirichlet_character(k, n, j)` when both j and n are coprime to k, and the characters of one modulus are orthogonal: the sum over n of chi_j(n) times the conjugate of chi_l(n) is euler_phi(k) for j = l and 0 otherwise.
+
+#% item
+# `dirichlet_l(k, j, s)` is the L-function of the same character.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+dirichlet_character(8, 3, range(8))
+#% output
+#= [1, 0, 1, 0, -1, 0, -1, 0]
+
+#% cell
+dirichlet_character(5, 2, range(5))
+#% output
+#= [1, im, -im, -1, 0]
+
+#% text
+# Orthogonality of the four characters modulo 8:
+
+#% cell
+table(sum(dirichlet_character(8, j, n)*conjugate(dirichlet_character(8, l, n)), [n, 8]), [j, [1, 3, 5, 7]], [l, [1, 3, 5, 7]])
+#% output
+#= [[4, 0, 0, 0], [0, 4, 0, 0], [0, 0, 4, 0], [0, 0, 0, 4]]
+
+#% text
+# The character induced from the odd character modulo 4 has label 7 modulo 8; its L-function has the zeros of that character, the first above 6 being near 6.0209 i on the critical line:
+
+#% cell
+find_root(dirichlet_l(8, 7, t) == 0, [t, 1/2 + 6*im])
+#% output
+#= [t -> 0.4999999999999992 + 6.020948904697597im]
+
+#% section
+# See also
+
+#% text
+# `dirichlet_l`, `euler_phi`, `primitive_root`

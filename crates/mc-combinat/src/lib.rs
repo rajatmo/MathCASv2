@@ -78,6 +78,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("residue", "residue(f, [x, a]): the residue of f at x = a"),
     ("riemann_r", "riemann_r(x): Riemann's prime counting function R(x), for inexact x"),
     ("dirichlet_l", "dirichlet_l(k, j, s): the Dirichlet L-function of the character with modulus k and Conrey label j"),
+    ("dirichlet_character", "dirichlet_character(k, j, n): the value at n of the Dirichlet character with modulus k and Conrey label j"),
 ];
 
 /// Register the natives with `k`.

@@ -103,7 +103,7 @@ pub(crate) fn range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     let Some(n) = count(&a, &b, &s) else {
         return Ok(Reply::Done(lib.too_large(h, t)));
     };
-    if n > MAX_LEN {
+    if crate::ctx::over_memory(cx, n) {
         return Ok(Reply::Done(lib.too_large(h, t)));
     }
     // the elements in the most inexact kind of the three (a ball at the largest precision)
@@ -167,7 +167,7 @@ fn int_range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a: i64, b: 
     }
     let span = b as i128 - a as i128;
     let n: i128 = if (span < 0) != (s < 0) && span != 0 { 0 } else { span / s as i128 + 1 };
-    if n > MAX_LEN as i128 {
+    if n > MAX_LEN as i128 || crate::ctx::over_memory(cx, n as usize) {
         return Ok(Reply::Done(lib.too_large(h, t)));
     }
     let n = n as usize;
@@ -199,6 +199,9 @@ pub(crate) fn array<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
         _ => return Ok(Reply::Decline),
     };
     let ds = take!(dims_operand(lib, h, t, n, 2));
+    if crate::ctx::over_memory(cx, crate::ctx::cells(&ds) as usize) {
+        return Ok(Reply::Done(lib.too_large(h, t)));
+    }
     // each dimension's indices: from 1, from the origin given (`array(f, 3, 0)` is [f(0), f(1), f(2)]), or d
     // equally spaced points of a range [a, b] (`array(f, 5, [2, 14])`)
     let int = |r: T<'h>| match h.view(r) {
@@ -319,7 +322,7 @@ fn iterator_values<'h>(
         return Ok(Ok(xs.to_vec()));
     }
     Ok(match h.view(r) {
-        View::Int(n) if n as i128 > MAX_CELLS as i128 => Err(Reply::Done(lib.too_large(h, t))),
+        View::Int(n) if n as i128 > MAX_CELLS as i128 || crate::ctx::over_memory(cx, n.max(0) as usize) => Err(Reply::Done(lib.too_large(h, t))),
         View::Int(n) => {
             crate::ctx::charge_copy(cx, n.max(0) as usize)?;
             Ok((1..=n).map(|i| h.int(i)).collect())
@@ -447,7 +450,7 @@ pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
                 return Ok(Reply::Done(n));
             }
             let n = take!(count_operand(lib, h, t, n, 2));
-            if n as u128 > MAX_CELLS {
+            if n as u128 > MAX_CELLS || crate::ctx::over_memory(cx, n) {
                 return Ok(Reply::Done(lib.too_large(h, t)));
             }
             let elem = |cx: &mut NativeCx<'_, '_, 'h>, _| {

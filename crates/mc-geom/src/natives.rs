@@ -1355,6 +1355,15 @@ fn subst<'h>(e: E<'h>, f: T<'h>, vars: &[T<'h>], x: &[T<'h>]) -> T<'h> {
     e.f("rewrite", &[f, e.list(&rules)])
 }
 
+/// Does `t` contain the term `x`?
+fn mentions<'h>(h: &'h Heap, t: T<'h>, x: T<'h>) -> bool {
+    t == x
+        || match h.view(t) {
+            View::App { head, args } => mentions(h, head, x) || args.iter().any(|&a| mentions(h, a, x)),
+            _ => false,
+        }
+}
+
 fn region_integrate<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let e = E { h };
@@ -1371,6 +1380,14 @@ fn region_integrate<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply
         None => vec![vars],
     };
     let Some(r) = read(cx, rt) else { return Ok(Reply::Decline) };
+    // one symbol for a point of a region of several dimensions (`element(x, ball(3))`): an integrand free of it is a
+    // constant, whose integral is the constant times the measure
+    if let [x] = vars[..] {
+        if r.embedding() > 1 && syms(h, &vars).is_some() && !mentions(h, f, x) {
+            let m = h.call(h.sym("region_measure"), &[rt]);
+            return Ok(Reply::Again(h.call(h.sym(mc_api::names::MUL), &[f, m])));
+        }
+    }
     if vars.len() != r.embedding() || syms(h, &vars).is_none() {
         return Ok(Reply::Decline);
     }

@@ -120,6 +120,28 @@ impl<'h> Build<'h> {
     pub fn call(&self, name: &str, args: &[T<'h>]) -> T<'h> {
         self.h.call(self.h.sym(name), args)
     }
+    /// The order comparison `name(a, b)` (`less`, `greater`, `less_equal`, `greater_equal`) of a single condition,
+    /// written with the term on the left when the other side is a number (`greater_equal(2, x)` is `x <= 2`): the
+    /// operands often come from an orderless call such as `max(2, x)`, whose numbers sort first. (The two sides of
+    /// an interval keep the form `a < x and x < b`.)
+    pub fn compare(&self, name: &str, a: T<'h>, b: T<'h>) -> T<'h> {
+        let mirror = match name {
+            "less" => "greater",
+            "greater" => "less",
+            "less_equal" => "greater_equal",
+            "greater_equal" => "less_equal",
+            _ => name,
+        };
+        if self.is_number(a) && !self.is_number(b) {
+            self.call(mirror, &[b, a])
+        } else {
+            self.call(name, &[a, b])
+        }
+    }
+    /// Is `t` a number (not a symbolic constant such as `pi`)?
+    fn is_number(&self, t: T<'h>) -> bool {
+        matches!(self.h.view(t), View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. })
+    }
     /// The term of symbol `s`.
     pub fn sym(&self, s: Sym) -> T<'h> {
         self.h.sym_term(s)

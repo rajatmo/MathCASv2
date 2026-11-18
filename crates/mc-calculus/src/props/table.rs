@@ -993,8 +993,11 @@ pub static TABLE: &[Entry] = &[
     // Coulomb wave functions: H+- = G +- i F are not real on the line (DLMF 33.2.7)
     Entry { name: "coulomb_h1", arity: 3, var: 2, real: "false", sr: Some(&[("true", BR)]), refs: "DLMF 33.2.7", ..E },
     Entry { name: "coulomb_h2", arity: 3, var: 2, real: "false", sr: Some(&[("true", BR)]), refs: "DLMF 33.2.7", ..E },
-    // F_l(eta, rho) = C_l(eta) rho^(l + 1) e^(-i rho) M(l + 1 - i eta, 2 l + 2, 2 i rho): real for rho > 0, for rho < 0
-    // when l is an integer, finite at 0 for l >= -1 (DLMF 33.2.4)
+    // F_l(eta, rho) = C_l(eta) rho^(l + 1) e^(-i rho) M(l + 1 - i eta, 2 l + 2, 2 i rho): for an integer l >= 0 and a
+    // real eta, rho^(l + 1) times a power series in rho with real coefficients (DLMF 33.2.4, 33.6.5: the coefficients
+    // of the Maclaurin series follow a real three-term recurrence), so entire and real on the line; otherwise real for
+    // rho > 0, for rho < 0 when l is an integer, finite at 0 for l >= -1
+    Entry { name: "coulomb_f", arity: 3, var: 2, when: "element($a, integers) and $a >= 0 and element($b, reals)", refs: "DLMF 33.2.4, 33.6.5", ..ENTIRE },
     Entry {
         name: "coulomb_f",
         arity: 3,

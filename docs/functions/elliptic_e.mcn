@@ -18,6 +18,9 @@
 #% item
 # Machine numbers, balls and complex numbers give numerical values. `elliptic_e` is listable.
 
+#% item
+# For `m > 1` the values are complex where `m*sin(t)^2` passes 1 on the path, on the cut from below as for `elliptic_k`: there `sqrt(1 - m*sin(t)^2)` is `i*sqrt(m*sin(t)^2 - 1)`.
+
 #% section
 # Examples
 
@@ -84,6 +87,14 @@ elliptic_e(pi*1.0, 0.5) - 2*elliptic_e(0.5)
 2*elliptic_e(0.5)*elliptic_k(0.5) - elliptic_k(0.5)^2 - pi/2
 #% output
 #= 0.0
+
+#% text
+# The incomplete integral with a parameter beyond 1:
+
+#% cell
+n(elliptic_e(1, 3/2))
+#% output
+#= 0.7163119387000892 + 0.00745060876774358im
 
 #% section
 # See also
