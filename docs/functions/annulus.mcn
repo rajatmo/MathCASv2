@@ -7,6 +7,12 @@
 # `annulus(c, [r0, r1])` is the ring between the circles of radii `r0` and `r1` about `c`: a primitive of graphics and a region.
 
 #% section
+# Details
+
+#% item
+# `annulus()` is `annulus([0, 0], [1/2, 1])`, `annulus(c)` the ring of radii 1/2 and 1 about `c`, and `annulus(r)` the ring between the circles of radii `r/2` and `r` about the origin.
+
+#% section
 # Examples
 
 #% subsection
@@ -21,6 +27,11 @@ graphics([orange, annulus([0, 0], [1, 2])])
 region_measure(annulus([0, 0], [1, 2]))
 #% output
 #= 3*pi
+
+#% cell
+annulus()
+#% output
+#= annulus([0, 0], [1/2, 1])
 
 #% cell
 region_member(annulus(), [3/4, 0])

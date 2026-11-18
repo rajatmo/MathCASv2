@@ -24,15 +24,113 @@ pub fn eliminate(p: &Problem, m: &mut Meter) -> WorkResult<Option<Problem>> {
     let mut changed = false;
     while cur.nv > cur.nfree {
         let x = cur.nv - 1;
+        let q = cur.quants[cur.nv - cur.nfree - 1];
         if !cur.atoms.iter().all(|a| a.den.is_constant() && a.num.degree(x).unwrap_or(0) <= 1) {
+            // a quadratic equation alone in its conjunction, when another quantifier follows (decision CAD.24)
+            if cur.nv - cur.nfree >= 2 {
+                if let Some(next) = quadratic_step(&cur, x, q, m)? {
+                    cur = next;
+                    changed = true;
+                    continue;
+                }
+            }
             break;
         }
-        let q = cur.quants[cur.nv - cur.nfree - 1];
         let Some(next) = step(&cur, x, q, m)? else { break };
         cur = next;
         changed = true;
     }
     Ok(changed.then_some(cur))
+}
+
+/// One elimination of the last variable `x` when, in negation normal form (of the negation for `for_all`), every
+/// disjunct is a conjunction in which `x` occurs only in atoms: one equation of degree at most 2 in `x`, or any
+/// number of `!=` atoms. Then `exists x: a x^2 + b x + c == 0` is `a != 0 and b^2 - 4 a c >= 0 or a == 0 and b != 0
+/// or a == b == c == 0`, and `exists x: p_1 != 0 and ...` holds exactly when no `p_i` vanishes identically in `x`
+/// (a nonzero polynomial has finitely many roots), so some coefficient of each is nonzero (Weispfenning 1997, the
+/// equation case of quadratic virtual substitution).
+fn quadratic_step(p: &Problem, x: usize, q: Quant, m: &mut Meter) -> WorkResult<Option<Problem>> {
+    let nv = p.nv;
+    if !p.atoms.iter().all(|a| a.den.is_constant()) {
+        return Ok(None);
+    }
+    let mut atoms = vec![];
+    let f = simplify(nnf(&p.matrix, &p.atoms, q == Quant::ForAll, &mut atoms));
+    let has_x = |i: usize| atoms[i].num.degree(x).unwrap_or(0) > 0;
+    fn free_of(f: &Fm, has_x: &dyn Fn(usize) -> bool) -> bool {
+        match f {
+            Fm::Const(_) => true,
+            Fm::Atom(i) => !has_x(*i),
+            Fm::Not(g) => free_of(g, has_x),
+            Fm::And(v) | Fm::Or(v) => v.iter().all(|g| free_of(g, has_x)),
+        }
+    }
+    fn copy(f: &Fm, atoms: &[PAtom], s: &mut Sub, nv: usize) -> Fm {
+        match f {
+            Fm::Const(b) => Fm::Const(*b),
+            Fm::Atom(i) => s.atom(drop_last(&atoms[*i].num, nv), atoms[*i].rel),
+            Fm::Not(g) => Fm::negation(copy(g, atoms, s, nv)),
+            Fm::And(v) => Fm::And(v.iter().map(|g| copy(g, atoms, s, nv)).collect()),
+            Fm::Or(v) => Fm::Or(v.iter().map(|g| copy(g, atoms, s, nv)).collect()),
+        }
+    }
+    let disjuncts: Vec<Fm> = match &f {
+        Fm::Or(v) => v.clone(),
+        g => vec![g.clone()],
+    };
+    let mut s = Sub { nv: nv - 1, atoms: vec![] };
+    let mut ors = vec![];
+    for d in &disjuncts {
+        m.step(atoms.len() as u64 + 1)?;
+        let parts: Vec<Fm> = match d {
+            Fm::And(v) => v.clone(),
+            g => vec![g.clone()],
+        };
+        let mut rest = vec![];
+        let mut xs: Vec<usize> = vec![];
+        for g in &parts {
+            if free_of(g, &has_x) {
+                rest.push(copy(g, &atoms, &mut s, nv));
+            } else if let Fm::Atom(i) = g {
+                xs.push(*i);
+            } else {
+                return Ok(None);
+            }
+        }
+        let eqs: Vec<usize> = xs.iter().copied().filter(|&i| atoms[i].rel == Rel::Eq).collect();
+        let nes = xs.iter().all(|&i| atoms[i].rel == Rel::Ne);
+        if nes {
+            for &i in &xs {
+                let cs = coeffs(&atoms[i].num, x);
+                rest.push(Fm::Or(cs.iter().map(|c| s.atom(drop_last(c, nv), Rel::Ne)).collect()));
+            }
+        } else if eqs.len() == 1 && xs.len() == 1 && atoms[eqs[0]].num.degree(x).unwrap_or(0) <= 2 {
+            let cs = coeffs(&atoms[eqs[0]].num, x);
+            let z = Poly::zero(nv);
+            let get = |k: usize| drop_last(cs.get(k).unwrap_or(&z), nv);
+            let (a, b, c) = (get(2), get(1), get(0));
+            let disc = b.mul(&b, m)?.sub(&a.mul(&c, m)?.mul(&Poly::constant(nv - 1, Z::from_i128(4)), m)?);
+            let two = Fm::And(vec![s.atom(a.clone(), Rel::Ne), s.atom(disc, Rel::Ge)]);
+            let one = Fm::And(vec![s.atom(a.clone(), Rel::Eq), s.atom(b.clone(), Rel::Ne)]);
+            let all = Fm::And(vec![s.atom(a, Rel::Eq), s.atom(b, Rel::Eq), s.atom(c, Rel::Eq)]);
+            rest.push(Fm::Or(vec![two, one, all]));
+        } else {
+            return Ok(None);
+        }
+        ors.push(Fm::And(rest));
+        if s.atoms.len() > MAX_ATOMS {
+            return Ok(None);
+        }
+    }
+    let mut matrix = simplify(Fm::Or(ors));
+    if q == Quant::ForAll {
+        let mut na = vec![];
+        matrix = nnf(&matrix, &s.atoms, true, &mut na);
+        s.atoms = na;
+    }
+    let mut quants = p.quants.clone();
+    quants.pop();
+    Ok(Some(Problem { nv: nv - 1, nfree: p.nfree, quants, atoms: s.atoms, matrix }))
 }
 
 struct Sub {

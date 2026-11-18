@@ -757,8 +757,23 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
         }
         // the empty region draws nothing
         ("empty_region", [n]) if matches!(h.view(*n), View::Int(2)) => Shape::Polygon(vec![]),
+        // annulus(r): the ring between the radii r/2 and r about the origin
+        ("annulus", [r]) if number(h, *r).is_some_and(|r| r > 0.0) => {
+            let r = number(h, *r).unwrap_or(1.0);
+            let ring = |q: f64| -> Vec<Pt> {
+                (0..128)
+                    .map(|k| {
+                        let a = std::f64::consts::TAU * k as f64 / 128.0;
+                        Pt { x: q * a.cos(), y: q * a.sin(), scaled: false }
+                    })
+                    .collect()
+            };
+            // the inner circle clockwise, so that the (non-zero) fill leaves it out
+            Shape::Polygon(vec![ring(r), ring(r / 2.0).into_iter().rev().collect()])
+        }
         ("annulus", _) if args.len() <= 3 => {
-            // the ring between two circles: two rings, filled even-odd
+            // the ring between two circles: the outer anticlockwise, the inner clockwise (the non-zero fill leaves the
+            // inside out)
             let c = match args.first() {
                 Some(&c) => point(h, c, 1)?,
                 None => origin,
@@ -794,7 +809,7 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
                     out.extend(ring(r0).into_iter().rev());
                     Shape::Polygon(vec![out])
                 }
-                None => Shape::Polygon(vec![ring(r1), ring(r0)]),
+                None => Shape::Polygon(vec![ring(r1), ring(r0).into_iter().rev().collect()]),
             }
         }
         ("text", [e]) => Shape::Text { label: Label::of(h, *e), at: origin, offset: (0.0, 0.0) },
@@ -816,7 +831,8 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
             };
             Shape::Ellipse { c, r, arc, filled: name == "disk" }
         }
-        ("text", [e, p, rest @ ..]) if rest.len() <= 1 => {
+        // text(e, p, offset, direction): the direction of the baseline is not drawn (the text stays horizontal)
+        ("text", [e, p, rest @ ..]) if rest.len() <= 2 => {
             let at = point(h, *p, 2)?;
             let offset = match rest.first() {
                 // automatic: centred on the position
@@ -912,12 +928,14 @@ fn with_holes<S: Store + ?Sized>(h: &S, pts: Option<Vec<Pt>>, r: T<'_>) -> Resul
 
 
 /// An unbounded object of the plane, cut to the plot range once it is known: 0 a line, 1 a ray (`half_line`), 3
-/// a half-plane (on the side of its second direction).
+/// a half-plane (on the side of its second direction), 4 a wedge between two rays, 5 the whole plane.
 pub(crate) struct Unbounded {
     kind: u8,
     p: (f64, f64),
     dirs: Vec<(f64, f64)>,
     style: usize,
+    /// positions given in scaled coordinates: `p` and `dirs` are worked out from them in the plot range
+    raw: Option<Raw>,
 }
 
 fn xy<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<(f64, f64)> {
@@ -941,29 +959,113 @@ fn unbounded<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>], style: usize)
         "half_plane" => 3,
         _ => return None,
     };
-    let sub = |a: (f64, f64), b: (f64, f64)| (a.0 - b.0, a.1 - b.1);
-    let (p, dirs) = match args {
+    let sxys = |t: T<'_>| -> Option<Vec<Sp>> { list(h, t)?.iter().map(|&p| sxy(h, p)).collect() };
+    let raw = match args {
         [pts] => {
-            let ps = xys(h, *pts)?;
-            let &[a, b] = ps.as_slice() else { return None };
-            (a, vec![sub(b, a)])
+            let ps = sxys(*pts)?;
+            if ps.len() != 2 {
+                return None;
+            }
+            Raw { pts: ps, vecs: vec![] }
         }
-        [pts, w] if kind == 3 && xys(h, *pts).is_some_and(|v| v.len() == 2) => {
-            let ps = xys(h, *pts)?;
-            (ps[0], vec![sub(ps[1], ps[0]), xy(h, *w)?])
-        }
-        [p, v] => (xy(h, *p)?, vec![xy(h, *v)?]),
-        [p, v, w] => (xy(h, *p)?, vec![xy(h, *v)?, xy(h, *w)?]),
+        [pts, w] if kind == 3 && sxys(*pts).is_some_and(|v| v.len() == 2) => Raw { pts: sxys(*pts)?, vecs: vec![sxy(h, *w)?] },
+        [p, v] => Raw { pts: vec![sxy(h, *p)?], vecs: vec![sxy(h, *v)?] },
+        [p, v, w] => Raw { pts: vec![sxy(h, *p)?], vecs: vec![sxy(h, *v)?, sxy(h, *w)?] },
         _ => return None,
     };
+    if raw.pts.iter().chain(raw.vecs.iter()).any(|s| s.f != (0.0, 0.0) || s.origin) {
+        // positions in scaled coordinates: worked out once the plot range is known
+        let want = if kind == 3 { 2 } else { 1 };
+        return (raw.pts.len() + raw.vecs.len() == want + 1).then_some(Unbounded { kind, p: (f64::NAN, f64::NAN), dirs: vec![], style, raw: Some(raw) });
+    }
+    let (p, dirs) = raw.resolve([(0.0, 1.0), (0.0, 1.0)]);
     let want = if kind == 3 { 2 } else { 1 };
-    (dirs.len() == want && dirs[0] != (0.0, 0.0)).then_some(Unbounded { kind, p, dirs, style })
+    (dirs.len() == want && dirs[0] != (0.0, 0.0)).then_some(Unbounded { kind, p, dirs, style, raw: None })
+}
+
+/// A position or vector of the plane: `a` plus the fractions `f` of the plot range's width and height, from the
+/// range's lower left corner when `origin` (`scaled([u, v])`), else as a shift (`scaled(d, pos)`, a scaled vector).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Sp {
+    a: (f64, f64),
+    f: (f64, f64),
+    origin: bool,
+}
+
+fn sxy<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Sp> {
+    if let Some(a) = xy(h, t) {
+        return Some(Sp { a, f: (0.0, 0.0), origin: false });
+    }
+    match head_name(h, t)? {
+        (n, &[d]) if n == "scaled" => Some(Sp { a: (0.0, 0.0), f: xy(h, d)?, origin: true }),
+        (n, &[d, p]) if n == "scaled" => Some(Sp { a: xy(h, p)?, f: xy(h, d)?, origin: false }),
+        _ => None,
+    }
+}
+
+/// The positions and vectors an unbounded object was given: two points (the second gives the first direction)
+/// or one, then the vectors.
+pub(crate) struct Raw {
+    pts: Vec<Sp>,
+    vecs: Vec<Sp>,
+}
+
+impl Raw {
+    /// The base point and the directions in the plot range `b`.
+    fn resolve(&self, b: [(f64, f64); 2]) -> ((f64, f64), Vec<(f64, f64)>) {
+        let (w, ht) = (b[0].1 - b[0].0, b[1].1 - b[1].0);
+        let vec = |s: &Sp| (s.a.0 + s.f.0 * w, s.a.1 + s.f.1 * ht);
+        let pos = |s: &Sp| {
+            let v = vec(s);
+            if s.origin {
+                (v.0 + b[0].0, v.1 + b[1].0)
+            } else {
+                v
+            }
+        };
+        let p = pos(&self.pts[0]);
+        let mut dirs = vec![];
+        if let Some(q) = self.pts.get(1) {
+            let q = pos(q);
+            dirs.push((q.0 - p.0, q.1 - p.1));
+        }
+        dirs.extend(self.vecs.iter().map(vec));
+        (p, dirs)
+    }
 }
 
 /// `conic_hull_region([p, q1, ..., qk])` and `conic_hull_region([p], [v1, ...])` (one apex, the rays `q_i - p` or
 /// `v_i`) in the plane: a ray (one direction), or the wedge between the two extreme rays (kind 4); a cone of
 /// directions that spans half the plane or more is not drawn.
 fn cone<S: Store + ?Sized>(h: &S, args: &[T<'_>], style: usize) -> Option<Unbounded> {
+    if let [p, vs, ws] = args {
+        // conic_hull_region(p, [v1, ...], [w1, ...]): p + sum a_i v_i + sum b_j w_j, a_i real and b_j >= 0
+        let apex = match xys(h, *p) {
+            Some(v) if v.len() == 1 => v[0],
+            _ => xy(h, *p)?,
+        };
+        let nonzero = |v: Vec<(f64, f64)>| -> Vec<(f64, f64)> { v.into_iter().filter(|r| *r != (0.0, 0.0)).collect() };
+        let lines = nonzero(xys(h, *vs)?);
+        let rays = nonzero(xys(h, *ws)?);
+        let Some(&v) = lines.first() else {
+            return cone(h, &[*p, *ws], style);
+        };
+        let scale = (v.0 * v.0 + v.1 * v.1).sqrt();
+        let n = (-v.1 / scale, v.0 / scale);
+        let side = |w: &(f64, f64)| (n.0 * w.0 + n.1 * w.1) / (w.0 * w.0 + w.1 * w.1).sqrt();
+        let eps = 1e-12;
+        let up = lines.iter().chain(rays.iter()).any(|w| side(w) > eps);
+        let down = lines.iter().chain(rays.iter()).any(|w| side(w) < -eps);
+        // two independent lines span the plane
+        let spans = lines.iter().any(|w| side(w).abs() > eps);
+        return Some(match (up, down) {
+            _ if spans => Unbounded { kind: 5, p: apex, dirs: vec![v], style, raw: None },
+            (true, true) => Unbounded { kind: 5, p: apex, dirs: vec![v], style, raw: None },
+            (true, false) => Unbounded { kind: 3, p: apex, dirs: vec![v, n], style, raw: None },
+            (false, true) => Unbounded { kind: 3, p: apex, dirs: vec![v, (-n.0, -n.1)], style, raw: None },
+            (false, false) => Unbounded { kind: 0, p: apex, dirs: vec![v], style, raw: None },
+        });
+    }
     let (apex, rays): ((f64, f64), Vec<(f64, f64)>) = match args {
         [ps] => {
             let v = xys(h, *ps)?;
@@ -982,7 +1084,7 @@ fn cone<S: Store + ?Sized>(h: &S, args: &[T<'_>], style: usize) -> Option<Unboun
     let rays: Vec<(f64, f64)> = rays.into_iter().filter(|r| *r != (0.0, 0.0)).collect();
     match rays.as_slice() {
         [] => None,
-        [d] => Some(Unbounded { kind: 1, p: apex, dirs: vec![*d], style }),
+        [d] => Some(Unbounded { kind: 1, p: apex, dirs: vec![*d], style, raw: None }),
         _ => {
             // the angles of the rays, and the largest gap between neighbours around the circle
             let mut angles: Vec<f64> = rays.iter().map(|r| r.1.atan2(r.0)).collect();
@@ -1001,7 +1103,7 @@ fn cone<S: Store + ?Sized>(h: &S, args: &[T<'_>], style: usize) -> Option<Unboun
             }
             // the wedge runs from the ray after the gap to the ray before it
             let (first, last) = (angles[(at + 1) % n], angles[at]);
-            Some(Unbounded { kind: 4, p: apex, dirs: vec![(first.cos(), first.sin()), (last.cos(), last.sin())], style })
+            Some(Unbounded { kind: 4, p: apex, dirs: vec![(first.cos(), first.sin()), (last.cos(), last.sin())], style, raw: None })
         }
     }
 }
@@ -1032,7 +1134,7 @@ fn realize_unbounded(g: &mut Graphic, pending: Vec<Unbounded>, axes: Vec<AxisSpe
         return Ok(());
     }
     let mut b = crate::page::bounds(&g.items, stop)?;
-    for p in pending.iter().map(|u| u.p).chain(axes.iter().map(|a| a.p)) {
+    for p in pending.iter().filter(|u| u.raw.is_none()).map(|u| u.p).chain(axes.iter().map(|a| a.p)) {
         b[0] = (b[0].0.min(p.0), b[0].1.max(p.0));
         b[1] = (b[1].0.min(p.1), b[1].1.max(p.1));
     }
@@ -1080,10 +1182,20 @@ fn realize_unbounded(g: &mut Graphic, pending: Vec<Unbounded>, axes: Vec<AxisSpe
     let (wx, wy) = (b[0].1 - b[0].0, b[1].1 - b[1].0);
     let rect = [(b[0].0 - wx, b[1].0 - wy), (b[0].1 + wx, b[1].0 - wy), (b[0].1 + wx, b[1].1 + wy), (b[0].0 - wx, b[1].1 + wy)];
     let pt = |(x, y): (f64, f64)| Pt { x, y, scaled: false };
-    for u in pending {
+    for mut u in pending {
+        if let Some(raw) = u.raw.take() {
+            (u.p, u.dirs) = raw.resolve(b);
+            let want = if u.kind == 3 { 2 } else { 1 };
+            if u.dirs.len() != want || u.dirs[0] == (0.0, 0.0) || !(u.p.0.is_finite() && u.p.1.is_finite()) {
+                continue;
+            }
+        }
         let d = u.dirs[0];
         let n = (-d.1, d.0);
-        let shape = if u.kind == 4 {
+        let shape = if u.kind == 5 {
+            // the whole plane
+            Shape::Polygon(vec![rect.iter().copied().map(pt).collect()])
+        } else if u.kind == 4 {
             // the wedge between two rays: the side of each ray that holds the other
             let (e1, e2) = (u.dirs[0], u.dirs[1]);
             let side = |e: (f64, f64), w: (f64, f64)| {
@@ -1141,6 +1253,51 @@ fn joined<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Vec<Pt>> {
         out.extend(run);
     }
     (!out.is_empty()).then_some(out)
+}
+
+/// The curves of `joined_curve(specs, points)` / `filled_curve(specs, points)`: each segment `[type, n, degree]`
+/// takes n points (the first segment of a component; each later one continues from the last point with n new
+/// points) and is a line (type 0), a Bezier curve (1) or a B-spline curve (3). One component (a list of segments and
+/// a list of points) or a list of components.
+fn segmented<S: Store + ?Sized>(h: &S, specs: T<'_>, pts: T<'_>) -> Option<Vec<Vec<Pt>>> {
+    let triple = |t: T<'_>| -> Option<(i64, usize)> {
+        let &[a, b, c] = list(h, t)? else { return None };
+        match (h.view(a), h.view(b), h.view(c)) {
+            (View::Int(a), View::Int(b), View::Int(_)) if b >= 1 => Some((a, b as usize)),
+            _ => None,
+        }
+    };
+    let one = |specs: &[T<'_>], pts: Vec<Pt>| -> Option<Vec<Pt>> {
+        let mut out: Vec<Pt> = vec![];
+        let mut at = 0usize;
+        for (i, &s) in specs.iter().enumerate() {
+            let (kind, n) = triple(s)?;
+            let piece: Vec<Pt> = if i == 0 {
+                at = n;
+                pts.get(..n)?.to_vec()
+            } else {
+                let p = pts.get(at - 1..at + n)?.to_vec();
+                at += n;
+                p
+            };
+            let run = match kind {
+                1 => bezier_points(&piece),
+                3 => b_spline(&piece),
+                _ => piece,
+            };
+            out.extend(run);
+        }
+        (!out.is_empty()).then_some(out)
+    };
+    let ss = list(h, specs)?;
+    if ss.first().is_some_and(|&s| triple(s).is_some()) {
+        return Some(vec![one(ss, points(h, pts, 2).ok()?)?]);
+    }
+    let ps = list(h, pts)?;
+    if ps.len() != ss.len() {
+        return None;
+    }
+    ss.iter().zip(ps).map(|(&s, &p)| one(list(h, s)?, points(h, p, 2).ok()?)).collect()
 }
 
 /// Points along a composite cubic Bezier curve (control points 0-1-2-3, 3-4-5-6, ...).
@@ -1312,12 +1469,32 @@ fn transforms<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Option<Ve
             let t = *args.get(1)?;
             match one_transformation(h, t) {
                 Some(a) => vec![a],
+                // [m, pos]: m about a position of the object's box (`right`, `[left, top]`); the frame adds the shift
+                None if transformation_about(h, t).is_some() => vec![Affine { m: matrix2(h, list(h, t)?[0])?, b: [0.0, 0.0] }],
                 // a list of transformations: a copy of the object under each
                 None => list(h, t)?.iter().map(|&u| one_transformation(h, u)).collect::<Option<Vec<_>>>().filter(|v| !v.is_empty())?,
             }
         }
         _ => return None,
     })
+}
+
+/// A 2 x 2 matrix of numbers.
+fn matrix2<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<[[f64; 2]; 2]> {
+    let r = xys(h, t)?;
+    let &[a, b] = r.as_slice() else { return None };
+    Some([[a.0, a.1], [b.0, b.1]])
+}
+
+/// The position of `[m, pos]` (a matrix applied about a named position of the object's box, such as `right`):
+/// its fractions of the box, as [`position`] gives them.
+fn transformation_about<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<(f64, f64)> {
+    let &[m, p] = list(h, t)? else { return None };
+    matrix2(h, m)?;
+    if xy(h, p).is_some() {
+        return None;
+    }
+    position(h, p)
 }
 
 /// One affine map of the plane: a `transformation_function` (its homogeneous 3 x 3 matrix), a 2 x 2 matrix, or a
@@ -1588,8 +1765,12 @@ pub const MAX_CELLS: usize = 4_000_000;
 /// top row first.
 fn cells<S: Store + ?Sized>(h: &S, t: T<'_>, grad: &Gradient) -> Result<(usize, usize, Vec<u8>), Bad> {
     let value = |v: f64| grad.at(v).bytes();
-    let quad = |c: &[f64]| Rgba { r: c[0], g: c[1], b: c[2], a: c.get(3).copied().unwrap_or(1.0) }.bytes();
-    // packed arrays: numbers (rank 2) or colours (rank 3, last dimension 3 or 4)
+    // a colour of three or four channels, or a gray level and its opacity
+    let quad = |c: &[f64]| match *c {
+        [g, a] => Rgba { r: g, g, b: g, a }.bytes(),
+        _ => Rgba { r: c[0], g: c[1], b: c[2], a: c.get(3).copied().unwrap_or(1.0) }.bytes(),
+    };
+    // packed arrays: numbers (rank 2) or colours (rank 3, last dimension 2, 3 or 4)
     let packed = match h.packed(t) {
         Some(Packed::Reals { dims, data }) => Some((dims, data.to_vec())),
         Some(Packed::Ints { dims, data }) => Some((dims, data.iter().map(|&v| v as f64).collect())),
@@ -1597,7 +1778,7 @@ fn cells<S: Store + ?Sized>(h: &S, t: T<'_>, grad: &Gradient) -> Result<(usize, 
     };
     if let Some((dims, data)) = packed {
         let (rows, cols) = match *dims {
-            [r, c] | [r, c, 3] | [r, c, 4] => (r as usize, c as usize),
+            [r, c] | [r, c, 2] | [r, c, 3] | [r, c, 4] => (r as usize, c as usize),
             _ => return Err(Bad::Arg(1)),
         };
         if rows.saturating_mul(cols) > MAX_CELLS {
@@ -1639,7 +1820,7 @@ fn cells<S: Store + ?Sized>(h: &S, t: T<'_>, grad: &Gradient) -> Result<(usize, 
                 [0, 0, 0, 0]
             } else if let Some(parts) = list(h, c) {
                 let v: Vec<f64> = parts.iter().map(|&p| number(h, p)).collect::<Option<_>>().ok_or(Bad::Arg(1))?;
-                if !matches!(v.len(), 3 | 4) {
+                if !matches!(v.len(), 2..=4) {
                     return Err(Bad::Arg(1));
                 }
                 quad(&v)
@@ -2164,7 +2345,9 @@ pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Resu
             if matches!(name.as_str(), "rotate" | "translate" | "scale" | "geometric_transformation") && args.len() >= 2 {
                 if let Some(maps) = transforms(h, &name, args) {
                     stack.push((&args[..1], cur));
-                    let about_box = if !matches!(name.as_str(), "rotate" | "scale") {
+                    let about_box = if name == "geometric_transformation" {
+                        transformation_about(h, args[1])
+                    } else if !matches!(name.as_str(), "rotate" | "scale") {
                         None
                     } else if args.len() == 2 {
                         Some((0.5, 0.5))
@@ -2191,6 +2374,14 @@ pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Resu
                 let shapes = mesh2(h, args).ok_or_else(|| bad_item(h, e, Bad::Arg(1)))?;
                 g.items.extend(shapes.into_iter().map(|shape| Item { shape, style: cur }));
                 continue;
+            }
+            if matches!(name.as_str(), "joined_curve" | "filled_curve") && args.len() >= 2 {
+                // segments given by [type, n, degree] over a list of points
+                if let Some(runs) = segmented(h, args[0], args[1]) {
+                    let shape = if name == "joined_curve" { Shape::Line(runs) } else { Shape::Polygon(runs) };
+                    g.items.push(Item { shape, style: cur });
+                    continue;
+                }
             }
             if matches!(name.as_str(), "joined_curve" | "filled_curve") && !args.is_empty() {
                 // one curve, or a list of curves (components; filled even-odd, so inner ones are holes)
@@ -2270,7 +2461,8 @@ const MAX_INSETS: usize = 8;
 /// `inset(obj)`, `inset(obj, pos)`, `inset(obj, pos, offset)`, `inset(obj, pos, offset, width)`: a graphic (or a
 /// label for anything else) at `pos` (default: the middle of the plot range).
 fn inset<S: Store + ?Sized>(h: &S, args: &[T<'_>], stop: &dyn Fn() -> bool) -> Result<Shape, Failure> {
-    let args: Vec<T<'_>> = args.iter().copied().filter(|&a| !is_rule(h, a)).collect();
+    // options (`background: yellow`, alone or gathered in `options(...)`) are not drawn
+    let args: Vec<T<'_>> = args.iter().copied().filter(|&a| !is_rule(h, a) && head_name(h, a).is_none_or(|(n, _)| n != "options")).collect();
     let named = |t: T<'_>| -> Option<f64> {
         match h.view(t) {
             View::Sym(s) => match h.sym_name(s).as_str() {

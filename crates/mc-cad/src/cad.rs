@@ -62,11 +62,16 @@ pub struct Limits {
     pub groebner: bool,
     /// equational constraints
     pub equational: bool,
+    /// lift every cell of the free levels, also those whose truth a lower level decides (the topology of the set
+    /// needs the stacks over every cell)
+    pub full: bool,
+    /// a cap on the work (units of the meter's budget), the lifting then sequential; `None`: the caller's budget only
+    pub fuel: Option<u64>,
 }
 
 impl Default for Limits {
     fn default() -> Limits {
-        Limits { max_factors: 300, max_cells: 200_000, method: Method::Brown, groebner: true, equational: true }
+        Limits { max_factors: 300, max_cells: 200_000, method: Method::Brown, groebner: true, equational: true, full: false, fuel: None }
     }
 }
 
@@ -313,6 +318,27 @@ fn decompose_with(
     progress: &mut dyn FnMut(usize, usize),
     m: &mut Meter,
 ) -> WorkResult<Result<Outcome, CadError>> {
+    if let Some(cap) = lim.fuel {
+        let mut capped = Capped { inner: m.work(), left: cap, over: false };
+        let r = {
+            let mut mm = Meter::new(&mut capped);
+            decompose_in(p, lim, nwit, progress, &mut mm)
+        };
+        return match r {
+            Err(_) if capped.over => Ok(Err(CadError::TooLarge)),
+            r => r,
+        };
+    }
+    decompose_in(p, lim, nwit, progress, m)
+}
+
+fn decompose_in(
+    p: &Problem,
+    lim: &Limits,
+    nwit: usize,
+    progress: &mut dyn FnMut(usize, usize),
+    m: &mut Meter,
+) -> WorkResult<Result<Outcome, CadError>> {
     let p = preprocess(p, lim, m)?;
     let mut lim = *lim;
     loop {
@@ -369,7 +395,7 @@ fn attempt(
         return Ok(Ok(Outcome { problem: p.clone(), basis: basis.clone(), atoms, cells, info: vec![], truth, ncells: 0, method, witness: Some(vec![]) }));
     }
     // the stacks of each level in parallel when the decomposition runs under a budget (roadmap item 16A)
-    let par = crate::par::current();
+    let par = if lim.fuel.is_some() { None } else { crate::par::current() };
     let root = par.as_ref().map(|(b, _)| b.root());
     lf.par = match (&par, &root) {
         (Some((_, stop)), Some(r)) => Some(ParCx { sub: r, stop, top: true }),
@@ -384,6 +410,24 @@ fn attempt(
     let ncells = lf.ncells;
     let witness = lf.witness.take();
     Ok(Ok(Outcome { problem: p.clone(), basis: basis.clone(), atoms: atoms.clone(), cells, info, truth, ncells, method, witness }))
+}
+
+/// A budget with a cap: the work beyond it stops the decomposition (reported as too large).
+struct Capped<'a> {
+    inner: &'a mut dyn mc_poly::work::Work,
+    left: u64,
+    over: bool,
+}
+
+impl mc_poly::work::Work for Capped<'_> {
+    fn charge(&mut self, units: u64) -> WorkResult<()> {
+        if units > self.left {
+            self.over = true;
+            return Err(mc_poly::work::Halt::Stopped);
+        }
+        self.left -= units;
+        self.inner.charge(units)
+    }
 }
 
 struct Lifter<'a> {
@@ -587,6 +631,7 @@ impl Lifter<'_> {
             if free_cell {
                 cell.signs = self.signs.clone();
             }
+            let truth_now = if self.lim.full && lev < self.p.nfree { Tri::U } else { truth_now };
             match truth_now {
                 Tri::T | Tri::F => {
                     cell.truth = if truth_now == Tri::T { Truth::True } else { Truth::False };
@@ -859,6 +904,7 @@ impl Lifter<'_> {
         if free_cell {
             cell.signs = self.signs.clone();
         }
+        let truth_now = if self.lim.full && lev < self.p.nfree { Tri::U } else { truth_now };
         match truth_now {
             Tri::T | Tri::F => {
                 cell.truth = if truth_now == Tri::T { Truth::True } else { Truth::False };

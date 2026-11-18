@@ -184,6 +184,39 @@ enum Prim {
     /// an unbounded object, cut to the box once it is known: 0 a line, 1 a ray, 2 a plane, 3 a half-plane; through
     /// `p` along `dirs` (the half-plane on the side of its second direction)
     Unbounded { kind: u8, p: P3, dirs: Vec<P3> },
+    /// a line (0), polygon (1) or points (2) with some corners in scaled coordinates: each corner `a + f (hi - lo)`,
+    /// from the box's low corner when `origin`; made a line, face or points once the box is known
+    Scaled { kind: u8, pts: Vec<(P3, P3, bool)> },
+}
+
+/// A position of space, `scaled([u, v, w])` or `scaled(d, p)`: (the absolute part, the fractions of the box, whether
+/// measured from the box's low corner).
+fn scaled_p3<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<(P3, P3, bool)> {
+    if let Some(p) = p3(h, t) {
+        return Some((p, [0.0; 3], false));
+    }
+    match head_name(h, t)? {
+        (n, &[d]) if n == "scaled" => Some(([0.0; 3], p3(h, d)?, true)),
+        (n, &[d, p]) if n == "scaled" => Some((p3(h, p)?, p3(h, d)?, false)),
+        _ => None,
+    }
+}
+
+/// A list of positions of which at least one is in scaled coordinates.
+fn scaled_run<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Vec<(P3, P3, bool)>> {
+    if h.packed(t).is_some() {
+        return None;
+    }
+    let items = list(h, t)?;
+    if !items.iter().any(|&e| head_name(h, e).is_some_and(|(n, _)| n == "scaled")) {
+        return None;
+    }
+    items.iter().map(|&e| scaled_p3(h, e)).collect()
+}
+
+/// Whether `t` is a list of positions of space at least one of which is in scaled coordinates.
+pub fn is_scaled_coords<S: Store + ?Sized>(h: &S, t: T<'_>) -> bool {
+    scaled_run(h, t).is_some()
 }
 
 #[derive(Clone, Debug)]
@@ -345,6 +378,17 @@ fn primitive<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Option<Vec
             None => Some(1.0),
         }
     };
+    // positions in scaled coordinates (fractions of the box), placed once the box is known
+    if let ("line" | "polygon" | "point", [p]) = (name, args) {
+        if let Some(pts) = scaled_run(h, *p) {
+            let kind = match name {
+                "line" => 0,
+                "polygon" => 1,
+                _ => 2,
+            };
+            return Some(vec![Prim::Scaled { kind, pts }]);
+        }
+    }
     match name {
         "sphere" | "ball" => {
             let r = radius(1)?;
@@ -397,6 +441,35 @@ fn primitive<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Option<Vec
                     let (&a, &b) = (e.first()?, e.get(1)?);
                     solid_of_revolution(a, b, r, if name == "cone" { 0.0 } else { r }, true, &mut out);
                 }
+            }
+        }
+        // polygon(outer -> [hole, ...]) in space: one face whose ring runs around the outer boundary, over to each
+        // hole and around it the other way and back (the doubled bridge cancels in the even-odd fill), without
+        // edges of its own; the boundaries drawn as lines
+        "polygon" if args.len() == 1 && head_name(h, args[0]).is_some_and(|(n, a)| n == mc_api::names::RULE && a.len() == 2) => {
+            let (_, &[o, hs]) = head_name(h, args[0])? else { return None };
+            let outer = pts3(h, o)?;
+            let holes: Vec<Vec<P3>> = list(h, hs)?.iter().map(|&r| pts3(h, r)).collect::<Option<_>>()?;
+            if outer.len() < 3 || holes.iter().any(|r| r.len() < 3) {
+                return None;
+            }
+            let n = newell(&outer);
+            let mut ring = outer.clone();
+            ring.push(outer[0]);
+            for hole in &holes {
+                let mut hr = hole.clone();
+                if dot(newell(&hr), n) > 0.0 {
+                    hr.reverse();
+                }
+                ring.extend_from_slice(&hr);
+                ring.push(hr[0]);
+                ring.push(outer[0]);
+            }
+            out.push(Prim::Face { pts: ring, smooth: true, color: None, inside: None });
+            for r in std::iter::once(&outer).chain(holes.iter()) {
+                let mut l = r.clone();
+                l.push(r[0]);
+                out.push(Prim::Line(l));
             }
         }
         "polygon" | "triangle" => {
@@ -1469,6 +1542,7 @@ fn prepare(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Prepared, Fa
             Prim::Face { pts, .. } | Prim::Line(pts) | Prim::Arrow(pts) | Prim::Points(pts) => pts.iter().for_each(&mut grow),
             Prim::Text { at, .. } => grow(at),
             Prim::Unbounded { p, .. } => grow(p),
+            Prim::Scaled { .. } => {}
         }
     }
     let mut clip = false;
@@ -1493,8 +1567,27 @@ fn prepare(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Prepared, Fa
             hi[k] = lo[k] + 1.0;
         }
     }
-    // unbounded objects cut to the box
+    // corners in scaled coordinates placed in the box
     let mut sc = sc;
+    for e in sc.elems.iter_mut() {
+        let Prim::Scaled { kind, pts } = &e.prim else { continue };
+        let at: Vec<P3> = pts
+            .iter()
+            .map(|(a, f, origin)| {
+                let mut q = [0.0; 3];
+                for k in 0..3 {
+                    q[k] = a[k] + f[k] * (hi[k] - lo[k]) + if *origin { lo[k] } else { 0.0 };
+                }
+                q
+            })
+            .collect();
+        e.prim = match kind {
+            0 => Prim::Line(at),
+            1 => Prim::Face { pts: at, smooth: false, color: None, inside: None },
+            _ => Prim::Points(at),
+        };
+    }
+    // unbounded objects cut to the box
     let diag = ((hi[0] - lo[0]).powi(2) + (hi[1] - lo[1]).powi(2) + (hi[2] - lo[2]).powi(2)).sqrt().max(1e-300);
     sc.elems.retain_mut(|e| {
         let Prim::Unbounded { kind, p, dirs } = &e.prim else { return true };
@@ -1597,7 +1690,7 @@ fn prepare(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Prepared, Fa
                 PPrim::Points(pts.into_iter().filter(|p| !(clip && (0..3).any(|k| p[k] < lo[k] || p[k] > hi[k]))).collect())
             }
             Prim::Text { label, at } => PPrim::Text { label, at },
-            Prim::Unbounded { .. } => continue,
+            Prim::Unbounded { .. } | Prim::Scaled { .. } => continue,
         };
         elems.push((prim, e.style));
     }

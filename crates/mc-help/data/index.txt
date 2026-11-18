@@ -1297,7 +1297,7 @@ nonpositive_rationals	symbolic	Simplification	the domain of the rational numbers
 resolve	symbolic	Quantifiers and real algebraic sets	resolve(formula), resolve(formula, reals | complexes): the formula with its quantifiers (exists, for_all) eliminated: true or false for a sentence, conditions on the free variables otherwise (real polynomial formulas by cylindrical algebraic decomposition)
 exists	symbolic	Quantifiers and real algebraic sets	exists(x, formula), exists([x, y], formula), exists(x, cond, formula): there is an x with formula; resolve and reduce eliminate it
 for_all	symbolic	Quantifiers and real algebraic sets	for_all(x, formula), for_all([x, y], formula), for_all(x, cond, formula): formula holds for every x; resolve and reduce eliminate it
-cylindrical_decomposition	symbolic	Quantifiers and real algebraic sets	cylindrical_decomposition(formula, [x, y, ...]): the solution set of a real polynomial formula as cylindrical cells, x first: a < x < b and f(x) < y < g(x) or ...
+cylindrical_decomposition	symbolic	Quantifiers and real algebraic sets	cylindrical_decomposition(formula, [x, y, ...]): the solution set of a real polynomial formula as cylindrical cells, x first: a < x < b and f(x) < y < g(x) or ...; cylindrical_decomposition(formula, vars, mode): its "Closure", "Interior", "Exterior", "Boundary" or "Components" (one or two variables)
 pi	symbolic	Numbers and precision	the constant pi (Chudnovsky series by binary splitting under n); a positive real
 e	symbolic	Numbers and precision	the constant e, the base of the natural logarithm; a positive real
 euler_gamma	symbolic	Numbers and precision	Euler's constant gamma = 0.5772... (Brent-McMillan under n); a positive real

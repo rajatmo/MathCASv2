@@ -503,6 +503,20 @@ impl Native for Field3 {
             }
         }
         let (a, o) = split(h, args);
+        // several fields `[[vx, vy, vz], [wx, wy, wz], ...]`: each drawn, shown together
+        if let (false, [f, ..]) = (self.list, a.as_slice()) {
+            if let Some(fields) = cx.as_list(*f).filter(|l| l.len() >= 2 && l.iter().all(|&c| cx.as_list(c).is_some_and(|v| v.len() == 3))).map(|l| l.to_vec()) {
+                let plots: Vec<T<'h>> = fields
+                    .iter()
+                    .map(|&fv| {
+                        let mut a = args.to_vec();
+                        a[0] = fv;
+                        h.call(h.sym(name), &a)
+                    })
+                    .collect();
+                return Ok(Reply::Again(h.call(h.sym("show"), &[list(h, &plots)])));
+            }
+        }
         let (mut src, b) = match (self.list, a.as_slice()) {
             (false, [f, sx, sy, sz]) => {
                 let mut vars = vec![];

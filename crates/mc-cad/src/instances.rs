@@ -361,9 +361,9 @@ fn integer_box<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, cond: 
 /// conditions) for the other goals too: the real relaxation first (the conditions with the sign conditions of the
 /// domain, minimized over the reals); a minimum attained at an integer point is the integer minimum. Otherwise, when
 /// the real feasible set is bounded, every integer point of its box is tried (the condition and the objective
-/// evaluated exactly) and the smallest value wins, the first point in lexicographic order among equal ones.
+/// evaluated exactly) and the smallest value wins, the first point in lexicographic order among equal ones; when it
+/// is unbounded, the integer points of a sublevel set ([`sublevel`]).
 pub fn optimize_integers<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, goal: crate::optimize::Goal, args: &[T<'h>]) -> Res<Option<T<'h>>> {
-    use crate::optimize::Goal;
     let h = cx.heap();
     let fr = Front::new(h);
     let (fc, xs, dom) = match args {
@@ -444,8 +444,16 @@ pub fn optimize_integers<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBoo
             }
             crate::integers::box_of(&fr, cond, &vars, m)
         })?;
-        let Some(Some(bx)) = bx else { return Ok(None) };
-        let Some(bx) = bx else { return Ok(None) };
+        let bx = match bx {
+            Some(Some(Some(bx))) => bx,
+            // infeasible over the reals (the relaxation would have said so), or a polynomial problem whose real
+            // feasible set is unbounded or undecided: the sublevel set of a feasible integer point
+            Some(Some(None)) | None => return Ok(None),
+            Some(None) => {
+                let Some(b) = sublevel(cx, stop, goal.max(), f, cond, &cs, &vars)? else { return Ok(None) };
+                return finish(cx, goal, xs, &vars, cond, f, b);
+            }
+        };
         let mut size: u64 = 1;
         for (lo, hi) in &bx {
             if hi < lo {
@@ -494,7 +502,24 @@ pub fn optimize_integers<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBoo
             }
         }
     }
-    let Some((v, vals)) = best else { return Ok(None) };
+    let Some(best) = best else { return Ok(None) };
+    finish(cx, goal, xs, &vars, cond, f, best)
+}
+
+/// The answer of `goal` from the best point (value and coordinates), after the exact check that the point satisfies
+/// the condition and gives the value.
+fn finish<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    goal: crate::optimize::Goal,
+    xs: T<'h>,
+    vars: &[T<'h>],
+    cond: T<'h>,
+    f: T<'h>,
+    (v, vals): (T<'h>, Vec<T<'h>>),
+) -> Res<Option<T<'h>>> {
+    use crate::optimize::Goal;
+    let h = cx.heap();
+    let fr = Front::new(h);
     let rules: Vec<T<'h>> = vars.iter().zip(&vals).map(|(&x, &b)| h.call(h.sym(names::RULE), &[x, b])).collect();
     // the point satisfies the condition and gives the value (exact substitution)
     let rl = cx.list(&rules);
@@ -517,6 +542,130 @@ pub fn optimize_integers<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBoo
             }
         }
     }))
+}
+
+/// The range computations (decompositions) a sublevel search may make.
+const MAX_SUBLEVEL_RANGES: usize = 200;
+
+/// An integer optimum over an unbounded real feasible set (polynomial objective and conditions): a feasible integer
+/// point p0 (`find_instance`), then the integer points of the sublevel set S = {cond, f <= f(p0)} (`>=` for a
+/// maximum), which hold every integer minimizer. They are found variable by variable: the integer range of the first
+/// variable over S (its real minimum and maximum by the decomposition), then for each integer value in it the range
+/// of the next variable over S with the earlier ones fixed by equations, and so on. A range that is unbounded or
+/// undecided gives up (S need not be bounded: `x y > 1` with `x^2 + x y <= 3` is unbounded in y, but each integer
+/// x leaves a bounded y range). Every point is checked exactly; the smallest value wins, the first in lexicographic
+/// order among equal ones. Work: at most [`MAX_SUBLEVEL_RANGES`] ranges and [`MAX_BOX_POINTS`] points.
+fn sublevel<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    stop: &Arc<AtomicBool>,
+    max: bool,
+    f: T<'h>,
+    cond: T<'h>,
+    cs: &[T<'h>],
+    vars: &[T<'h>],
+) -> Res<Option<(T<'h>, Vec<T<'h>>)>> {
+    let h = cx.heap();
+    let fr = Front::new(h);
+    let poly = metered(cx, stop, |m| {
+        let mut ok = polynomial_in(&fr, h.call(h.sym("equal"), &[f, h.int(0)]), vars, m)?;
+        for &c in cs {
+            ok &= polynomial_in(&fr, c, vars, m)?;
+        }
+        Ok(ok)
+    })?;
+    if poly != Some(true) || cs.is_empty() || vars.is_empty() {
+        return Ok(None);
+    }
+    let is_int = |t: T<'h>| matches!(h.view(t), View::Int(_));
+    let is_exact = |t: T<'h>| matches!(h.view(t), View::Int(_) | View::BigInt { .. } | View::Rational { .. });
+    // a feasible integer point
+    let ints = h.sym_term(h.sym("integers"));
+    let fi = cx.eval(h.call(h.sym("find_instance"), &[cond, cx.list(vars), ints]))?;
+    let Some(&[p0]) = cx.as_list(fi) else { return Ok(None) };
+    let Some(rs) = cx.as_list(p0) else { return Ok(None) };
+    // every coordinate an integer
+    let all_int = vars.iter().all(|&x| {
+        rs.iter().any(|&r| matches!(h.view(r), View::App { args: &[a, b], .. } if a == x && is_int(b)))
+    });
+    if !all_int {
+        return Ok(None);
+    }
+    if !holds_at(cx, cond, p0)? {
+        return Ok(None);
+    }
+    let c0 = cx.eval(h.call(h.sym("rewrite"), &[f, p0]))?;
+    if !is_exact(c0) {
+        return Ok(None);
+    }
+    let rel = if max { "greater_equal" } else { "less_equal" };
+    let s = h.call(h.sym("and"), &[cond, h.call(h.sym(rel), &[f, c0])]);
+    let better = if max { "greater" } else { "less" };
+    // the starting point lies in the sublevel set, so the search below meets it
+    let mut best: Option<(T<'h>, Vec<T<'h>>)> = None;
+    let mut ranges = 0usize;
+    let mut points = 0u64;
+    // depth-first over the prefixes of fixed values, in increasing order
+    let mut stack: Vec<Vec<i64>> = vec![vec![]];
+    while let Some(prefix) = stack.pop() {
+        cx.tick(1)?;
+        let i = prefix.len();
+        ranges += 1;
+        if ranges > MAX_SUBLEVEL_RANGES {
+            return Ok(None);
+        }
+        let mut cj = vec![s];
+        cj.extend(prefix.iter().enumerate().map(|(j, &a)| h.call(h.sym("equal"), &[vars[j], h.int(a)])));
+        let si = h.call(h.sym("and"), &cj);
+        let r = metered(cx, stop, |m| crate::integers::range_of(&fr, si, vars, i, m))?;
+        let (lo, hi) = match r {
+            Some(Some(Some(b))) => b,
+            Some(Some(None)) => continue,
+            _ => return Ok(None),
+        };
+        if hi < lo {
+            continue;
+        }
+        let width = (hi - lo + 1) as u64;
+        if i + 1 < vars.len() {
+            if width > MAX_SUBLEVEL_RANGES as u64 {
+                return Ok(None);
+            }
+            // pushed in decreasing order so the smallest value is searched first
+            for a in (lo..=hi).rev() {
+                let mut p = prefix.clone();
+                p.push(a);
+                stack.push(p);
+            }
+            continue;
+        }
+        points += width;
+        if points > MAX_BOX_POINTS {
+            return Ok(None);
+        }
+        for a in lo..=hi {
+            cx.tick(1)?;
+            let rules: Vec<T<'h>> = vars.iter().zip(prefix.iter().copied().chain([a])).map(|(&x, v)| h.call(h.sym(names::RULE), &[x, h.int(v)])).collect();
+            let rl = cx.list(&rules);
+            if !holds_at(cx, cond, rl)? {
+                continue;
+            }
+            let v = cx.eval(h.call(h.sym("rewrite"), &[f, rl]))?;
+            if !is_exact(v) {
+                return Ok(None);
+            }
+            let wins = match &best {
+                None => true,
+                Some((b, _)) => {
+                    let t = cx.eval(h.call(h.sym(better), &[v, *b]))?;
+                    cx.is_true(t)
+                }
+            };
+            if wins {
+                best = Some((v, prefix.iter().copied().chain([a]).map(|k| h.int(k)).collect()));
+            }
+        }
+    }
+    Ok(best)
 }
 
 /// Primes satisfying the conjuncts `cs` in `x`, from the lower bound of a conjunct `x > c` or `x >= c` upward: the

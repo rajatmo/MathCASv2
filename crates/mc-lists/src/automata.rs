@@ -141,6 +141,105 @@ pub(crate) fn ca_window<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>
     }))
 }
 
+/// The machine integers of a rectangular matrix (packed or not): rows, columns and the entries row by row.
+fn int_matrix<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Option<(usize, usize, Vec<i64>)> {
+    let h = cx.heap();
+    if let Some(Packed::Ints { dims, data }) = h.packed(t) {
+        return (dims.len() == 2).then(|| (dims[0] as usize, dims[1] as usize, data.to_vec()));
+    }
+    let rows = cx.as_list(t)?;
+    let mut data = vec![];
+    let mut cols = None;
+    for &r in rows {
+        let v = ints(cx, r)?;
+        if *cols.get_or_insert(v.len()) != v.len() {
+            return None;
+        }
+        data.extend(v);
+    }
+    Some((rows.len(), cols?, data))
+}
+
+/// `nl_ca_evolve2(n, k, w, [r1, r2], cells, background, periodic, steps)`: a two-dimensional cellular automaton
+/// with a numbered rule, the arrays at steps 0 to `steps`. The new cell is the digit of `n` in base `k` at the
+/// position `sum w_ab c_(i + a - r1, j + b - r2)` over the (2 r1 + 1) x (2 r2 + 1) weights `w` (all 1 for a
+/// totalistic rule). A periodic matrix wraps around (a torus); otherwise the cells sit on an infinite background
+/// that evolves by the same rule, and every array holds the cells the pattern can reach (r1 steps more rows and r2
+/// more columns on each side per step). The call stays unless every number is a machine integer, `n`, the cells and
+/// the weights are not negative, `k >= 2` and the work is bounded.
+pub(crate) fn ca_evolve2<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let &[n, k, w, range, cells, bg, periodic, steps] = args else { return Ok(Reply::Decline) };
+    let int = |t: T<'h>| match h.view(t) {
+        View::Int(v) => Some(v),
+        _ => None,
+    };
+    let (Some(n), Some(k), Some(bg), Some(steps)) = (int(n), int(k), int(bg), int(steps)) else { return Ok(Reply::Decline) };
+    let periodic = if cx.is_true(periodic) {
+        true
+    } else if cx.is_false(periodic) {
+        false
+    } else {
+        return Ok(Reply::Decline);
+    };
+    let Some(&[r1, r2]) = ints(cx, range).as_deref() else { return Ok(Reply::Decline) };
+    let (Some((wr, wc, w)), Some((rows, cols, start))) = (int_matrix(cx, w), int_matrix(cx, cells)) else { return Ok(Reply::Decline) };
+    if n < 0 || k < 2 || bg < 0 || !(0..=10_000).contains(&steps) || !(0..=100).contains(&r1) || !(0..=100).contains(&r2) {
+        return Ok(Reply::Decline);
+    }
+    let (r1, r2, steps) = (r1 as usize, r2 as usize, steps as usize);
+    if wr != 2 * r1 + 1 || wc != 2 * r2 + 1 || w.iter().any(|&x| x < 0) || start.iter().any(|&x| x < 0) || rows == 0 || cols == 0 {
+        return Ok(Reply::Decline);
+    }
+    // the arrays: on a background, wide enough for the spread of every step
+    let (pr, pc) = if periodic { (0, 0) } else { (r1 * steps, r2 * steps) };
+    let (nr, nc) = (rows + 2 * pr, cols + 2 * pc);
+    let total = nr.saturating_mul(nc).saturating_mul(steps + 1);
+    if total > 20_000_000 || total.saturating_mul(wr * wc) > 400_000_000 {
+        return Ok(Reply::Decline);
+    }
+    let rule = |d: Option<i64>| d.map_or(0, |d| digit(n, k, d));
+    let mut state = vec![bg; nr * nc];
+    for i in 0..rows {
+        state[(i + pr) * nc + pc..(i + pr) * nc + pc + cols].copy_from_slice(&start[i * cols..(i + 1) * cols]);
+    }
+    let mut data = Vec::with_capacity(total);
+    data.extend_from_slice(&state);
+    let mut next = vec![0i64; nr * nc];
+    let mut bgv = bg;
+    let wsum = w.iter().try_fold(0i64, |s, &x| s.checked_add(x));
+    for _ in 0..steps {
+        cx.tick((nr * nc * wr * wc) as u64 / 64 + 1)?;
+        for i in 0..nr {
+            for j in 0..nc {
+                let mut d = Some(0i64);
+                for a in 0..wr {
+                    for b in 0..wc {
+                        let wv = w[a * wc + b];
+                        if wv == 0 {
+                            continue;
+                        }
+                        let (ii, jj) = (i as isize + a as isize - r1 as isize, j as isize + b as isize - r2 as isize);
+                        let c = if periodic {
+                            state[ii.rem_euclid(nr as isize) as usize * nc + jj.rem_euclid(nc as isize) as usize]
+                        } else if ii < 0 || jj < 0 || ii >= nr as isize || jj >= nc as isize {
+                            bgv
+                        } else {
+                            state[ii as usize * nc + jj as usize]
+                        };
+                        d = d.and_then(|d| d.checked_add(c.checked_mul(wv)?));
+                    }
+                }
+                next[i * nc + j] = rule(d);
+            }
+        }
+        std::mem::swap(&mut state, &mut next);
+        data.extend_from_slice(&state);
+        bgv = rule(wsum.and_then(|s| s.checked_mul(bgv)));
+    }
+    Ok(Reply::Done(h.int_array(&[steps + 1, nr, nc], &data)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::digit;

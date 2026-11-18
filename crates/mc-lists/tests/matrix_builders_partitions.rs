@@ -88,6 +88,31 @@ fn partitions_and_automata() {
 }
 
 #[test]
+fn two_dimensional_automata() {
+    // totalistic 9-cell rule 14 = 1110 in base 2: a sum of 1, 2 or 3 gives 1. One cell: the 3 x 3 block, then the
+    // border of the 5 x 5 square (the inside sums are 4, 6 or 9); every array holds the 7 x 7 cells reachable in 3
+    // steps
+    let a = "cellular_automaton([14, [2, 1], [1, 1]], [[[1]], 0], 3)";
+    assert_eq!(ev(&format!("dimensions({a})")), "[4, 7, 7]");
+    assert_eq!(ev(&format!("map(total, map(flatten, {a}))")), "[1, 9, 16, 36]");
+    assert_eq!(ev(&format!("{a}[2][3]")), "[0, 0, 1, 1, 1, 0, 0]");
+    assert_eq!(ev(&format!("{a}[3][3]")), "[0, 1, 0, 0, 0, 1, 0]");
+    assert_eq!(ev("cellular_automaton([14, [2, 1], [1, 1]], [[[1]], 0], [[2]]) == cellular_automaton([14, [2, 1], [1, 1]], [[[1]], 0], 2)[3]"), "true");
+    // on a 3 x 3 torus every cell sees the one live cell, then all nine
+    assert_eq!(ev("cellular_automaton([14, [2, 1], [1, 1]], [[0, 0, 0], [0, 1, 0], [0, 0, 0]], 2)"), "[[[0, 0, 0], [0, 1, 0], [0, 0, 0]], [[1, 1, 1], [1, 1, 1], [1, 1, 1]], [[0, 0, 0], [0, 0, 0], [0, 0, 0]]]");
+    // the cells as the digits of one number (the centre is digit 4): n = 2^16 keeps exactly a lone centre cell
+    assert_eq!(ev("cellular_automaton([2^16, 2, [1, 1]], [[[1]], 0], 1)[2]"), "[[0, 0, 0], [0, 1, 0], [0, 0, 0]]");
+    // weights: the four neighbours count 2, the cell 1 (outer totalistic); 4 = 100 in base 2: only a sum of 2 lives
+    assert_eq!(ev("cellular_automaton([4, [2, [[0, 2, 0], [2, 1, 2], [0, 2, 0]]], [1, 1]], [[[1]], 0], 1)[2]"), "[[0, 1, 0], [1, 0, 1], [0, 1, 0]]");
+    // outside the bounds of the work: a failure, at once
+    for src in ["cellular_automaton([14, [2, 1], [1, 1]], [[[1]], 0], 10001)", "cellular_automaton([14, [2, 1], [1, 1]], [[[1]], 0], 1000)", "cellular_automaton([14, [2, 1], [1, 1]], [[[x]], 0], 2)", "cellular_automaton([14, [2, 1], [101, 1]], [[[1]], 0], 1)"] {
+        assert_eq!(ev(src), "failure(argument, cellular_automaton, 1)", "{src}");
+    }
+    assert_eq!(ev("cellular_automaton([14, [2, 1], [1, 1]], [[[1]], 0], 0)"), "[[[1]]]");
+    assert_eq!(ev("dimensions(cellular_automaton([14, [2, 1], [1, 1]], [[[1]], 0], 100))"), "[101, 201, 201]");
+}
+
+#[test]
 fn bell_polynomials_give_stirling_numbers() {
     assert_eq!(ev("bell_y(4, 2, [x1, x2, x3])"), "3*x2^2 + 4*x1*x3");
     assert_eq!(ev("map(m => map(k => bell_y(m, k, constant_array(1, m)), range(0, m)), range(0, 5))"), "[[1], [0, 1], [0, 1, 1], [0, 1, 3, 1], [0, 1, 7, 6, 1], [0, 1, 15, 25, 10, 1]]");

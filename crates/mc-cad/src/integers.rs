@@ -141,6 +141,30 @@ fn real_box<'h>(fr: &Front<'h>, cond: T<'h>, vars: &[T<'h>], m: &mut Meter) -> W
     Ok(Some(Some(out)))
 }
 
+/// The integer range of `vars[k]` over the real solution set of a polynomial condition in `vars` (two
+/// decompositions): `None` when unbounded or undecided, `Some(None)` when the condition has no real solution.
+pub(crate) fn range_of<'h>(fr: &Front<'h>, cond: T<'h>, vars: &[T<'h>], k: usize, m: &mut Meter) -> WorkResult<Option<Option<(i64, i64)>>> {
+    let h = fr.ar.store();
+    let tv = h.sym_term(h.sym("cad$objective"));
+    let mut free = vec![tv];
+    free.extend(vars.iter().copied());
+    let mut out = [0i64; 2];
+    for (i, sign) in [1i64, -1].into_iter().enumerate() {
+        let x = vars[k];
+        let obj = if sign > 0 { x } else { fr.ar.neg(x) };
+        let f = h.call(h.sym("and"), &[h.call(h.sym("equal"), &[tv, obj]), cond]);
+        let Some(e) = extreme(fr, f, &free, vars.len(), m)? else { return Ok(None) };
+        let v = match e {
+            Extreme::Infeasible => return Ok(Some(None)),
+            Extreme::Unbounded => return Ok(None),
+            Extreme::Infimum(c) | Extreme::Attained(c, _) => c,
+        };
+        let Some(b) = int_bound(&v, true, m)? else { return Ok(None) };
+        out[i] = if sign > 0 { b } else { -b };
+    }
+    Ok(Some(Some((out[0], out[1]))))
+}
+
 /// The integer box of the real solution set of a polynomial condition in `vars`: `None` when unbounded or
 /// undecided, `Some(None)` when the condition has no real solution.
 #[allow(clippy::type_complexity)]

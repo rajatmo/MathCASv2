@@ -156,9 +156,19 @@ pub fn transform_any<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: K
             return Ok(None);
         }
         let mut g = f;
-        for (&xi, &yi) in xs.iter().zip(ys) {
+        // the conditions of the steps, joined at the end (each must be free of the variables still to transform:
+        // otherwise it is not a condition on the transform)
+        let mut cond = None;
+        for (i, (&xi, &yi)) in xs.iter().zip(ys).enumerate() {
             match transform_one(cx, tc, kind, g, xi, yi)? {
-                Some(r) => g = r,
+                Some(r) => {
+                    let (v, c) = conditional(b, r);
+                    if c.is_some_and(|c| xs[i + 1..].iter().any(|&x| !is_free(b, c, x))) {
+                        return Ok(None);
+                    }
+                    g = v;
+                    cond = and(b, cond, c);
+                }
                 None => return Ok(None),
             }
             // a step that left part of the transform unevaluated stops the iteration
@@ -166,7 +176,7 @@ pub fn transform_any<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: K
                 return Ok(None);
             }
         }
-        return Ok(Some(g));
+        return Ok(Some(with_condition(cx, tc, g, cond)?));
     }
     transform_one(cx, tc, kind, f, x, y)
 }

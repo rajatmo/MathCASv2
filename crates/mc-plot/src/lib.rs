@@ -189,13 +189,13 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("list_stream_plot3d", "list_stream_plot3d(a): streamlines of a field in space given as data"),
     ("graph", "graph(edges) or graph(vertices, edges): a graph (network); edges a -> b (directed), undirected_edge(a, b), two_way_rule(a, b); shown as its picture (options graph_layout, vertex_labels)"),
     ("graph_plot", "graph_plot(g): a picture of a graph (a graph term, a list of edges, or an adjacency matrix), laid out by springs (option graph_layout: spring, circular, layered)"),
-    ("layered_graph_plot", "layered_graph_plot(g): a graph drawn in layers following its edges' direction (sources at the top)"),
-    ("tree_plot", "tree_plot(edges): a tree drawn in layers from its root"),
+    ("layered_graph_plot", "layered_graph_plot(g): a graph drawn in layers following its edges' direction (sources at the top); layered_graph_plot(g, side) the first layer at top, bottom, left or right"),
+    ("tree_plot", "tree_plot(edges): a tree drawn in layers from its root; tree_plot(edges, side) the root at top, bottom, left or right"),
     ("complete_graph", "complete_graph(n): the graph of n vertices with every pair joined"),
     ("cycle_graph", "cycle_graph(n): the cycle of n vertices"),
     ("path_graph", "path_graph([v1, v2, ...]): the path through the vertices in order"),
     ("star_graph", "star_graph(n): vertex 1 joined to vertices 2, ..., n"),
-    ("petersen_graph", "petersen_graph(): the Petersen graph (10 vertices, 15 edges: a 5-cycle, a pentagram and the spokes between them)"),
+    ("petersen_graph", "petersen_graph(): the Petersen graph (10 vertices, 15 edges: a 5-cycle, a pentagram and the spokes between them); petersen_graph(n, k) the generalized Petersen graph (outer n-cycle, spokes, inner edges n + i ~ n + (i + k mod n))"),
     ("kary_tree", "kary_tree(n) or kary_tree(n, k): the complete k-ary tree of n vertices (k = 2 by default)"),
     ("grid_graph", "grid_graph([m, n]): the m x n grid of vertices joined to their neighbours"),
     ("vertex_list", "vertex_list(g): the vertices of a graph"),
@@ -390,9 +390,19 @@ pub(crate) fn several_data<'h>(cx: &mut NativeCx<'_, '_, 'h>, name: &str, args: 
     let h = cx.heap();
     let Some((&first, rest)) = args.split_first() else { return Ok(None) };
     let first = cx.eval(first)?;
-    let Some(sets) = cx.as_list(first).map(|l| l.to_vec()) else { return Ok(None) };
+    let Some(mut sets) = cx.as_list(first).map(|l| l.to_vec()) else { return Ok(None) };
     if sets.len() < 2 {
         return Ok(None);
+    }
+    // data sets that are undefined symbols are left out (with a message), as nothing is known to draw of them
+    let Some(kept) = without_symbols(cx, name, &sets)? else { return Ok(None) };
+    if kept.len() < sets.len() {
+        if kept.len() == 1 {
+            let mut a = vec![kept[0]];
+            a.extend_from_slice(rest);
+            return Ok(Some(Reply::Again(h.call(h.sym(name), &a))));
+        }
+        sets = kept;
     }
     let nested = |t: T<'h>| -> bool {
         let mut x = t;
@@ -416,6 +426,23 @@ pub(crate) fn several_data<'h>(cx: &mut NativeCx<'_, '_, 'h>, name: &str, args: 
         })
         .collect();
     Ok(Some(Reply::Again(h.call(h.sym("show"), &[h.call(h.sym(names::LIST), &plots)]))))
+}
+
+/// The data sets of a list of them without those that are symbols, the left out ones named in a message; `None`
+/// when every set is a symbol (nothing to draw) or none is a list.
+pub(crate) fn without_symbols<'h>(cx: &mut NativeCx<'_, '_, 'h>, who: &str, sets: &[T<'h>]) -> Res<Option<Vec<T<'h>>>> {
+    let h = cx.heap();
+    let is_sym = |t: T<'h>| matches!(h.view(t), View::Sym(_));
+    let kept: Vec<T<'h>> = sets.iter().copied().filter(|&s| !is_sym(s)).collect();
+    if kept.is_empty() || !kept.iter().any(|&s| cx.as_list(s).is_some()) {
+        return Ok(None);
+    }
+    if kept.len() < sets.len() {
+        let printed: Vec<String> = sets.iter().filter(|&&s| is_sym(s)).map(|&s| mc_syntax::Printer::brief(h).expr(s)).collect();
+        let text = format!("data sets that are not data left out: {}", printed.join(", "));
+        cx.emit(h.call(h.sym("message"), &[h.sym_term(h.sym(who)), h.string(&text)]))?;
+    }
+    Ok(Some(kept))
 }
 
 pub(crate) fn bad<'h>(h: &'h Heap, f: &str, k: i64) -> Reply<'h> {
@@ -1428,6 +1455,66 @@ pub(crate) fn data_sets<'h>(cx: &NativeCx<'_, '_, 'h>, data: T<'h>) -> Option<Ve
     Some(if several { items.to_vec() } else { vec![data] })
 }
 
+/// The option `data_range: [a, b]` of a list plot applied: each set of numbers (the data, or each of a list of
+/// data sets) becomes the points `[a + (i - 1) (b - a)/(n - 1), y_i]`, and the option is removed. `None` when the
+/// options hold no such range.
+fn with_data_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, d: T<'h>, o: T<'h>) -> Res<Option<(T<'h>, Option<T<'h>>)>> {
+    let h = cx.heap();
+    let num = |t: T<'h>| mc_graphics::num::number(h, t);
+    let View::App { head, args: rs } = h.view(o) else { return Ok(None) };
+    if head != h.sym_term(h.sym("options")) {
+        return Ok(None);
+    }
+    let is_range = |r: T<'h>| match h.view(r) {
+        View::App { args: &[k, v], .. } => matches!(h.view(k), View::Sym(s) if h.sym_name(s) == "data_range") && cx.as_list(v).is_some_and(|l| l.len() == 2),
+        _ => false,
+    };
+    let Some(&r) = rs.iter().find(|&&r| is_range(r)) else { return Ok(None) };
+    let View::App { args: &[_, v], .. } = h.view(r) else { return Ok(None) };
+    // the ends as numbers (`2 pi`)
+    let v = mc_graphics_kernel::numeric_content(cx, v)?;
+    let (a, b) = match cx.as_list(v) {
+        Some(&[a, b]) if num(a).is_some() && num(b).is_some() => (num(a).unwrap_or(0.0), num(b).unwrap_or(1.0)),
+        _ => return Ok(None),
+    };
+    let numbers = |t: T<'h>| -> Option<Vec<f64>> { cx.as_list(t).filter(|l| !l.is_empty())?.iter().map(|&e| num(e)).collect() };
+    let spread = |ys: &[f64]| -> T<'h> {
+        let n = ys.len();
+        let flat: Vec<f64> = ys.iter().enumerate().flat_map(|(i, &y)| [if n > 1 { a + (b - a) * i as f64 / (n - 1) as f64 } else { a }, y]).collect();
+        h.real_array(&[n, 2], &flat)
+    };
+    let data = match numbers(d) {
+        Some(ys) => spread(&ys),
+        None => match cx.as_list(d).map(|l| l.to_vec()) {
+            Some(sets) if sets.iter().any(|&s| numbers(s).is_some()) => {
+                let out: Vec<T<'h>> = sets.iter().map(|&s| numbers(s).map_or(s, |ys| spread(&ys))).collect();
+                cx.list(&out)
+            }
+            _ => return Ok(None),
+        },
+    };
+    let rest: Vec<T<'h>> = rs.iter().copied().filter(|&x| x != r).collect();
+    Ok(Some((data, (!rest.is_empty()).then(|| h.call(h.sym("options"), &rest)))))
+}
+
+/// A list of data sets some of which are symbols (undefined names): the others, the symbols named in a message.
+/// Only when every other item is a list of data (not a pair of numbers, which would be a point); otherwise the data
+/// as it is.
+pub(crate) fn symbol_sets_left_out<'h>(cx: &mut NativeCx<'_, '_, 'h>, who: &str, data: T<'h>) -> Res<T<'h>> {
+    let h = cx.heap();
+    let Some(items) = cx.as_list(data).map(|l| l.to_vec()) else { return Ok(data) };
+    let is_sym = |t: T<'h>| matches!(h.view(t), View::Sym(_));
+    let set_like = |t: T<'h>| cx.as_list(t).is_some_and(|l| l.len() != 2 || l.iter().any(|&e| cx.as_list(e).is_some()));
+    if items.len() < 2 || !items.iter().any(|&e| is_sym(e)) || !items.iter().all(|&e| is_sym(e) || set_like(e)) {
+        return Ok(data);
+    }
+    Ok(match without_symbols(cx, who, &items)? {
+        Some(kept) if kept.len() == 1 => kept[0],
+        Some(kept) => cx.list(&kept),
+        None => data,
+    })
+}
+
 /// Data without labels: `data -> labels` is the data, an association its values, an item `v -> label` the value
 /// v (in lists and in lists of data sets).
 pub(crate) fn unlabelled<'h>(cx: &mut NativeCx<'_, '_, 'h>, data: T<'h>) -> Res<T<'h>> {
@@ -1538,6 +1625,22 @@ impl Native for ListPlot {
             ..Look::default()
         };
         let allowed = if name == "list_line_plot" { CURVE_OPTIONS } else { LIST_OPTIONS };
+        // data_range: [a, b]: the values of each set of numbers spread evenly from a to b
+        let ranged;
+        let args = match args {
+            [d, o] => match with_data_range(cx, *d, *o)? {
+                Some((d, Some(o))) => {
+                    ranged = [d, o];
+                    &ranged[..]
+                }
+                Some((d, None)) => {
+                    ranged = [d, d];
+                    &ranged[..1]
+                }
+                None => args,
+            },
+            _ => args,
+        };
         let (data, look) = match args {
             [d] => (*d, base),
             [d, o] => match plot_options(cx, *o, base, allowed, name) {
@@ -1582,6 +1685,11 @@ impl Native for ListPlot {
             }
             _ => data,
         };
+        // weighted data: its values, in order (the weights are not drawn)
+        let data = match mc_graphics::model::head_name(h, data) {
+            Some((n, &[x, _])) if n == "weighted_data" && cx.as_list(x).is_some() => x,
+            _ => data,
+        };
         // a dataset's columns, an association's values (their keys name the data sets)
         let data = match values::tabular(cx, data)? {
             Some(tb) => {
@@ -1591,7 +1699,22 @@ impl Native for ListPlot {
             None => data,
         };
         let data = unlabelled(cx, data)?;
+        // points with uncertainty `vector_around(centre, ...)`: their centres
+        let data = match cx.as_list(data) {
+            Some(items) if items.iter().any(|&e| matches!(values::call_of(h, e), Some((n, a)) if n == "vector_around" && !a.is_empty())) => {
+                let out: Vec<T<'h>> = items
+                    .iter()
+                    .map(|&e| match values::call_of(h, e) {
+                        Some((n, a)) if n == "vector_around" && !a.is_empty() => a[0],
+                        _ => e,
+                    })
+                    .collect();
+                cx.list(&out)
+            }
+            _ => data,
+        };
         let data = values::spread_quantities(cx, data, 0);
+        let data = symbol_sets_left_out(cx, name, data)?;
         let Some(sets) = data_sets(cx, data) else {
             return Ok(bad(h, name, 1));
         };

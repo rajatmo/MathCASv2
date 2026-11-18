@@ -21,6 +21,15 @@
 #% item
 # Every cell's sample point is certified, and the answer is checked at rational sample points before it is returned.
 
+#% item
+# `cylindrical_decomposition(formula, vars, mode)` with one or two variables gives the `"Closure"`, `"Interior"`, `"Exterior"`, `"Boundary"` or the list of connected `"Components"` of the set. The cells' adjacency is found exactly from the limits of the bounding curves at the ends of each interval.
+
+#% item
+# With the mode `"Function"`, a set that is everything or empty is `true` or `false`; otherwise the call stays. Inside a formula, such a call stands for its set.
+
+#% item
+# Coefficients may be real constants such as `sqrt(2)`, `pi` or `log(3)`: they are decomposed as parameters near their values, and the conditions on them are decided by exact comparison. When a constant lies on a boundary between cases, which no enclosure can prove, the call stays.
+
 #% section
 # Examples
 
@@ -60,6 +69,14 @@ cylindrical_decomposition(x^2 + y^2 + z^2 < 1, [x, y, z])
 #= -1 < x and x < 1 and -(1 - x^2)^(1/2) < y and y < (1 - x^2)^(1/2) and -(1 - x^2 - y^2)^(1/2) < z and z < (1 - x^2 - y^2)^(1/2)
 
 #% text
+# Constant coefficients:
+
+#% cell
+cylindrical_decomposition(x^2 + y^2 < pi and x > 1, [x, y])
+#% output
+#= 1 < x and x < pi^(1/2) and -(pi - x^2)^(1/2) < y and y < (pi - x^2)^(1/2)
+
+#% text
 # A curve:
 
 #% cell
@@ -74,6 +91,38 @@ cylindrical_decomposition(y^2 == x*(-1 + x^4), [x, y])
 cylindrical_decomposition(exists(y, x^2 + y^2 < 1 and y > x), x)
 #% output
 #= -1 < x and x < (1/2)*2^(1/2)
+
+#% subsection
+# Scope
+
+#% text
+# The boundary of the open disk:
+
+#% cell
+cylindrical_decomposition(x^2 + y^2 < 1, [x, y], "Boundary")
+#% output
+#= x == -1 and y == 0 or -1 < x and x < 1 and (y == -(1 - x^2)^(1/2) or y == (1 - x^2)^(1/2)) or x == 1 and y == 0
+
+#% text
+# The closure adds the two points where the parts meet the line y = 0:
+
+#% cell
+cylindrical_decomposition(x^4 > x^2 + y^2, [x, y], "Closure")
+#% output
+#= x < -1 and -(-x^2 + x^4)^(1/2) <= y and y <= (-x^2 + x^4)^(1/2) or x == -1 and y == 0 or x == 1 and y == 0 or x > 1 and -(-x^2 + x^4)^(1/2) <= y and y <= (-x^2 + x^4)^(1/2)
+
+#% text
+# The isolated point at the origin is a component of its own and not in the interior:
+
+#% cell
+cylindrical_decomposition(x^4 >= x^2 + y^2, [x, y], "Components")
+#% output
+#= [x < -1 and -(-x^2 + x^4)^(1/2) <= y and y <= (-x^2 + x^4)^(1/2) or x == -1 and y == 0, x == 0 and y == 0, x == 1 and y == 0 or x > 1 and -(-x^2 + x^4)^(1/2) <= y and y <= (-x^2 + x^4)^(1/2)]
+
+#% cell
+cylindrical_decomposition(x^4 >= x^2 + y^2, [x, y], "Interior")
+#% output
+#= x < -1 and -(-x^2 + x^4)^(1/2) < y and y < (-x^2 + x^4)^(1/2) or x > 1 and -(-x^2 + x^4)^(1/2) < y and y < (-x^2 + x^4)^(1/2)
 
 #% section
 # See also

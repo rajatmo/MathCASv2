@@ -237,7 +237,7 @@ const PRELUDE: &[(&str, &str)] = &[
     ("integer_string", "integer_string(n), integer_string(n, b), integer_string(n, b, len): the digits of |n| in base b as a string"),
     ("indexed", "indexed(x, i), indexed(x, [i1, i2, ...]): the part of the list x at the index (path); unevaluated for a symbol x"),
     ("integer_name", "integer_name(n), integer_name(n, words): the English name of the integer n"),
-    ("find_sequence_function", "find_sequence_function(xs, n): a closed form in n (polynomial, rational, factorial, Fibonacci or geometric factor) that gives the terms xs"),
+    ("find_sequence_function", "find_sequence_function(xs, n): a closed form in n (polynomial, rational, factorial, Fibonacci or geometric factor; pairs at equal spacing; alternate zeros; the solution of a guessed recurrence with polynomial coefficients) that gives the terms xs"),
     ("linear_optimization", "linear_optimization(f, cons, vars): the point [x -> ..] minimizing the linear f under the constraints"),
     ("linear_fractional_optimization", "linear_fractional_optimization(f, cons, vars): the point minimizing a ratio of linear functions under the constraints"),
     ("convex_optimization", "convex_optimization(f, cons, vars): the point minimizing the convex f under the constraints"),

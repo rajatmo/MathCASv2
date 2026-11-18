@@ -13,6 +13,15 @@
 # The search covers polynomials, polynomials divided by `n` or `n + 1`, and such expressions times `n!`, `fibonacci(n)`, `(-1)^n` or `c^n` for `c` = 2, 3, 4, 5; then sequences whose differences are geometric, `a + b r^n` with `r` a number or a symbol.
 
 #% item
+# A list of pairs `[[x1, y1], [x2, y2], ...]` with equally spaced `x` gives the function of the `y` written in `x`.
+
+#% item
+# When every second term is 0, the other terms are searched and the result carries the factor `(1 - (-1)^n)/2` or `(1 + (-1)^n)/2`.
+
+#% item
+# Rational terms that satisfy a linear recurrence with polynomial coefficients (order up to 4, degree up to 4, at least two equations beyond the unknowns) give the solution of that recurrence by `r_solve_value`, or its `difference_root` when there is no closed form; either gives every listed term.
+
+#% item
 # At least two terms beyond those fixing the form must agree, so the list needs at least three terms.
 
 #% item
@@ -64,8 +73,36 @@ find_sequence_function([2/3, 4/9, 8/27, 16/81, 32/243], n)
 #% output
 #= (2/3)^n
 
+#% subsection
+# Scope
+
+#% cell
+find_sequence_function(table([2 k, 2^k], [k, 10]), n)
+#% output
+#= 2^((1/2)*n)
+
+#% cell
+find_sequence_function([1, 0, 1, 0, 1/2, 0, 1/6, 0, 1/24, 0, 1/120], n)
+#% output
+#= (1 - (-1)^n)/(2*factorial(-1 + (1/2)*(1 + n)))
+
+#% cell
+find_sequence_function([1, 3, 10, 35, 126, 462, 1716, 6435, 24310], n)
+#% output
+#= pochhammer(3/2, -1 + n)*4^(-1 + n)/pochhammer(2, -1 + n)
+
+#% cell
+find_sequence_function([0, 1, 3, 8, 19, 43, 94, 201, 423, 880], n)
+#% output
+#= -2*(1/2)^n*(1 + 5^(1/2))^n/(-5 + 3*5^(1/2)) + 2*(1/2)^n*(1 - 5^(1/2))^n/(5 + 3*5^(1/2)) + 2^n
+
+#% cell
+find_sequence_function(table(factorial(k) + 1/k, [k, 14]), n)
+#% output
+#= difference_root((FormalY, FormalN) => [1 + FormalN + FormalN^2 + (-FormalN - 2*FormalN^2 - FormalN^3)*FormalY(FormalN) + (FormalN + FormalN^2)*FormalY(1 + FormalN) == 0, FormalY(1) == 2])(n)
+
 #% section
 # See also
 
 #% text
-# `recurrence_table`, `interpolation`, `fit`
+# `recurrence_table`, `interpolation`, `fit`, `find_linear_recurrence`, `difference_root`, `r_solve_value`

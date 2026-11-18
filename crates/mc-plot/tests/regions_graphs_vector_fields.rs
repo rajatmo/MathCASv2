@@ -93,6 +93,23 @@ fn graphs_are_terms_shown_as_pictures() {
     assert_eq!(eval(&mut e, "edge_count(complete_graph(6))"), "15");
     assert_eq!(eval(&mut e, "edge_count(grid_graph([3, 4]))"), "17");
     assert_eq!(eval(&mut e, "edge_list(path_graph([a, b, c]))"), "[undirected_edge(a, b), undirected_edge(b, c)]");
+    // generalized Petersen graphs: 3n edges (n/2 fewer for k = n/2, whose inner edges are a matching); GP(5, 2) is
+    // the Petersen graph, GP(5, 4) the pentagonal prism (k and n - k agree), every vertex of degree 3
+    assert_eq!(eval(&mut e, "edge_list(petersen_graph(5, 2)) == edge_list(petersen_graph())"), "true");
+    assert_eq!(eval(&mut e, "[edge_count(petersen_graph(8, 3)), edge_count(petersen_graph(6, 3)), vertex_count(petersen_graph(7, 1))]"), "[24, 15, 14]");
+    assert_eq!(eval(&mut e, "vertex_degree(petersen_graph(5, 4))"), "[3, 3, 3, 3, 3, 3, 3, 3, 3, 3]");
+    for src in ["petersen_graph(2, 1)", "petersen_graph(5, 5)", "petersen_graph(5, 0)", "petersen_graph(5, k)"] {
+        assert_eq!(eval(&mut e, src), src);
+    }
+    // options stay with the constructed graph and its picture
+    assert!(eval(&mut e, "petersen_graph(5, 4, vertex_shape_function: none, vertex_size: 0)").starts_with("image(\""));
+    // layered drawings turned: the first layer on the left, a root given
+    let left = picture(&mut e, "layered_graph_plot([1 -> 2, 1 -> 3, 2 -> 3], left)");
+    let top = picture(&mut e, "layered_graph_plot([1 -> 2, 1 -> 3, 2 -> 3])");
+    assert_ne!(left, top);
+    assert!(eval(&mut e, "tree_plot([1 -> 4, 1 -> 6, 4 -> 5], right)").starts_with("image(\""));
+    assert!(eval(&mut e, "layered_graph_plot([1 -> 2, 1 -> 3, 2 -> 3], 2 -> automatic)").starts_with("image(\""));
+    assert_eq!(eval(&mut e, "graph_plot([1 -> 2], left)"), "graph_plot([1 -> 2], left)");
 }
 
 #[test]

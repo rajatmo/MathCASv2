@@ -25,8 +25,8 @@ fn products_without_closed_form() {
         ev(&format!("abs(rewrite({b}, n -> 60) - n_product(1 - 1/(k^3 + 2), [k, 1, 60])) < 60^(-5)")),
         "true"
     );
-    // an indefinite product is not expanded this way
-    assert!(ev("asymptotic_product((k^(13/4) - 1)/(k^(13/4) + 1), k, [k, inf, 3])").starts_with("failure("));
+    // an indefinite product is expanded by the sum of its logarithm (asymptotic_indefinite_sums.rs), without constant
+    assert_eq!(ev("expand(asymptotic_product((k^(13/4) - 1)/(k^(13/4) + 1), k, [k, inf, 3]) - 1 - 8/(9*k^(9/4)))"), "0");
 }
 
 #[test]

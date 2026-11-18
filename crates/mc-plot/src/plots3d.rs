@@ -438,7 +438,13 @@ impl Native for Plot3 {
                     }
                     meshes.push(Mesh { nu: n, nv: n, p });
                 }
-                let Some(auto) = heights(&meshes) else { return Ok(bad(h, name, 1)) };
+                // no value anywhere (a function that is not defined, `g(x, y)`): drawn as nothing in its box, as a
+                // function without values in `plot`; a failure stays one
+                let auto = match heights(&meshes) {
+                    Some(auto) => auto,
+                    None if !fs.iter().any(|&g| matches!(h.view(g), View::App { head, .. } if head == h.sym_term(h.sym("failure")))) => (-1.0, 1.0),
+                    None => return Ok(bad(h, name, 1)),
+                };
                 let z = [o.range[2][0].unwrap_or(auto.0), o.range[2][1].unwrap_or(auto.1)];
                 let z = if z[1] > z[0] { z } else { [auto.0, auto.1] };
                 let content = self.surfaces(&b, &meshes, &o, (z[0], z[1]));

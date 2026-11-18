@@ -63,22 +63,120 @@ pub struct Optimize {
 
 impl Native for Optimize {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        // quantified constraints: their quantifiers eliminated first (an equivalent formula in the variables), then
+        // the problem again; the objective's graph would add a variable to every decomposition of the quantifiers
+        if let Some(r) = quantifier_free_constraints(cx, &self.stop, t, args)? {
+            return Ok(Reply::Again(r));
+        }
         match self.inner.call(cx, t, args)? {
             Reply::Decline => {}
+            Reply::Done(r) => return Ok(Reply::Done(reduced_value(cx, self.goal, args, r)?)),
             r => return Ok(r),
         }
         if let Some(r) = crate::instances::optimize_integers(cx, &self.stop, self.goal, args)? {
             return Ok(Reply::Done(r));
         }
         if let Some(r) = optimize(cx, &self.stop, self.goal, args)? {
-            return Ok(Reply::Done(r));
+            return Ok(Reply::Done(reduced_value(cx, self.goal, args, r)?));
         }
         // regions as constraints, objectives with cases, variables the objective does not hold
         Ok(match crate::recast::recast(cx, self.goal, args)? {
-            Some(r) => Reply::Done(r),
+            Some(r) => Reply::Done(reduced_value(cx, self.goal, args, r)?),
             None => Reply::Decline,
         })
     }
+}
+
+/// The optimum value of a problem in several variables as one algebraic number: a value written as a polynomial
+/// in a root object (the objective at a point whose coordinates are polynomials in the root of one coordinate)
+/// becomes `root(p, k)` with `p` the minimal polynomial of the value (`root_reduce`: resultants, exact). Values
+/// that are already a root object, numbers, radicals or numeric roots are kept; so is the value of a problem in
+/// one variable (the objective at the root of its derivative is the clearer form there). A maximum is written as
+/// minus the root of the negated value (the minimum of the negated objective).
+fn reduced_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, goal: Goal, args: &[T<'h>], r: T<'h>) -> Res<T<'h>> {
+    let h = cx.heap();
+    let fr = Front::new(h);
+    let nvars = args.get(1).and_then(|&x| fr.list(x)).map_or(1, |v| v.len());
+    if nvars < 2 {
+        return Ok(r);
+    }
+    let (v, rest) = match goal {
+        Goal::MinValue | Goal::MaxValue => (r, None),
+        Goal::Minimize | Goal::Maximize => match fr.list(r) {
+            Some([v, pts]) => (*v, Some(*pts)),
+            _ => return Ok(r),
+        },
+        Goal::ArgMin | Goal::ArgMax => return Ok(r),
+    };
+    let negated_root = |t: T<'h>| matches!(fr.head(t), Some((n, &[k, u])) if n == names::MUL && matches!(h.view(k), View::Int(-1)) && is_algebraic_root(h, u));
+    if is_algebraic_root(h, v) || negated_root(v) || !has_algebraic_root(h, v) {
+        return Ok(r);
+    }
+    // a maximum is minus the minimum of the negated objective: minus the root of the negated value
+    let neg = |t: T<'h>| h.call(h.sym(names::MUL), &[h.int(-1), t]);
+    let w = cx.eval(h.call(h.sym("root_reduce"), &[if goal.max() { neg(v) } else { v }]))?;
+    let h = cx.heap();
+    if !(is_algebraic_root(h, w) || matches!(h.view(w), View::Int(_) | View::BigInt { .. } | View::Rational { .. })) {
+        return Ok(r);
+    }
+    let w = if goal.max() { cx.eval(neg(w))? } else { w };
+    Ok(match rest {
+        None => w,
+        Some(pts) => cx.list(&[w, pts]),
+    })
+}
+
+/// `root(p, k)` with an integer `k` (an exact real algebraic number, not a numeric root `root([f, x0])`).
+fn is_algebraic_root(h: &mc_core::Heap, t: T<'_>) -> bool {
+    match h.view(t) {
+        View::App { head, args } => {
+            matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "root") && matches!(args, [_, k] if matches!(h.view(*k), View::Int(_)))
+        }
+        _ => false,
+    }
+}
+
+/// A number built from root objects and rationals by arithmetic (no symbols, constants or other functions), with
+/// at least one root object.
+fn has_algebraic_root(h: &mc_core::Heap, t: T<'_>) -> bool {
+    let mut stack = vec![t];
+    let mut found = false;
+    while let Some(u) = stack.pop() {
+        if is_algebraic_root(h, u) {
+            found = true;
+            continue;
+        }
+        match h.view(u) {
+            View::App { head, args } => {
+                if !matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), names::ADD | names::MUL | names::POW)) {
+                    return false;
+                }
+                stack.extend(args.iter().copied());
+            }
+            View::Int(_) | View::BigInt { .. } | View::Rational { .. } => {}
+            _ => return false,
+        }
+    }
+    found
+}
+
+/// `goal([f, cond], vars)` with the quantifiers of `cond` eliminated over the reals, when `f` has none and the
+/// elimination finishes.
+fn quantifier_free_constraints<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, t: T<'h>, args: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let fr = Front::new(h);
+    let [fc, xs] = args else { return Ok(None) };
+    let Some([f, c]) = fr.list(*fc) else { return Ok(None) };
+    if !fr.has_quantifier(*c) || fr.has_quantifier(*f) {
+        return Ok(None);
+    }
+    let Some(q) = crate::natives::solve_formula(cx, stop, *c, &[], crate::natives::Style::Resolve)? else { return Ok(None) };
+    if fr.has_quantifier(q) {
+        return Ok(None);
+    }
+    let View::App { head, .. } = h.view(t) else { return Ok(None) };
+    let fc2 = cx.list(&[*f, q]);
+    Ok(Some(h.app(head, &[fc2, *xs])))
 }
 
 /// The extreme of the objective: its value (`None` for an infinite one, with the sign in `inf_sign`) and the

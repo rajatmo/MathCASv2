@@ -141,6 +141,15 @@ fn rule<'h>(h: &'h Heap, k: &str, v: T<'h>) -> T<'h> {
 fn density_histogram<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], o: Option<T<'h>>) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [d, ..] = a else { return Ok(Reply::Decline) };
+    // entries that are not points (`missing()`, `none`, symbols) are left out, as by the other charts
+    let d = match cx.as_list(*d).map(|l| l.to_vec()) {
+        Some(items) if items.iter().any(|&e| cx.as_list(e).is_none()) && items.iter().any(|&e| cx.as_list(e).is_some()) => {
+            let kept: Vec<T<'h>> = items.into_iter().filter(|&e| cx.as_list(e).is_some()).collect();
+            cx.list(&kept)
+        }
+        _ => *d,
+    };
+    let d = &d;
     let Some(m) = matrix(cx, *d)?.filter(|m| !m.is_empty() && m.iter().all(|r| r.len() == 2)) else { return Ok(bad(h, "density_histogram", 1)) };
     let n = ((m.len() as f64).sqrt().ceil() as usize).clamp(4, 30);
     let span = |k: usize| {
@@ -571,6 +580,11 @@ fn list_step_plot<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], o: Option<T<'h
         (t, layers)
     };
     let (d0, outer) = peel(*d);
+    // weighted data: its values, in order (the weights are not drawn)
+    let d0 = match crate::values::call_of(h, d0) {
+        Some((n, a)) if n == "weighted_data" && a.len() == 2 && cx.as_list(a[0]).is_some() => a[0],
+        _ => d0,
+    };
     let wrapped_sets = cx.as_list(d0).is_some_and(|l| l.iter().any(|&e| wrapper(e).is_some()));
     let sets = if wrapped_sets { cx.as_list(d0).map(|l| l.to_vec()) } else { crate::data_sets(cx, d0).filter(|v| !(v.len() == 1 && v[0] == d0)) };
     let (items, set_layers): (Vec<T<'h>>, Vec<Vec<(String, Vec<T<'h>>)>>) = match sets {

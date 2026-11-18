@@ -8,6 +8,10 @@
 //! - [`vs`]: linear virtual substitution, the fast path for quantified variables that occur linearly;
 //! - [`sos`]: a sum-of-squares certificate for `for_all` of one polynomial inequality;
 //! - [`output`]: solution formulas, cylindrical (adjacent cells combined) or by sign conditions;
+//! - [`topology`]: closure, interior, exterior, boundary and connected components in the line and the plane by
+//!   cell adjacency;
+//! - [`constants`]: decompositions with real constant coefficients (`sqrt(2)`, `exp(pi)`) as parameters near their
+//!   values;
 //! - [`complex`]: complex quantifier elimination (several equations and `!=` per variable) and closed sentences
 //!   by Groebner bases, inequalities over the real and imaginary parts;
 //! - [`optimize`]: `minimize`, `maximize` and the others through the decomposition (item 11D, first part);
@@ -32,6 +36,7 @@
 pub mod analytic;
 pub mod cad;
 pub mod complex;
+pub mod constants;
 pub mod formula;
 pub mod front;
 pub mod instances;
@@ -46,6 +51,7 @@ pub mod project;
 pub mod reals;
 mod recast;
 pub mod sos;
+pub mod topology;
 pub mod vs;
 pub mod witness;
 
@@ -67,7 +73,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("for_all", "for_all(x, formula), for_all([x, y], formula), for_all(x, cond, formula): formula holds for every x; resolve and reduce eliminate it"),
     (
         "cylindrical_decomposition",
-        "cylindrical_decomposition(formula, [x, y, ...]): the solution set of a real polynomial formula as cylindrical cells, x first: a < x < b and f(x) < y < g(x) or ...",
+        "cylindrical_decomposition(formula, [x, y, ...]): the solution set of a real polynomial formula as cylindrical cells, x first: a < x < b and f(x) < y < g(x) or ...; cylindrical_decomposition(formula, vars, mode): its \"Closure\", \"Interior\", \"Exterior\", \"Boundary\" or \"Components\" (one or two variables)",
     ),
 ];
 

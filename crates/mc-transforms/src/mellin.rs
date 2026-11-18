@@ -84,7 +84,16 @@ pub fn mellin<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, f: T<'h>, x: T
     let b = tc.b;
     let table = Table::read(cx, b, TABLE, x, s)?;
     let mut st = State { table, cond: None, checked: true };
-    let Some(v) = mel(cx, tc, &mut st, f, x, s, 0)? else { return Ok(None) };
+    let mut v = mel(cx, tc, &mut st, f, x, s, 0)?;
+    // sin(g + c), cos(g + c) with c free of x: by the addition theorems, sums of c-constant multiples of sin(g), cos(g)
+    if v.is_none() {
+        let e = shifted_trig(cx, b, f, x)?;
+        if e != f {
+            st = State { table: Table::read(cx, b, TABLE, x, s)?, cond: None, checked: true };
+            v = mel(cx, tc, &mut st, e, x, s, 0)?;
+        }
+    }
+    let Some(v) = v else { return Ok(None) };
     let v = cx.eval(v)?;
     if is_failure(b, v) || !super::free_outside(b, v, x) {
         return Ok(None);
@@ -95,6 +104,40 @@ pub fn mellin<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, f: T<'h>, x: T
         return Ok(None);
     }
     Ok(Some(with_condition(cx, tc, v, st.cond)?))
+}
+
+/// `f` with every sine or cosine of a sum `g + c` (g the terms with `x`, c the nonzero rest, free of `x`) written by
+/// the addition theorems: sin(g + c) = cos(c) sin(g) + sin(c) cos(g), cos(g + c) = cos(c) cos(g) - sin(c) sin(g)
+fn shifted_trig<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<T<'h>> {
+    let mut pairs = vec![];
+    let mut stack = vec![f];
+    while let Some(g) = stack.pop() {
+        if let Some((n, [u])) = call_of(b, g) {
+            if (n == "sin" || n == "cos") && !is_free(b, *u, x) {
+                let (c, gx): (Vec<_>, Vec<_>) = terms(b, *u).into_iter().partition(|&t| is_free(b, t, x));
+                if !c.is_empty() && !gx.is_empty() {
+                    let (c, gx) = (b.add(&c), b.add(&gx));
+                    let (sc, cc) = (b.call("sin", &[c]), b.call("cos", &[c]));
+                    let (sg, cg) = (b.call("sin", &[gx]), b.call("cos", &[gx]));
+                    let e = if n == "sin" {
+                        b.add(&[b.mul(&[cc, sg]), b.mul(&[sc, cg])])
+                    } else {
+                        b.sub(b.mul(&[cc, cg]), b.mul(&[sc, sg]))
+                    };
+                    pairs.push((g, e));
+                    continue;
+                }
+            }
+        }
+        if let View::App { args, .. } = b.heap().view(g) {
+            stack.extend(args.iter().copied());
+        }
+    }
+    let mut e = f;
+    for (g, v) in pairs {
+        e = subst(cx, b, e, g, v)?;
+    }
+    Ok(e)
 }
 
 struct State<'h> {

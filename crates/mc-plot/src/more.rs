@@ -224,6 +224,9 @@ impl Native for ListPolarPlot {
             }
             _ => d,
         };
+        // data -> labels: the data
+        let d = crate::unlabelled(cx, d)?;
+        let d = crate::symbol_sets_left_out(cx, name, d)?;
         let Some(sets) = crate::data_sets(cx, d) else { return Ok(bad(h, name, 1)) };
         let many = sets.len() > 1;
         let mut series = vec![];

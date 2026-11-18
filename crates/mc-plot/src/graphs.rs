@@ -69,6 +69,8 @@ fn edge<'h>(h: &'h Heap, t: T<'h>) -> Option<(T<'h>, T<'h>, bool)> {
     match (n.as_str(), a) {
         (names::RULE | "directed_edge", &[x, y]) => Some((x, y, true)),
         ("undirected_edge" | "two_way_rule", &[x, y]) => Some((x, y, false)),
+        // an edge with its label, `[a -> b, label]`
+        (names::LIST, &[e, _]) if !matches!(head_args(h, bare(h, e)), Some((m, _)) if m == names::LIST) => edge(h, e),
         _ => None,
     }
 }
@@ -333,8 +335,30 @@ fn layout_option(h: &Heap, o: Option<T<'_>>) -> Option<Layout> {
 
 /// The picture of a graph as a graphics term.
 pub(crate) fn picture<'h>(h: &'h Heap, g: &G<'h>, kind: Layout, extra: Option<T<'h>>, stop: &dyn Fn() -> bool) -> T<'h> {
+    picture_facing(h, g, kind, extra, Facing::Top, stop)
+}
+
+/// Where the first layer of a layered drawing lies.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Facing {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+/// The picture of a graph with the first layer of a layered drawing on the side `facing` (the drawing turned).
+pub(crate) fn picture_facing<'h>(h: &'h Heap, g: &G<'h>, kind: Layout, extra: Option<T<'h>>, facing: Facing, stop: &dyn Fn() -> bool) -> T<'h> {
     let kind = layout_option(h, g.options).or_else(|| layout_option(h, extra)).unwrap_or(kind);
-    let pos = layout(g.vertices.len(), &g.edges, kind, stop);
+    let mut pos = layout(g.vertices.len(), &g.edges, kind, stop);
+    for p in pos.iter_mut() {
+        *p = match facing {
+            Facing::Top => *p,
+            Facing::Bottom => [p[0], -p[1]],
+            Facing::Left => [-p[1], p[0]],
+            Facing::Right => [p[1], -p[0]],
+        };
+    }
     let list = |a: &[T<'h>]| h.call(h.sym(names::LIST), a);
     let pt = |p: [f64; 2]| h.reals(&p);
     let mut prims = vec![];
@@ -415,14 +439,33 @@ impl Native for GraphPlot {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let (a, o) = split(h, args);
-        let [g] = a.as_slice() else { return Ok(Reply::Decline) };
+        // layered drawings: a side for the first layer (`left`, ...), or a root (`v` or `v -> automatic`), which
+        // the layering from the sources does not use
+        let (g, facing) = match a.as_slice() {
+            [g] => (*g, Facing::Top),
+            [g, side] if self.layout == Layout::Layered => {
+                let facing = match h.view(*side) {
+                    View::Sym(s) => match h.sym_name(s).as_str() {
+                        "top" => Facing::Top,
+                        "bottom" => Facing::Bottom,
+                        "left" => Facing::Left,
+                        "right" => Facing::Right,
+                        _ => Facing::Top,
+                    },
+                    _ => Facing::Top,
+                };
+                (*g, facing)
+            }
+            _ => return Ok(Reply::Decline),
+        };
+        let g = &g;
         // an adjacency matrix
         let g = match adjacency(cx, *g) {
             Some(t) => t,
             None => *g,
         };
         let Some(gr) = read(h, g) else { return Ok(bad(h, self.name, 1)) };
-        let pic = picture(h, &gr, self.layout, o, &|| cx.stopped());
+        let pic = picture_facing(h, &gr, self.layout, o, facing, &|| cx.stopped());
         finish_graphic(cx, pic, self.name, &[])
     }
 }
@@ -470,7 +513,7 @@ impl Native for Make {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let ue = |a: i64, b: i64| h.call(h.sym("undirected_edge"), &[h.int(a), h.int(b)]);
-        let (a, _o) = split(h, args);
+        let (a, o) = split(h, args);
         let count = |t: T<'h>| match h.view(t) {
             View::Int(n) if (1..=2000).contains(&n) => Some(n),
             _ => None,
@@ -506,6 +549,20 @@ impl Native for Make {
                 e.extend((0..5).map(|i| ue(i + 6, (i + 2) % 5 + 6)));
                 ((1..=10).map(|k| h.int(k)).collect(), e)
             }
+            ("petersen_graph", [n, k]) => {
+                // the generalized Petersen graph GP(n, k) (Watkins 1969): the outer n-cycle 1..n, the spokes i ~ n + i
+                // and the inner star polygon n + i ~ n + (i + k mod n), for 1 <= k < n (k and n - k give the same
+                // graph; for k = n/2 the inner edges are a matching, each taken once)
+                let (Some(n), Some(k)) = (count(*n), count(*k)) else { return Ok(Reply::Decline) };
+                if n < 3 || k >= n {
+                    return Ok(Reply::Decline);
+                }
+                let mut e: Vec<T<'h>> = (1..=n).map(|i| ue(i, i % n + 1)).collect();
+                e.extend((1..=n).map(|i| ue(i, n + i)));
+                let inner = if 2 * k == n { n / 2 } else { n };
+                e.extend((0..inner).map(|i| ue(n + i + 1, n + (i + k) % n + 1)));
+                ((1..=2 * n).map(|v| h.int(v)).collect(), e)
+            }
             ("kary_tree", [n, rest @ ..]) if rest.len() <= 1 => {
                 // the complete k-ary tree of n vertices (k = 2 by default), vertex i's children k(i - 1) + 2, ...
                 let Some(n) = count(*n) else { return Ok(Reply::Decline) };
@@ -537,7 +594,10 @@ impl Native for Make {
             }
             _ => return Ok(Reply::Decline),
         };
-        Ok(Reply::Done(h.call(h.sym("graph"), &[cx.list(&verts), cx.list(&edges)])))
+        // options (`vertex_size: 0`, ...) stay with the graph, for its picture
+        let mut parts = vec![cx.list(&verts), cx.list(&edges)];
+        parts.extend(o);
+        Ok(Reply::Done(h.call(h.sym("graph"), &parts)))
     }
 }
 

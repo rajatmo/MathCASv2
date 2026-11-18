@@ -576,6 +576,9 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     let helper = "nl_ca_window";
     let f = Fun { lib: lib.clone(), body: automata::ca_window, rows_of_datasets: false, patterns: false, assoc: assocs::mode(helper) };
     k.register(h.sym(helper), Attributes::default(), Box::new(f));
+    let helper = "nl_ca_evolve2";
+    let f = Fun { lib: lib.clone(), body: automata::ca_evolve2, rows_of_datasets: false, patterns: false, assoc: assocs::mode(helper) };
+    k.register(h.sym(helper), Attributes::default(), Box::new(f));
     // machine arrays with complex leaves, for the library's `fourier`
     let helper = "nl_complex_leaves";
     let f = Fun { lib: lib.clone(), body: leaves::complex_leaves, rows_of_datasets: false, patterns: false, assoc: assocs::mode(helper) };

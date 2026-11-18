@@ -117,12 +117,14 @@ fn sine_integral_and_step() {
 }
 
 #[test]
-fn balanced_product_with_unevaluable_side_declines_quickly() {
-    // the inversion gives both sides (2F1 inside, 3F2 outside); the 3F2 does not evaluate at the jump, so the
-    // fixed-node check of the forward Mellin integral fails at its first node and the transform stays unevaluated
-    timed("(1 - J0(a r))/r^2, order 1", 6, || {
+fn balanced_product_with_a_3f2_side_is_checked() {
+    // the inversion gives both sides (2F1 inside, 3F2 outside); the check by the forward Mellin integral evaluates
+    // the 3F2 by its shifted series (a 2F1) next to the jump, so the transform is accepted (values against the
+    // defining integral in hypergeometric_3f2_at_one.rs)
+    timed("(1 - J0(a r))/r^2, order 1", 30, || {
         let mut e = CoreEngine::new();
-        assert!(ev(&mut e, "hankel_transform((1 - bessel_j(0, a*r))/r^2, r, s, 1)").starts_with("hankel_transform("));
+        let v = ev(&mut e, "hankel_transform((1 - bessel_j(0, a*r))/r^2, r, s, 1)");
+        assert!(!v.contains("hankel_transform") && v.contains("hypergeometric_pfq([1, 3/2, 1/2], [2, 2], a^2"), "{v}");
     });
     // the fixed-node rule against a known integral with endpoint singularities at 0 and k
     timed("double-exponential nodes", 6, || {

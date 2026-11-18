@@ -138,6 +138,9 @@ pub fn bilateral<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, f: T<'h>, t
             }
         }
     }
+    if let Some(r) = bilateral_step(cx, tc, f, t, s)? {
+        return Ok(Some(r));
+    }
     let inf = h.sym_term(h.sym("inf"));
     let g = cx.eval(b.mul(&[f, b.call("exp", &[b.neg(b.mul(&[s, t]))])]))?;
     let r = definite(cx, b, g, t, b.neg(inf), inf, tc.opts.conditions || tc.opts.strips)?;
@@ -148,6 +151,48 @@ pub fn bilateral<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, f: T<'h>, t
         Some(k) => cx.eval(b.call("conditional_expression", &[v, k]))?,
         None => v,
     }))
+}
+
+/// A step `unit_step(k (t - a))` times g, k of known sign, a of any sign (a symbol too): for k > 0 the integral over
+/// t > a is `exp(-a s) L[g(a + u)](s)`, for k < 0 the one over t < a is `exp(-a s) L[g(a - u)](-s)` (u = t - a or
+/// a - t), the one-sided transform with its region of convergence, which becomes the strip's condition.
+fn bilateral_step<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, f: T<'h>, t: T<'h>, s: T<'h>) -> Res<Option<T<'h>>> {
+    let b = tc.b;
+    let h = b.heap();
+    let fs = factors(b, f);
+    for (i, &g) in fs.iter().enumerate() {
+        let Some((n, [u])) = call_of(b, g) else { continue };
+        if n != "unit_step" {
+            continue;
+        }
+        let Some((k, d)) = linear(cx, b, *u, t)? else { continue };
+        let Some(sg) = sign(cx, b, k)? else { continue };
+        if sg == 0 {
+            continue;
+        }
+        let a = cx.eval(b.neg(b.div(d, k)))?;
+        let mut rest = fs.clone();
+        rest.remove(i);
+        let rest = cx.eval(b.mul(&rest))?;
+        let uu = h.sym_term(h.sym("transform·shift"));
+        let at = if sg > 0 { b.add(&[a, uu]) } else { b.sub(a, uu) };
+        let at = cx.eval(at)?;
+        let shifted = subst(cx, b, rest, t, at)?;
+        // the one-sided transform in a fresh variable p, then p -> s or -s (the rules substitute into their variable,
+        // which must be a symbol)
+        let p = h.sym_term(h.sym("transform·p"));
+        let s2 = if sg > 0 { s } else { cx.eval(b.neg(s))? };
+        let inner = Cx { b, stop: tc.stop, opts: super::Opts { conditions: false, strips: true, ..tc.opts }, depth: tc.depth + 1 };
+        let Some(r) = laplace(cx, &inner, shifted, uu, p)? else { return Ok(None) };
+        let r = subst(cx, b, r, p, s2)?;
+        let (v, cond) = super::conditional(b, r);
+        if !is_free(b, v, uu) || cond.is_some_and(|c| !is_free(b, c, uu)) || !is_free(b, v, p) {
+            return Ok(None);
+        }
+        let v = cx.eval(b.mul(&[b.call("exp", &[b.neg(b.mul(&[a, s]))]), v]))?;
+        return Ok(Some(super::with_condition(cx, tc, v, cond)?));
+    }
+    Ok(None)
 }
 
 struct State<'h> {

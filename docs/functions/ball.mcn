@@ -10,6 +10,9 @@
 # Details
 
 #% item
+# `ball()` is `ball([0, 0, 0])`, and `ball(c)` the ball of radius 1 about `c`. `ball(n)` for an integer `n` is the unit ball of `n` dimensions.
+
+#% item
 # Coordinates are in the units of the graphic; the box around the scene follows the data unless `plot_range` says otherwise.
 
 #% item
@@ -25,9 +28,14 @@
 # The default:
 
 #% cell
+ball()
+#% output
+#= ball([0, 0, 0])
+
+#% cell
 graphics3d(ball())
 #% output
-#= image("ball.files/ball-1.svgz")
+#= image("ball.files/ball-2.svgz")
 
 #% subsection
 # Scope
@@ -38,7 +46,7 @@ graphics3d(ball())
 #% cell
 graphics3d(table(ball([k, 0, 0], k/4), k, 4))
 #% output
-#= image("ball.files/ball-2.svgz")
+#= image("ball.files/ball-3.svgz")
 
 #% subsection
 # Applications
@@ -49,7 +57,7 @@ graphics3d(table(ball([k, 0, 0], k/4), k, 4))
 #% cell
 graphics_row([graphics3d(ball()), graphics3d(sphere())])
 #% output
-#= image("ball.files/ball-3.svgz")
+#= image("ball.files/ball-4.svgz")
 
 #% section
 # See also

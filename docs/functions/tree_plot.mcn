@@ -6,6 +6,9 @@
 #% text
 # `tree_plot(edges)` draws a tree in layers from its root.
 
+#% text
+# `tree_plot(edges, side)` puts the root on the side `top`, `bottom`, `left` or `right`.
+
 #% section
 # Examples
 
@@ -16,6 +19,11 @@
 tree_plot([1 -> 2, 1 -> 3, 2 -> 4, 2 -> 5, 3 -> 6])
 #% output
 #= image("tree_plot.files/tree_plot-1.svgz")
+
+#% cell
+tree_plot([1 -> 2, 1 -> 3, 2 -> 4, 2 -> 5, 3 -> 6], left)
+#% output
+#= image("tree_plot.files/tree_plot-2.svgz")
 
 #% section
 # See also

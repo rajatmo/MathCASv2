@@ -14,7 +14,7 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     for name in PRIMITIVES {
         k.register(h.sym(name), a(), Box::new(Primitive(name)));
     }
-    for name in ["sphere", "cuboid", "cylinder", "cone"] {
+    for name in ["sphere", "cuboid", "cylinder", "cone", "ball"] {
         k.register(h.sym(name), a(), Box::new(Placed(name)));
     }
     for name in DIRECTIVES.iter().filter(|n| **n != "scaled") {
@@ -162,7 +162,14 @@ impl Native for Primitive {
             // coordinates in three (or more) dimensions: a primitive of 3D graphics or a region
             Err(Bad::Arg(k))
                 if matches!((self.0, k), ("point" | "line" | "polygon" | "arrow" | "bezier_curve" | "b_spline_curve", 1) | ("text", 2))
-                    && args.get(k - 1).is_some_and(|&a| mc_graphics::three::is_coords(h, a)) =>
+                    && args.get(k - 1).is_some_and(|&a| mc_graphics::three::is_coords(h, a) || mc_graphics::three::is_scaled_coords(h, a)) =>
+            {
+                Reply::Decline
+            }
+            // a polygon of space with holes, `polygon(outer -> [hole, ...])`
+            Err(Bad::Arg(_))
+                if self.0 == "polygon"
+                    && matches!(args, [r] if model::head_name(h, *r).is_some_and(|(n, a)| n == names::RULE && a.len() == 2 && mc_graphics::three::is_coords(h, a[0]))) =>
             {
                 Reply::Decline
             }
@@ -180,17 +187,19 @@ impl Native for Primitive {
 
 /// The primitives whose docs pages state where the call without arguments lies, with that placement written out:
 /// `disk()`, `circle()` and `rectangle()` at the origin of the plane, `sphere()` and `cuboid()` at the origin of
-/// space, `cylinder()` and `cone()` on the axis from [0, 0, -1] to [0, 0, 1]. The size stays the default.
+/// space, `cylinder()` and `cone()` on the axis from [0, 0, -1] to [0, 0, 1]. The size stays the default, except for
+/// `annulus()`, the ring `annulus([0, 0], [1/2, 1])` with both radii written out.
 fn default_placement<'h>(cx: &NativeCx<'_, '_, 'h>, name: &str) -> Option<T<'h>> {
     let h = cx.heap();
     let point = |c: &[i64]| cx.list(&c.iter().map(|&x| h.int(x)).collect::<Vec<_>>());
-    let arg = match name {
-        "disk" | "circle" | "rectangle" => point(&[0, 0]),
-        "sphere" | "cuboid" => point(&[0, 0, 0]),
-        "cylinder" | "cone" => cx.list(&[point(&[0, 0, -1]), point(&[0, 0, 1])]),
+    let args = match name {
+        "disk" | "circle" | "rectangle" => vec![point(&[0, 0])],
+        "sphere" | "cuboid" | "ball" => vec![point(&[0, 0, 0])],
+        "cylinder" | "cone" => vec![cx.list(&[point(&[0, 0, -1]), point(&[0, 0, 1])])],
+        "annulus" => vec![point(&[0, 0]), cx.list(&[h.rational(h.int(1), h.int(2)), h.int(1)])],
         _ => return None,
     };
-    Some(h.call(h.sym(name), &[arg]))
+    Some(h.call(h.sym(name), &args))
 }
 
 /// The solids of space whose call without arguments is written out by [`default_placement`].
@@ -367,8 +376,9 @@ fn numeric<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, depth: usize, seen: &mut
             if !structural {
                 return n_value(cx, t);
             }
-            // the label of `text` and the name of an option stay as written
-            let keep_first = matches!(h.view(head), View::Sym(s) if { let n = h.sym_name(s); n == "text" || n == names::RULE });
+            // the label of `text` and the name of an option stay as written (the outer points of `outer -> holes`
+            // are numbers like the rest)
+            let keep_first = matches!(h.view(head), View::Sym(s) if { let n = h.sym_name(s); n == "text" || (n == names::RULE && args.first().is_some_and(|&k| matches!(h.view(k), View::Sym(_) | View::Str(_)))) });
             let mut out = Vec::with_capacity(args.len());
             let mut changed = false;
             for (i, &a) in args.iter().enumerate() {
@@ -452,8 +462,34 @@ impl Native for Show {
         // the plots among them by the paths of their pictures (their axes are worked out again below)
         let paths: Vec<Option<String>> = flat.iter().map(|e| mc_graphics::memo::image_path(h, e.1).map(str::to_string)).collect();
         // plots (`image(path)`) as the graphics they were drawn from
+        let originals: Vec<T<'h>> = flat.iter().map(|e| e.1).collect();
         for e in flat.iter_mut() {
             e.1 = crate::compose::resolve(cx, e.1)?;
+        }
+        // an image that is no plot, or the picture of a 3D graphic shown with 2D graphics (a rasterized one): its
+        // pixels as a raster in pixel coordinates, from [0, 0] to [width, height]
+        let is_head = |t: T<'h>, n: &str| model::head_name(h, t).is_some_and(|(m, _)| m == n);
+        let flat_2d = flat.iter().any(|e| is_head(e.1, "graphics"));
+        for (e, &orig) in flat.iter_mut().zip(&originals) {
+            let image = model::head_name(h, orig).is_some_and(|(n, a)| n == "image" && a.len() == 1 && matches!(h.view(a[0]), View::Str(_)));
+            if image && (is_head(e.1, "image") || (flat_2d && is_head(e.1, "graphics3d"))) {
+                let px = cx.eval(h.call(h.sym("reverse"), &[h.call(h.sym("image_data"), &[orig])]))?;
+                if let Some(rows) = cx.as_list(px).filter(|r| !r.is_empty()) {
+                    let (ht, w) = (rows.len(), cx.as_list(rows[0]).map_or(0, |r| r.len()));
+                    if w > 0 {
+                        let corners = cx.list(&[cx.list(&[h.int(0), h.int(0)]), cx.list(&[h.int(w as i64), h.int(ht as i64)])]);
+                        e.1 = h.call(h.sym("graphics"), &[cx.list(&[h.call(h.sym("raster"), &[px, corners])])]);
+                    }
+                }
+            }
+        }
+        for e in flat.iter_mut() {
+            // the discretization of a primitive left as written: the primitive
+            if let Some((_, ra)) = model::head_name(h, e.1).filter(|(n, ra)| n == "discretize_region" && !ra.is_empty()) {
+                if model::head_name(h, ra[0]).is_some_and(|(m, _)| mc_graphics::three::PRIMITIVES.contains(&m.as_str()) || PRIMITIVES.contains(&m.as_str())) {
+                    e.1 = ra[0];
+                }
+            }
             // a region (a mesh region or a primitive) as its picture
             if let Some((name, ra)) = model::head_name(h, e.1) {
                 let region = matches!(name.as_str(), "mesh_region" | "boundary_mesh_region")
@@ -463,6 +499,16 @@ impl Native for Show {
                     let solid = matches!(name.as_str(), "pyramid" | "prism" | "hexahedron" | "tetrahedron" | "torus" | "filled_torus" | "cuboid" | "cylinder" | "cone" | "infinite_plane" | "parallelepiped");
                     let three = solid || ra.first().is_some_and(|&p| mc_graphics::three::is_coords(h, p));
                     e.1 = h.call(h.sym(if three { "graphics3d" } else { "graphics" }), &[e.1]);
+                } else if matches!(name.as_str(), "discretize_region" | "implicit_region" | "parametric_region" | "transformed_region") {
+                    // a region of another kind (a discretization left as written, ...): drawn in the graphics of its
+                    // embedding dimension
+                    let inner = if name == "discretize_region" && !ra.is_empty() { ra[0] } else { e.1 };
+                    let d = cx.eval(h.call(h.sym("region_embedding_dimension"), &[inner]))?;
+                    match h.view(d) {
+                        View::Int(2) => e.1 = h.call(h.sym("graphics"), &[e.1]),
+                        View::Int(3) => e.1 = h.call(h.sym("graphics3d"), &[e.1]),
+                        _ => {}
+                    }
                 }
             }
         }
@@ -1091,7 +1137,8 @@ impl Native for GraphicsComplex {
             let View::App { head, args } = h.view(t) else { return t };
             let View::Sym(s) = h.view(head) else { return t };
             let name = h.sym_name(s);
-            if name == "style" && !args.is_empty() {
+            // a styled or grouped content, a tooltip or annotation: its content
+            if (name == "style" || model::TRANSPARENT.contains(&name.as_str())) && !args.is_empty() {
                 let mut a = args.to_vec();
                 a[0] = walk(cx, pts, a[0]);
                 return h.app(head, &a);

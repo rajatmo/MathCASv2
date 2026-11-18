@@ -12,6 +12,9 @@
 #% item
 # Without it the columns and rows are numbered 1, 2, ...
 
+#% item
+# In `list_plot`, `list_line_plot` and their log variants, `data_range: [a, b]` spreads the n values of each list of numbers evenly from a to b (the first at a, the last at b) instead of at 1, 2, ..., n.
+
 #% section
 # Examples
 
@@ -32,6 +35,11 @@ list_density_plot(table(sin(i*j/10.0), i, 20, j, 20), data_range: [[0, 2], [0, 2
 list_density_plot([[1, 2, 3], [4, 5, 6]])
 #% output
 #= image("data_range.files/data_range-3.svgz")
+
+#% cell
+list_plot(table(sin(x), x, range(0, 2*pi, 0.1)), data_range: [0, 1])
+#% output
+#= image("data_range.files/data_range-4.svgz")
 
 #% section
 # See also

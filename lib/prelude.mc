@@ -1234,6 +1234,32 @@ fn cellular_automaton(rl, init, t) when is_list(init) and ca_spec(rl) !== null =
   }
 }
 fn slice_rows(rows, a, b) = take(drop(rows, a - 1), b - a + 1)
+
+# cellular_automaton(rl, init, t) of a two-dimensional numbered rule: [n, [k, 1], [r1, r2]] (totalistic: the new cell
+# is the digit of n in base k at the sum of the (2 r1 + 1) x (2 r2 + 1) cells around it), [n, [k, w], [r1, r2]] (w a
+# matrix of weights of those cells) or [n, k, [r1, r2]] (the cells read as the digits of one number, w_j = k^(m - j));
+# init a matrix of cells (periodic: a torus) or [cells, background] (on an infinite background: every array holds
+# the cells the pattern can reach); t a step count, [[t]] (only step t) or [[t1, t2]]
+fn ca2_range(r) = is_list(r) and length(r) == 2 and is_integer(r[1]) and is_integer(r[2]) and r[1] >= 0 and r[2] >= 0
+fn ca2_rule(rl) = is_list(rl) and length(rl) == 3 and is_integer(rl[1]) and ca2_range(rl[3]) and (is_integer(rl[2]) or (is_list(rl[2]) and length(rl[2]) == 2 and is_integer(rl[2][1])))
+fn ca2_weights(rl) = {
+  let a = 2*rl[3][1] + 1
+  let b = 2*rl[3][2] + 1
+  if is_integer(rl[2]) then table(rl[2]^(a*b - (i - 1)*b - j), i, a, j, b)
+  else if is_list(rl[2][2]) then rl[2][2] else table(rl[2][2], i, a, j, b)
+}
+fn cellular_automaton(rl, init, t) when ca2_rule(rl) and is_list(init) and length(init) > 0 and (is_matrix(init) or (length(init) == 2 and is_matrix(init[1]) and is_integer(init[2]))) and (is_integer(t) or (is_list(t) and length(t) == 1 and is_list(t[1]) and length(t[1]) <= 2)) = {
+  let periodic = is_matrix(init)
+  let cells = if periodic then init else init[1]
+  let bg = if periodic then 0 else init[2]
+  let k = if is_integer(rl[2]) then rl[2] else rl[2][1]
+  let last_step = if is_integer(t) then t else last(t[1])
+  let arrays = nl_ca_evolve2(rl[1], k, ca2_weights(rl), rl[3], cells, bg, periodic, last_step)
+  if not is_list(arrays) then failure(argument, cellular_automaton, 1)
+  else if is_integer(t) then arrays
+  else if length(t[1]) == 1 then arrays[t[1][1] + 1]
+  else slice_rows(arrays, t[1][1] + 1, t[1][2] + 1)
+}
 # the rule as [g, offsets], g(neighbourhood, step) the new cell; null when rl is not a rule
 fn ca_offsets(rr) = if is_list(rr) then (if length(rr) > 0 and is_list(rr[1]) then map(o => o[1], rr) else range(-rr[1], rr[1]))
   else if is_integer(rr) then range(-rr, rr) else range(-(rr + 1/2), rr - 1/2)
@@ -1261,6 +1287,7 @@ fn ca_spec(rl) =
     [(nb, s) => f(nb, s), ca_offsets(if length(rl) < 3 then 1 else rl[3])]
   }
   else if not is_integer(rl[1]) then null
+  else if length(rl) == 3 and ca2_range(rl[3]) then null
   else {
     let k = if is_list(rl[2]) then rl[2][1] else rl[2]
     let offs = ca_offsets(if length(rl) < 3 then 1 else rl[3])
@@ -1399,8 +1426,12 @@ fn integer_name(m, style) when is_integer(m) = {
 
 # find_sequence_function(xs, n): a closed form f(n) with f(k) = xs[k] for k = 1, 2, ...: tries c*g(n) for the
 # bases g = 1, n!, fibonacci(n), (-1)^n, 2^n, 3^n, 4^n, 5^n with c a polynomial, a polynomial over n or over
-# n + 1 (at least two terms must be left over to confirm the fit)
-fn find_sequence_function(xs, x) when is_list(xs) and length(xs) >= 3 and is_symbol(x) = {
+# n + 1 (at least two terms must be left over to confirm the fit); then the forms of cb_fsf_more (lib/calculus.mc):
+# pairs [x_k, y_k] at equally spaced x_k, every second term zero, P-recursive sequences
+fn find_sequence_function(xs, x) when is_list(xs) and length(xs) >= 3 and is_symbol(x) =
+  if every(xs, p => is_list(p) and length(p) == 2) then fsf_or_fail(cb_fsf_pairs(xs, x), xs) else fsf_terms(xs, x)
+fn fsf_or_fail(f, xs) = if f === null then failure(no_sequence_function, xs) else f
+fn fsf_terms(xs, x) = {
   let m = length(xs)
   let bases = [[1, k => 1], [factorial(x), k => factorial(k)], [fibonacci(x), k => fibonacci(k)], [(-1)^x, k => (-1)^k], [2^x, k => 2^k], [3^x, k => 3^k], [4^x, k => 4^k], [5^x, k => 5^k]]
   let dens = [[1, k => 1], [x, k => k], [x + 1, k => k + 1]]
@@ -1422,7 +1453,8 @@ fn find_sequence_function(xs, x) when is_list(xs) and length(xs) >= 3 and is_sym
     }
   }
   if found === null and m >= 6 then found = seq_catalogue(xs, x)
-  if found === null then failure(no_sequence_function, xs) else found
+  if found === null then found = cb_fsf_more(xs, x)
+  fsf_or_fail(found, xs)
 }
 # the integer functions of the library whose values at 1, ..., m are the sequence (all m terms checked, at least
 # six; the first in this order that fits): number-theoretic and combinatorial functions, divisor_sigma(k, n) and

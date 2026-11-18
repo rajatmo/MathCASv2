@@ -89,6 +89,18 @@ pub fn solve_formula<'h>(
     free: &[T<'h>],
     style: Style,
 ) -> Res<Option<T<'h>>> {
+    solve_formula_within(cx, stop, cond, free, style, &Limits::default())
+}
+
+/// [`solve_formula`] within the limits `lim`.
+pub fn solve_formula_within<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    stop: &Arc<AtomicBool>,
+    cond: T<'h>,
+    free: &[T<'h>],
+    style: Style,
+    lim: &Limits,
+) -> Res<Option<T<'h>>> {
     let h = cx.heap();
     let r = metered(cx, stop, |m| -> WorkResult<Option<(T<'h>, Vec<T<'h>>, Outcome)>> {
         let fr = Front::new(h);
@@ -101,7 +113,7 @@ pub fn solve_formula<'h>(
             p.vars.truncate(q.nv);
             p.prob = q;
         }
-        let Ok(o) = decompose(&p.prob, &Limits::default(), &mut |_, _| {}, m)? else { return Ok(None) };
+        let Ok(o) = decompose(&p.prob, lim, &mut |_, _| {}, m)? else { return Ok(None) };
         let w = Writer::new(h, &p.vars, m)?;
         let t = match style {
             Style::Resolve => match w.sign_formula(&o, m)? {
@@ -140,7 +152,7 @@ pub fn solve_formula<'h>(
 
 /// Does the answer `t` have the truth of each free cell at its sample point (the cells whose coordinates are all
 /// rational; at most 64)? Undecided evaluations are skipped.
-fn check<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, vars: &[T<'h>], o: &Outcome) -> Res<bool> {
+pub(crate) fn check<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, vars: &[T<'h>], o: &Outcome) -> Res<bool> {
     let h = cx.heap();
     if o.truth.is_some() || vars.is_empty() {
         return Ok(true);
@@ -200,16 +212,157 @@ impl Native for CadNative {
             Kind::Resolve => resolve(cx, &self.stop, args),
             Kind::Stats => stats(cx, &self.stop, args),
             Kind::Cylindrical => {
-                let [c, xs] = args else { return Ok(Reply::Decline) };
-                let fr = Front::new(cx.heap());
-                let Some(vs) = fr.qvars(*xs) else { return Ok(Reply::Decline) };
-                Ok(match solve_formula(cx, &self.stop, *c, &vs, Style::Cylindrical)? {
+                let h = cx.heap();
+                let (c, xs, mode) = match args {
+                    [c, xs] => (*c, *xs, None),
+                    [c, xs, md] => match h.view(*md) {
+                        View::Str(s) => (*c, *xs, Some(s.to_string())),
+                        _ => return Ok(Reply::Decline),
+                    },
+                    _ => return Ok(Reply::Decline),
+                };
+                let fr = Front::new(h);
+                let Some(vs) = fr.qvars(xs) else { return Ok(Reply::Decline) };
+                if matches!(mode.as_deref(), None | Some("Function")) {
+                    if let Some(b) = propositional_constant(&fr, c) {
+                        return Ok(Reply::Done(h.sym_term(h.sym(if b { names::TRUE } else { names::FALSE }))));
+                    }
+                }
+                // the function form of a decomposition inside: the formula it stands for, decided within a bound on
+                // the cells (left unevaluated, it was declined at once)
+                let lim = if has_function_form(&fr, c) { Limits { max_cells: FUNCTION_CELLS, fuel: Some(FUNCTION_FUEL), ..Limits::default() } } else { Limits::default() };
+                match mode.as_deref() {
+                    None => {}
+                    // the function object of the set is not built; a set that is everything or empty is the constant
+                    // formula: two sentences, each within a bound on the cells
+                    Some("Function") => {
+                        let lim = Limits { max_cells: FUNCTION_CELLS, fuel: Some(FUNCTION_FUEL), ..Limits::default() };
+                        let xs = cx.list(&vs);
+                        for (q, b) in [("for_all", true), ("exists", false)] {
+                            let s = h.call(h.sym(q), &[xs, c]);
+                            if let Some(t) = solve_formula_within(cx, &self.stop, s, &[], Style::Resolve, &lim)? {
+                                if (b && cx.is_true(t)) || (!b && cx.is_false(t)) {
+                                    return Ok(Reply::Done(t));
+                                }
+                            }
+                        }
+                        return Ok(Reply::Decline);
+                    }
+                    Some(s) => {
+                        let Some(md) = crate::topology::Mode::named(s) else { return Ok(Reply::Decline) };
+                        return Ok(match crate::topology::modes(cx, &self.stop, c, &vs, md)? {
+                            Some(t) => Reply::Done(t),
+                            None => Reply::Decline,
+                        });
+                    }
+                }
+                if let Some(t) = solve_formula_within(cx, &self.stop, c, &vs, Style::Cylindrical, &lim)? {
+                    return Ok(Reply::Done(t));
+                }
+                // coefficients that are real constants other than rationals: as parameters near their values
+                Ok(match crate::constants::decompose_with_constants(cx, &self.stop, c, &vs)? {
                     Some(t) => Reply::Done(t),
                     None => Reply::Decline,
                 })
             }
         }
     }
+}
+
+/// The cells a decomposition of a formula with the function form of a decomposition in it may build.
+const FUNCTION_CELLS: usize = 3000;
+/// The work (units of the evaluator's fuel) such a decomposition may take.
+const FUNCTION_FUEL: u64 = 3_000;
+
+/// The most distinct subformulas a propositional check reads (2^12 rows of the truth table).
+const PROPOSITIONAL_LEAVES: usize = 12;
+
+/// The value of a formula that is a propositional tautology or contradiction in its subformulas: the maximal
+/// subformulas that are not `and`, `or`, `not`, `implies`, `xor`, `nand`, `nor` or `equivalent` (relations, quantified
+/// formulas; the function form of a decomposition stands for its formula) are propositional variables, the same term
+/// the same variable, and every row of the truth table gives the same value. `None` otherwise or with more than
+/// [`PROPOSITIONAL_LEAVES`] subformulas. (f or not f is true whatever f is, so no decomposition is needed.)
+fn propositional_constant<'h>(fr: &Front<'h>, t: T<'h>) -> Option<bool> {
+    #[derive(Debug)]
+    enum P {
+        C(bool),
+        V(usize),
+        And(Vec<P>),
+        Or(Vec<P>),
+        Not(Box<P>),
+        Xor(Vec<P>),
+        Eqv(Vec<P>),
+    }
+    fn read<'h>(fr: &Front<'h>, t: T<'h>, leaves: &mut Vec<T<'h>>, depth: usize) -> Option<P> {
+        if depth > 200 {
+            return None;
+        }
+        let h = fr.ar.store();
+        let all = |args: &[T<'h>], leaves: &mut Vec<T<'h>>| args.iter().map(|&a| read(fr, a, leaves, depth + 1)).collect::<Option<Vec<P>>>();
+        if let Some((n, args)) = fr.head(t) {
+            match (n.as_str(), args) {
+                ("and", _) => return Some(P::And(all(args, leaves)?)),
+                ("or", _) => return Some(P::Or(all(args, leaves)?)),
+                ("not", [a]) => return Some(P::Not(Box::new(read(fr, *a, leaves, depth + 1)?))),
+                ("nand", _) => return Some(P::Not(Box::new(P::And(all(args, leaves)?)))),
+                ("nor", _) => return Some(P::Not(Box::new(P::Or(all(args, leaves)?)))),
+                ("xor", _) => return Some(P::Xor(all(args, leaves)?)),
+                ("equivalent", _) => return Some(P::Eqv(all(args, leaves)?)),
+                ("implies", [a, b]) => return Some(P::Or(vec![P::Not(Box::new(read(fr, *a, leaves, depth + 1)?)), read(fr, *b, leaves, depth + 1)?])),
+                ("cylindrical_decomposition", [f, _, md]) if matches!(h.view(*md), View::Str("Function")) => return read(fr, *f, leaves, depth + 1),
+                _ => {}
+            }
+        }
+        match fr.sym_name(t).as_deref() {
+            Some(names::TRUE) => return Some(P::C(true)),
+            Some(names::FALSE) => return Some(P::C(false)),
+            _ => {}
+        }
+        let k = match leaves.iter().position(|&l| l == t) {
+            Some(k) => k,
+            None => {
+                leaves.push(t);
+                leaves.len() - 1
+            }
+        };
+        (k < PROPOSITIONAL_LEAVES).then_some(P::V(k))
+    }
+    fn eval(p: &P, row: u32) -> bool {
+        match p {
+            P::C(b) => *b,
+            P::V(k) => row >> k & 1 == 1,
+            P::And(v) => v.iter().all(|q| eval(q, row)),
+            P::Or(v) => v.iter().any(|q| eval(q, row)),
+            P::Not(q) => !eval(q, row),
+            P::Xor(v) => v.iter().filter(|q| eval(q, row)).count() % 2 == 1,
+            P::Eqv(v) => {
+                let mut it = v.iter().map(|q| eval(q, row));
+                match it.next() {
+                    Some(b) => it.all(|c| c == b),
+                    None => true,
+                }
+            }
+        }
+    }
+    let mut leaves = vec![];
+    let p = read(fr, t, &mut leaves, 0)?;
+    let first = eval(&p, 0);
+    (1..1u32 << leaves.len()).all(|row| eval(&p, row) == first).then_some(first)
+}
+
+/// Does the formula hold `cylindrical_decomposition(f, vars, "Function")`?
+fn has_function_form<'h>(fr: &Front<'h>, t: T<'h>) -> bool {
+    let h = fr.ar.store();
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if fr.sym_name(head).as_deref() == Some("cylindrical_decomposition") && args.len() == 3 {
+                return true;
+            }
+            stack.extend(args.iter().copied());
+        }
+    }
+    false
 }
 
 /// `exists(x, body)`, `exists([x, y], body)`, `exists(x, cond, body)`: variables that do not occur are dropped, a
@@ -296,6 +449,9 @@ fn resolve<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: &[T<
     };
     if !fr.has_quantifier(f) {
         return Ok(Reply::Done(f));
+    }
+    if let Some(b) = propositional_constant(&fr, f) {
+        return Ok(Reply::Done(h.sym_term(h.sym(if b { names::TRUE } else { names::FALSE }))));
     }
     if dom.as_deref() == Some("integers") {
         return Ok(match crate::integers::resolve_integers(cx, stop, f)? {
@@ -517,6 +673,11 @@ impl Native for FindInstance {
             }
         }
         if matches!(r, Reply::Decline) {
+            if let Some(s) = complex_quantified(cx, &self.stop, args)? {
+                return Ok(Reply::Done(s));
+            }
+        }
+        if matches!(r, Reply::Decline) {
             // one integer variable that no other path took: the search
             let h = cx.heap();
             let fr = Front::new(h);
@@ -547,6 +708,64 @@ impl Native for FindInstance {
         }
         Ok(r)
     }
+}
+
+/// The largest coordinate of the integer points [`complex_quantified`] tries.
+const GRID_RADIUS: i64 = 3;
+
+/// `find_instance(cond, vars)` of a quantified condition without inequalities (over the complex numbers): the
+/// quantifiers eliminated (decision CAD.13), then the integer points of the variables by increasing largest
+/// coordinate (each coordinate in the order 0, -1, 1, -2, 2, ...; at most [`GRID_RADIUS`]), the first at which the
+/// quantifier-free condition evaluates to `true` (exactly, so the instance is proved). No claim when none is found.
+fn complex_quantified<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let fr = Front::new(h);
+    let [c, xs] = args else { return Ok(None) };
+    if !fr.has_quantifier(*c) || has_inequality(&fr, *c) {
+        return Ok(None);
+    }
+    let Some(vars) = fr.qvars(*xs) else { return Ok(None) };
+    if vars.is_empty() || vars.len() > 4 {
+        return Ok(None);
+    }
+    let Some(q) = crate::complex::resolve(cx, stop, *c)? else { return Ok(None) };
+    if fr.has_quantifier(q) {
+        return Ok(None);
+    }
+    if cx.is_false(q) {
+        return Ok(Some(cx.list(&[])));
+    }
+    // the free symbols of the condition must be listed variables
+    let mut free = vec![];
+    free_variables(&fr, q, &mut vec![], &mut free);
+    if free.iter().any(|v| !vars.contains(v)) {
+        return Ok(None);
+    }
+    let order: Vec<i64> = (0..=GRID_RADIUS).flat_map(|k| if k == 0 { vec![0] } else { vec![-k, k] }).collect();
+    for r in 0..=GRID_RADIUS {
+        // the points of largest coordinate r, lexicographic in `order`
+        let ring: Vec<i64> = order.iter().copied().filter(|v| v.abs() <= r).collect();
+        let n = vars.len();
+        let total = ring.len().pow(n as u32);
+        for idx in 0..total {
+            let mut k = idx;
+            let mut pt = vec![0i64; n];
+            for j in (0..n).rev() {
+                pt[j] = ring[k % ring.len()];
+                k /= ring.len();
+            }
+            if pt.iter().all(|v| v.abs() < r) {
+                continue;
+            }
+            let rules: Vec<T<'h>> = vars.iter().zip(&pt).map(|(&x, &v)| h.call(h.sym(names::RULE), &[x, h.int(v)])).collect();
+            let rl = cx.list(&rules);
+            let v = cx.eval(h.call(h.sym("rewrite"), &[q, rl]))?;
+            if cx.is_true(v) {
+                return Ok(Some(cx.list(&[rl])));
+            }
+        }
+    }
+    Ok(None)
 }
 
 fn find_instance<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: &[T<'h>]) -> Res<Option<T<'h>>> {

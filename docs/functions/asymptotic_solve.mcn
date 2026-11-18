@@ -13,7 +13,7 @@
 # Details
 
 #% item
-# The series comes from Newton's iteration on truncated power series, which needs an invertible Jacobian in the unknowns at the starting point. For one polynomial equation with a singular starting point, or branches that go to infinity (the degree in y drops at x0), every branch is given by Newton's polygon as a series in fractional powers (Puiseux series); for one equation analytic at a given singular start, the branches through it come from the polygon of its Taylor polynomial. In other such cases (systems with a singular Jacobian) the answer is a failure, since a list without those branches would be incomplete. With `reals`, only the real branches are given.
+# The series comes from Newton's iteration on truncated power series, which needs an invertible Jacobian in the unknowns at the starting point. For one polynomial equation with a singular starting point, or branches that go to infinity (the degree in y drops at x0), every branch is given by Newton's polygon as a series in fractional powers (Puiseux series); for one equation analytic at a given singular start, the branches through it come from the polygon of its Taylor polynomial. For two polynomial equations in two unknowns with a singular Jacobian, each unknown's branches are those of the resultant that eliminates the other, and a pair is kept when it solves both equations to order k; each series keeps its terms up to (x - x0)^k. In other such cases the answer is a failure, since a list without those branches would be incomplete. With `reals`, only the real branches are given.
 
 #% item
 # `direction: from_below` gives the expansion for x < x0, in powers of x0 - x (with `reals`, the branches real there).
@@ -71,6 +71,14 @@ asymptotic_solve(sin(x*y) - y^2 + x == 0, [y, 0], [x, 0, 3])
 asymptotic_solve(y^5 - x*y + x^2 == 0, [y, 0], [x, 0, 5], reals, direction: from_below)
 #% output
 #= [[y -> x + x^4]]
+
+#% text
+# Two polynomial equations with a singular Jacobian at the start: four branches in powers of t^(1/4):
+
+#% cell
+asymptotic_solve(y^2 - t*x + t == 0 and x^2 + t*y == 0, [[x, y], [0, 0]], [t, 0, 2])
+#% output
+#= [[x -> -im/4*t^(3/2) + (-1)^(1/4)*t^(3/4), y -> -im*t^(1/2) + (1/2)*(-1)^(3/4)*t^(5/4)], [x -> -im/4*t^(3/2) - (-1)^(1/4)*t^(3/4), y -> -im*t^(1/2) - (1/2)*(-1)^(3/4)*t^(5/4)], [x -> (im/4)*t^(3/2) + (-1)^(3/4)*t^(3/4), y -> im*t^(1/2) + (1/2)*(-1)^(1/4)*t^(5/4)], [x -> (im/4)*t^(3/2) - (-1)^(3/4)*t^(3/4), y -> im*t^(1/2) - (1/2)*(-1)^(1/4)*t^(5/4)]]
 
 #% text
 # A series in 1/log(x) as x -> 0:

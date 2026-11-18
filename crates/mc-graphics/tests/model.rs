@@ -37,6 +37,10 @@ fn primitives_stay_and_are_checked() {
         ("circle([0, 0], r)", "circle([0, 0], r)"),
         ("disk([0, 0], [1, 2], [0, pi])", "disk([0, 0], [1, 2], [0, pi])"),
         ("arrow([[0, 0], [1, 1]])", "arrow([[0, 0], [1, 1]])"),
+        // a polygon of space with a hole
+        ("polygon([[0, 0, 0], [2, 0, 0], [1, 2, 0]] -> [[[1, 1, 0], [1, 0.5, 0], [0.5, 0.5, 0]]])", "polygon([[0, 0, 0], [2, 0, 0], [1, 2, 0]] -> [[[1, 1, 0], [1, 0.5, 0], [0.5, 0.5, 0]]])"),
+        // positions of space in scaled coordinates
+        ("line([scaled([0, 0.2, 0]), scaled([1, 0.8, 1])])", "line([scaled([0, 0.2, 0]), scaled([1, 0.8, 1])])"),
         ("bezier_curve([[0, 0], [1, 1], [2, 0], [3, 1]])", "bezier_curve([[0, 0], [1, 1], [2, 0], [3, 1]])"),
         ("text(x^2, [0, 0])", "text(x^2, [0, 0])"),
         ("text(\"a\", scaled([0.5, 0.5]), [-1, 0])", "text(\"a\", scaled([0.5, 0.5]), [-1, 0])"),
@@ -57,7 +61,8 @@ fn primitives_stay_and_are_checked() {
         ("raster([[\"x\"]])", "failure(argument, raster, 1)"),
         ("raster([[0]], [[0, 0], [0, 1]])", "failure(argument, raster, 2)"),
         ("raster([[0]], [[0, 0], [1, 1]], no_such_gradient)", "failure(argument, raster, 3)"),
-        ("raster([[[1, 0]]])", "failure(argument, raster, 1)"),
+        // cells of a gray level and its opacity
+        ("raster([[[1, 0]]])", "raster([[[1, 0]]])"),
         // the wrong number of arguments leaves the call as it is
         ("point(1, 2)", "point(1, 2)"),
         ("circle(1, 2, 3, 4)", "circle(1, 2, 3, 4)"),

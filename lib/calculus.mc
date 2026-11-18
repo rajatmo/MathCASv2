@@ -2308,13 +2308,25 @@ fn calc_mb_de(fi, fo, k) = {
   }
   if ok then acc else null
 }
+# the candidate for quadrature: a pFq(a, 1; 2, b; z) with p = q + 1 >= 3 written by the shifted series as
+# prod(b - 1)/(prod(a - 1) z) ((p-1)F(q-1)(a - 1; b - 1; z) - 1) (k -> k - 1 in the sum; DLMF 16.4 for z = 1), whose
+# value near z = 1 is that of a 2F1 (the pFq series converges too slowly there), and the numbers made machine numbers
+fn calc_mb_numeric(v) = n(rewrite(v, hypergeometric_pfq(as_, bs_, z_) :> calc_pfq_shift(as, bs, z)))
+fn calc_pfq_shift(as, bs, z) = {
+  let i = if is_list(as) and is_list(bs) and length(as) >= 3 and length(as) == length(bs) + 1 then select(range(length(as)), k => as[k] === 1) else []
+  let j = if length(i) == 0 then [] else select(range(length(bs)), k => bs[k] === 2)
+  let a2 = if length(j) == 0 then [] else delete(as, i[1])
+  let b2 = if length(j) == 0 then [] else delete(bs, j[1])
+  if length(j) == 0 or some(a2, a => a === 1) or some(b2, b => is_integer(b) and b <= 1) then hypergeometric_pfq(as, bs, z)
+  else fold((u, t) => u*(t - 1), 1, b2)/(fold((u, t) => u*(t - 1), 1, a2)*z)*(hypergeometric_pfq(a2 - 1, b2 - 1, z) - 1)
+}
 fn calc_mb_check(g, w, x, v, lo, hi) = {
   let ps = select(union(calc_syms(g), calc_syms(v)), p => not (p === w) and not (p === x))
   let vals = [3/4, 5/7, 4/3, 6/5]
   if length(ps) > length(vals) then false else {
     let rl = map(i => ps[i] -> vals[i], range(length(ps)))
     let gs = rewrite(g, rl)
-    let vs = rewrite(v, rl)
+    let vs = calc_mb_numeric(rewrite(v, rl))
     let k = n(rewrite(calc_mb_radius(g, w), rl))
     let l0 = rewrite(lo, rl)
     let top = if hi === inf then l0 + 2 else rewrite(hi, rl)
@@ -4472,13 +4484,16 @@ rule asymptotic_sum(f_, kspec_, sp_) := {
     else if cb_is_rule(sp) then cb_lead(r, x, x0) else r
   } else {
     let s = sum(f, kspec)
-    let em = if not free_of(s, sum) and is_list(sp) and length(sp) == 3 and x0 === inf and is_integer(sp[3]) then cb_em_sum(f, kspec, sp) else null
+    let em = if not free_of(s, sum) and is_list(sp) and length(sp) == 3 and x0 === inf and is_integer(sp[3]) then
+      (if kspec === x then cb_em_indef(f, k, sp[3]) else cb_em_sum(f, kspec, sp)) else null
     if not (em === null) then em
     else if not free_of(s, sum) then failure(unevaluated, asymptotic_sum, "the sum has no closed form")
     else {
       # a closed form whose expansion is not known (harmonic_number(n, 1, exp(-7)) at infinity) gives no answer
       let r = if cb_is_rule(sp) then cb_lead2(s, x, x0) else cb_series(s, x, x0, sp[3])
-      if free_of(r, series) then r else failure(unevaluated, asymptotic_sum, "the expansion of the closed form is not known")
+      let known = free_of(r, series) and not is_failure(r)
+      let tt = if known or not (kspec === k and is_symbol(k) and not (x === k) and x0 === inf) or cb_is_rule(sp) then null else cb_param_indef(f, k, x, sp[3])
+      if known then r else if not (tt === null) then tt else failure(unevaluated, asymptotic_sum, "the expansion of the closed form is not known")
     }
   }
 } when cb_asym_spec(sp)
@@ -4517,6 +4532,16 @@ fn cb_em_product(f, kspec, sp) = {
     if t === null or not is_numeric(c) then null else c*normal(series(exp(-t), n, inf, m))
   } else null
 }
+# cb_em_product_indef(f, k, m): the indefinite product P (P(k + 1) = f(k) P(k)) as k -> inf to order m for a factor
+# f -> 1: exp of the indefinite sum of log(f) (cb_em_indef), expanded; checked: the expansion of P(k + 1) - f P(k)
+# vanishes to order m + 1 (null otherwise, and when the sum of log(f) does not tend to 0)
+fn cb_em_product_indef(f, k, m) = {
+  let r = cb_em_indef(log(f), k, m)
+  let p = if r === null or not (limit(r, k -> inf) === 0) then null else expand(normal(series(exp(r), k, inf, m)))
+  if p === null or not free_of(p, series) or not free_of(p, exp) then null
+  else if not cb_vanishes(expand(rewrite(normal(series(rewrite(p, k -> k + 1) - f*p, k, inf, m + 1)), log(k^-1) -> -log(k)))) then null
+  else p
+}
 fn cb_em_sum(f, kspec, sp) = {
   let n = sp[1]
   let m = sp[3]
@@ -4528,11 +4553,41 @@ fn cb_em_sum(f, kspec, sp) = {
   } else null
 }
 
+# cb_em_indef(f, k, m): the indefinite sum F (F(k + 1) - F(k) = f(k)) of a summand without closed-form sum as
+# k -> inf to order m, by the Euler-Maclaurin formula (DLMF 2.10.1; Graham, Knuth, Patashnik, Concrete Mathematics,
+# 9.5): F = A - f/2 + sum_j B_(2j)/(2j)! f^(2j - 1), A the antiderivative of f's expansion in powers of k and log(k)
+# (without constant, as the indefinite sum is defined up to one); checked: the expansion of F(k + 1) - F(k) - f
+# vanishes to order m + 1 (null otherwise, and for summands whose expansion has exponentials)
+fn cb_em_indef(f, k, m) = {
+  let fs = if m < 0 or m > 30 then null else expand(rewrite(normal(series(f, k, inf, m + 2)), log(k^-1) -> -log(k)))
+  if fs === null or not free_of(fs, series) or not free_of(fs, exp) or not free_of(fs, k^k) or free_of(fs, k) then null else {
+    let a = expand(integrate(fs, k))
+    let em = calc_total(map(j => bernoulli_b(2*j)/factorial(2*j)*d(fs, [k, 2*j - 1]), range(m + 2)))
+    let r = if not free_of(a, integrate) then null else rewrite(cb_series(a - fs/2 + em, k, inf, m), log(k^-1) -> -log(k))
+    if r === null or not free_of(r, series) then null
+    else if not cb_vanishes(expand(rewrite(normal(series(rewrite(r, k -> k + 1) - r - f, k, inf, m + 1)), log(k^-1) -> -log(k)))) then null
+    else r
+  }
+}
+
+# cb_param_indef(f, k, x, m): the indefinite sum in k expanded in a parameter x -> inf to order m: the summand's
+# expansion in x summed term by term (indefinite sums are linear); checked: the expansion in x of F(k + 1) - F(k) - f
+# vanishes to order m (null otherwise)
+fn cb_param_indef(f, k, x, m) = {
+  let r = if not is_integer(m) or m < 0 or m > 30 then null else expand(sum(normal(series(f, x, inf, m)), k))
+  if r === null or is_failure(r) or not free_of(r, sum) or not free_of(r, series) then null
+  else if not cb_vanishes(normal(series(rewrite(r, k -> k + 1) - r - f, x, inf, m))) then null
+  else r
+}
+# cb_vanishes(s): a truncated series (after normal) has no terms: 0, or the order term alone
+fn cb_vanishes(s) = s === 0 or head(s) === O or expand(function_expand(s)) === 0 or simplify(s) === 0
+
 # asymptotic_product(f, [k, a, b], [x, x0, m]): the expansion of the closed-form product to order m in x at x0;
 # x -> x0 for the leading term
 rule asymptotic_product(f_, kspec_, sp_) := {
   let s = product(f, kspec)
-  let em = if not free_of(s, product) and is_list(sp) and length(sp) == 3 and sp[2] === inf and is_integer(sp[3]) then cb_em_product(f, kspec, sp) else null
+  let em = if not free_of(s, product) and is_list(sp) and length(sp) == 3 and sp[2] === inf and is_integer(sp[3]) then
+    (if kspec === sp[1] then cb_em_product_indef(f, kspec, sp[3]) else cb_em_product(f, kspec, sp)) else null
   if not (em === null) then em
   else if not free_of(s, product) then failure(unevaluated, asymptotic_product, "the product has no closed form")
   else if cb_is_rule(sp) then cb_lead2(s, sp[1], sp[2]) else cb_series(s, sp[1], sp[2], sp[3])
@@ -4632,6 +4687,76 @@ fn cb_puiseux_on(f1, p1, y, x, k, y0, realq) = {
 }
 fn cb_pc_value(s) = rewrite(cb_pc, s)
 
+# cb_sqfree(p, y): p without its repeated factors in y
+fn cb_sqfree(p, y) = {
+  let g = polynomial_gcd(p, d(p, y))
+  if exponent(g, y) == 0 then p else expand(cancel(p/g))
+}
+# cb_puiseux_all(f1, y, x, k, y0, realq, depth): every branch of the polynomial equation f1(x, y) = 0 as x -> 0 (with
+# y0 = 0 those with y -> 0), by Newton's polygon with a second polygon for a repeated root c of a characteristic
+# polynomial: x = t^q, y = t^p (c + z) and the branches z -> 0 of the transformed equation (the Newton-Puiseux
+# algorithm in full; Walker, Algebraic Curves (1950), ch. IV.3), at most four polygons deep (null beyond); a factor
+# y^m of f1 gives the branch y = 0
+fn cb_puiseux_all(f1, y, x, k, y0, realq, depth) = {
+  let cs0 = coefficient_list(f1, y)
+  let m0 = length(select(range(length(cs0)), i => every(range(i), j => expand(cs0[j]) === 0)))
+  let cs = drop(cs0, m0)
+  let fr = expand(cancel(f1/y^m0))
+  let pts = map(i => [i - 1, cb_ord(cs[i], x)], select(range(length(cs)), i => not (expand(cs[i]) === 0)))
+  let hull = fold((hl, p) => cb_hull_push(hl, p), [], pts)
+  let edges = select(map(j => [hull[j], hull[j + 1]], range(length(hull) - 1)), e => y0 === null or e[2][2] < e[1][2])
+  let found = map(e => {
+    let g = (e[1][2] - e[2][2])/(e[2][1] - e[1][1])
+    let on = select(pts, p => e[1][1] <= p[1] and p[1] <= e[2][1] and p[2] == e[1][2] - g*(p[1] - e[1][1]))
+    let chp = expand(total(map(p => coefficient(expand(cs[p[1] + 1]), x, p[2])*cb_pc^(p[1] - e[1][1]), on)))
+    let cs1 = map(s => cb_pc_value(s), solve(cb_sqfree(chp, cb_pc) == 0, cb_pc))
+    let cs2 = if realq then select(cs1, c => im_part(n(c)) == 0) else cs1
+    let beta = e[1][2] + g*e[1][1]
+    let q = denominator(g)
+    let pp = numerator(g)
+    let bs = map(c => if not (simplify(rewrite(d(chp, cb_pc), cb_pc -> c)) === 0) then [cb_branch(fr, y, x, k, g, c, beta)]
+      else if depth >= 4 then null else {
+        let gg = expand(expand(rewrite(fr, [x -> cb_pt^q, y -> cb_pt^pp*(c + cb_pz)]))/cb_pt^(beta*q))
+        let zs = cb_puiseux_all(rewrite(gg, [cb_pt -> cb_rx, cb_pz -> cb_rz]), cb_rz, cb_rx, k*q, 0, realq, depth + 1)
+        if zs === null then null else map(zb => expand(rewrite(cb_rx^pp*(c + zb), cb_rx -> x^(1/q))), zs)
+      }, sort_by(cs2, c => [re(n(c)), im_part(n(c))]))
+    if some(bs, r => r === null) then null else flatten(bs, 1)
+  }, edges)
+  if some(found, r => r === null) then null else join(if m0 > 0 then [0] else [], flatten(found, 1))
+}
+fn cb_terms(e) = if head(e) === add then apply(list, e) else [e]
+# cb_upto(e, x, k): the terms of e with powers of x up to x^k
+fn cb_upto(e, x, k) = total(select(cb_terms(expand(e)), u => exponent(u, x) <= k))
+fn cb_den(e, x) = fold((a, u) => lcm(a, denominator(exponent(u, x))), 1, cb_terms(expand(e)))
+# cb_pair_ok(fs, ys, bs, x, k): the series bs (in powers x^(j/q)) solve fs to order x^k: with x = u^q every
+# coefficient of u^i, i <= k q, of each residual simplifies to 0
+fn cb_pair_ok(fs, ys, bs, x, k) = {
+  let q = fold((a, b) => lcm(a, cb_den(b, x)), 1, bs)
+  let sub = join(map(i => ys[i] -> rewrite(bs[i], [x^e_ :> cb_qt^(q*e), x -> cb_qt^q]), range(length(ys))), [x -> cb_qt^q])
+  every(fs, f => simplify(cb_upto(rewrite(f, sub), cb_qt, k*q)) === 0)
+}
+# cb_puiseux_system(fs, ys, x, k, y0s, realq): the branches of two polynomial equations in two unknowns as x -> 0
+# (through y0s, or all of them when y0s is null). Each unknown's branches are those of the square-free resultant
+# that eliminates the other (its zeros are the projections of the common zeros); a pair of branches is kept when it
+# solves both equations to order x^k (the residual's terms up to x^k vanish: the error of series cut after x^k
+# enters the residual times a bounded derivative). Without a start every branch of each resultant must be paired,
+# and one coordinate must determine the other (otherwise null); each kept series to its terms up to x^k
+fn cb_puiseux_system(fs, ys, x, k, y0s, realq) = {
+  let rs = [cb_sqfree(expand(resultant(fs[1], fs[2], ys[2])), ys[1]), cb_sqfree(expand(resultant(fs[1], fs[2], ys[1])), ys[2])]
+  if some(range(2), i => expand(rs[i]) === 0 or exponent(rs[i], ys[i]) < 1) then null else {
+    let bs = map(i => cb_puiseux_all(if y0s === null then rs[i] else expand(rewrite(rs[i], ys[i] -> y0s[i] + ys[i])), ys[i], x, k, if y0s === null then null else 0, realq, 0), range(2))
+    if some(bs, b => b === null) then null else {
+      let bs1 = if y0s === null then bs else map(i => map(b => expand(y0s[i] + b), bs[i]), range(2))
+      let pairs = flatten(map(b1 => map(b2 => [b1, b2], select(bs1[2], b2 => cb_pair_ok(fs, ys, [b1, b2], x, k))), bs1[1]), 1)
+      let used1 = map(b1 => length(select(pairs, p => p[1] === b1)), bs1[1])
+      let used2 = map(b2 => length(select(pairs, p => p[2] === b2)), bs1[2])
+      let complete = not (y0s === null) or every(used1, u => u >= 1) and every(used2, u => u >= 1)
+      if not complete or not (every(used1, u => u <= 1) or every(used2, u => u <= 1)) then null
+      else map(p => map(i => cb_upto(p[i], x, k), range(2)), pairs)
+    }
+  }
+}
+
 # asymptotic_solve(eqs, [y, y0], [x, x0, k]): the solution y(x) of eqs through y(x0) = y0 as a series to order k;
 # asymptotic_solve(eqs, [y], ...) for each root y0 of eqs at x0; asymptotic_solve(eqs, [[y1, y2], [a1, a2]], ...) for
 # systems; regular points only (an invertible Jacobian in the ys)
@@ -4674,8 +4799,13 @@ rule asymptotic_solve(eqs_, yspec_, xspec_, opts___) := {
         if r === null then null else map(b => expand(ystart + b), r)
       }
     }
+  # two polynomial equations in two unknowns: the branches by resultants and Newton's polygon
+  let sys2 = length(ys) == 2 and length(fs) == 2 and every(fs, f => is_polynomial_expression(f, [ys[1], ys[2], x])) and every(cb_opt_items([opts]), o => o === reals or cb_is_rule(o) and o[1] === direction)
+  let pu2 = if not (sys2 and singular) then null
+    else cb_puiseux_system(fs, ys, x, k, if length(yspec) == 2 then yspec[2] else null, realq)
   let back = if below then xspec[2] - xspec[1] else xspec[1] - xspec[2]
   if not (pu === null) then map(r => [ys[1] -> rewrite(r, x -> back)], pu)
+  else if not (pu2 === null) then sort(map(r => [ys[1] -> rewrite(r[1], x -> back), ys[2] -> rewrite(r[2], x -> back)], pu2))
   else if singular then
     failure(unevaluated, asymptotic_solve, "a branch through a singular point or to infinity needs a Puiseux expansion")
   else map(pt => {
@@ -4962,6 +5092,104 @@ fn cb_drr_make(c0, cs, k, vals) = {
   to_expression(string_join(flatten(["difference_root((FormalY, FormalN) => [", first, more, " == 0", ivs, "])"])))
 }
 
+# find_sequence_function: the forms the bases of the prelude do not give (null when none fits)
+# - pairs [x_k, y_k] with the x_k an arithmetic progression a, a + h, ...: the function g of the y_k (as terms 1, 2,
+#   ...) written at k = (x - a)/h + 1, checked at every pair;
+# - every second term 0: g of the other terms, (1 - (-1)^n)/2 g((n + 1)/2) (zeros at even n) or (1 + (-1)^n)/2 g(n/2)
+#   (zeros at odd n), checked at every term;
+# - a P-recursive sequence of rational terms: a recurrence sum_{i=0..r} p_i(n) y(n + i) + q(n) == 0, the p_i of
+#   degree d, q of degree e or absent, guessed as the one-dimensional null space of the linear system the terms
+#   give, with at least two equations beyond the unknowns (the guessing of Salvy and Zimmermann, gfun, ACM TOMS 20,
+#   1994; Kauers and Paule, The Concrete Tetrahedron, 2011, ch. 7); the shapes by increasing order r <= 4, then by
+#   increasing number of unknowns, d <= 4. The leading coefficient p_r must have no root among n = 1, 2, .... The answer is r_solve_value's
+#   closed form when it gives every term exactly, else the difference_root of the recurrence with y(1), ..., y(r),
+#   which gives every term by construction (the recurrence holds at every n of the data).
+fn cb_fsf_more(xs, x) = {
+  let z = cb_fsf_interleave(xs, x)
+  if z === null then cb_fsf_rec(xs, x) else z
+}
+fn cb_fsf_sub(ys, x) = {
+  let g = check(find_sequence_function(ys, x), null)
+  if g === null then null else if not free_of(g, find_sequence_function) then null else g
+}
+fn cb_fsf_holds(f, xs, x) = every(range(length(xs)), k => cb_fsf_zero(check(simplify(rewrite(f, x -> k) - xs[k]), null)))
+fn cb_fsf_zero(z) = if z === null then false else z === 0
+fn cb_fsf_pairs(ps, x) = {
+  let us = map(p => p[1], ps)
+  let ys = map(p => p[2], ps)
+  let m = length(ps)
+  let h = us[2] - us[1]
+  if not every(us, u => is_rational(u)) or h === 0 or not every(range(m - 1), k => us[k + 1] - us[k] === h) then null
+  else {
+    let g = cb_fsf_sub(ys, x)
+    if g === null then null else {
+      let f = simplify(rewrite(g, x -> expand((x - us[1])/h + 1)))
+      if every(range(m), k => cb_fsf_zero(check(simplify(rewrite(f, x -> us[k]) - ys[k]), null))) then f else null
+    }
+  }
+}
+fn cb_fsf_interleave(xs, x) =
+  if length(xs) < 6 then null else {
+    let m = length(xs)
+    let ev = map(k => xs[2*k], range(floor(m/2)))
+    let od = map(k => xs[2*k - 1], range(ceiling(m/2)))
+    let f = if every(ev, t => t === 0) and not every(od, t => t === 0) then {
+        let g = cb_fsf_sub(od, x)
+        if g === null then null else (1 - (-1)^x)/2*rewrite(g, x -> (x + 1)/2)
+      } else if every(od, t => t === 0) and not every(ev, t => t === 0) then {
+        let g = cb_fsf_sub(ev, x)
+        if g === null then null else (1 + (-1)^x)/2*rewrite(g, x -> x/2)
+      } else null
+    if f === null then null else if cb_fsf_holds(f, xs, x) then f else null
+  }
+fn cb_fsf_rec(xs, x) =
+  if not every(xs, t => is_rational(t)) then null else {
+    let m = length(xs)
+    var found = null
+    for r in range(1, 4) {
+      for u in range(2, 30) {
+        for d in range(0, 4) {
+          for e in range(-1, d) {
+            if found === null and (r + 1)*(d + 1) + e + 1 == u and m - r >= u + 1 then found = cb_fsf_try(xs, x, r, d, e)
+          }
+        }
+      }
+    }
+    found
+  }
+fn cb_fsf_try(xs, x, r, d, e) = {
+  let m = length(xs)
+  let rows = map(n => join(flatten(map(i => map(j => n^j*xs[n + i], range(0, d)), range(0, r)), 1), map(j => n^j, range(0, e))), range(m - r))
+  let ns = null_space(rows)
+  if not (is_list(ns) and length(ns) == 1) then null else {
+    let v0 = ns[1]
+    let v1 = v0*apply(lcm, map(denominator, v0))
+    let v = v1/apply(gcd, v1)
+    let ps = map(i => total(map(j => v[i*(d + 1) + j + 1]*x^j, range(0, d))), range(0, r))
+    let q = if e < 0 then 0 else total(map(j => v[(r + 1)*(d + 1) + j + 1]*x^j, range(0, e)))
+    let lead = ps[r + 1]
+    let sg = if lead === 0 then 1 else sign(coefficient(lead, x, exponent(lead, x)))
+    if lead === 0 or not cb_fsf_lead_ok(lead, x) then null else {
+      let cs = map(p => expand(sg*p), ps)
+      let q1 = expand(sg*q)
+      let eq = total(map(i => cs[i + 1]*cb_fsf_y(x + i), range(0, r))) + q1 == 0
+      let res = check(r_solve_value(join([eq], map(k => cb_fsf_y(k) == xs[k], range(r))), cb_fsf_y(x), x), null)
+      if res === null then cb_fsf_droot(q1, cs, xs, x, r) else if free_of(res, r_solve_value) and free_of(res, cb_fsf_y) and free_of(res, difference_root) and cb_fsf_holds(res, xs, x) then res
+      else cb_fsf_droot(q1, cs, xs, x, r)
+    }
+  }
+}
+# the integer polynomial p (content 1) has no root among n = 1, 2, ...: p = x^j h with h(0) != 0, and an integer root
+# of h divides h(0) (the rational root theorem)
+fn cb_fsf_lead_ok(p, x) = {
+  let pe = expand(p)
+  let j = min(map(t => exponent(t, x), if head(pe) === add then apply(list, pe) else [pe]))
+  let h = expand(pe/x^j)
+  let h0 = rewrite(h, x -> 0)
+  is_integer(h0) and not (h0 === 0) and abs(h0) < 10^12 and every(divisors(abs(h0)), dv => not (expand(rewrite(h, x -> dv)) === 0))
+}
+fn cb_fsf_droot(q1, cs, xs, x, r) =cb_drr_make(expand(rewrite(q1, x -> FormalN)), cs, x, map(k => [k, xs[k]], range(r)))(x)
+
 # the ratio t(k + 1)/t(k) of a hypergeometric term as a rational function of k, or null
 fn cb_drr_gratio(u, k) = {
   # gamma(u(k + 1))/gamma(u(k)) for u = a k + b with an integer a
@@ -5175,6 +5403,30 @@ fn calc_hz(t, k, k0) = {
 fn calc_beta_odd(s) = (-1)^((s - 1)/2)*euler_e(s - 1)*pi^s/(4^((s + 1)/2)*factorial(s - 1))
 rule zeta(s_, q_) := ((4^s - 2^s)*zeta(s) + (if q === 1/4 then 1 else -1)*4^s*calc_beta_odd(s))/2 when is_integer(s) and s >= 3 and mod(s, 2) == 1 and (q === 1/4 or q === 3/4)
 rule sum(t_, sp_) := calc_hz(t, sp[1], sp[2]) when is_list(sp) and length(sp) == 3 and is_symbol(sp[1]) and is_integer(sp[2]) and sp[3] === inf and not (calc_hz(t, sp[1], sp[2]) === null)
+# c log(k) k^-s (times (-1)^k) over k >= k0 >= 1, s an exact number: the derivative in s of zeta(s) = sum k^-s
+# (re s > 1), so sum log(k) k^-s = -zeta'(s); and of eta(s) = sum (-1)^(k - 1) k^-s = (1 - 2^(1 - s)) zeta(s) (re s > 0,
+# DLMF 25.2.3), so sum (-1)^k log(k) k^-s = eta'(s) = 2^(1 - s) log(2) zeta(s) + (1 - 2^(1 - s)) zeta'(s), and at s = 1
+# eta'(1) = euler_gamma log(2) - log(2)^2/2 (the limit, with zeta(s) = 1/(s - 1) + euler_gamma + O(s - 1)); the terms
+# below k0 (at most 50) are taken off
+fn calc_logz(t, k, k0) = {
+  let fs = calc_factors(t)
+  let lg = select(fs, u => u === log(k))
+  let alt = select(fs, u => u === (-1)^k)
+  let pw = select(fs, u => head(u) === pow and u[1] === k and free_of(u[2], k))
+  let cs = select(fs, u => free_of(u, k))
+  let s = if length(pw) == 1 then -pw[1][2] else if length(pw) == 0 then 0 else null
+  let ok = length(lg) == 1 and length(alt) <= 1 and length(pw) <= 1 and length(lg) + length(alt) + length(pw) + length(cs) == length(fs)
+  if not ok or s === null or not (is_numeric(s) and is_exact(s)) or not is_integer(k0) or k0 < 1 or k0 > 50 then null
+  else if not (n(re(s)) > (if length(alt) == 0 then 1 else 0)) then null else {
+    let c = fold((x, y) => x*y, 1, cs)
+    let zp = rewrite(d(zeta(calc_logz_s), calc_logz_s), calc_logz_s -> s)
+    let full = if length(alt) == 0 then -zp
+      else if s === 1 then euler_gamma*log(2) - log(2)^2/2
+      else 2^(1 - s)*log(2)*zeta(s) + (1 - 2^(1 - s))*zp
+    c*(full - calc_total(map(j => rewrite(t/c, k -> j), range(1, k0 - 1))))
+  }
+}
+rule sum(t_, sp_) := calc_logz(t, sp[1], sp[2]) when is_list(sp) and length(sp) == 3 and is_symbol(sp[1]) and is_integer(sp[2]) and sp[3] === inf and not free_of(t, log) and not (calc_logz(t, sp[1], sp[2]) === null)
 # a factor free of the index comes out of a sum whose rest has a closed form
 fn calc_sum_out(t, sp) = {
   let fs = calc_factors(t)

@@ -1722,6 +1722,10 @@ pub(crate) fn normal_native<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) ->
             let rest: Vec<T<'h>> = args.iter().copied().filter(|&a| !matches!(h.view(a), View::App { head, .. } if head == env.sym(ORDER))).collect();
             return Ok(env.ar.add(&rest));
         }
+        // an order term alone (a series whose terms all vanish to the order asked): the empty sum
+        if head == env.sym(ORDER) && args.len() == 1 {
+            return Ok(h.int(0));
+        }
         if head != env.sym("series_data") || args.len() != 5 {
             return Ok(t);
         }

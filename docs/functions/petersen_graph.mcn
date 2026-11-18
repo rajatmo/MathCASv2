@@ -6,6 +6,9 @@
 #% text
 # `petersen_graph()`: the Petersen graph, 10 vertices and 15 edges (an outer 5-cycle, an inner pentagram and five spokes).
 
+#% text
+# `petersen_graph(n, k)`: the generalized Petersen graph of 2n vertices: the outer n-cycle 1, ..., n, the spokes from i to n + i, and the inner edges from n + i to n + ((i + k) mod n), for 1 <= k < n. `petersen_graph(5, 2)` is the Petersen graph.
+
 #% section
 # Examples
 
@@ -16,6 +19,16 @@
 petersen_graph()
 #% output
 #= image("petersen_graph.files/petersen_graph-1.svgz")
+
+#% cell
+edge_count(petersen_graph(8, 3))
+#% output
+#= 24
+
+#% cell
+petersen_graph(6, 1, vertex_size: 0)
+#% output
+#= image("petersen_graph.files/petersen_graph-3.svgz")
 
 #% section
 # See also

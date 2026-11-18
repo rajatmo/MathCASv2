@@ -169,12 +169,38 @@ impl Native for Histogram {
             },
             None => base,
         };
-        let (data, bspec, hspec) = match pos.as_slice() {
+        let (mut data, mut bspec, hspec) = match pos.as_slice() {
             [d] => (*d, None, None),
             [d, b] => (*d, Some(*b), None),
             [d, b, hs] => (*d, Some(*b), Some(*hs)),
             _ => return Ok(Reply::Decline),
         };
+        // bins given as quantities: the data converted to their unit, the bins and the data as magnitudes
+        let unit = bspec.and_then(|b| cx.as_list(b)).and_then(|l| l.first().copied()).and_then(|q| match crate::values::call_of(h, q) {
+            Some((n, &[_, u])) if n == "quantity" => Some(u),
+            _ => None,
+        });
+        if let (Some(u), Some(b), Some(items)) = (unit, bspec, cx.as_list(data).map(|l| l.to_vec())) {
+            let magnitude = |cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, u: Option<T<'h>>| -> Res<T<'h>> {
+                let t = match u {
+                    Some(u) => cx.eval(h.call(h.sym("unit_convert"), &[t, u]))?,
+                    None => t,
+                };
+                cx.eval(h.call(h.sym("quantity_magnitude"), &[t]))
+            };
+            let mut values = Vec::with_capacity(items.len());
+            for e in items {
+                cx.tick(1)?;
+                values.push(magnitude(cx, e, Some(u))?);
+            }
+            data = cx.list(&values);
+            let bins: Vec<T<'h>> = cx.as_list(b).map(|l| l.to_vec()).unwrap_or_default();
+            let mut bs = Vec::with_capacity(bins.len());
+            for e in bins {
+                bs.push(magnitude(cx, e, None)?);
+            }
+            bspec = Some(cx.list(&bs));
+        }
         if let Some(b) = bspec {
             match bins_option(cx, b) {
                 Some(b) => look.bins = b,

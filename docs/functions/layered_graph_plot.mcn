@@ -6,6 +6,9 @@
 #% text
 # `layered_graph_plot(g)` draws a graph in layers following its edges' direction, sources at the top.
 
+#% text
+# `layered_graph_plot(g, side)` puts the first layer on the side `top`, `bottom`, `left` or `right`.
+
 #% section
 # Examples
 
@@ -16,6 +19,11 @@
 layered_graph_plot([1 -> 2, 1 -> 3, 2 -> 4, 3 -> 4, 4 -> 5])
 #% output
 #= image("layered_graph_plot.files/layered_graph_plot-1.svgz")
+
+#% cell
+layered_graph_plot([1 -> 2, 1 -> 3, 2 -> 4, 3 -> 4, 4 -> 5], left)
+#% output
+#= image("layered_graph_plot.files/layered_graph_plot-2.svgz")
 
 #% section
 # See also

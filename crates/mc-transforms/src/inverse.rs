@@ -670,6 +670,18 @@ pub fn inverse_bilateral<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, big
         }
         return Ok(Some(cx.eval(b.add(&out))?));
     }
+    // a product that expands into several terms ((exp(s) - 1)/s): term by term, each with the same strip (or the
+    // same principal-value convention without one), so the sum is the inverse of the whole
+    if ts.len() == 1 && !rational_in(b, f, s) {
+        let e = apply(cx, b, "expand", &[f])?;
+        if terms(b, e).len() > 1 && !rational_in(b, e, s) {
+            let inner = cx.eval(match strip {
+                Some(k) => b.call("conditional_expression", &[e, k]),
+                None => e,
+            })?;
+            return inverse_bilateral(cx, tc, inner, s, t);
+        }
+    }
     let fs = factors(b, f);
     for (i, &g) in fs.iter().enumerate() {
         let Some((n, [u])) = call_of(b, g) else { continue };

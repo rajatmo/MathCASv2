@@ -18,6 +18,9 @@
 #% item
 # `t` is a step count, `[[t]]` for the row at step `t` only, or `[[t1, t2]]` for steps `t1` to `t2`.
 
+#% item
+# A rule with the range `[r1, r2]` is two-dimensional: `[n, [k, 1], [r1, r2]]` is totalistic (the new cell is the digit of `n` at the sum of the (2 r1 + 1) x (2 r2 + 1) cells around it), `[n, [k, w], [r1, r2]]` weighs those cells by the matrix `w`, and `[n, k, [r1, r2]]` reads them as the digits of one number. `init` is then a matrix of cells (wrapping around in both directions) or `[cells, background]`, and the result a list of arrays, each holding every cell the pattern can reach in `t` steps.
+
 #% section
 # Examples
 
@@ -48,6 +51,11 @@ cellular_automaton([30, 2, 1], [[1], 0], 2)
 map(row => total(row), cellular_automaton(90, [[1], 0], 5))
 #% output
 #= [1, 2, 2, 4, 2, 4]
+
+#% cell
+cellular_automaton([14, [2, 1], [1, 1]], [[[1]], 0], 2)
+#% output
+#= [[[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]], [[0, 0, 0, 0, 0], [0, 1, 1, 1, 0], [0, 1, 1, 1, 0], [0, 1, 1, 1, 0], [0, 0, 0, 0, 0]], [[1, 1, 1, 1, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 0, 0, 0, 1], [1, 1, 1, 1, 1]]]
 
 #% section
 # See also

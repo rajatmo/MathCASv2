@@ -95,10 +95,10 @@ fn n_roots_precision_goal() {
     assert_eq!(ev("n_roots(x^2 == 2, x)"), "x == -1.4142135623730951 or x == 1.4142135623730951");
 }
 
-/// A branch through a singular point needs a Puiseux expansion: `asymptotic_solve` declines with a reason.
+/// A branch through a singular point is found by a Puiseux expansion. Over the reals for t > 0 there is none:
+/// y = -x^2/t gives x^4 = t^3 (x - 1), negative near x = 0, so no real x; the answer is the empty list.
 #[test]
-fn asymptotic_solve_declines_at_a_singular_point() {
+fn asymptotic_solve_at_a_singular_point_over_the_reals() {
     let r = ev("asymptotic_solve(y^2 - t * x + t == 0 and x^2 + t * y == 0, [[x, y], [0, 0]], [t, 0, 2], reals)");
-    assert!(r.starts_with("failure(unevaluated, asymptotic_solve"), "{r}");
-    assert!(r.contains("Puiseux"), "{r}");
+    assert_eq!(r, "[]");
 }

@@ -176,6 +176,14 @@ impl<'h> Front<'h> {
             }
             "nand" => return Ok(QFm::Not(Box::new(QFm::And(args.iter().map(|&u| self.parse(u)).collect::<Result<_, _>>()?)))),
             "nor" => return Ok(QFm::Not(Box::new(QFm::Or(args.iter().map(|&u| self.parse(u)).collect::<Result<_, _>>()?)))),
+            // the function form of a decomposition (left unevaluated) stands for its set: the formula itself
+            "cylindrical_decomposition" => {
+                let [f, _, md] = args else { return Err("expected equations and inequalities") };
+                return match h.view(*md) {
+                    View::Str("Function") => self.parse(*f),
+                    _ => Err("expected equations and inequalities"),
+                };
+            }
             "element" => {
                 let [_, d] = args else { return Err("element of two arguments") };
                 return if self.sym_name(*d).as_deref() == Some("reals") { Ok(QFm::Const(true)) } else { Err("a domain other than the reals") };

@@ -1134,6 +1134,64 @@ fn ds_pfq_ok(as, bs, z) = is_list(as) and is_list(bs) and ds_inexact(join(as, bs
 rule hypergeometric_pfq_regularized(as_, bs_, z_) := ds_pfq_sum(as, bs, z, true) when ds_pfq_ok(as, bs, z)
 rule hypergeometric_pfq(as_, bs_, z_) := ds_pfq_sum(as, bs, z, false) when ds_pfq_ok(as, bs, z) and every(bs, b => not (is_integer(b) and b <= 0))
 
+# pFq at z = 1 with p = q + 1 >= 3 (DLMF 16.4). A numerator 1 with a denominator 2 shifts the series by one term:
+# pFq(a, 1; 2, b; z) = prod(b - 1)/(prod(a - 1) z) ((p-1)F(q-1)(a - 1; b - 1; z) - 1) (k -> k - 1 in the sum, a, b != 1),
+# so at z = 1 the lower function's value (Gauss, DLMF 15.4.20, for 2F1) gives it, exact or machine, and so does the lower
+# function at machine z with |z| >= 0.9, where the series of pFq converges too slowly to be summed. For exact
+# numeric parameters the classical sums: Dixon (16.4.4, re(a - 2b - 2c) > -2), Watson (16.4.6, re(2c - a - b) >
+# -1), Whipple (16.4.7, re(c) > 0), each tried for every order of the parameters; a value with a pole is declined.
+fn ds_pfq_eq(t, v) = t === v or (is_machine_number(t) and t == v)
+fn ds_pfq_is_one(z) = ds_pfq_eq(z, 1)
+fn ds_pfq_fin(v) = free_of(v, hypergeometric_pfq) and free_of(v, hypergeometric_2f1) and free_of(v, complex_infinity) and free_of(v, inf) and free_of(v, indeterminate)
+fn ds_pfq_shift(as, bs, z) = {
+  let i = select(range(length(as)), k => ds_pfq_eq(as[k], 1))
+  let j = select(range(length(bs)), k => ds_pfq_eq(bs[k], 2))
+  if length(i) == 0 or length(j) == 0 then null else {
+    let a2 = delete(as, i[1])
+    let b2 = delete(bs, j[1])
+    if some(a2, a => ds_pfq_eq(a, 1)) or some(b2, b => is_numeric(b) and is_integer(b - 1) and b - 1 <= 0) then null else {
+      let low = check(hypergeometric_pfq(a2 - 1, b2 - 1, z), null)
+      if low === null or not ds_pfq_fin(low) then null else fold((u, t) => u*(t - 1), 1, b2)/(fold((u, t) => u*(t - 1), 1, a2)*z)*(low - 1)
+    }
+  }
+}
+fn ds_pfq_re_pos(t) = is_numeric(t) and n(re(t)) > 0
+fn ds_pfq_dixon(p, bs) = {
+  let a = p[1]
+  let b = p[2]
+  let c = p[3]
+  if ds_pfq_re_pos(a - 2*b - 2*c + 2) and (bs === [1 + a - b, 1 + a - c] or bs === [1 + a - c, 1 + a - b]) then gamma(1 + a/2)*gamma(1 + a - b)*gamma(1 + a - c)*gamma(1 + a/2 - b - c)/(gamma(1 + a)*gamma(1 + a/2 - b)*gamma(1 + a/2 - c)*gamma(1 + a - b - c)) else null
+}
+fn ds_pfq_watson(p, bs) = {
+  let a = p[1]
+  let b = p[2]
+  let c = p[3]
+  if ds_pfq_re_pos(2*c - a - b + 1) and (bs === [(a + b + 1)/2, 2*c] or bs === [2*c, (a + b + 1)/2]) then pi^(1/2)*gamma(c + 1/2)*gamma((a + b + 1)/2)*gamma(c - (a + b - 1)/2)/(gamma((a + 1)/2)*gamma((b + 1)/2)*gamma(c - (a - 1)/2)*gamma(c - (b - 1)/2)) else null
+}
+fn ds_pfq_whipple(p, bs) = {
+  let a = p[1]
+  let c = p[3]
+  let e = bs[1]
+  if p[2] === 1 - a and ds_pfq_re_pos(c) and bs[2] === 1 + 2*c - e then pi*2^(1 - 2*c)*gamma(e)*gamma(1 + 2*c - e)/(gamma((a + e)/2)*gamma((a + 1 + 2*c - e)/2)*gamma((1 - a + e)/2)*gamma((2 - a + 2*c - e)/2)) else null
+}
+fn ds_pfq_classic(as, bs) =
+  if not (length(as) == 3 and length(bs) == 2 and every(join(as, bs), t => is_numeric(t) and is_exact(t))) then null else {
+    var v = null
+    for p in permutations(as) {
+      for f in [ds_pfq_dixon, ds_pfq_watson] { if v === null then v = check(f(p, bs), null) }
+      for q in [bs, reverse(bs)] { if v === null then v = check(ds_pfq_whipple(p, q), null) }
+    }
+    if v === null then null else {
+      let s = check(simplify(v), null)
+      if s === null then null else if ds_pfq_fin(s) then s else null
+    }
+  }
+fn ds_pfq_one(as, bs, z) = {
+  let v = ds_pfq_shift(as, bs, z)
+  if not (v === null) then v else if z === 1 then ds_pfq_classic(as, bs) else null
+}
+rule hypergeometric_pfq(as_, bs_, z_) := ds_pfq_one(as, bs, z) when is_list(as) and is_list(bs) and length(as) >= 3 and length(as) == length(bs) + 1 and (ds_pfq_is_one(z) or (ds_inexact([z]) and is_number(z) and abs(z) >= 0.9)) and not (ds_pfq_one(as, bs, z) === null)
+
 # prime_zeta_p(s): the sum of p^-s over the primes p, for inexact s with re(s) > 1: the series
 # sum over k of moebius_mu(k)/k log(zeta(k s)) (Froberg 1968), summed until the terms are below the precision of s
 rule prime_zeta_p(s_) := {
