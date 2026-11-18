@@ -315,7 +315,11 @@ fn nl_fourier(u, a, b, sgn) = {
   let v = if prec === machine_precision then n(u) else u
   let w = nl_fourier_levels(v, a, b, sgn, prec)
   # complex results, real ones when the data is conjugate-even (u[k] = conj(u[n + 2 - k]) at every level)
-  if nl_conj_even(v) then nl_map_all(x => re(x), w) else nl_map_all(x => complex(re(x), im_part(x)), w)
+  if nl_conj_even(v) then re(w) else {
+    # machine data: every leaf at once
+    let c = nl_complex_leaves(w)
+    if is_list(c) then c else nl_map_all(x => complex(re(x), im_part(x)), w)
+  }
 }
 # deeper levels first; the first level then combines whole subarrays (the arithmetic is elementwise)
 # a matrix is transformed along its rows as a whole (the entries of the transform are rows), then along the columns
@@ -328,7 +332,9 @@ fn nl_fourier_levels(u, a, b, sgn, prec) =
 # mixed-radix recursion, which is O(len^2) on whole lists at prime lengths)
 fn nl_dft_matrix(len, s) = {
   let wt = map(k => n(exp(2*pi*im*s*k/len)), range(0, len - 1))
-  table(table(wt[mod(j*k, len) + 1], k, range(0, len - 1)), j, range(0, len - 1))
+  # entry (j, k) is wt[mod(j k, len) + 1]: the indices as one integer matrix, a row of entries at a time
+  let r = range(0, len - 1)
+  map(row => wt[row], mod(outer(mul, r, r), len) + 1)
 }
 fn nl_fourier_matrix(u, a, b, sgn) = {
   let nr = length(u)

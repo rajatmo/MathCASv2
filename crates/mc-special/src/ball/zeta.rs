@@ -63,8 +63,38 @@ fn pow_neg(k: u64, s: &Ball, s_int: Option<&Int>, wp: u64) -> Option<Ball> {
     let kb = int(k as i64);
     match s_int {
         Some(n) => el::pow_int(&kb, &n.neg(), wp),
-        None => el::exp(&el::log(&kb, wp)?.mul(&s.neg(), wp), wp),
+        None => el::exp(&log_int(k, wp)?.mul(&s.neg(), wp), wp),
     }
+}
+
+/// The ball log(k) at precision wp of a positive integer k: the logarithms of 1, ..., 4096 at the last 8 precisions
+/// are kept (Euler-Maclaurin sums take the same logarithms at every call of zeta and Hurwitz zeta at a precision; a
+/// kept ball is the one computed, so the sums are the same).
+fn log_int(k: u64, wp: u64) -> Option<Ball> {
+    const KEPT: u64 = 4096;
+    type Table = Vec<(u64, Vec<Option<Ball>>)>;
+    static CACHE: std::sync::Mutex<Table> = std::sync::Mutex::new(Vec::new());
+    if k == 0 || k > KEPT || wp > 1 << 16 {
+        return el::log(&int(k as i64), wp);
+    }
+    if let Some(v) = CACHE.lock().ok()?.iter().find(|e| e.0 == wp).and_then(|e| e.1[k as usize].clone()) {
+        return Some(v);
+    }
+    let v = el::log(&int(k as i64), wp)?;
+    if let Ok(mut c) = CACHE.lock() {
+        let pos = match c.iter().position(|e| e.0 == wp) {
+            Some(i) => i,
+            None => {
+                if c.len() >= 8 {
+                    c.remove(0);
+                }
+                c.push((wp, vec![None; KEPT as usize + 1]));
+                c.len() - 1
+            }
+        };
+        c[pos].1[k as usize] = Some(v.clone());
+    }
+    Some(v)
 }
 
 /// zeta(s) by Euler-Maclaurin for a ball s excluding 1 with sigma > -1.
@@ -162,7 +192,14 @@ pub fn hurwitz_ball(s: &Ball, a: &Ball, wp: u64) -> Option<Ball> {
     let sigma = super::f64_of(&lower(s));
     let sa = super::f64_of(&s.mid).abs() + super::f64_of(&s.rad.to_float());
     let (n, m) = choose(sigma, sa, wp as f64 + 8.0)?;
-    let pw = |x: &Ball, e: &Ball| -> Option<Ball> { el::exp(&el::log(x, wp)?.mul(e, wp), wp) };
+    let pw = |x: &Ball, e: &Ball| -> Option<Ball> {
+        // an exact positive integer (an integer a): its logarithm is kept
+        let l = match super::float_int(&x.mid).filter(|_| x.rad.is_zero()).and_then(|v| v.to_i64()) {
+            Some(k) if k >= 1 => log_int(k as u64, wp)?,
+            _ => el::log(x, wp)?,
+        };
+        el::exp(&l.mul(e, wp), wp)
+    };
     let ns = s.neg();
     let mut sum = int(0);
     for k in 0..n {

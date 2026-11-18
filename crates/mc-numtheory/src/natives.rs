@@ -1037,7 +1037,38 @@ fn integer_exponent<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]
 
 fn is_prime_<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [x] = args else { return Ok(Reply::Decline) };
+    let (x, gaussian) = match args {
+        [x] => (x, false),
+        // `is_prime(z, gaussian_integers: g)` of a number (the library rule `gauss_prime_opts`, without a call per
+        // step): with g true a rational integer n is a Gaussian prime when |n| is a prime congruent to 3 mod 4, a
+        // number that is not a Gaussian integer is not prime
+        [x, o] => {
+            let View::App { head, args: &[r] } = h.view(*o) else { return Ok(Reply::Decline) };
+            let View::App { head: rh, args: &[k, v] } = h.view(r) else { return Ok(Reply::Decline) };
+            if head != h.sym_term(h.sym("options")) || rh != h.sym_term(h.sym("rule")) || k != h.sym_term(h.sym("gaussian_integers")) {
+                return Ok(Reply::Decline);
+            }
+            if Arith::new(h).num(*x).is_none() {
+                return Ok(Reply::Decline);
+            }
+            if cx.is_true(v) {
+                (x, true)
+            } else if cx.is_false(v) {
+                (x, false)
+            } else {
+                return Ok(Reply::Decline);
+            }
+        }
+        _ => return Ok(Reply::Decline),
+    };
+    if gaussian {
+        if let Some(n) = int_of(h, *x) {
+            let m = n.mag;
+            let three_mod_4 = m.bit(0) && m.bit(1);
+            let r = three_mod_4 && is_prime(&m, cx)?;
+            return done(cx.bool(r));
+        }
+    }
     let r = match int_of(h, *x) {
         Some(n) => is_prime(&n.mag, cx)?,
         None => match h.view(*x) {

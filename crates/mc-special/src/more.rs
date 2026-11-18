@@ -2565,7 +2565,23 @@ impl mc_numeric::library::LibraryFn for ErfFamily {
         let x = args[0];
         let sp = std::f64::consts::PI.sqrt();
         let v = if self.0 == 0 {
-            0.5 * sp * (-x * x).exp() * machine::erf::erfi(x)
+            if x.abs() >= 26.0 {
+                // erfi overflows and e^(-x^2) underflows: the asymptotic expansion F(x) ~ (1/(2x)) sum (2k - 1)!!/(2
+                // x^2)^k (the expansion of erfc, DLMF 7.12.1, on the imaginary axis), whose terms fall by (2k + 1)/(2
+                // x^2) < 1/1000 per step here, summed until they no longer change the value
+                let y = 1.0 / (2.0 * x * x);
+                let (mut term, mut sum) = (1.0f64, 1.0f64);
+                for k in 0..40 {
+                    term *= (2 * k + 1) as f64 * y;
+                    if sum + term == sum {
+                        break;
+                    }
+                    sum += term;
+                }
+                sum / (2.0 * x)
+            } else {
+                0.5 * sp * (-x * x).exp() * machine::erf::erfi(x)
+            }
         } else {
             let a = 0.5 * sp * x;
             let up = machine::erf::erf_complex(C64::new(a, a));

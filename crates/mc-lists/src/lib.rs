@@ -47,6 +47,7 @@
 //! ```
 #![warn(missing_docs)]
 mod access;
+mod automata;
 mod arrange;
 mod arrays;
 mod assocs;
@@ -57,6 +58,7 @@ mod group;
 mod digests;
 mod groupings;
 mod hash;
+mod leaves;
 mod levels;
 mod matching;
 mod measure;
@@ -566,6 +568,17 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     // a helper of the library (`total(xs, method: compensated_summation)`): no usage line, not in the help index
     let helper = "nl_total_compensated";
     let f = Fun { lib: lib.clone(), body: reduce::total_compensated, rows_of_datasets: false, patterns: false, assoc: assocs::mode(helper) };
+    k.register(h.sym(helper), Attributes::default(), Box::new(f));
+    // the evolution of a cellular automaton with a numbered rule, for the library's `cellular_automaton`
+    let helper = "nl_ca_evolve";
+    let f = Fun { lib: lib.clone(), body: automata::ca_evolve, rows_of_datasets: false, patterns: false, assoc: assocs::mode(helper) };
+    k.register(h.sym(helper), Attributes::default(), Box::new(f));
+    let helper = "nl_ca_window";
+    let f = Fun { lib: lib.clone(), body: automata::ca_window, rows_of_datasets: false, patterns: false, assoc: assocs::mode(helper) };
+    k.register(h.sym(helper), Attributes::default(), Box::new(f));
+    // machine arrays with complex leaves, for the library's `fourier`
+    let helper = "nl_complex_leaves";
+    let f = Fun { lib: lib.clone(), body: leaves::complex_leaves, rows_of_datasets: false, patterns: false, assoc: assocs::mode(helper) };
     k.register(h.sym(helper), Attributes::default(), Box::new(f));
     // `map` with levels, over associations and other compound terms (the evaluator's `map` keeps lists)
     let more = lib.clone();

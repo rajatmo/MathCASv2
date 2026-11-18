@@ -100,7 +100,30 @@ pub fn gamma_pos(x: &Ball, wp: u64) -> Option<Ball> {
 }
 
 /// Gamma(x) on a ball without a pole.
+///
+/// The values at exact points are kept (the last 64 points and precisions up to 2^16 bits): series of the
+/// hypergeometric, Bessel and Airy functions take Gamma at the same parameters at every call, and a root search
+/// or an enclosure calls them thousands of times. The kept ball is the one computed, so the results are the same.
 pub fn gamma_ball(x: &Ball, wp: u64) -> Option<Ball> {
+    type Kept = Vec<(mc_arith::num::Float, u64, Ball)>;
+    static CACHE: std::sync::Mutex<Kept> = std::sync::Mutex::new(Vec::new());
+    let keep = x.rad.is_zero() && wp <= 1 << 16 && x.mid.man.bits() <= 256;
+    if keep {
+        if let Some(e) = CACHE.lock().ok()?.iter().find(|e| e.1 == wp && e.0.cmp_exact(&x.mid) == std::cmp::Ordering::Equal) {
+            return Some(e.2.clone());
+        }
+    }
+    let v = gamma_ball_at(x, wp)?;
+    if let (true, Ok(mut c)) = (keep, CACHE.lock()) {
+        if c.len() >= 64 {
+            c.remove(0);
+        }
+        c.push((x.mid.clone(), wp, v.clone()));
+    }
+    Some(v)
+}
+
+fn gamma_ball_at(x: &Ball, wp: u64) -> Option<Ball> {
     if is_pos(x) {
         return gamma_pos(x, wp);
     }

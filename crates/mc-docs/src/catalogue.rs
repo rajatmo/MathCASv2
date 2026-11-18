@@ -304,6 +304,7 @@ pub const INTERNAL: &[&str] = &[
     "assign",
     "assign_part",
     "ff_fox_machine", "ff_julia_counts", "nl_fft_machine", "nl_fourier_machine", "nl_li_machine", "nl_total_compensated",
+    "nl_ca_evolve", "nl_ca_window", "nl_complex_leaves",
     "ball_literal",
     "block",
     "check_options",

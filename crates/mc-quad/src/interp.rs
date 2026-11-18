@@ -300,6 +300,16 @@ fn value_f64(dims: &[usize], data: &[f64], ws: &[Vec<(usize, f64)>], k: usize, t
     fsum(terms)
 }
 
+/// An interpolation order: an integer >= 0, or a machine real with such a value (a sampled function's body is made
+/// numeric, orders included; the language definition takes floor(min(k, len - 1)), the same integer).
+fn order<'h>(h: &'h mc_core::Heap, k: T<'h>) -> Option<i64> {
+    match h.view(k) {
+        mc_core::View::Int(k) if k >= 0 => Some(k),
+        mc_core::View::Real(r) if r >= 0.0 && r.fract() == 0.0 && r < 1e9 => Some(r as i64),
+        _ => None,
+    }
+}
+
 /// The value on doubles, when every number allows it.
 fn fast<'h>(cx: &NativeCx<'_, '_, 'h>, vals: T<'h>, grids: T<'h>, ks: T<'h>, xs: T<'h>) -> Option<f64> {
     let h = cx.heap();
@@ -325,7 +335,7 @@ fn fast<'h>(cx: &NativeCx<'_, '_, 'h>, vals: T<'h>, grids: T<'h>, ks: T<'h>, xs:
     let mut dims = Vec::with_capacity(d);
     let mut ws = Vec::with_capacity(d);
     for i in 0..d {
-        let mc_core::View::Int(k) = h.view(ks[i]) else { return None };
+        let k = order(h, ks[i])?;
         let cs = small_vector(cx, grids[i])?;
         dims.push(cs.len());
         ws.push(weights_f64(&cs, k, xs[i])?);
@@ -351,7 +361,7 @@ impl Native for LiMachine {
         let ar = Arith::new(h);
         let Some(points) = numbers(cx, &ar, *xs) else { return Ok(Reply::Decline) };
         let Some(grids) = cx.as_list(*grids).map(<[T<'h>]>::to_vec) else { return Ok(Reply::Decline) };
-        let Some(ks) = numbers(cx, &ar, *ks) else { return Ok(Reply::Decline) };
+        let Some(ks) = cx.as_list(*ks).map(<[T<'h>]>::to_vec) else { return Ok(Reply::Decline) };
         let d = points.len();
         if d == 0 || grids.len() < d || ks.len() < d {
             return Ok(Reply::Decline);
@@ -363,7 +373,7 @@ impl Native for LiMachine {
         cx.tick(1 + g.data.len() as u64 / 64)?;
         let mut ws = Vec::with_capacity(d);
         for i in 0..d {
-            let Some(k) = ks[i].as_int().and_then(|k| k.to_i64()).filter(|&k| k >= 0) else { return Ok(Reply::Decline) };
+            let Some(k) = order(h, ks[i]) else { return Ok(Reply::Decline) };
             let Some(cs) = numbers(cx, &ar, grids[i]) else { return Ok(Reply::Decline) };
             if cs.len() != g.dims[i] {
                 return Ok(Reply::Decline);

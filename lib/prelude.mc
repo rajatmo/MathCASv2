@@ -1201,11 +1201,18 @@ fn cellular_automaton(rl, init, t) when is_list(init) and ca_spec(rl) !== null =
   var bg = bg0
   var rows = [state]
   var bgs = [bg0]
-  for s in range(last_step) {
-    state = ca_step(state, spec, bg, periodic, s)
-    bg = spec[1](constant_array(bg, length(spec[2])), s)
-    rows = append(rows, state)
-    bgs = append(bgs, bg)
+  # a numbered rule on machine integers: the same steps in the library
+  let fast = if length(spec) == 3 then nl_ca_evolve(spec[3][1], spec[3][2], spec[3][3], spec[2], state, bg0, periodic, last_step) else null
+  if is_list(fast) then {
+    rows = fast[1]
+    bgs = fast[2]
+  } else {
+    for s in range(last_step) {
+      state = ca_step(state, spec, bg, periodic, s)
+      bg = spec[1](constant_array(bg, length(spec[2])), s)
+      rows = append(rows, state)
+      bgs = append(bgs, bg)
+    }
   }
   # [t, [[c]]]: the column c of the (single) starting cell, step by step
   if column then map(r => r[pad + 1 + t[2][1][1]], rows) else {
@@ -1213,8 +1220,8 @@ fn cellular_automaton(rl, init, t) when is_list(init) and ca_spec(rl) !== null =
     # that step (the uniform background evolves by the rule too): a rule that shifts the pattern one way gives a
     # one-sided window, a rule that kills it one column; cells compare as terms, so symbolic cells work too
     if not periodic and not all_cells then {
-      let diff = map(k => select(range(length(rows[k])), j => rows[k][j] !== bgs[k]), range(length(rows)))
-      let used = flatten(diff)
+      let win = nl_ca_window(rows, bgs)
+      let used = if is_list(win) then win else flatten(map(k => select(range(length(rows[k])), j => rows[k][j] !== bgs[k]), range(length(rows))))
       if length(used) > 0 then {
         let lo = min(used)
         let hi = max(used)
@@ -1260,7 +1267,7 @@ fn ca_spec(rl) =
     let w = if is_list(rl[2]) then (if is_list(rl[2][2]) then rl[2][2] else constant_array(rl[2][2], length(offs))) else map(j => k^(length(offs) - j), range(length(offs)))
     ca_digits(rl[1], k, w, offs)
   }
-fn ca_digits(n, k, w, offs) = [(nb, s) => mod(floor(n/k^dot(w, nb)), k), offs]
+fn ca_digits(n, k, w, offs) = [(nb, s) => mod(floor(n/k^dot(w, nb)), k), offs, [n, k, w]]
 fn ca_step(state, spec, bg, periodic, s) = {
   let rr = max(map(o => abs(o), spec[2]))
   let len = length(state)

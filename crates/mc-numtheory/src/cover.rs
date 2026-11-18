@@ -386,6 +386,11 @@ fn is_prime_power<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if mag == Nat::from_u64(1) {
         return Ok(Some(fx.bool(false)));
     }
+    if let Some(m) = mag.to_u128().and_then(|m| u64::try_from(m).ok()) {
+        // the same search in machine integers
+        let r = (2..=mag.bits()).rev().find_map(|k| exact_root_u64(m, k as u32)).unwrap_or(m);
+        return ev(fx, "is_prime", &[fx.integer(&Int::from_u64(r))]).map(Some);
+    }
     for k in (1..=mag.bits()).rev() {
         fx.tick(1)?;
         let r = mag.iroot(k);
@@ -395,6 +400,12 @@ fn is_prime_power<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         }
     }
     Ok(Some(fx.bool(false)))
+}
+
+/// r with r^k = m (k >= 2), when m is a perfect k-th power: the floating-point root corrected by one either way.
+fn exact_root_u64(m: u64, k: u32) -> Option<u64> {
+    let r = (m as f64).powf(1.0 / f64::from(k)).round() as u64;
+    (r.saturating_sub(1)..=r + 1).find(|&c| c >= 2 && c.checked_pow(k) == Some(m))
 }
 
 /// Whether a Gaussian integer z = a + b i (b != 0) is a unit times a power of one Gaussian prime. With N = a^2 +
@@ -859,6 +870,36 @@ fn stirling<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], first: bool) -> R<'h> 
         return Ok(Some(fx.int(0)));
     }
     let (n, k) = (n as usize, k as usize);
+    if n <= STIRLING_ROWS {
+        // the triangle's rows up to n, kept per thread (a table of s(n, m) for n, m <= 100 builds them once)
+        let known = STIRLING.with(|t| t.borrow()[usize::from(!first)].len());
+        if n >= known {
+            fx.tick(((n * n - known * known) / 128) as u64)?;
+        }
+        let v = STIRLING.with(|t| {
+            let mut t = t.borrow_mut();
+            let rows = &mut t[usize::from(!first)];
+            if rows.is_empty() {
+                rows.push(vec![Int::from_i64(1)]);
+            }
+            while rows.len() <= n {
+                let i = rows.len();
+                let prev = &rows[i - 1];
+                let at = |j: usize| prev.get(j).cloned().unwrap_or_else(|| Int::from_i64(0));
+                let mut row = vec![Int::from_i64(0); i + 1];
+                for (j, e) in row.iter_mut().enumerate().skip(1) {
+                    *e = if first {
+                        at(j - 1).sub(&at(j).mul(&Int::from_i64(i as i64 - 1)))
+                    } else {
+                        at(j - 1).add(&at(j).mul(&Int::from_i64(j as i64)))
+                    };
+                }
+                rows.push(row);
+            }
+            rows[n][k].clone()
+        });
+        return Ok(Some(int_t(fx, &v)));
+    }
     fx.tick((n * k / 64) as u64)?;
     let mut row = vec![Int::from_i64(0); k + 1];
     row[0] = Int::from_i64(1);
@@ -944,7 +985,12 @@ fn partitions<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], distinct: bool) -> R
 }
 thread_local! {
     static PARTITIONS: std::cell::RefCell<Vec<Int>> = const { std::cell::RefCell::new(Vec::new()) };
+    /// the rows of the Stirling triangles of the first and second kind (at most [`STIRLING_ROWS`] + 1 rows: 45,000
+    /// integers of at most 2,100 bits each, under 10 MB a kind)
+    static STIRLING: std::cell::RefCell<[Vec<Vec<Int>>; 2]> = const { std::cell::RefCell::new([Vec::new(), Vec::new()]) };
 }
+/// The rows of the Stirling triangles kept per thread.
+const STIRLING_ROWS: usize = 300;
 fn partitions_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     partitions(fx, a, false)
 }

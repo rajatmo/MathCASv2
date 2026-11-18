@@ -395,6 +395,23 @@ pub fn bessel_y(nu: &Real, x: &Real, p: u64) -> Option<CBall> {
 /// Ai(0) = 3^(-2/3)/Gamma(2/3) and -Ai'(0) = 3^(-1/3)/Gamma(1/3) at precision wp (the constants c1, c2 of the
 /// Maclaurin series).
 pub fn airy_constants(wp: u64) -> Option<(Ball, Ball)> {
+    // the same balls at every call at one precision (two gamma values take most of a small Airy evaluation): the
+    // last 16 precisions are kept, about 2 kB each at 4000 bits
+    static CACHE: std::sync::Mutex<Vec<(u64, Ball, Ball)>> = std::sync::Mutex::new(Vec::new());
+    if let Some((_, a, b)) = CACHE.lock().ok()?.iter().find(|e| e.0 == wp) {
+        return Some((a.clone(), b.clone()));
+    }
+    let (c1, c2) = airy_constants_at(wp)?;
+    if let (Ok(mut c), true) = (CACHE.lock(), wp <= 1 << 16) {
+        if c.len() >= 16 {
+            c.remove(0);
+        }
+        c.push((wp, c1.clone(), c2.clone()));
+    }
+    Some((c1, c2))
+}
+
+fn airy_constants_at(wp: u64) -> Option<(Ball, Ball)> {
     let l3 = el::log(&int(3), wp)?;
     let c1 = el::exp(&l3.mul(&Ball::from_ratio(-2, 3, wp), wp), wp)?;
     let c1 = c1.div(&gamma_ball(&Ball::from_ratio(2, 3, wp), wp)?, wp)?;

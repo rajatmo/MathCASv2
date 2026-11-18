@@ -11,6 +11,7 @@
 //! "Quantum theory of angular momentum" for the Racah formulas.
 #![warn(missing_docs)]
 pub mod seq;
+mod squares;
 
 use mc_core::Heap;
 use mc_eval::Kernel;
@@ -84,4 +85,5 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
 /// Register the natives with `k`.
 pub fn install(k: &mut Kernel, h: &Heap) {
     seq::install(k, h);
+    squares::install(k, h);
 }
