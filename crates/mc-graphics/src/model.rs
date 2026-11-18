@@ -2011,6 +2011,14 @@ fn bad_item<S: Store + ?Sized>(h: &S, t: T<'_>, bad: Bad) -> Failure {
 /// Polls `stop` every so many items of a loop over the input.
 pub const POLL: usize = 4096;
 
+/// Check a graphics term as [`read`] does, with the same failures: a `graphics3d` term is read but not drawn.
+pub fn check<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Result<(), Failure> {
+    if crate::three::is_graphics3d(h, t) {
+        return crate::three::check(h, t, stop);
+    }
+    read(h, t, stop).map(|_| ())
+}
+
 /// Read a `graphics(content)` or `graphics(content, options(...))` term. `stop` is polled in loops over the input.
 pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Result<Graphic, Failure> {
     if crate::three::is_graphics3d(h, t) {

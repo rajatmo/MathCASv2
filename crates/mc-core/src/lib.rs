@@ -62,6 +62,7 @@
 //! });
 //! ```
 #![warn(missing_docs)]
+pub mod alloc;
 mod gc;
 mod handle;
 mod hash;

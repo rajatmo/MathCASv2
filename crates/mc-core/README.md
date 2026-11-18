@@ -16,6 +16,9 @@ The core term store: a concurrent hash-consed arena with a generational collecto
   scopes for the garbage of one long evaluation.
 - `unpack`, `verify`, `shapes`: packed-array arguments on demand, heap invariant checks, session shapes for stress
   tests and measurements.
+- `alloc`: `CachingAlloc`, the global allocator of the binaries that evaluate (`mc-kernel`, `mc-repl`, the docs page
+  runner): blocks of up to 1 KB in size classes, freed ones kept in a few per-thread caches (at most 4 MB each) for
+  reuse, everything else from the system allocator.
 
 ## Design
 - Symbols and 30-bit integers are immediates; larger integers, rationals, balls and strings are payload nodes
@@ -27,5 +30,6 @@ The core term store: a concurrent hash-consed arena with a generational collecto
 
 ## Tests
 - Unit tests in `src`; integration tests in `tests/` for the store contract, handles, the memo, numbers, packed
-  arrays, scratch scopes and collection under stress; documentation examples including `compile_fail` ones.
+  arrays, scratch scopes and collection under stress, and the caching allocator as a test binary's global
+  allocator; documentation examples including `compile_fail` ones.
 - Run: `cargo test --release -p mc-core`; the binary `mc-core-bench` measures the store on session shapes.

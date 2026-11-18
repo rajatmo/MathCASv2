@@ -320,7 +320,7 @@ impl Native for Graphics {
         let g = if changed { h.call(h.sym(self.0), &new) } else { t };
         let stop = cx.stop_flag().clone();
         let stopped = move || stop.load(std::sync::atomic::Ordering::Relaxed);
-        Ok(Reply::Done(match model::read(h, g, &stopped) {
+        Ok(Reply::Done(match model::check(h, g, &stopped) {
             Ok(_) => g,
             Err(f) if f.tag == "not_numeric" => g,
             Err(f) => {

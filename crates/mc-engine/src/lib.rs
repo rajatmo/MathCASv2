@@ -30,5 +30,7 @@ pub use engine::{
 /// The functions the engine itself adds for notebooks (`out`, `message`), with a one-line description.
 pub use history::FUNCTIONS;
 /// The panic guard of evaluations (`failure(internal, ...)`), for hosts that guard their own requests too.
+/// The allocator the binaries that evaluate install (freed small blocks kept for reuse).
+pub use mc_core::alloc::CachingAlloc;
 pub use mc_eval::guard;
 pub use mc_load::{InMemory, LoadError, Module, Origin, SourceProvider};

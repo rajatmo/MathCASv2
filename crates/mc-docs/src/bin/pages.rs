@@ -16,6 +16,9 @@ use mc_docs::runner;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+#[global_allocator]
+static ALLOC: mc_engine::CachingAlloc = mc_engine::CachingAlloc;
+
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
     let Some(cmd) = args.next() else {

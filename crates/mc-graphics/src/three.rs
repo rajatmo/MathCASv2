@@ -1060,6 +1060,22 @@ pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Resu
     picture(sc, o3, stop)
 }
 
+/// Check a `graphics3d` term as [`read`] does, without drawing it: the content and the options are read (every
+/// failure of [`read`] comes from them; preparing and drawing the scene only stop on an interrupt).
+pub fn check<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Result<(), Failure> {
+    let (content, o) = match head_name(h, t) {
+        Some((n, args)) if n == "graphics3d" => match args {
+            [c] => (*c, None),
+            [c, o] => (*c, Some(*o)),
+            _ => return Err(Failure::new("not_graphics", "graphics3d takes content and options")),
+        },
+        _ => return Err(Failure::new("not_graphics", mc_syntax::Printer::brief(h).expr(t))),
+    };
+    scene(h, content, stop)?;
+    options3(h, o)?;
+    Ok(())
+}
+
 /// Whether `t` is a `graphics3d` term.
 pub fn is_graphics3d<S: Store + ?Sized>(h: &S, t: T<'_>) -> bool {
     head_name(h, t).is_some_and(|(n, a)| n == "graphics3d" && matches!(a.len(), 1 | 2))

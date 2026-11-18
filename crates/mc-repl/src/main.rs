@@ -6,6 +6,9 @@ use mc_repl::{cli, interrupt, Repl};
 use std::io;
 use std::process::ExitCode;
 
+#[global_allocator]
+static ALLOC: mc_engine::CachingAlloc = mc_engine::CachingAlloc;
+
 fn main() -> ExitCode {
     let options = match cli::parse(std::env::args().skip(1)) {
         Ok(o) => o,

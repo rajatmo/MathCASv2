@@ -4,6 +4,9 @@ use mc_kernel::server;
 use std::io::{self, BufReader};
 use std::process::ExitCode;
 
+#[global_allocator]
+static ALLOC: mc_engine::CachingAlloc = mc_engine::CachingAlloc;
+
 const USAGE: &str = "\
 usage: mc-kernel [--threads N] [--no-prelude]
 Speaks the MathCAS kernel protocol: JSON requests, one per line, on standard input; JSON responses, one per line,
