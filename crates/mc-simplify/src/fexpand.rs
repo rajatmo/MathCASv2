@@ -7,6 +7,7 @@
 //! | `harmonic_number(x)` | `euler_gamma + digamma(x + 1)` |
 //! | `erfc(x)` | `1 - erf(x)` |
 //! | `bessel_j(±1/2, x)`, `bessel_y(±1/2, x)`, `bessel_i(±1/2, x)`, `bessel_k(±1/2, x)` | sines, cosines, exponentials |
+//! | `kelvin_ber`, `kelvin_bei`, `kelvin_ker`, `kelvin_kei` of half-integer order | `x^(-1/2)` times sines, cosines, hyperbolic functions and exponentials |
 //! | `spherical_bessel_j(0, x)`, `spherical_bessel_y(0, x)` | `sin(x)/x`, `-cos(x)/x` |
 //! | `sinc(x)` | `sin(x)/x` |
 //! | `sec`, `csc`, `cot`, `sech`, `csch`, `coth` | reciprocals of `cos`, `sin`, `cosh`, `sinh` |
@@ -263,6 +264,73 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
             b.call_named("expand", &[cur])
         }
         ("spherical_bessel_y", [n, x]) if *n == b.int(0) => b.neg(b.div(b.call_named("cos", &[*x]), *x)),
+        // Kelvin functions of half-integer order nu = m + 1/2 (DLMF 10.61.1-2 with 10.49.3, 10.49.12): with
+        // w = e^(3 pi i/4), ber + i bei = J_nu(w x) = sqrt(2/pi) e^(-3 pi i/8) x^(-1/2) P_m(w x), P_m(z) = z j_m(z)
+        // (P_0 = sin z, P_-1 = cos z, P_(m+1) = (2m + 1)/z P_m - P_(m-1)); with v = e^(pi i/4),
+        // ker + i kei = e^(-nu pi i/2) K_nu(v x) = sqrt(pi/2) e^(-nu pi i/2 - pi i/8) x^(-1/2) e^(-v x) R_m(v x)
+        // (R_0 = R_-1 = 1, R_(m+1) = R_(m-1) + (2m + 1)/z R_m). The real and imaginary parts are taken as the
+        // halves of the function and its mirror (conjugate constants, the conjugate rotation), which are analytic
+        // and real for x > 0, so they hold wherever x^(-1/2) has its principal value.
+        ("kelvin_ber" | "kelvin_bei" | "kelvin_ker" | "kelvin_kei", [nu, x]) => {
+            let doubled = b.ar.num(b.mul(&[b.int(2), *nu])).and_then(|n| n.as_rat().cloned());
+            let k2 = doubled.filter(|q| q.is_int())?.num.to_i64()?;
+            if k2 % 2 == 0 || k2.abs() > 25 {
+                return None;
+            }
+            let m = (k2 - 1).div_euclid(2);
+            let im = h.sym_term(h.sym("im"));
+            let cis = |q: T<'h>| b.call_named("exp", &[b.mul(&[im, pi, q])]);
+            let first = name == "kelvin_ber" || name == "kelvin_bei";
+            // the sequence P_m (Bessel J) or R_m (Bessel K) at z
+            let seq = |z: T<'h>| {
+                let (mut lo, mut hi, mut lo_k) = if first {
+                    (b.call_named("cos", &[z]), b.call_named("sin", &[z]), -1i64)
+                } else {
+                    (one, one, -1i64)
+                };
+                let sign = if first { -1 } else { 1 };
+                while lo_k + 1 < m {
+                    let j = lo_k + 1; // hi is the order j
+                    let next = b.add(&[b.mul(&[b.div(b.int(2 * j + 1), z), hi]), b.mul(&[b.int(sign), lo])]);
+                    (lo, hi) = (hi, next);
+                    lo_k += 1;
+                }
+                while lo_k + 1 > m {
+                    let j = lo_k; // lo is the order j: A(j - 1) = (2j + 1)/z A(j) - A(j + 1) (J), A(j + 1) - (2j + 1)/z A(j) (K)
+                    let t = b.mul(&[b.div(b.int(2 * j + 1), z), lo]);
+                    let prev = if first { b.sub(t, hi) } else { b.sub(hi, t) };
+                    (lo, hi) = (prev, lo);
+                    lo_k -= 1;
+                }
+                hi
+            };
+            // the half-sum (real part) or half-difference over i (imaginary part) of A(+) and its mirror A(-)
+            let part = |a: &dyn Fn(i64) -> T<'h>, real: bool| {
+                let (p, q) = (a(1), a(-1));
+                if real {
+                    b.mul(&[half, b.add(&[p, q])])
+                } else {
+                    b.mul(&[half, b.neg(im), b.sub(p, q)])
+                }
+            };
+            let real = name == "kelvin_ber" || name == "kelvin_ker";
+            let body = if first {
+                let a = |s: i64| {
+                    let w = cis(b.rat(3 * s, 4));
+                    b.mul(&[cis(b.rat(-3 * s, 8)), seq(b.mul(&[w, *x]))])
+                };
+                b.mul(&[b.pow(b.div(b.int(2), pi), half), part(&a, real)])
+            } else {
+                let a = |s: i64| {
+                    let v = b.mul(&[cis(b.rat(s, 4)), *x]);
+                    let phase = b.add(&[b.mul(&[b.int(-s), *nu, half]), b.rat(-s, 8)]);
+                    b.mul(&[cis(phase), b.call_named("exp", &[b.neg(v)]), seq(v)])
+                };
+                b.mul(&[b.pow(b.div(pi, b.int(2)), half), part(&a, real)])
+            };
+            // (the imaginary parts of the halves cancel: simplify drops them)
+            b.mul(&[b.pow(*x, b.neg(half)), b.call_named("simplify", &[b.call_named("complex_expand", &[body])])])
+        }
         ("bessel_j" | "bessel_y" | "bessel_i" | "bessel_k", [nu, x]) => {
             // the half-integer orders: the orders +-1/2 in sines, cosines and exponentials, the others by the
             // three-term recurrence A(v + 1) = alpha (2 v/x) A(v) + beta A(v - 1) (DLMF 10.6.1, 10.29.1)

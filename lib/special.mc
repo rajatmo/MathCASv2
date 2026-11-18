@@ -25,9 +25,9 @@ fn ds_heads() = [sin_integral, sinh_integral, cos_integral, cosh_integral, exp_i
   inverse_jacobi_cd, inverse_jacobi_sd, inverse_jacobi_dc, inverse_jacobi_nc, inverse_jacobi_sc, inverse_jacobi_ns,
   inverse_jacobi_ds, inverse_jacobi_cs, heun_g, heun_c, heun_b, heun_d, heun_t, mathieu_c, mathieu_s, mathieu_characteristic_a,
   spheroidal_eigenvalue, mittag_leffler_e, q_pochhammer, whittaker_m, whittaker_w, q_hypergeometric_pfq, inverse_elliptic_nome_q,
-  hypergeometric_pfq_regularized, anger_j, weber_e, zeta, factorial2, barnes_g, hyperfactorial, elliptic_theta_prime,
+  hypergeometric_pfq_regularized, anger_j, weber_e, zeta, factorial2, barnes_g, log_barnes_g, hyperfactorial, elliptic_theta_prime,
   hypergeometric_u, airy_ai, airy_bi, airy_ai_prime, airy_bi_prime, airy_ai_zero, airy_bi_zero, riemann_siegel_z,
-  bessel_j_zero, bessel_y_zero, erf, erfc, fresnel_c, fresnel_s, gamma_regularized, hankel_h1, hankel_h2,
+  bessel_j_zero, bessel_y_zero, erf, erfc, erfi, dawson_f, fresnel_c, fresnel_s, gamma_regularized, hankel_h1, hankel_h2,
   spherical_hankel_h1, spherical_hankel_h2, lerch_phi, fibonacci, lucas_l, lommel_s1, lommel_s2, lommel_t1, lommel_t2]
 fn ds_known(t) = not is_atom(t) and some(ds_heads(), f => f === head(t))
 
@@ -436,12 +436,20 @@ rule ds_at(weber_e(nu_, z_), 2, 0, k_) := {
 rule ds_at(zeta(u_), 1, 0, k_) := {
   2^u*pi^(u - 1)*sin(pi*u/2)*gamma(1 - u)*(-1/u + ds_sum(j => stieltjes_gamma(j)/factorial(j)*u^j, 0, k + 1))
 } when k <= 40
+# the Laurent series at the pole: zeta(u) = 1/(u - 1) + sum (-1)^j gamma_j/j! (u - 1)^j (Stieltjes constants, DLMF 25.2.4)
+rule ds_at(zeta(u_), 1, 1, k_) := 1/(u - 1) + ds_sum(j => (-1)^j*stieltjes_gamma(j)/factorial(j)*(u - 1)^j, 0, k) when k <= 40
 # Z(t) = e^(i theta(t)) zeta(1/2 + i t), theta(t) = Im log Gamma(1/4 + i t/2) - t log(pi)/2 (DLMF 25.10.3-4); Z is even, so
 # the mean of the expansions at t and -t (the odd terms of each cancel only through zeta'(1/2) = -theta'(0) zeta(1/2))
 fn ds_rsz(u) = exp(im*((log_gamma(1/4 + im*u/2) - log_gamma(1/4 - im*u/2))/(2*im) - u*log(pi)/2))*zeta(1/2 + im*u)
 rule ds_at(riemann_siegel_z(u_), 1, 0, k_) := (ds_rsz(u) + ds_rsz(-u))/2 when k <= 8
 rule ds_at(factorial2(u_), 1, 0, k_) := 2^(u/2 + 1/4 - cos(pi*u)/4)*pi^((cos(pi*u) - 1)/4)*gamma(u/2 + 1)
 rule ds_at(barnes_g(u_), 1, 0, k_) := u*barnes_g(u + 1)/gamma(u + 1)
+# log G(u) = log G(1 + u) - log Gamma(u) with log G(1 + u) = u log(2 pi)/2 - ((1 + gamma) u^2 + u)/2 + sum_(j>=2) (-1)^j
+# zeta(j) u^(j+1)/(j + 1) (DLMF 5.17.3) and log Gamma(u) = -log u - gamma u + sum_(j>=2) (-1)^j zeta(j) u^j/j (DLMF 5.7.3)
+rule ds_at(log_barnes_g(u_), 1, 0, k_) := {
+  log(u) + u*(log(2*pi) - 1)/2 + euler_gamma*u - (1 + euler_gamma)*u^2/2 +
+    ds_sum(j => (-1)^j*zeta(j)*(u^(j + 1)/(j + 1) - u^j/j), 2, k + 1)
+} when k <= 40
 rule ds_at(hyperfactorial(u_), 1, 0, k_) := gamma(u + 1)^u/barnes_g(u + 1)
 rule ds_at(elliptic_theta_prime(a_, z_, q_), 3, 0, k_) := {
   let jm = floor(sqrt(k)) + 1
@@ -464,6 +472,13 @@ rule ds_at(coulomb_f(l_, eta_, u_), 3, 0, k_) := {
 # at infinity: Stirling's series (DLMF 5.11.1, 5.11.2, 5.15.8), harmonic numbers H(u) = psi(u + 1) + gamma
 fn ds_stirling(u, k) = ds_sum(j => bernoulli_b(2*j)/(2*j*(2*j - 1))*u^(1 - 2*j), 1, floor(k/2) + 1)
 rule ds_at(log_gamma(u_), 1, inf, k_) := (u - 1/2)*log(u) - u + log(2*pi)/2 + ds_stirling(u, k)
+# log G(u) = log G(1 + u) - log Gamma(u), log G(1 + u) ~ (u^2/2 - 1/12) log u - 3 u^2/4 + u log(2 pi)/2 + zeta'(-1) + sum_(j>=1)
+# B_(2j+2)/(4 j (j + 1) u^(2j)) (DLMF 5.17.5), zeta'(-1) = 1/12 - log A (Glaisher's constant, DLMF 5.17.6)
+rule ds_at(log_barnes_g(u_), 1, inf, k_) := {
+  (u^2/2 - 1/12)*log(u) - 3*u^2/4 + u*log(2*pi)/2 + 1/12 - log(glaisher) +
+    ds_sum(j => bernoulli_b(2*j + 2)/(4*j*(j + 1)*u^(2*j)), 1, floor(k/2) + 1) -
+    ((u - 1/2)*log(u) - u + log(2*pi)/2 + ds_stirling(u, k))
+}
 rule ds_at(gamma(u_), 1, inf, k_) := ds_pieces([[exp(u*(log(u) - 1)), sqrt(2*pi)*u^(-1/2)*exp(ds_stirling(u, k))]])
 rule ds_at(factorial(u_), 1, inf, k_) := ds_pieces([[exp(u*(log(u) - 1)), sqrt(2*pi)*u^(1/2)*exp(ds_stirling(u, k))]])
 rule ds_at(digamma(u_), 1, inf, k_) := log(u) - 1/(2*u) - ds_sum(j => bernoulli_b(2*j)/(2*j*u^(2*j)), 1, floor(k/2) + 1)
@@ -743,6 +758,11 @@ rule hypergeometric_u(a_, b_, z_) := exp(z)*gamma(1 - a, z) when a === b and is_
 rule mittag_leffler_e(a_, z_) := exp(z^2)*erfc(-z) when a === 1/2 and ds_exact(z)
 rule erf(z_) := im*erfi(im_part(z)) when ds_exact(z) and re(z) == 0 and not (z === 0)
 rule erfi(z_) := im*erf(im_part(z)) when ds_exact(z) and re(z) == 0 and not (z === 0)
+# erf(+-i inf) = +-i inf (erf(i y) = i erfi(y), erfi(y) -> inf); gamma(+-i inf) = 0 (|gamma(x + i y)| ~ sqrt(2 pi)
+# |y|^(x - 1/2) e^(-pi |y|/2), DLMF 5.11.9); gamma(-inf) has no limit (poles at every nonpositive integer)
+rule erf(z_) := z when z === im*inf or z === -im*inf
+rule gamma(z_) := 0 when z === im*inf or z === -im*inf
+rule gamma(-inf) := indeterminate
 rule product_log(z_) := im*pi/2 when z === -pi/2
 rule zeta(s_, a_) := zeta(s, a - 1) - (a - 1)^(-s) when is_integer(s) and s >= 2 and is_rational(a) and a > 1 and denominator(a) == 2
 rule q_pochhammer(q_) := 0 when q === 1
@@ -898,6 +918,16 @@ rule lerch_phi(z_, s_, a_) := lp_neg(z, -s, a) when is_integer(s) and s <= 0 and
 # Klein's J vanishes at the cube roots of unity rho = (-1 + i sqrt 3)/2 and rho + 1; log G(n) = -inf at the poles of 1/G
 rule klein_invariant_j(t_) := 0 when t === (-1 + 1im*sqrt(3))/2 or t === (1 + 1im*sqrt(3))/2
 rule log_barnes_g(n_) := -inf when is_integer(n) and n <= 0
+
+# the poles of the Jacobi zeta and epsilon functions at the odd multiples of i K' (dn has simple poles there, so dn^2
+# has double poles with residue 0 and its integral E(u) simple poles, DLMF 22.16.14, 22.16.32); at K + i K' the values
+# E(K + i K') = E + i (K' - E') (DLMF 22.16.31 at u = K) and Z(K + i K') = E(K + i K') - (E/K)(K + i K') = -i pi/(2 K)
+# by Legendre's relation E K' + E' K - K K' = pi/2 (DLMF 19.7.1)
+fn ds_odd_ik(c) = is_numeric(c) and re(c) == 0 and is_integer(im_part(c)) and is_odd(im_part(c))
+rule jacobi_epsilon(c_*elliptic_k(1 - m_), m_) := complex_infinity when ds_odd_ik(c)
+rule jacobi_zn(c_*elliptic_k(1 - m_), m_) := complex_infinity when ds_odd_ik(c)
+rule jacobi_epsilon(elliptic_k(m_) + c_*elliptic_k(1 - m_), m_) := elliptic_e(m) + im*(elliptic_k(1 - m) - elliptic_e(1 - m)) when c === im
+rule jacobi_zn(elliptic_k(m_) + c_*elliptic_k(1 - m_), m_) := -im*pi/(2*elliptic_k(m)) when c === im
 
 # quarter- and half-period shifts of the Jacobi zeta and epsilon functions (DLMF 22.16.27-32)
 rule jacobi_zn(u_ + elliptic_k(m_), m_) := jacobi_zn(u, m) - m*jacobi_cd(u, m)*jacobi_sn(u, m)
@@ -1071,6 +1101,14 @@ rule inverse_beta_regularized(z0_, s_, a_, b_) := inverse_beta_regularized(s + b
 
 # the inverse of sn at complex arguments by Carlson's form F(asin v | m) = v R_F(1 - v^2, 1 - m v^2, 1) (DLMF 19.25.5)
 rule inverse_jacobi_sn(v_, m_) := v*carlson_rf(1 - v^2, 1 - m*v^2, 1) when ds_inexact([v, m]) and not (im_part(v) == 0 and im_part(m) == 0)
+
+# the polylogarithm of a non-real order where its own series and log expansion may stop (|z| >= 1/2; the native
+# declines in parts of 0.6 < |z| < 1 and beyond): Jonquiere's relation
+# Li_s(z) = Gamma(1 - s)/(2 pi)^(1 - s) (i^(1 - s) zeta(1 - s, 1/2 + log(-z)/(2 pi i)) + i^(s - 1) zeta(1 - s, 1/2 - log(-z)/(2 pi i)))
+# (DLMF 25.12.13), an identity of functions analytic in z off [0, inf) (both Hurwitz parameters have real parts in
+# (0, 1) there) and entire in s off the positive integers; machine numbers off the real ray z >= 0
+fn ds_jonquiere(s, z) = gamma(1 - s)/(2*pi)^(1 - s)*(im^(1 - s)*zeta(1 - s, 1/2 + log(-z)/(2*pi*im)) + im^(s - 1)*zeta(1 - s, 1/2 - log(-z)/(2*pi*im)))
+rule polylog(s_, z_) := ds_jonquiere(n(s), n(z)) when ds_inexact([s, z]) and im_part(s) != 0 and (im_part(z) != 0 or re(z) < 0) and abs(z) >= 0.5
 
 # the falling factorial with step h through gamma (machine complex arguments)
 rule factorial_power(x_, k_, h_) := h^k*gamma(x/h + 1)/gamma(x/h - k + 1) when ds_inexact([x, k, h])

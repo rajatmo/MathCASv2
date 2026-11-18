@@ -284,6 +284,89 @@ pub fn polygamma(m: f64, z: C64) -> Option<C64> {
     finite(v)
 }
 
+/// polygamma(nu, z) for an order nu that is not an integer: the Riemann-Liouville derivative of order nu with base
+/// point 0 of psi(z) = -1/z - gamma + sum_(k>=1) (-1)^(k+1) zeta(k + 1) z^k (DLMF 5.7.4), taken term by term
+/// (Grossman, "Fractional derivatives of the digamma function", 1976): D^nu z^a = Gamma(a + 1)/Gamma(a + 1 - nu)
+/// z^(a - nu), D^nu 1 = z^-nu/Gamma(1 - nu), and for the pole D^nu z^-1 = z^(-1-nu) (log z - psi(-nu) - gamma)/Gamma(-nu),
+/// the limit a -> -1 of the power rule with the constant term z^-nu/(Gamma(1 - nu) (a + 1)) taken out; at an integer
+/// order n that term is (-1)^(n+1) n! z^(-n-1), the classical value. The power series converges for |z| < 1; beyond,
+/// zeta(k + 1) = sum_(m<=M) m^(-k-1) + zeta(k + 1, M + 1): each m gives the binomial series sum_k (-1)^(k+1)
+/// k!/Gamma(k + 1 - nu) (z/m)^k = (z/m)/Gamma(2 - nu) 2F1(1, 2; 2 - nu; -z/m), analytic off z <= -m, summed after Pfaff's
+/// transformation 2F1(1, 2; c; -x) = (1 + x)^-1 2F1(1, c - 2; c; x/(1 + x)) (DLMF 15.8.1), whose variable lies inside the
+/// unit disk for re z > 0, and the rest converges geometrically for M + 1 > 2 |z|. Real nu and z > 0 take the real
+/// double-double gamma and digamma (and give a real value). re z > 0, |z| <= 200, |nu| <= 60.
+pub fn polygamma_frac(nu: C64, z: C64) -> Option<C64> {
+    if (nu.im == 0.0 && nu.re == nu.re.floor()) || abs(nu) > 60.0 {
+        return None;
+    }
+    if z.re <= 0.0 || abs(z) > 200.0 || !abs(z).is_finite() || !abs(nu).is_finite() {
+        return None;
+    }
+    const EULER: f64 = std::f64::consts::EULER_GAMMA;
+    let real = nu.im == 0.0 && z.im == 0.0;
+    let gam = |x: C64| if real { finite(r(crate::machine::gamma::gamma(x.re))) } else { gamma(x) };
+    let dig = |x: C64| if real { finite(r(crate::machine::gamma::digamma(x.re))) } else { digamma(x) };
+    let one = r(1.0);
+    let lz = z.log();
+    let zpow = |e: C64| (e * lz).exp();
+    // the pole and constant terms
+    let pole = zpow(neg(nu) - one) * (lz - dig(neg(nu))? - r(EULER)) / gam(neg(nu))?;
+    let constant = scale(zpow(neg(nu)), EULER) / gam(one - nu)?;
+    let c2 = r(2.0) - nu;
+    let g2 = gam(c2)?;
+    let mm = (2.0 * abs(z)).ceil().max(1.0) as usize + 1;
+    let mut near = r(0.0);
+    for m in 1..=mm {
+        let x = scale(z, 1.0 / m as f64);
+        let w = x / (one + x);
+        // 2F1(1, c - 2; c; w): term ratio (c - 2 + k) w/(c + k)
+        let mut t = one;
+        let mut s = one;
+        let mut k = 0usize;
+        loop {
+            let kf = k as f64;
+            t = t * (c2 - r(2.0) + r(kf)) * w / (c2 + r(kf));
+            s = s + t;
+            k += 1;
+            if abs(t) <= 1e-17 * abs(s) && k > 2 {
+                break;
+            }
+            if k > 200_000 {
+                return None;
+            }
+        }
+        mc_api::work::charge(16 * k as u64);
+        near = near + scale(x, 1.0 / m as f64) * s / (one + x);
+    }
+    let near = near * zpow(neg(nu)) / g2;
+    // sum_(k>=1) c_k zeta(k + 1, M + 1) z^(k - nu), c_1 = 1/Gamma(2 - nu), c_(k+1) = -c_k (k + 1)/(k + 1 - nu)
+    let a = r(mm as f64 + 1.0);
+    let mut ck = one / g2;
+    let mut zk = z * zpow(neg(nu));
+    let mut far = r(0.0);
+    let mut big = 0.0f64;
+    let start = nu.re.max(0.0) as usize + 4;
+    for k in 1..2000usize {
+        let t = ck * hurwitz_zeta(r(k as f64 + 1.0), a)? * zk;
+        far = far + t;
+        big = big.max(abs(t));
+        if k > start && abs(t) <= 1e-17 * abs(far).max(1e-300) {
+            break;
+        }
+        if k == 1999 {
+            return None;
+        }
+        let k1 = (k + 1) as f64;
+        ck = neg(ck) * r(k1) / (r(k1) - nu);
+        zk = zk * z;
+    }
+    let v = far + near - pole - constant;
+    let v = if real { r(v.re) } else { v };
+    // cancellation among the parts: at most about three digits lost
+    let size = big.max(abs(far)).max(abs(near)).max(abs(pole)).max(abs(constant));
+    (size <= 1e3 * abs(v)).then_some(v).and_then(finite)
+}
+
 /// `beta` at complex machine arguments (`None` outside the method's range).
 pub fn beta(a: C64, b: C64) -> Option<C64> {
     finite((log_gamma(a)? + log_gamma(b)? - log_gamma(a + b)?).exp())

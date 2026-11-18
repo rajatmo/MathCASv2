@@ -2698,6 +2698,72 @@ fn lerch_phi_log_series<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     Ok(wk.out(fx, v, real))
 }
 
+/// E_a(x) for 0 < a < 1 and a real x != 0 by the integral representation of Gorenflo, Loutchko and Luchko
+/// ("Computation of the Mittag-Leffler function and its derivative", Fract. Calc. Appl. Anal. 5, 2002, Theorem 1;
+/// Gorenflo, Kilbas, Mainardi and Rogosin, *Mittag-Leffler functions*, 2014, 4.7):
+/// E_a(x) = [x > 0] e^(x^(1/a))/a - (x sin(a pi)/(a pi)) int_0^inf e^(-r^(1/a))/(r^2 - 2 r x cos(a pi) + x^2) dr,
+/// the exponential term present where |arg x| < a pi (x > 0) and absent where |arg x| > a pi (x < 0). For x = -t < 0,
+/// r = u t gives (sin(a pi)/(a pi)) int_0^inf exp(-(u t)^(1/a))/(u^2 + 2 u cos(a pi) + 1) du, a positive integrand
+/// (E_a(-t) is completely monotone, Pollard 1948): no cancellation. The integrand is below 1e-20 beyond r = 46^a and
+/// smooth (its denominator is at least x^2 sin(a pi)^2); the tanh-sinh rule on the finite interval (which absorbs the
+/// r^(1/a) behaviour at 0) is refined until two levels agree to 1e-14 (its error falls quadratically from level to
+/// level). For x > 0 the result is declined when the integral term cancels more than half the exponential one.
+fn mittag_leffler_real(a: f64, x: f64) -> Option<f64> {
+    if !(x.is_finite() && x != 0.0) {
+        return None;
+    }
+    let pi = std::f64::consts::PI;
+    let (s, c) = (a * pi).sin_cos();
+    let t = x.abs();
+    if x > 0.0 && t.powf(1.0 / a) > 700.0 {
+        return None;
+    }
+    let up = 46f64.powf(a) / t;
+    let sg = if x < 0.0 { 1.0 } else { -1.0 };
+    let f = |u: f64| (-(u * t).powf(1.0 / a)).exp() / (u * u + 2.0 * sg * u * c + 1.0);
+    // tanh-sinh on [0, up]: u = up/(1 + e^(-2 q)), q = (pi/2) sinh(x), du/dx = up (pi/2) cosh(x)/(2 cosh(q)^2)
+    let node = |x: f64| {
+        let q = pi / 2.0 * x.sinh();
+        let u = up / (1.0 + (-2.0 * q).exp());
+        let w = up * (pi / 2.0) * x.cosh() / (2.0 * q.cosh() * q.cosh());
+        if w.is_finite() && w > 0.0 {
+            w * f(u)
+        } else {
+            0.0
+        }
+    };
+    let mut h = 0.5;
+    let mut sum = node(0.0);
+    let mut k = 1;
+    while (k as f64) * h <= 4.0 {
+        sum += node(k as f64 * h) + node(-(k as f64) * h);
+        k += 1;
+    }
+    let mut prev = sum * h;
+    for _ in 0..7 {
+        h /= 2.0;
+        // the new nodes are the odd multiples of h
+        let mut k = 1;
+        while (k as f64) * h <= 4.0 {
+            sum += node(k as f64 * h) + node(-(k as f64) * h);
+            k += 2;
+        }
+        let cur = sum * h;
+        mc_api::work::charge(64 * (8.0 / h) as u64);
+        // the error of a level is about the square of the previous level's: agreement to 1e-14 leaves the rounding
+        if (cur - prev).abs() <= 1e-14 * cur.abs() {
+            let integral = s / (a * pi) * cur;
+            if x < 0.0 {
+                return Some(integral);
+            }
+            let e = t.powf(1.0 / a).exp() / a;
+            return (integral <= 0.5 * e).then_some(e - integral);
+        }
+        prev = cur;
+    }
+    None
+}
+
 /// E_(a, b)(z) = sum z^k/Gamma(a k + b), a > 0.
 fn mittag_leffler<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let (al, b, z) = if a.len() == 2 { (a[0], fx.int(1), a[1]) } else { (a[0], a[1], a[2]) };
@@ -2774,6 +2840,16 @@ fn mittag_leffler<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     }
     if af <= 0.0 {
         return Ok(None);
+    }
+    // a machine x with 0 < a < 1, b = 1, |x| >= 1/2: the integral representation (for x < 0 the series cancels
+    // e^|x|^(1/a) down to a value below 1: 3 s for E_(1/4)(-3.9); for x > 0 it is slow, 0.16 s for E_(1/3)(1.9))
+    if let (Some(x), true) = (fx.machine_of(z), fx.is_int(b, 1)) {
+        if x.abs() >= 0.5 && af > 0.0 && af < 1.0 && fx.num(al).is_some_and(|v| v.kind() != Kind::Ball) {
+            if let Some(v) = mittag_leffler_real(af, x) {
+                fx.tick(1)?;
+                return Ok(Some(fx.real(v)));
+            }
+        }
     }
     // the largest term (log2), from the machine log gamma
     let lz = mag(fx, z).max(1e-300).ln();

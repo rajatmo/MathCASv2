@@ -77,7 +77,7 @@ fn symbolic_and_failures() {
         ("bessel_k(1, -2)", "bessel_k(1, -2)"),
         // outside the real domain: the principal complex value
         ("bessel_i(1/3, -2.0)", "complex(1.0793912906864405, 1.8695605567162608)"),
-        ("polygamma(1/2, 2.0)", "polygamma(1/2, 2.0)"),
+        ("polygamma(1/2, 2.0)", "0.7552610839464955"),
         ("gamma(1 + 2im)", "gamma(complex(1, 2))"),
         ("gamma(1, 2)", "exp(-2)"),
         ("gamma(1, 2, 3)", "-exp(-3) + exp(-2)"),

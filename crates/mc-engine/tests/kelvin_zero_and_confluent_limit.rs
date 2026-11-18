@@ -41,15 +41,16 @@ fn kei_of_order_two_at_zero_is_plus_infinity() {
 
 /// 1F1(1; b; x)/Gamma(b) ~ e^x x^(1 - b) as x -> inf (DLMF 13.7.2 with Gamma(1) = 1): for real b the factor x^(1 - b)
 /// is positive and e^x beats every power of x, so the limit is +inf; for a nonreal b the modulus e^x x^(1 - Re b)
-/// still grows without bound but the factor x^(-i Im b) turns forever, so there is no signed infinity; for a symbol b
-/// the answer depends on whether b is real, and the call stays unevaluated.
+/// still grows without bound but the factor x^(-i Im b) turns forever, so there is no signed infinity and the call
+/// stays; for a symbol b the modulus grows without bound whatever b is (1/Gamma(1) = 1), so the limit on the Riemann
+/// sphere is complex_infinity (semantics 3.1: the directionless infinite value, which inf refines for real b).
 #[test]
 fn regularized_1f1_limit_depends_on_the_parameter() {
     assert_eq!(ev("limit(hypergeometric_1f1_regularized(1, 3, x), x -> inf)"), "inf");
     assert_eq!(ev("limit(hypergeometric_1f1_regularized(1, 3/2, x), x -> inf)"), "inf");
     assert_eq!(ev("limit(hypergeometric_1f1_regularized(1, -1/2, x), x -> inf)"), "inf");
-    for src in ["limit(hypergeometric_1f1_regularized(1, b, x), x -> inf)", "limit(hypergeometric_1f1_regularized(1, 1 + im, x), x -> inf)"] {
-        let v = ev(src);
-        assert!(v.starts_with("limit("), "{src}: {v}");
-    }
+    assert_eq!(ev("limit(hypergeometric_1f1_regularized(1, b, x), x -> inf)"), "complex_infinity");
+    let src = "limit(hypergeometric_1f1_regularized(1, 1 + im, x), x -> inf)";
+    let v = ev(src);
+    assert!(v.starts_with("limit("), "{src}: {v}");
 }

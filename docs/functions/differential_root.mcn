@@ -10,7 +10,13 @@
 # Details
 
 #% item
-# The value is computed by `n_dsolve_value` from the initial point to x0. Exact arguments leave the call as it is.
+# Written form: equal definitions are written alike. The formal names are `FormalY` and `FormalX`; the equation is P == 0, where P is the numerator of lhs - rhs over a common denominator, collected in y(x), y'(x), ... with expanded coefficients, its content free of x divided out and the coefficient of the highest derivative with a positive first number; the terms free of y come first, then the derivatives by increasing order; the initial values follow by order.
+
+#% item
+# At an inexact real x0 the value is computed by `n_dsolve_value` from the initial point to x0; at an inexact complex x0 along the segment from the initial point (real and imaginary parts as a real system). At an exact number the value is that of the closed form `d_solve_value` finds, when the leading coefficient is constant; otherwise the call stays as it is.
+
+#% item
+# `d` in x gives the differential_root of the derivative (same order), `integrate` in x an antiderivative as a differential_root (same order when the operator is exact, one more otherwise), and `series` at the initial point the Taylor series from the equation.
 
 #% section
 # Examples
@@ -27,6 +33,36 @@ differential_root((y, x) => [y'(x) - y(x) == 0, y(0) == 1])(0.5)
 differential_root((y, x) => [y''(x) + y(x) == 0, y(0) == 0, y'(0) == 1])(1.0)
 #% output
 #= 0.8414709848078933
+
+#% cell
+differential_root((y, x) => [x*y''(x) + y'(x) - y(x) == 0, y(1/2) == 1, y'(1/2) == -3/4])
+#% output
+#= differential_root((FormalY, FormalX) => [-FormalY(FormalX) + FormalY'(FormalX) + FormalX*FormalY''(FormalX) == 0, FormalY(1/2) == 1, FormalY'(1/2) == -3/4])
+
+#% cell
+d(differential_root((y, x) => [y'(x) - y(x) + 4*x^2 == 0, y(0) == 1])(x), x)
+#% output
+#= differential_root((FormalY, FormalX) => [8*FormalX - FormalY(FormalX) + FormalY'(FormalX) == 0, FormalY(0) == 1])(x)
+
+#% cell
+integrate(differential_root((y, x) => [y'''(x) + 2*x*y''(x) - y(x) == 0, y(1/2) == 1, y'(1/2) == -3/4, y''(1/2) == 0])(x), x)
+#% output
+#= differential_root((FormalY, FormalX) => [-FormalY(FormalX) - 2*FormalY'(FormalX) + 2*FormalX*FormalY''(FormalX) + FormalY'''(FormalX) == 0, FormalY(1/2) == -11/4, FormalY'(1/2) == 1, FormalY''(1/2) == -3/4])(x)
+
+#% cell
+series(differential_root((y, x) => [y'''(x) + 2*x*y''(x) - y(x) == 0, y(1/2) == 1, y'(1/2) == -3/4, y''(1/2) == 0])(x), x, 1/2, 4)
+#% output
+#= 1 - 3*(x - 1/2)/4 + (x - 1/2)^3/6 - 7*(x - 1/2)^4/96 + O((x - 1/2)^5)
+
+#% cell
+differential_root((y, x) => [y''(x) + y(x) == 0, y(0) == 0, y'(0) == 1])(pi/2)
+#% output
+#= 1
+
+#% cell
+differential_root((y, x) => [x*y''(x) + y'(x) - y(x) == 0, y(1/2) == 1, y'(1/2) == -3/4])(0.5 + 1.0im)
+#% output
+#= 0.4054499458920219 + 0.001975181742031211im
 
 #% section
 # See also

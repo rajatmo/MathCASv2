@@ -152,7 +152,56 @@ pub fn limit_with<'h>(
     if !matches!(o, Outcome::Unknown) {
         return Ok(o);
     }
-    Ok(complex_parts(cx, b, f, x, a, direction, opts)?.unwrap_or(o))
+    if let Some(p) = complex_parts(cx, b, f, x, a, direction, opts)? {
+        if !matches!(p, Outcome::Unknown) {
+            return Ok(p);
+        }
+    }
+    Ok(match confluent_unbounded(cx, b, f, x, a)? {
+        Some(v) => Outcome::Value(v),
+        None => o,
+    })
+}
+
+/// `complex_infinity` for `0F1(c; x)`, `1F1(a; b; x)` and their regularized forms as `x -> inf` with parameters
+/// whose signs or reality are not known (the walk gives a signed infinity when they are): the modulus grows
+/// without bound. `0F1(c; x) = Gamma(c) x^((1 - c)/2) I_(c-1)(2 sqrt x)` with `I_nu(z) ~ e^z/sqrt(2 pi z)` (DLMF
+/// 10.39.9, 10.40.1), so `|0F1|/|Gamma(c)|` grows like `e^(2 sqrt x)` times a power; `M(a, b, x)/Gamma(b) ~ e^x
+/// x^(a - b)/Gamma(a)` (DLMF 13.7.1) for `a` not a nonpositive integer (then `1/Gamma(a) != 0`), which is required
+/// to be known for the confluent functions (at a = 0 the regularized function is the constant 1/Gamma(b)).
+fn confluent_unbounded<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, a: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    if a != h.sym_term(h.sym("inf")) {
+        return Ok(None);
+    }
+    let View::App { head, args } = h.view(f) else { return Ok(None) };
+    let Some(s) = b.sym_of(head) else { return Ok(None) };
+    let Some((&last, params)) = args.split_last() else { return Ok(None) };
+    if last != x || !params.iter().all(|&p| is_free(b, p, x)) {
+        return Ok(None);
+    }
+    // with numeric parameters the other methods give the signed infinity: only a symbolic parameter is read here
+    let mut symbolic = false;
+    for &p in params {
+        symbolic |= apply(cx, b, "is_numeric", &[p])? != h.sym_term(h.sym(names::TRUE));
+    }
+    if !symbolic {
+        return Ok(None);
+    }
+    let ok = match (h.sym_name(s).as_ref(), params) {
+        ("hypergeometric_0f1" | "hypergeometric_0f1_regularized", [_]) => true,
+        ("hypergeometric_1f1" | "hypergeometric_1f1_regularized", [p, _]) => {
+            // a known number that is not a nonpositive integer
+            let n = apply(cx, b, "is_numeric", &[*p])?;
+            if n != h.sym_term(h.sym(names::TRUE)) {
+                return Ok(None);
+            }
+            let bad = apply(cx, b, "and", &[h.call(h.sym("element"), &[*p, h.sym_term(h.sym("integers"))]), h.call(h.sym("less_equal"), &[*p, b.zero()])])?;
+            bad == h.sym_term(h.sym(names::FALSE))
+        }
+        _ => false,
+    };
+    Ok(ok.then(|| h.sym_term(h.sym("complex_infinity"))))
 }
 
 /// The direction c of a directed infinity `c*inf` off the real line (`im*inf`, `-im*inf`, `(1 + im)*inf`: c an exact

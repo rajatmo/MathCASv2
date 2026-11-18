@@ -8,6 +8,7 @@
 //! - Hankel functions H_nu = J_nu +- i Y_nu (DLMF 10.4.3) and the spherical ones sqrt(pi/(2z)) H_(n+1/2)(z) (10.47.5-6);
 //! - the Pochhammer symbol Gamma(a + n)/Gamma(a) and the subfactorial Gamma(x + 1, -1)/e (the principal value);
 //! - the Coulomb functions F, G, H+, H- by Kummer's functions (the formulas of the point evaluation);
+//! - the principal Lambert W off its cut, proved by Krawczyk's operator around the value at the centre;
 //! - the modular functions eta, lambda, J and the Weierstrass functions, half-periods and invariants (their own
 //!   module, [`super::lattice`], with the mean value form in every argument).
 use super::cseries::{bessel_j, bessel_y, int_of};
@@ -152,10 +153,89 @@ pub fn complex_box(name: &str, a: &[CBall], p: u64) -> Option<CBall> {
             g.mul(&e, w)
         }
         ("coulomb_f" | "coulomb_g" | "coulomb_h1" | "coulomb_h2", [l, eta, rho]) => coulomb(name, l, eta, rho, w)?,
+        ("product_log", [z]) => lambert_box(z, w)?,
         _ if super::lattice::has(name) => super::lattice::enclose(name, a, w)?,
         _ => Special::find(name, a.len())?.ball_complex(a, w)?,
     };
     Some(v.round(p))
+}
+
+fn f64_of(x: &mc_arith::num::Float) -> f64 {
+    mc_arith::num::float::dyadic_to_f64(x.neg, &x.man, x.exp)
+}
+
+/// An upper bound of a magnitude as a double.
+fn mag_up(m: &mc_arith::num::Mag) -> f64 {
+    f64_of(&m.to_float()) * (1.0 + 1e-15)
+}
+
+/// The principal Lambert W on a box Z off the cut (-inf, -1/e], proved by Krawczyk's operator: with w0 W at the
+/// centre and Y = 1/g'(w0) for g(w) = w e^w - z, K(D) = w0 - Y g(w0) + (1 - Y g'(D)) (D - w0) over the rectangle D
+/// around w0 contains every T(w) = w - Y g(w), w in D, z in Z (g(w) - g(w0) = (w - w0) times the mean of g' on the
+/// segment, a point of the convex hull of g'(D), which the rectangle g'(D) = e^D (1 + D) contains). K(D) inside D
+/// proves for each z one zero of g in D (Krawczyk 1969; Moore, Kearfott and Cloud, "Introduction to Interval
+/// Analysis", 8.2, read in the plane as a two-dimensional map). Since W is continuous on Z and W(centre) = w0 lies
+/// in D, W(Z) stays in D (leaving it would put a zero on the boundary, but every zero in D lies in K(D)), so W(z) =
+/// T(W(z)) lies in K(D), the enclosure returned. D grows from twice the first-order radius |W'| rad(Z).
+fn lambert_box(z: &CBall, w: u64) -> Option<CBall> {
+    use mc_arith::num::Mag;
+    use mc_numeric::machine::C64;
+    let (zr, zi) = (f64_of(&z.re.mid), f64_of(&z.im.mid));
+    let (rr, ri) = (mag_up(&z.re.rad), mag_up(&z.im.rad));
+    // off the cut: the box must not meet the real ray (-inf, -1/e]
+    let meets_axis = zi.abs() <= ri;
+    if meets_axis && zr - rr <= -0.36788 {
+        return None;
+    }
+    let w0 = crate::more::lambert_w(0, C64::new(zr, zi))?;
+    let point = |v: f64| Ball::exact(super::float_of(v));
+    // the centre refined by two Newton steps at the working precision (midpoints only)
+    let zc = CBall::new(Ball::exact(z.re.mid.clone()), Ball::exact(z.im.mid.clone()));
+    let one = CBall::from_i64(1);
+    let mut c = CBall::new(point(w0.re), point(w0.im));
+    for _ in 0..3 {
+        let e = cball::exp(&c, w)?;
+        let f = c.mul(&e, w).sub(&zc, w);
+        let d = f.div(&e.mul(&c.add(&one, w), w), w)?;
+        let n = c.sub(&d, w);
+        c = CBall::new(Ball::exact(n.re.mid), Ball::exact(n.im.mid));
+    }
+    let ec = cball::exp(&c, w)?;
+    let y = ec.mul(&c.add(&one, w), w).recip(w)?;
+    // Y g(w0) over the box Z
+    let yg = y.mul(&c.mul(&ec, w).sub(z, w), w);
+    let dw = mag_up(&z.re.rad).max(mag_up(&z.im.rad)) * 1.5 * (f64_of(&y.re.mid).hypot(f64_of(&y.im.mid)));
+    let krawczyk = |d: &CBall| -> Option<CBall> {
+        let gd = cball::exp(d, w)?.mul(&d.add(&one, w), w);
+        let dev = d.sub(&c, w);
+        Some(c.sub(&yg, w).add(&one.sub(&y.mul(&gd, w), w).mul(&dev, w), w))
+    };
+    let mut r = (2.0 * dw).max(1e-30 * (w0.re.hypot(w0.im) + 1.0));
+    for _ in 0..12 {
+        let rm = Mag::from_float_up(&super::float_of(r));
+        let d = CBall::new(Ball { mid: c.re.mid.clone(), rad: rm }, Ball { mid: c.im.mid.clone(), rad: rm });
+        let k = krawczyk(&d)?;
+        // K(D) strictly inside D, part by part (the doubles carry a relative margin for their rounding)
+        let inside = |kb: &Ball, cm: &mc_arith::num::Float| {
+            let off = (f64_of(&kb.mid) - f64_of(cm)).abs() + 1e-15 * f64_of(cm).abs();
+            off + mag_up(&kb.rad) < r * (1.0 - 1e-12)
+        };
+        if inside(&k.re, &c.re.mid) && inside(&k.im, &c.im.mid) {
+            // W(Z) lies in K(D), so K(K(D)) encloses it too: a few more steps shrink the second-order part
+            let mut best = k;
+            for _ in 0..4 {
+                let k2 = krawczyk(&best)?;
+                let size = |b: &CBall| mag_up(&b.re.rad) + mag_up(&b.im.rad);
+                if size(&k2) >= size(&best) {
+                    break;
+                }
+                best = k2;
+            }
+            return Some(best);
+        }
+        r *= 2.0;
+    }
+    None
 }
 
 /// The Coulomb functions on boxes, by the formulas of the point evaluation (DLMF 33.2.4-5, 33.2.7, 33.2.10):

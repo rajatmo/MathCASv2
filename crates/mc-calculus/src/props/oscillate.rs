@@ -156,6 +156,14 @@ pub fn osc_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: 
         },
         ("airy_ai", &[u]) => (Fam::Ai, u),
         ("airy_bi", &[u]) => (Fam::Bi, u),
+        ("dawson_f", &[u]) => {
+            if !affine_in(cx, b, u, x)? {
+                return Ok(None);
+            }
+            let Some(v) = dawson_max(cx, b, x)? else { return Ok(None) };
+            let lo = cx.eval(b.neg(v))?;
+            return finish(cx, b, y, c, d, Some((lo, true)), Some((v, true)));
+        }
         _ => return Ok(None),
     };
     if !affine_in(cx, b, u, x)? {
@@ -227,6 +235,30 @@ pub fn osc_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: 
         }
     };
     finish(cx, b, y, c, d, lo.map(|v| (v, true)), hi.map(|v| (v, true)))
+}
+
+/// The largest value `v` of Dawson's integral `F(x) = e^(-x^2) int_0^x e^(t^2) dt` on the real line, as a root object.
+/// `F` is odd and positive for `x > 0` (the integral), `F' = 1 - 2 x F` (DLMF 7.5.1 with 7.2.5). With `g = 1 - 2 x F`,
+/// `g(0) = 1` and at every zero of `g` on `x > 0`, `g' = -2 F - 2 x g = -1/x < 0`: every zero is a downward crossing,
+/// so there is at most one, and there is one (`2 x F -> 1` from above, DLMF 7.12.1: `F ~ 1/(2x) + 1/(4x^3)`), found as
+/// a sign change. At it, `F(c) = 1/(2c)`, so `v = F(c)` is the root of `t -> F(1/(2t)) - t` near `1/(2c)` (the map
+/// `t = 1/(2x)` is one to one, so the equation has no other root with `1/(2t)` a critical point) and the range is
+/// `[-v, v]`, both ends taken (continuity, oddness).
+fn dawson_max<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, x: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let Some(cs) = scan(cx, b, b.call("dawson_f", &[x]), x, 0.0, 1.0, 4.0, 1)? else { return Ok(None) };
+    let [c1] = cs.as_slice() else { return Ok(None) };
+    if !c1.max {
+        return Ok(None);
+    }
+    let seed = 0.5 / c1.at;
+    let v = cx.eval(b.call("to_expression", &[h.string(&format!("root([t_osc => dawson_f(1/(2*t_osc)) - t_osc, {seed:.12}])"))]))?;
+    // certified: the object has a numeric value, and it agrees with F at the critical point
+    let Some(vn) = num(cx, b, v)? else { return Ok(None) };
+    if (vn - seed).abs() > 1e-6 {
+        return Ok(None);
+    }
+    Ok(Some(v))
 }
 
 /// `c` when `f = c sin(x)/sqrt(x)` with `c` free of `x`.

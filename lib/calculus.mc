@@ -1711,6 +1711,23 @@ fn calc_root_series(f, k, a, a0, n) = {
     }
   }
 }
+# expansions at infinity for the series of special functions (ds_series, lib/special.mc): erfi u = -i erf(i u) ~
+# -i + e^(u^2)/(sqrt(pi) u) sum (1/2)_j u^(-2j) (DLMF 7.12.1 with z = i u, |arg z| < 3 pi/4), and Dawson's integral
+# F(u) = (sqrt(pi)/2) e^(-u^2) erfi u ~ -i (sqrt(pi)/2) e^(-u^2) + (1/2) sum (1/2)_j u^(-2j-1) (DLMF 7.5.1, 7.12.1)
+fn calc_erfi_s(u, k) = ds_sum(j => pochhammer(1/2, j)*u^(-2*j - 1), 0, floor(k/2) + 1)
+rule ds_at(erfi(u_), 1, inf, k_) := ds_pieces([[1, -im], [exp(u^2), pi^(-1/2)*calc_erfi_s(u, k)]])
+rule ds_at(dawson_f(u_), 1, inf, k_) := ds_pieces([[1, calc_erfi_s(u, k)/2], [exp(-u^2), -im*sqrt(pi)/2]])
+# series at infinity of exp(g) r, where every exponential of x in the expression is exp(g) with g a polynomial in x of
+# positive degree with numeric coefficients (a g with other symbols is left to the callers that expand in them): exp(g) times the series of r = e exp(-g) (the exponential factor stays outside, as in the
+# expansions of special functions at infinity)
+fn calc_sexp(e, x, n) = {
+  let gs = unique(select(cases([e], exp(u_) :> u, inf), u => not free_of(u, x)))
+  let g = if length(gs) == 1 and is_polynomial(gs[1], x) and exponent(gs[1], x) >= 1 and every(coefficient_list(gs[1], x), c => is_numeric(c)) then gs[1] else null
+  let r = if g === null then null else rewrite(e, exp(u_) when not free_of(u, x) :> exp(expand(u - g)))
+  let s = if r === null or not free_of(r, exp(_)) or r === e then null else series(r, x, inf, n)
+  if s === null or not free_of(s, series) then null else exp(g)*s
+}
+rule series(e_, x_, x0_, n_) := calc_sexp(e, x, n) when x0 === inf and is_symbol(x) and is_integer(n) and not free_of(e, exp(_)) and not (calc_sexp(e, x, n) === null)
 rule series(r_, a_, a0_, n_) := calc_root_series(r[1], r[2], a, a0, n) when not is_atom(r) and head(r) === root and length(r) == 2 and is_integer(r[2]) and is_symbol(a) and is_integer(n) and n >= 0 and is_numeric(a0) and not (calc_root_series(r[1], r[2], a, a0, n) === null)
 
 # --- root sums in a parameter: integrals and series term by term ---
@@ -3143,6 +3160,8 @@ fn calc_dr_value(f, k) = {
   }
 }
 rule difference_root(f_)(k_) := calc_dr_value(f, k) when is_integer(k) and not (calc_dr_value(f, k) === null)
+# at an inexact real number with an integer value: the term there as a number of the same precision
+rule difference_root(f_)(k_) := (if is_machine_number(k) then n(calc_dr_value(f, round(k))) else n(calc_dr_value(f, round(k)), precision(k))) when is_inexact(k) and calc_real(k) and k == round(k) and abs(k) < 10^6 and is_numeric(calc_dr_value(f, round(k)))
 
 # differential_root(f)(x0): the value at the inexact real x0 of the function defined by f(y, x), a list of a linear
 # ordinary differential equation for y(x) and initial values at one point a, by n_dsolve_value from a to x0 (to 14 digits)
@@ -3157,6 +3176,222 @@ rule differential_root(f_)(x0_) := {
   if x0 == a then n(rewrite(calc_dfy(a), select(rest(eqs), e => e[1] === calc_dfy(a))[1][1] -> select(rest(eqs), e => e[1] === calc_dfy(a))[1][2]))
   else n_dsolve_value(eqs, calc_dfy, [calc_dfx, min(n(a), x0), max(n(a), x0)], precision_goal: 14, accuracy_goal: 14)(x0)
 } when is_inexact(x0) and calc_real(x0) and not (calc_ic_point(f(calc_dfy, calc_dfx)) === null)
+
+# --- the written form of difference_root and differential_root ---
+# Equal definitions are written alike (the documented form, on both docs pages): the formal names FormalY and
+# FormalN (FormalX); the equation as P == 0, where P is the numerator of lhs - rhs over a common denominator,
+# collected in the unknown's terms y(n + j) (derivatives y^(j)(x)) with expanded coefficients, its content free of
+# the variable divided out, and the coefficient of the highest term with a positive first number; the terms free of
+# the unknown first, then the unknown's terms by increasing shift (order); the initial values by their point
+# (order). Multiplying by the common denominator or dividing by a content free of the variable changes no solution.
+# kind 1: difference_root (FormalN), kind 2: differential_root (FormalX)
+fn calc_rt_v(kind) = if kind === 1 then FormalN else FormalX
+fn calc_rt_y(kind, j) = if kind === 1 then FormalY(FormalN + j) else if j === 0 then FormalY(FormalX) else derivative(j)(FormalY)(FormalX)
+# the shifts (orders) of the unknown's terms in e, or null when FormalY appears in another way
+fn calc_rt_js(e, kind) = {
+  let v = calc_rt_v(kind)
+  let a = if kind === 1 then map(u => expand(u - v), cases([e], FormalY(u_) :> u, inf)) else flatten([map(u => if u === v then 0 else null, cases([e], FormalY(u_) :> u, inf)), map(p => if p[2] === v and is_integer(p[1]) and p[1] > 0 then p[1] else null, cases([e], derivative(k_)(FormalY)(u_) :> [k, u], inf))])
+  let js = sort(unique(a))
+  if length(js) == 0 or not every(js, j => is_integer(j)) then null else js
+}
+# [c0, cs, js]: the equation e as c0 + sum cs[i] y_(js[i]) == 0 in the written form, or null when it is not linear
+fn calc_rt_eq(e, kind) = {
+  let js = if head(e) === equal then calc_rt_js(e, kind) else null
+  if js === null then null else {
+    let v = calc_rt_v(kind)
+    let m = length(js)
+    let w = rewrite(e[1] - e[2], map(i => calc_rt_y(kind, js[i]) -> calc_rt_t(i), range(m)))
+    let tw = together(w)
+    let p = expand(numerator(tw))
+    let cs = map(i => expand(coefficient(p, calc_rt_t(i))), range(m))
+    let c0 = expand(rewrite(p, map(i => calc_rt_t(i) -> 0, range(m))))
+    let lin = free_of(w, FormalY) and free_of(w, FormalY(_)) and free_of(denominator(tw), calc_rt_t(_)) and every(cs, c => free_of(c, calc_rt_t(_))) and expand(p - c0 - calc_total(map(i => cs[i]*calc_rt_t(i), range(m)))) === 0
+    if not lin or cs[m] === 0 then null else {
+      let g0 = factor(fold(polynomial_gcd, c0, cs))
+      let g = if free_of(g0, v) then g0 else if head(g0) === mul then fold((a, b) => a*b, 1, select(apply(list, g0), u => free_of(u, v))) else 1
+      let top = cs[m]
+      let lead = if head(top) === add then top[1] else top
+      let sg = if cb_drr_neg(lead) then -1 else 1
+      let k = if g === 0 then sg else sg/g
+      [expand(k*c0), map(c => expand(k*c), cs), js]
+    }
+  }
+}
+fn calc_rt_piece(c, y) =
+  if c === 1 then y
+  else if c === -1 then string_join(["-", y])
+  else if head(c) === add then string_join(["(", to_string(c), ")*", y])
+  else string_join([to_string(c), "*", y])
+# the initial value e as [order, point] (kind 2) or [point] (kind 1), or null
+fn calc_rt_iv(e, kind) =
+  if not (head(e) === equal) or is_atom(e[1]) then null
+  else if kind === 1 then (if head(e[1]) === FormalY and length(e[1]) == 1 and is_numeric(e[1][1]) then [e[1][1]] else null)
+  else if head(e[1]) === FormalY and length(e[1]) == 1 and is_numeric(e[1][1]) then [0, e[1][1]]
+  else if is_match(e[1], derivative(k_)(FormalY)(u_)) and is_numeric(e[1][1]) and is_integer(head(head(e[1]))[1]) then [head(head(e[1]))[1], e[1][1]]
+  else null
+# the defining function f in the written form, or null
+fn calc_rt_form(f, kind) = {
+  let eqs = if kind === 1 then f(FormalY, FormalN) else f(FormalY, FormalX)
+  let q = if is_list(eqs) and length(eqs) >= 1 then calc_rt_eq(eqs[1], kind) else null
+  let ivs = if q === null then [] else rest(eqs)
+  let keys = map(e => calc_rt_iv(e, kind), ivs)
+  if q === null or some(keys, u => u === null) then null else {
+    let ys = map(j => to_string(calc_rt_y(kind, j)), q[3])
+    let idx = select(range(length(ys)), i => not (q[2][i] === 0))
+    let first = if q[1] === 0 then calc_rt_piece(q[2][idx[1]], ys[idx[1]]) else to_string(q[1])
+    let more = map(i => if cb_drr_neg(q[2][i]) then string_join([" - ", calc_rt_piece(expand(-q[2][i]), ys[i])]) else string_join([" + ", calc_rt_piece(q[2][i], ys[i])]),
+      if q[1] === 0 then rest(idx) else idx)
+    let order = sort_by(range(length(ivs)), i => keys[i])
+    # the values go in after parsing (the text of an inexact value loses its precision)
+    let ivt = map(i => string_join([", ", to_string(ivs[i][1]), " == calc_rt_p(", to_string(i), ")"]), order)
+    let vs = if kind === 1 then "(FormalY, FormalN) => [" else "(FormalY, FormalX) => ["
+    rewrite(to_expression(string_join(flatten([vs, first, more, " == 0", ivt, "]"]))), map(i => calc_rt_p(i) -> ivs[i][2], range(length(ivs))))
+  }
+}
+rule difference_root(f_) := difference_root(calc_rt_form(f, 1)) when head(f) === `fn` and calc_rt_new(f, 1)
+rule differential_root(f_) := differential_root(calc_rt_form(f, 2)) when head(f) === `fn` and calc_rt_new(f, 2)
+fn calc_rt_new(f, kind) = {
+  let g = calc_rt_form(f, kind)
+  not (g === null) and not (g === f)
+}
+
+# --- calculus of differential_root ---
+# A differential_root is given by c + sum_(k=0..r) a_k y^(k) == 0 (a_r != 0 at the point p) and y^(k)(p), k < r.
+# calc_rt_parts(f): [c, a, p, vs] with the coefficients a = [a_0, ..., a_r] in FormalX and vs = [y(p), ..., y^(r-1)(p)],
+# or null (not linear, or the initial values are not y, y', ..., y^(r-1) at one point where a_r does not vanish)
+fn calc_rt_parts(f) = {
+  let eqs = f(FormalY, FormalX)
+  let q = if is_list(eqs) and length(eqs) >= 1 then calc_rt_eq(eqs[1], 2) else null
+  let r = if q === null then 0 else q[3][length(q[3])]
+  let keys = if q === null then [] else map(e => calc_rt_iv(e, 2), rest(eqs))
+  let ok = not (q === null) and r >= 1 and length(keys) == r and every(keys, u => not (u === null)) and every(keys, u => u[2] === keys[1][2]) and sort(map(u => u[1], keys)) === range(0, r - 1)
+  if not ok then null else {
+    let p = keys[1][2]
+    let a = map(k => calc_total(map(i => if q[3][i] === k then q[2][i] else 0, range(length(q[3])))), range(0, r))
+    let vs = map(k => select(rest(eqs), e => calc_rt_iv(e, 2)[1] === k)[1][2], range(0, r - 1))
+    if simplify(rewrite(a[r + 1], FormalX -> p)) === 0 then null else [q[1], a, p, vs]
+  }
+}
+fn calc_rt_y0(k, p) = if k === 0 then FormalY(p) else derivative(k)(FormalY)(p)
+# the differential_root of c + sum a[k + 1] y^(k) == 0 with y^(k)(p) = vs[k + 1]
+fn calc_rt_make(c, a, p, vs) = {
+  let eq = c + calc_total(map(k => a[k + 1]*calc_rt_y(2, k), range(0, length(a) - 1))) == 0
+  let ivs = map(k => calc_rt_y0(k, p) == vs[k + 1], range(0, length(vs) - 1))
+  let g = rewrite(to_expression("(FormalY, FormalX) => calc_rt_b"), calc_rt_b -> prepend(ivs, eq))
+  differential_root(g)
+}
+fn calc_rt_at(e, p) = simplify(rewrite(e, FormalX -> p))
+# y^(m)(p) from the values v = [y(p), ..., y^(m-1)(p)], m >= r: the (m - r)-th derivative of the equation at p
+fn calc_rt_next(c, a, p, v, m) = {
+  let r = length(a) - 1
+  let s = m - r
+  let known = calc_total(map(k => calc_total(map(i => if k == r and i == 0 then 0 else binomial(s, i)*calc_rt_at(d(a[k + 1], [FormalX, i]), p)*v[k + s - i + 1], range(0, s))), range(0, r)))
+  simplify(-(known + calc_rt_at(d(c, [FormalX, s]), p))/calc_rt_at(a[r + 1], p))
+}
+# [y(p), ..., y^(n)(p)]
+fn calc_rt_values(s, n) = {
+  let r = length(s[2]) - 1
+  if n < r then take(s[4], n + 1) else fold((v, m) => append(v, calc_rt_next(s[1], s[2], s[3], v, m)), s[4], range(r, n))
+}
+# the derivative y': differentiate the equation and remove y with the equation itself, a_0 L' - a_0' L (or, with
+# a_0 = 0, the equation of y' read off directly); the initial values y^(k + 1)(p), y^(r)(p) from the equation
+fn calc_rt_dx(f) = {
+  let s = calc_rt_parts(f)
+  if s === null then null else {
+    let c = s[1]
+    let a = s[2]
+    let r = length(a) - 1
+    let v = calc_rt_values(s, r)
+    if a[1] === 0 then (if r < 2 then null else calc_rt_make(c, rest(a), s[3], take(rest(v), r - 1)))
+    else {
+      let da0 = d(a[1], FormalX)
+      let b = map(j => expand(a[1]*a[j + 1] + (if j < r then a[1]*d(a[j + 2], FormalX) - da0*a[j + 2] else 0)), range(0, r))
+      calc_rt_make(expand(a[1]*d(c, FormalX) - da0*c), b, s[3], rest(v))
+    }
+  }
+}
+fn calc_rt_dk(f, k) = if k === 0 then differential_root(f) else {
+  let g = calc_rt_dx(f)
+  if g === null or not (head(g) === differential_root) then null else calc_rt_dk(g[1], k - 1)
+}
+rule derivative(k_)(differential_root(f_))(x_) := calc_rt_dk(f, k)(x) when is_integer(k) and k > 0 and head(f) === `fn` and not (calc_rt_dk(f, k) === null)
+# an antiderivative G (G' = y): when L D = D M for an operator M = sum b_j D^j (b_r = a_r, b_(j-1) = a_(j-1) - b_j',
+# exact when b_0' = 0), G satisfies C + M G == 0 with C' = c, of the same order r, and G(p) is chosen to make the
+# constant of integration 0 (with b_0 = 0 the constant goes into C and G(p) = 0); otherwise G satisfies
+# c + sum a_k G^(k + 1) == 0 with G(p) = 0
+fn calc_rt_int(f) = {
+  let s = calc_rt_parts(f)
+  if s === null then null else {
+    let c = s[1]
+    let a = s[2]
+    let p = s[3]
+    let vs = s[4]
+    let r = length(a) - 1
+    let b = fold((bs, j) => prepend(bs, expand(a[j] - d(bs[1], FormalX))), [a[r + 1]], range(r, 1, -1))
+    let cc = expand(integrate(c, FormalX))
+    let exact = expand(d(b[1], FormalX)) === 0 and free_of(cc, integrate)
+    if exact then {
+      let k = calc_total(map(j => calc_rt_at(b[j + 1], p)*vs[j], range(1, r))) + calc_rt_at(cc, p)
+      if b[1] === 0 then calc_rt_make(expand(cc - k), b, p, prepend(take(vs, r - 1), 0))
+      else calc_rt_make(cc, b, p, prepend(take(vs, r - 1), simplify(-k/b[1])))
+    } else calc_rt_make(c, prepend(a, 0), p, prepend(vs, 0))
+  }
+}
+fn calc_rt_app(e, x) = not is_atom(e) and not is_atom(head(e)) and head(head(e)) === differential_root and length(head(e)) == 1 and length(e) == 1 and e[1] === x
+rule integrate(e_, x_) := calc_rt_int(head(e)[1])(x) when is_symbol(x) and calc_rt_app(e, x) and not (calc_rt_int(head(e)[1]) === null)
+# the Taylor series at the initial point, y^(k)(p) by the derivatives of the equation (Leibniz's rule)
+fn calc_rt_series(f, x, n) = {
+  let s = calc_rt_parts(f)
+  if s === null then null else {
+    let v = calc_rt_values(s, n)
+    series(calc_total(map(k => v[k + 1]/factorial(k)*(x - s[3])^k, range(0, n))), x, s[3], n)
+  }
+}
+# the value at an exact number x0: the closed form that d_solve_value finds, at x0, when the leading coefficient is a
+# constant (the coefficients are then polynomials, the solution of the initial value problem is entire and unique)
+fn calc_rt_exact(f, x0) = {
+  let s = calc_rt_parts(f)
+  if s === null or not free_of(s[2][length(s[2])], FormalX) then null else {
+    let sol = d_solve_value(f(FormalY, FormalX), FormalY(FormalX), FormalX)
+    let ok = not is_list(sol) and free_of(sol, d_solve_value) and free_of(sol, d_solve) and free_of(sol, differential_root) and free_of(sol, FormalY) and free_of(sol, integrate)
+    let v = if ok then simplify(rewrite(sol, FormalX -> x0)) else null
+    if v === null or not is_numeric(v) or v === complex_infinity or v === indeterminate then null else v
+  }
+}
+rule differential_root(f_)(x0_) := calc_rt_exact(f, x0) when is_numeric(x0) and not is_inexact(x0) and not (calc_rt_exact(f, x0) === null)
+# the value at an inexact complex x0: along the segment x = p + t h, h = x0 - p, 0 <= t <= 1, write y(x) = u(t) + i w(t)
+# with real u and w; y^(k)(x) = h^-k (u + i w)^(k)(t), and the real and imaginary parts of the equation are a real
+# linear system of order r for u and w, solved by n_dsolve_value (the leading coefficient must not vanish on the
+# segment; otherwise there is no value)
+fn calc_rt_reim(e) = {
+  let cl = coefficient_list(expand(e), calc_rt_tt)
+  if not every(cl, c => is_numeric(c)) then null
+  else [calc_total(map(j => re(cl[j])*calc_rt_tt^(j - 1), range(length(cl)))), calc_total(map(j => im_part(cl[j])*calc_rt_tt^(j - 1), range(length(cl))))]
+}
+fn calc_rt_uw(g, k) = if k === 0 then g(calc_rt_tt) else derivative(k)(g)(calc_rt_tt)
+fn calc_rt_cplx(f, x0) = {
+  let s = calc_rt_parts(f)
+  let r = if s === null then 0 else length(s[2]) - 1
+  let h = if s === null then 0 else n(x0 - s[3])
+  let al = if s === null then [] else map(k => calc_rt_reim(n(rewrite(s[2][k + 1], FormalX -> s[3] + calc_rt_tt*h))*h^(-k)), range(0, r))
+  let cc = if s === null then null else calc_rt_reim(n(rewrite(s[1], FormalX -> s[3] + calc_rt_tt*h)))
+  let vs = if s === null then [] else map(k => n(h^k*s[4][k + 1]), range(0, r - 1))
+  if s === null or h == 0 or cc === null or some(al, u => u === null) or not every(vs, v => is_numeric(v)) then null else {
+    # solved for the highest derivatives: A u_r - B w_r = -R1, B u_r + A w_r = -R2 with A + i B the leading coefficient
+    let r1 = cc[1] + calc_total(map(k => al[k + 1][1]*calc_rt_uw(calc_rt_u, k) - al[k + 1][2]*calc_rt_uw(calc_rt_w, k), range(0, r - 1)))
+    let r2 = cc[2] + calc_total(map(k => al[k + 1][2]*calc_rt_uw(calc_rt_u, k) + al[k + 1][1]*calc_rt_uw(calc_rt_w, k), range(0, r - 1)))
+    let ca = al[r + 1][1]
+    let cb = al[r + 1][2]
+    let e1 = calc_rt_uw(calc_rt_u, r) == -(ca*r1 + cb*r2)/(ca^2 + cb^2)
+    let e2 = calc_rt_uw(calc_rt_w, r) == -(ca*r2 - cb*r1)/(ca^2 + cb^2)
+    let ics = flatten(map(k => [rewrite(calc_rt_uw(calc_rt_u, k), calc_rt_tt -> 0) == re(vs[k + 1]), rewrite(calc_rt_uw(calc_rt_w, k), calc_rt_tt -> 0) == im_part(vs[k + 1])], range(0, r - 1)))
+    let sol = n_dsolve_value(flatten([e1, e2, ics]), [calc_rt_u, calc_rt_w], [calc_rt_tt, 0, 1], precision_goal: 14, accuracy_goal: 14)
+    let v = if is_list(sol) and length(sol) == 2 then sol[1](1.0) + im*sol[2](1.0) else null
+    if v === null or not is_numeric(v) then null else v
+  }
+}
+rule differential_root(f_)(x0_) := calc_rt_cplx(f, x0) when is_numeric(x0) and is_inexact(x0) and not calc_real(x0) and not (calc_rt_cplx(f, x0) === null)
+rule series(e_, x_, x0_, n_) := calc_rt_series(head(e)[1], x, n) when is_symbol(x) and is_integer(n) and n >= 0 and calc_rt_app(e, x) and not (calc_rt_parts(head(e)[1]) === null) and calc_rt_parts(head(e)[1])[3] === x0
 
 
 # --- wave functions in the piecewise expansion (piecewise_expand calls calc_waves) ---
@@ -4582,6 +4817,9 @@ fn cb_drr_cpoly(t, k) =
   else if head(t) === exp and not (cb_drr_lin(t[1], k) === null) then cb_x - exp(cb_drr_lin(t[1], k)[1])
   else if (head(t) === fibonacci or head(t) === lucas_l) and length(t) == 1 and not (cb_drr_lin(t[1], k) === null) and is_integer(cb_drr_lin(t[1], k)[1]) and not (cb_drr_lin(t[1], k)[1] === 0) then
     cb_drr_cpow(cb_x^2 - cb_x - 1, cb_drr_lin(t[1], k)[1])
+  # Fibonacci and Lucas polynomials: F(n + 2, z) = z F(n + 1, z) + F(n, z), the same for L
+  else if (head(t) === fibonacci or head(t) === lucas_l) and length(t) == 2 and free_of(t[2], k) and not (cb_drr_lin(t[1], k) === null) and is_integer(cb_drr_lin(t[1], k)[1]) and not (cb_drr_lin(t[1], k)[1] === 0) then
+    cb_drr_cpow(cb_x^2 - t[2]*cb_x - 1, cb_drr_lin(t[1], k)[1])
   else if head(t) === sum and length(t) == 2 and is_list(t[2]) and length(t[2]) == 3 and is_symbol(t[2][1]) and free_of(t[2][2], k) and not (cb_drr_lin(t[2][3], k) === null) and cb_drr_lin(t[2][3], k)[1] === 1 then {
     let p = cb_drr_cpoly(t[1], t[2][1])
     if p === null or not (cb_subst_free(t[1], k, cb_drr_z) === t[1]) then null else cb_drr_monic((cb_x - 1)*p)
@@ -4819,6 +5057,46 @@ rule difference_quotient(factorial_power(x_, n_, h_), [x_, h_]) := n*factorial_p
 
 # a sum of a list-valued summand over an infinite range is taken elementwise
 rule sum(f_, sp_) := map(g => sum(g, sp), f) when is_list(f) and is_list(sp) and length(sp) == 3 and sp[3] === inf
+
+# sums of the form c (-1)^k (a k + b)^-s over k >= k0 with a symbolic s (c and s free of k, rationals a, a k0 + b > 0):
+# sum_(j>=0) (a j + b)^-s = a^-s zeta(s, b/a), and the alternating sum is (2a)^-s (zeta(s, b/(2a)) -
+# zeta(s, (a + b)/(2a))) (split into even and odd j; DLMF 25.11.1, 25.11.10 for Re s > 1, and the alternating one
+# for Re s > 0, continued in s). cos and sin of m pi k + u with an integer m are first written as (-1)^(m k) times
+# cos u, sin u.
+fn calc_hz_trig(f, u, k) = {
+  let l = cb_drr_lin(u, k)
+  let m = if l === null then null else simplify(l[1]/pi)
+  if m === null or not is_integer(m) then f(u) else if mod(m, 2) == 0 then f(l[2]) else (-1)^k*f(l[2])
+}
+fn calc_hz(t, k, k0) = {
+  let fs = calc_factors(expand(rewrite(t, [cos(u_) :> calc_hz_trig(cos, u, k), sin(u_) :> calc_hz_trig(sin, u, k)])))
+  let alt = select(fs, u => u === (-1)^k)
+  let pw = select(fs, u => head(u) === pow and not free_of(u[1], k) and free_of(u[2], k) and not is_numeric(u[2]))
+  let cs = select(fs, u => free_of(u, k))
+  let l = if length(pw) == 1 then cb_drr_lin(pw[1][1], k) else null
+  let b = if l === null then null else l[1]*k0 + l[2]
+  if l === null or length(alt) > 1 or length(alt) + 1 + length(cs) != length(fs) or not is_rational(l[1]) or not is_rational(b) or l[1] <= 0 or b <= 0 then null else {
+    let s = -pw[1][2]
+    let a = l[1]
+    let c = fold((x, y) => x*y, 1, cs)
+    if length(alt) == 0 then c*a^(-s)*zeta(s, b/a)
+    else c*(-1)^k0*(2*a)^(-s)*(zeta(s, b/(2*a)) - zeta(s, (a + b)/(2*a)))
+  }
+}
+# zeta(s, 1/4) and zeta(s, 3/4) at odd s >= 3: their sum is (4^s - 2^s) zeta(s) and their difference 4^s beta(s), with
+# Dirichlet's beta(2m + 1) = (-1)^m E_2m pi^(2m + 1)/(4^(m + 1) (2m)!) (DLMF 25.11.11 with q = 1/4, 3/4; 24.7.6)
+fn calc_beta_odd(s) = (-1)^((s - 1)/2)*euler_e(s - 1)*pi^s/(4^((s + 1)/2)*factorial(s - 1))
+rule zeta(s_, q_) := ((4^s - 2^s)*zeta(s) + (if q === 1/4 then 1 else -1)*4^s*calc_beta_odd(s))/2 when is_integer(s) and s >= 3 and mod(s, 2) == 1 and (q === 1/4 or q === 3/4)
+rule sum(t_, sp_) := calc_hz(t, sp[1], sp[2]) when is_list(sp) and length(sp) == 3 and is_symbol(sp[1]) and is_integer(sp[2]) and sp[3] === inf and not (calc_hz(t, sp[1], sp[2]) === null)
+# a factor free of the index comes out of a sum whose rest has a closed form
+fn calc_sum_out(t, sp) = {
+  let fs = calc_factors(t)
+  let c = fold((x, y) => x*y, 1, select(fs, u => free_of(u, sp[1])))
+  let r = fold((x, y) => x*y, 1, select(fs, u => not free_of(u, sp[1])))
+  let v = if c === 1 then null else sum(r, sp)
+  if v === null or not free_of(v, sum) then null else c*v
+}
+rule sum(t_, sp_) := calc_sum_out(t, sp) when head(t) === mul and is_list(sp) and length(sp) == 3 and is_symbol(sp[1]) and not (calc_sum_out(t, sp) === null)
 
 # sum(g boole(m1 + m2 <= n), [m1, 1, n1], [m2, 1, n2]) with the box holding the triangle (n1, n2 >= n - 1): summed
 # along the diagonals m1 + m2 = j, sum(sum(g(m, j - m), [m, 1, j - 1]), [j, 2, n]) (a reindexing of the same terms;

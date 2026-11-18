@@ -1716,7 +1716,7 @@ fn cabs(z: C64) -> f64 {
 }
 
 /// The branch k of W at a complex machine number by Halley's iteration from the usual starting values.
-fn lambert_w(k: i64, z: C64) -> Option<C64> {
+pub(crate) fn lambert_w(k: i64, z: C64) -> Option<C64> {
     if z.re == 0.0 && z.im == 0.0 {
         return (k == 0).then_some(C64::real(0.0));
     }

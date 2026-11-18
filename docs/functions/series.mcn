@@ -31,7 +31,7 @@
 # `series(e, x -> x0)` gives the leading term and the order of the next one; a list `e` is expanded elementwise.
 
 #% item
-# At `x0 = inf` the series is in powers of `1/x`: `n` keeps every term whose power of `1/x` is at most `n`, fractional powers included (`x^(-9/2)` is kept for `n = 5`), and the order term is the next power present. An expansion with factors such as `exp(x)` or `cos(x)` (Kelvin, Struve, Airy functions) keeps the same terms in the series that multiplies each factor.
+# At `x0 = inf` the series is in powers of `1/x`: `n` keeps every term whose power of `1/x` is at most `n`, fractional powers included (`x^(-9/2)` is kept for `n = 5`), and the order term is the next power present. An expansion with factors such as `exp(x)` or `cos(x)` (Kelvin, Struve, Airy functions) keeps the same terms in the series that multiplies each factor. So does `exp(g) r` with a polynomial `g` in x: `exp(g)` times the series of `r`; the expansions of `erfi` and `dawson_f` keep the constant `-i` and the factor `exp(-x^2)` of their sector (DLMF 7.12.1).
 
 #% item
 # At an essential singularity the call stays unevaluated.

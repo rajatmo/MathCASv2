@@ -10,7 +10,10 @@
 # Details
 
 #% item
-# `polygamma(0, x)` is `digamma(x)`; `polygamma(n, x)` is the `(n + 1)`-th derivative of `log(gamma(x))` (DLMF 5.15). The order `n` is an integer `n >= 0`; other orders stay unevaluated.
+# `polygamma(0, x)` is `digamma(x)`; `polygamma(n, x)` is the `(n + 1)`-th derivative of `log(gamma(x))` (DLMF 5.15) for integers `n >= 0`.
+
+#% item
+# An order `nu` that is not an integer gives the fractional derivative of `digamma` of order `nu` with base point 0 (Riemann-Liouville, taken term by term on `digamma(x) = -1/x - euler_gamma + sum (-1)^(k + 1) zeta(k + 1) x^k`; Grossman 1976). It joins the integer orders continuously, and `polygamma(-1, x)` is `log_gamma(x)`. Such orders are evaluated at machine numbers with `re(x) > 0`; exact and arbitrary-precision arguments stay unevaluated.
 
 #% item
 # At positive integers and half integers the values are exact, in terms of `zeta` values and `pi`; machine numbers, arbitrary-precision numbers and complex numbers give numerical values, with the reflection formula for negative real parts.
@@ -118,6 +121,19 @@ polygamma(1, 1e10)
 #% output
 #= 1.00000000005e-10
 
+#% text
+# A fractional and a complex order:
+
+#% cell
+polygamma(1/2, 2.0)
+#% output
+#= 0.7552610839464955
+
+#% cell
+polygamma(6 + im, 2.5 + 3*im)
+#% output
+#= -0.4743889741633601 - 1.9894416905356194im
+
 #% subsection
 # Properties and relations
 
@@ -173,7 +189,7 @@ polygamma(1, -1)
 #! failure(pole, polygamma(1, -1))
 
 #% text
-# A symbolic order, a non-integer order and negative orders stay unevaluated:
+# A symbolic order and exact arguments of a non-integer order stay unevaluated:
 
 #% cell
 polygamma(n, x)
@@ -181,9 +197,9 @@ polygamma(n, x)
 #= polygamma(n, x)
 
 #% cell
-polygamma(1/2, 2.0)
+polygamma(1/2, 2)
 #% output
-#= polygamma(1/2, 2.0)
+#= polygamma(1/2, 2)
 
 #% cell
 polygamma(-1, 2.0)

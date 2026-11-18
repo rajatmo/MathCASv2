@@ -154,12 +154,12 @@ fn small_product(h: &Heap, args: &[T<'_>]) -> Option<i64> {
 }
 
 /// Numeric constants (semantics 15): symbols that stand for a real number.
-const CONSTANTS: [&str; 6] = ["pi", "e", "euler_gamma", "catalan", "golden_ratio", "glaisher"];
+const CONSTANTS: [&str; 7] = ["pi", "e", "euler_gamma", "catalan", "golden_ratio", "glaisher", "degree"];
 
 /// The symbols of [`CONSTANTS`] in the heap a native was registered with, looked up once (comparing symbols
 /// instead of their names keeps the contagion scan free of allocations).
 #[derive(Default)]
-struct Consts(std::sync::OnceLock<[Sym; 6]>);
+struct Consts(std::sync::OnceLock<[Sym; 7]>);
 
 impl Consts {
     /// The index of `s` in [`CONSTANTS`], if it is one.
@@ -269,7 +269,9 @@ fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: &Consts, args: &[T<'h
                 Some(d) => cx.eval(h.call(h.sym("n"), &[a, d]))?,
                 None => cx.eval(h.call(h.sym("n"), &[a]))?,
             };
-            // (a complex value only for a root object: im and other complex constants keep their exact form)
+            // (a complex value for a root object or a call with complex values; an exact complex number such as im
+            // is already a number and keeps its exact form, so its arithmetic with machine numbers stays as it is)
+            let exact_complex = matches!(h.view(a), View::App { head, .. } if head == h.sym_term(h.sym(names::COMPLEX)));
             let root_head = h.sym_term(h.sym("root"));
             let mut root = false;
             // shared subterms are visited once (a term can be a tree exponentially larger than itself)
@@ -287,7 +289,9 @@ fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: &Consts, args: &[T<'h
                     stack.extend_from_slice(args);
                 }
             }
-            if matches!(h.view(v), View::Real(_) | View::Ball { .. }) || (root && machine_complex(v)) {
+            // a complex machine value beside a machine real: the closed numeric argument is a complex number
+            // (`2.5*exp(im*pi/6)`, `(1.0 + im)/gamma(8 - 3im)`), so the product or sum is a machine number too
+            if matches!(h.view(v), View::Real(_) | View::Ball { .. }) || ((root || (digits.is_none() && !exact_complex)) && machine_complex(v)) {
                 out.push(v);
                 changed = true;
                 continue;
@@ -301,7 +305,7 @@ fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: &Consts, args: &[T<'h
 /// The machine values of the [`CONSTANTS`], filled on first use by `n` itself (so they are `n`'s values bit for bit);
 /// a NaN bit pattern marks an empty slot. Symbols are immediates and never memoised, so without this every
 /// `0.5*pi` in a loop evaluated `n(pi)` again (about 7 us a call).
-static CONSTANT_VALUES: [std::sync::atomic::AtomicU64; 6] = [const { std::sync::atomic::AtomicU64::new(u64::MAX) }; 6];
+static CONSTANT_VALUES: [std::sync::atomic::AtomicU64; 7] = [const { std::sync::atomic::AtomicU64::new(u64::MAX) }; 7];
 
 /// The machine value of `t` when it is a bare numeric constant, from [`CONSTANT_VALUES`].
 fn cached_constant<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: &Consts, t: T<'h>) -> Res<Option<T<'h>>> {

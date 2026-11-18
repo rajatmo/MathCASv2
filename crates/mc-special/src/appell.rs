@@ -12,7 +12,7 @@
 //! functions are symmetric under the exchange of the two variables with their parameters). The 2F1 continues beyond
 //! the unit disk, so F1 and F3 are evaluated for |x| < 1 or |y| < 1 and any other variable off the cut; F2 and F4 where
 //! the row sum converges. At x = 0 or y = 0 the functions are Gauss functions.
-use crate::cover::{mag, numeric, work};
+use crate::cover::{mag, numeric, parts, work};
 use mc_api::T;
 use mc_eval::Res;
 use mc_numeric::formula::{Def, Fx};
@@ -132,6 +132,11 @@ fn appell<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Which) -> R<'h> {
     if !numeric(fx, a) {
         return Ok(None);
     }
+    if which == Which::F1 {
+        if let Some(v) = f1_outside(fx, p, x, y)? {
+            return Ok(Some(v));
+        }
+    }
     // machine arguments: the double-double kernel, the ball path when it declines
     if let Some((ms, real)) = crate::fast_dd::machine_args(fx, a) {
         let code = match which {
@@ -247,6 +252,58 @@ fn f1_reduced<'h>(fx: &mut Fx<'_, '_, '_, 'h>, p: &[T<'h>], x: T<'h>, y: T<'h>) 
         return Ok(Some(fx.mul(&[k, g2(fx, a, bv, fx.sub(c, bu), v)])));
     }
     Ok(None)
+}
+
+/// F1 at numbers with both |x| >= 1 and |y| >= 1, where the row sums do not converge: the Pfaff-type transformation
+/// F1(a; b1, b2; c; x, y) = (1 - x)^-b1 (1 - y)^-b2 F1(c - a; b1, b2; c; x/(x - 1), y/(y - 1)) (Appell and Kampe de
+/// Feriet 1926; it follows from the Euler integral DLMF 16.15.1 by u -> 1 - u, since 1 - (1 - t) x equals
+/// (1 - x)(1 - t x/(x - 1)), and holds on the plane cut along x, y in [1, inf) by analytic continuation). Used when a
+/// transformed variable lies inside the unit disk or when c - a is a nonpositive integer (the transformed series is
+/// then a polynomial); a variable on the cut (1, inf) only in the polynomial case with an integer exponent b (the
+/// function is then single-valued there: a rational function). A nonpositive integer a already gives a polynomial,
+/// so the transformed call never transforms back.
+fn f1_outside<'h>(fx: &mut Fx<'_, '_, '_, 'h>, p: &[T<'h>], x: T<'h>, y: T<'h>) -> R<'h> {
+    let (a, b1, b2, c) = (p[0], p[1], p[2], p[3]);
+    // an integer: exact, or a number without radius whose value is one (n turns exact parameters into such balls)
+    let int_value = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| -> Option<f64> {
+        if let Some(q) = fx.rat_of(t) {
+            return q.is_int().then(|| fx.f64_of(t)).flatten();
+        }
+        let (x, y) = parts(fx, t)?;
+        (y == 0.0 && x == x.floor() && !crate::cover::has_radius(fx, t)).then_some(x)
+    };
+    let nonpos = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| int_value(fx, t).is_some_and(|v| v <= 0.0);
+    if nonpos(fx, a) {
+        return Ok(None);
+    }
+    let (Some(xp), Some(yp)) = (parts(fx, x), parts(fx, y)) else { return Ok(None) };
+    let modulus = |z: (f64, f64)| z.0.hypot(z.1);
+    if modulus(xp) < 1.0 || modulus(yp) < 1.0 {
+        return Ok(None);
+    }
+    let int = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| int_value(fx, t).is_some();
+    let ca = fx.eval(fx.sub(c, a))?;
+    for (z, b) in [(xp, b1), (yp, b2)] {
+        if z.1 == 0.0 && z.0 >= 1.0 && (z.0 == 1.0 || !int(fx, b) || !nonpos(fx, ca)) {
+            return Ok(None);
+        }
+    }
+    let inside = |z: (f64, f64)| modulus(z) < modulus((z.0 - 1.0, z.1)) * 0.98;
+    if !(nonpos(fx, ca) || inside(xp) || inside(yp)) {
+        return Ok(None);
+    }
+    let one = fx.int(1);
+    let xt = fx.div(x, fx.sub(x, one));
+    let yt = fx.div(y, fx.sub(y, one));
+    let f = fx.call("appell_f1", &[ca, b1, b2, c, xt, yt]);
+    // an integer exponent as an exact integer: a negative base to a ball exponent would go through the logarithm
+    let ex = |fx: &Fx<'_, '_, '_, 'h>, b: T<'h>| match int_value(fx, b) {
+        Some(v) if v.abs() < 1e15 => fx.int(-(v as i64)),
+        _ => fx.neg(b),
+    };
+    let (e1, e2) = (ex(fx, b1), ex(fx, b2));
+    let v = fx.eval(fx.mul(&[fx.pow(fx.sub(one, x), e1), fx.pow(fx.sub(one, y), e2), f]))?;
+    Ok(fx.num(v).map(|_| v))
 }
 
 fn appell_f1<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {

@@ -896,7 +896,32 @@ fn spheroidal_eigenvalue<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> 
     if fx.is_int(g, 0) {
         return Ok(Some(fx.mul(&[n, fx.add(&[n, fx.int(1)])])));
     }
+    // order 1/2: w = sin(theta)^(1/2) y(cos(theta)) turns the equation into Mathieu's equation w'' + (a - 2 q cos(2
+    // theta)) w = 0 with q = gamma^2/4 and a = lambda + 1/4 + gamma^2/2 (the term m^2/(1 - x^2) cancels exactly for
+    // m^2 = 1/4); at gamma = 0, lambda = nu (nu + 1) and a = (nu + 1/2)^2, so the characteristic value of index nu + 1/2
+    // is the one followed from q = 0. lambda depends on m^2 only.
+    let half = fx.rat_of(m).is_some() && {
+        let d = fx.eval(fx.sub(fx.mul(&[m, m]), fx.rat(1, 4)))?;
+        fx.is_int(d, 0)
+    };
+    if half {
+        let g2 = fx.mul(&[g, g]);
+        let r = fx.add(&[n, fx.rat(1, 2)]);
+        let am = fx.call("mathieu_characteristic_a", &[r, fx.mul(&[fx.rat(1, 4), g2])]);
+        return Ok(Some(fx.add(&[fx.rat(-1, 4), am, fx.mul(&[fx.rat(-1, 2), g2])])));
+    }
     let Some((ni, mi)) = int_nm(fx, n, m) else { return spheroidal_eigenvalue_general(fx, a) };
+    // order 1 at gamma = n pi/2: y = cos(gamma x)/sqrt(1 - x^2) and sin(gamma x)/sqrt(1 - x^2) solve the equation with
+    // lambda = 0 for every gamma (substitution: the terms gamma^2 (1 - x^2) and 1/(1 - x^2) cancel those of y'' and
+    // y'), and they vanish at x = +-1 like (1 - x^2)^(1/2) exactly when gamma is an odd (cos) or even (sin) multiple of
+    // pi/2; at gamma = n pi/2 that eigenfunction has n - 1 zeros in (-1, 1), so it is the one of degree n
+    if mi.abs() == 1 && ni >= 1 && fx.rat_of(n).is_some() && fx.rat_of(m).is_some() {
+        let pi_n = fx.mul(&[fx.int(ni), fx.sym("pi"), fx.rat(1, 2)]);
+        let d = fx.eval(fx.sub(fx.mul(&[g, g]), fx.mul(&[pi_n, pi_n])))?;
+        if fx.is_int(d, 0) {
+            return Ok(Some(fx.int(0)));
+        }
+    }
     if !crate::cover::numeric(fx, a) {
         return Ok(None);
     }
