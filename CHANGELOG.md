@@ -18,15 +18,23 @@ and sort their arguments (`lcm(x, y, 2)` is `lcm(2, x, y)`); `indexed(x, 1)` is 
 segments of the line are disjoint segments. `together` and `cancel` keep a denominator factored as written,
 `apart` writes each fraction as a rational times a primitive numerator, `expand_all` expands denominators
 too, `trig_reduce` and `simplify` put the rational content outside (`(1/2)*(1 - cos(2*x))`), `factor` reads
-powers with one symbolic exponent as a variable, `trig_factor` merges Pythagorean pairs. Each docs page states
-the form its function guarantees.
+powers with one symbolic exponent as a variable, `trig_factor` merges Pythagorean pairs. `piecewise_expand`
+orders its pieces by value, joins pieces with one value and drops a piece equal to the default; `exp_to_trig`
+writes real exponentials with hyperbolic functions (`hyperbolic: false` keeps them); `trig_to_exp` keeps `tan`
+and `cot` as one fraction; `factor_terms` pulls out Gaussian content; `apart` works in one kernel such as
+`exp(x)`. The derivative of `max(x, 2)` is `if x <= 2 then 0 else 1`. Unit names are written in full
+(`"Meters"`). `memory_constrained` answers `failure(limit, memory)` also when a builder declines beforehand.
+Each docs page states the form its function guarantees.
 
 **Corrected answers.** `spherical_bessel_j(0, x)` is `sinc(x)` (defined at 0);
 `reduce(1 + product_log(x) == 0, x, reals)` gives `x == -1/e`; `solve(y^3 - x*y == 2, y, reals)` gives real
 roots only; `lommel_s1` and `lommel_t1` at 0; `q_factorial`, `q_gamma` and `q_binomial` at q = 1;
 `logical_expand(not unequal(x, y, z))`; `replace_at` inside `quote` does not evaluate; `region_member` of a
 polygon with symbolic edges stays unevaluated. `numerical_sort`, `sort_by`, `reverse_sort` and `ordering`
-follow one documented order.
+follow one documented order. `integrate(1, element(x, ball(3)))` is `(4/3)*pi`;
+`minimize(sqrt(x^2 + y^2), x + y <= 1)` is 0; `asymptotic_d_solve_value` no longer takes an infinite limit for
+a regular singular point; `jacobi_epsilon` and `jacobi_zn` at K + iK'; `coulomb_f` of integer order has no
+singularities; `function_poles(zeta(x), x)` is `[[1, 1]]`.
 
 **New.** `reduce` over the complexes with order relations, `re`, `im_part` and `conjugate`; `eliminate` with
 radicals and invertible functions; `find_root` at a working precision with inexact coefficients;
@@ -34,9 +42,20 @@ radicals and invertible functions; `find_root` at a working precision with inexa
 Hankel, q-hypergeometric, Weierstrass and modular functions; exact ranges of Bessel, Airy and Struve functions
 at certified roots of the derivative; monomial orders in `coefficient_rules` and `monomial_list`;
 `distance_matrix` with nominal features; `ball(n)` is the unit ball of n dimensions.
+`dirichlet_character(k, j, n)` with Conrey labels; `elliptic_e(phi, m)` and `elliptic_pi(n, m)` beyond m = 1;
+`polygamma` of non-integer and complex order, `polylog` of complex order beyond the unit disk, `appell_f1`
+outside the unit bidisk, `mittag_leffler_e` at machine reals, Kelvin functions of half-integer order;
+`differential_root` and `difference_root` in one written form with derivatives and series; series at
+infinity of `erfi` and `dawson_f` and of zeta at its pole; `n_dsolve` for partial differential equations in t
+and x and for vector unknowns; `asymptotic_solve` with Puiseux branches; optimizers with regions and cases as
+constraints; region primitives without arguments take their documented default placement;
+`centered_interval` of exact numbers; `clebsch_gordan` of symbols. Lists, tables and arrays that would not
+fit in memory are declined before they are built.
 
 **Faster.** Elliptic K and E above 1 on enclosures (inputs with `elliptic_k` in `reduce` and
-`function_domain` went from 20 s and more to under 1 s).
+`function_domain` went from 20 s and more to under 1 s). `cellular_automaton` with numbered rules (130 ms to
+a few ms), `dawson_f` at large arguments, extrema of Airy and Bessel expressions, `is_prime_power`, `fourier`
+of matrices, `squares_r`, contour plots of interpolations, Stirling number tables.
 
 ## 0.16.3 (2026-11-17)
 

@@ -150,9 +150,9 @@ fn quintic_bijective_condition_is_sound() {
 #[test]
 fn huge_library_matrices_decline_at_once() {
     let t = std::time::Instant::now();
-    assert_eq!(ev("memory_constrained(hankel_matrix(10000), 5*10^8)"), "failure(limit, memory, [10000, 10000])");
-    assert_eq!(ev("memory_constrained(hankel_matrix(10000, target_structure: automatic), 5*10^8)"), "failure(limit, memory, [10000, 10000])");
-    assert_eq!(ev("memory_constrained(toeplitz_matrix(9000), 5*10^8)"), "failure(limit, memory, [9000, 9000])");
+    assert_eq!(ev("memory_constrained(hankel_matrix(10000), 5*10^8)"), "failure(limit, memory)");
+    assert_eq!(ev("memory_constrained(hankel_matrix(10000, target_structure: automatic), 5*10^8)"), "failure(limit, memory)");
+    assert_eq!(ev("memory_constrained(toeplitz_matrix(9000), 5*10^8)"), "failure(limit, memory)");
     assert!(t.elapsed().as_secs() < 20, "{:?}", t.elapsed());
     assert_eq!(ev("hankel_matrix(4)"), "[[1, 2, 3, 4], [2, 3, 4, 0], [3, 4, 0, 0], [4, 0, 0, 0]]");
     assert_eq!(ev("dimensions(toeplitz_matrix(300))"), "[300, 300]");

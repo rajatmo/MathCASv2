@@ -264,7 +264,7 @@ piecewise_expand(max(a, b, c))
 #% cell
 piecewise_expand(unit_step(x + 1) - unit_step(x - 1) + 1)
 #% output
-#= piecewise([[1, x < -1], [2, -1 <= x and x < 1]], 1)
+#= piecewise([[1, x >= 1 or x < -1]], 2)
 
 #% cell
 piecewise_expand(floor(x), 0 < x and x < 4)

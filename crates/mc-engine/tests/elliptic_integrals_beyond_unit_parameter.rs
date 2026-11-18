@@ -68,3 +68,14 @@ fn machine_arguments_beyond_one() {
     holds(&mut e, "abs(elliptic_e(1., 1.5) - n(elliptic_e(1, 3/2))) < 10^-14");
     holds(&mut e, "abs(elliptic_pi(0.5, 1.5) - n(elliptic_pi(1/2, 3/2))) < 10^-14");
 }
+
+/// A characteristic of 1 or more with m > 1 has no value here: the call stays, at once (it used to run without end).
+#[test]
+fn characteristic_and_parameter_beyond_one_stay() {
+    let mut e = CoreEngine::new();
+    let t = std::time::Instant::now();
+    assert_eq!(ev(&mut e, "elliptic_pi(2.0, 1.5)"), "elliptic_pi(2.0, 1.5)");
+    assert_eq!(ev(&mut e, "elliptic_pi(3.0, 1.5)"), "elliptic_pi(3.0, 1.5)");
+    assert_eq!(ev(&mut e, "elliptic_pi(2.0, 1.0)"), "elliptic_pi(2.0, 1.0)");
+    assert!(t.elapsed().as_secs() < 30, "{:?}", t.elapsed());
+}

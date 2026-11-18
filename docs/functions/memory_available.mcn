@@ -43,7 +43,7 @@ memory_available() > 0
 #% cell
 memory_constrained(hankel_matrix(1000), 10^6)
 #% output
-#! failure(limit, memory, [1000, 1000])
+#! failure(limit, memory)
 
 #% section
 # See also

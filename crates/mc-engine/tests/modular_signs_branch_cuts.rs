@@ -169,10 +169,10 @@ fn mathieu_functions_at_high_precision() {
 #[test]
 fn matrix_builders_refuse_what_does_not_fit() {
     let mut e = CoreEngine::new();
-    assert_eq!(ev(&mut e, "memory_constrained(hankel_matrix(1000), 10^6)"), "failure(limit, memory, [1000, 1000])");
-    assert_eq!(ev(&mut e, "memory_constrained(hankel_matrix(10000, target_structure: automatic), 10^8)"), "failure(limit, memory, [10000, 10000])");
-    assert_eq!(ev(&mut e, "memory_constrained(toeplitz_matrix(700), 10^6)"), "failure(limit, memory, [700, 700])");
-    assert_eq!(ev(&mut e, "{let m = constant_array(1, [600, 600]); memory_constrained(upper_triangularize(m), 10^7)}"), "failure(limit, memory, [600, 600])");
+    assert_eq!(ev(&mut e, "memory_constrained(hankel_matrix(1000), 10^6)"), "failure(limit, memory)");
+    assert_eq!(ev(&mut e, "memory_constrained(hankel_matrix(10000, target_structure: automatic), 10^8)"), "failure(limit, memory)");
+    assert_eq!(ev(&mut e, "memory_constrained(toeplitz_matrix(700), 10^6)"), "failure(limit, memory)");
+    assert_eq!(ev(&mut e, "{let m = constant_array(1, [600, 600]); memory_constrained(upper_triangularize(m), 10^7)}"), "failure(limit, memory)");
     holds(&mut e, "memory_constrained(memory_available() <= 10^6, 10^6)");
     // what fits is built, and equals the entrywise definitions
     assert_eq!(ev(&mut e, "dimensions(memory_constrained(hankel_matrix(300), 10^8))"), "[300, 300]");

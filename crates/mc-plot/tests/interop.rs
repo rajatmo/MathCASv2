@@ -64,7 +64,7 @@ fn quantities_put_their_units_on_the_axes() {
     let mut e = CoreEngine::new();
     // a list of quantities: magnitudes in the first one's unit, the unit as the y label
     let svg_text = svg(&mut e, "list_plot([quantity(1, \"m\"), quantity(30, \"cm\"), quantity(2, \"m\")])");
-    assert!(svg_text.contains("aria-label=\"m\""), "unit label");
+    assert!(svg_text.contains("aria-label=\"Meters\""), "unit label");
     let s = series(&sidecar(&mut e, "list_plot([quantity(1, \"m\"), quantity(30, \"cm\"), quantity(2, \"m\")])"));
     let ys: Vec<f64> = s[0].1.iter().map(|p| p.1).collect();
     assert!((ys[1] - 0.3).abs() < 1e-12, "{ys:?}");

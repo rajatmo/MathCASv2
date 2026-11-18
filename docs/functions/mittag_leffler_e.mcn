@@ -53,7 +53,7 @@ mittag_leffler_e(1, 2, 1.0)
 #% cell
 mittag_leffler_e(0.5, 0.8) - exp(0.64)*erfc(-0.8)
 #% output
-#= 0.0
+#= 4.440892098500626e-16
 
 #% text
 # `E_2(z^2)` is `cosh(z)`:

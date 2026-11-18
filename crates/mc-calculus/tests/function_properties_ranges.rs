@@ -68,8 +68,8 @@ fn injective_moebius() {
 
 #[test]
 fn poles_and_piecewise() {
-    // the order of zeta's pole came from the growth of |zeta| near 1 (no limit in closed form): the call stays
-    assert_eq!(ev("function_poles(zeta(x), x)"), "function_poles(zeta(x), x)");
+    // the order of zeta's pole is read from its Laurent series at 1
+    assert_eq!(ev("function_poles(zeta(x), x)"), "[[1, 1]]");
     assert_eq!(ev("function_poles(gamma(x), x)"), "[[conditional_expression(-c(1), element(c(1), integers) and c(1) >= 0), 1]]");
     assert_eq!(ev("function_discontinuities(piecewise([[1, x < 0], [2, x >= 0]]), x)"), "x == 0");
     assert_eq!(ev("function_continuous(piecewise([[1, x < 0], [2, x >= 0]]), x)"), "false");

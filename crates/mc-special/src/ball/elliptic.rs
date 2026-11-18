@@ -817,6 +817,10 @@ pub fn elliptic_pi(n: &Real, m: &Real, p: u64) -> Option<CBall> {
         let na = arg(n, wp)?;
         let ma = arg(m, wp)?;
         let mc = one_minus(&ma, wp);
+        // m >= 1 is not this function's (the iteration below does not end there): see `elliptic_pi_beyond`
+        if !is_pos(&mc) {
+            return None;
+        }
         let omn = one_minus(&na, wp);
         Some(real(pi_complete_b(&na.b, &ma.b, &mc, &omn, || one_minus_ratio(&ma, &na, wp), wp)?))
     })
