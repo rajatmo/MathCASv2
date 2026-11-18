@@ -13,6 +13,9 @@
 # `coth(x)` stays unevaluated for symbolic `x`; where `tanh(x)` has an exact value, `coth(x)` is its reciprocal.
 
 #% item
+# At an exact pole, `k*pi*im` (k an integer), the value is `failure(pole, coth(...))`, as the special functions answer at their poles (`gamma(0)`); `coth(0)` is such a failure. Plots treat a pole as a gap.
+
+#% item
 # Machine numbers, balls and complex numbers give numerical values.
 
 #% item

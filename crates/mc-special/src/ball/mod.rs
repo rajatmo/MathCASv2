@@ -95,6 +95,20 @@ pub fn hull(lo: &Float, hi: &Float, p: u64) -> Ball {
     Ball { rad: b.rad.add(&Mag::from_float_up(&half)).add(&Mag::from_float_up(&shift)), mid: b.mid }
 }
 
+/// The intersection of two enclosures of the same real number (the first when they do not meet, which only
+/// rounding can cause), with an exact midpoint.
+pub fn meet(a: &Ball, b: &Ball) -> Ball {
+    let (a0, a1, b0, b1) = (lower(a), upper(a), lower(b), upper(b));
+    let lo = if a0.cmp_exact(&b0).is_ge() { a0 } else { b0 };
+    let hi = if a1.cmp_exact(&b1).is_le() { a1 } else { b1 };
+    if lo.cmp_exact(&hi).is_gt() {
+        return a.clone();
+    }
+    let s = lo.add_exact(&hi);
+    let d = hi.sub_exact(&lo);
+    Ball { mid: Float::new(s.neg, s.man, s.exp - 1), rad: Mag::from_float_up(&Float::new(false, d.man, d.exp - 1)) }
+}
+
 /// The nearest double to a float (±0 or ±inf outside the range).
 pub fn f64_of(f: &Float) -> f64 {
     mc_arith::num::float::dyadic_to_f64(f.neg, &f.man, f.exp)

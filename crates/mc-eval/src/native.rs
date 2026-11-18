@@ -289,6 +289,13 @@ impl<'h> NativeCx<'_, '_, 'h> {
         self.cx.reads |= crate::eval::bit(s);
         self.ev.k.defs.own(self.ev.heap, s)
     }
+    /// The own value of a symbol the session sets between statements with [`crate::Kernel::set_own_unseen`] (the
+    /// history of a notebook): the read is not recorded, and the evaluation becomes volatile instead (it is not
+    /// remembered), so a later setting needs to make no remembered result stale.
+    pub fn value_volatile(&mut self, s: Sym) -> Option<T<'h>> {
+        self.cx.volatile += 1;
+        self.ev.k.defs.own(self.ev.heap, s)
+    }
     /// The replacement the first matching rule gives for `t`, without evaluating it.
     pub fn rewrite_once(&mut self, t: T<'h>) -> Res<Option<T<'h>>> {
         self.ev.dispatch(self.cx, t)

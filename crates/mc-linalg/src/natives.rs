@@ -151,6 +151,7 @@ impl Native for LinalgNative {
             return Ok(Reply::Decline);
         }
         let env = Env::new(Arith::new(h).with_stop(self.stop.clone()), self.name);
+        env.memory_left.set(cx.memory_left());
         let _scope = StopScope::enter(Some(&self.stop));
         let mut tick = Tick { cx, stop: &self.stop, abort: None };
         let r = {

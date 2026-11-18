@@ -87,6 +87,9 @@ pub struct Env<'h> {
     /// the function's name
     pub name: &'static str,
     list: T<'h>,
+    /// the bytes the evaluation may still allocate (the session's budget or an enclosing `memory_constrained` cap;
+    /// unbounded unless the native sets it), against which the products are sized before they are built
+    pub memory_left: std::cell::Cell<usize>,
 }
 
 impl<'h> Env<'h> {
@@ -94,7 +97,11 @@ impl<'h> Env<'h> {
     pub fn new(ar: Arith<'h, Heap>, name: &'static str) -> Env<'h> {
         let h = ar.store();
         let list = h.sym_term(h.sym(names::LIST));
-        Env { ar, name, list }
+        Env { ar, name, list, memory_left: std::cell::Cell::new(usize::MAX) }
+    }
+    /// Would a result of `entries` entries of `bytes` bytes each exceed the memory left?
+    pub fn over_memory(&self, entries: usize, bytes: usize) -> bool {
+        entries.saturating_mul(bytes) > self.memory_left.get()
     }
     /// The store.
     pub fn h(&self) -> &'h Heap {

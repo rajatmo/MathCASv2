@@ -823,7 +823,7 @@ pub(crate) struct Branch<'h> {
 }
 
 /// The next generated parameter `c(k)` for a value: k is one more than the largest index in `v`.
-fn next_parameter<'h>(env: &Env<'h>, v: T<'h>) -> T<'h> {
+pub(crate) fn next_parameter<'h>(env: &Env<'h>, v: T<'h>) -> T<'h> {
     let h = env.h();
     let mut k = 0i64;
     let mut stack = mc_api::walk::Walk::new(v);

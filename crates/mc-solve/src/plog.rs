@@ -94,7 +94,9 @@ pub(crate) fn solve<'h>(env: &Env<'h>, e: T<'h>, y: T<'h>, k: T<'h>, x: T<'h>, m
                 out.push(vec![(x, value(w))]);
             }
         } else if env.cfg.periodic {
-            let cp = h.app(env.gen, &[env.int(1)]);
+            // a parameter of its own: the equation may already hold c(1) (the period of an outer inverse,
+            // `sin(x + e^x - 1) == 1/2`), and the branch of W is independent of it
+            let cp = crate::solve::next_parameter(env, e);
             let w = env.call("product_log", &[cp, z]);
             let cond = env.call("element", &[cp, env.sym("integers")]);
             out.push(vec![(x, env.call("conditional_expression", &[value(w), cond]))]);
@@ -128,7 +130,9 @@ pub(crate) fn solve<'h>(env: &Env<'h>, e: T<'h>, y: T<'h>, k: T<'h>, x: T<'h>, m
                 out.push(vec![(x, value(w))]);
             }
         } else if env.cfg.periodic {
-            let cp = h.app(env.gen, &[env.int(1)]);
+            // a parameter of its own: the equation may already hold c(1) (the period of an outer inverse,
+            // `sin(x + e^x - 1) == 1/2`), and the branch of W is independent of it
+            let cp = crate::solve::next_parameter(env, e);
             let w = env.call("product_log", &[cp, z]);
             let cond = env.call("element", &[cp, env.sym("integers")]);
             out.push(vec![(x, env.call("conditional_expression", &[value(w), cond]))]);

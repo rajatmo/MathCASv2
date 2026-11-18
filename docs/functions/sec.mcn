@@ -13,6 +13,9 @@
 # `sec(x)` stays unevaluated for symbolic `x`; where `cos(x)` has an exact value, `sec(x)` is its reciprocal.
 
 #% item
+# At an exact pole, `pi/2 + k*pi` (k an integer number, or a symbol proved an integer), the value is `failure(pole, sec(...))`, as the special functions answer at their poles (`gamma(0)`). Plots treat a pole as a gap.
+
+#% item
 # Machine numbers, balls and complex numbers give numerical values.
 
 #% item

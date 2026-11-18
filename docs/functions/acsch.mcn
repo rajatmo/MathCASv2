@@ -13,6 +13,9 @@
 # For complex `z` the principal value is `asinh(1/z)`.
 
 #% item
+# `acsch(0)` is `failure(pole, acsch(0))`: the function tends to `inf` from the right and to `-inf` from the left. One-sided infinities (`atanh(1)`, `acoth(1)`, `log(0)`) are the infinities themselves.
+
+#% item
 # Exact special values and odd symmetry are applied; other exact arguments stay unevaluated.
 
 #% item

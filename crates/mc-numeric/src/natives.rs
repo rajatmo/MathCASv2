@@ -158,6 +158,16 @@ impl Native for Elementary {
         if let Some(r) = Exact::new(h, &ar, &self.nm).simplify(self.f, *x) {
             return Ok(Reply::Again(r));
         }
+        // tan and tanh at an exact pole (cos x, cosh x exactly 0: x = pi/2 + k pi, i (pi/2 + k pi), the multiple
+        // proved an integer) are `failure(pole, call)`, as the special functions at theirs; the poles all hold pi
+        if matches!(self.f, Fun::Tan | Fun::Tanh) && ar.num(*x).is_none() && mentions_pi(h, *x) && !has_inexact(h, *x) {
+            let base = if self.f == Fun::Tan { "cos" } else { "cosh" };
+            let c = cx.eval(h.call(h.sym(base), &[*x]))?;
+            if matches!(h.view(c), View::Int(0)) {
+                let tag = h.sym_term(h.sym("pole"));
+                return Ok(Reply::Done(h.call(h.sym(names::FAILURE), &[tag, t])));
+            }
+        }
         // asin(sin(c)), acos(cos(c)), atan(tan(c)) at a numeric c: its representative in the principal strip
         if matches!(self.f, Fun::Asin | Fun::Acos | Fun::Atan) && ar.num(*x).is_none() {
             let mut fx = crate::formula::Fx { cx: &mut *cx, ar: Arith::new(h), h };
@@ -277,14 +287,105 @@ impl Native for NumericN {
         if stopped() {
             return interrupted(cx, t);
         }
-        Ok(if !r.reached {
-            Reply::Done(failure(h, failure_tags::PRECISION_NOT_REACHED, r.term))
-        } else if r.is_number {
-            Reply::Done(r.term)
-        } else {
-            Reply::Again(r.term)
-        })
+        if !r.reached {
+            return Ok(Reply::Done(failure(h, failure_tags::PRECISION_NOT_REACHED, r.term)));
+        }
+        if r.is_number {
+            return Ok(Reply::Done(r.term));
+        }
+        // a call outside numerical evaluation (a function defined by a formula) of numbers that n made balls at d
+        // digits: the call itself may lose many digits to cancellation (a series whose terms reach 10^100 for a value
+        // near 1), so for an exact input whose value is a real number short of d digits the arguments are taken again
+        // at d plus the digits lost (twice at most, each time only if the previous attempt gained digits, and at most
+        // d + 1000 digits) and the value rounded to d digits; a value that stays short is the first one, as before
+        if let (Target::Digits(dg), false) = (target, has_inexact(h, x)) {
+            let v = cx.eval(r.term)?;
+            // the correct digits of a real ball (None: not a real ball, or no relative accuracy at all)
+            let digits = |v: T<'h>| match Arith::new(h).num(v) {
+                Some(Num::Real(r @ Real::Ball(..))) => {
+                    let Real::Ball(b, _) = &r else { return None };
+                    let rf = b.rad.to_float();
+                    let (m, rad) = (r.to_f64().abs(), mc_arith::num::float::dyadic_to_f64(rf.neg, &rf.man, rf.exp));
+                    (m > 0.0 && m.is_finite()).then(|| if rad == 0.0 { f64::INFINITY } else { (m / rad).log10() })
+                }
+                _ => None,
+            };
+            let Some(mut got) = digits(v) else { return Ok(Reply::Done(v)) };
+            if got >= dg as f64 {
+                return Ok(Reply::Done(v));
+            }
+            let mut k = dg;
+            for _ in 0..2 {
+                let next = k + ((dg as f64 - got).ceil() as u64).max(8) + 8;
+                if next > dg + 1000 {
+                    break;
+                }
+                k = next;
+                let r2 = numeval::numericize(h, &ar, &self.nm, x, Target::Digits(k), &mut |n| cx.tick(n))?;
+                if stopped() {
+                    return interrupted(cx, t);
+                }
+                if !r2.reached || r2.is_number {
+                    break;
+                }
+                let v2 = cx.eval(r2.term)?;
+                let Some(g2) = digits(v2) else { break };
+                if g2 >= dg as f64 {
+                    return Ok(Reply::Again(h.call(h.sym("n"), &[v2, h.int(dg as i64)])));
+                }
+                if g2 <= got + 1.0 {
+                    break;
+                }
+                got = g2;
+            }
+            return Ok(Reply::Done(v));
+        }
+        Ok(Reply::Again(r.term))
     }
+}
+
+/// Does `t` mention the constant `pi`? (Shared subterms once.)
+fn mentions_pi<'h>(h: &'h Heap, t: T<'h>) -> bool {
+    let pi = h.sym_term(h.sym("pi"));
+    let mut seen = rustc_hash::FxHashSet::default();
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        if u == pi {
+            return true;
+        }
+        if !seen.insert(u) {
+            continue;
+        }
+        if let View::App { head, args } = h.view(u) {
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    false
+}
+
+/// Does `t` contain an inexact number (a machine real or a ball)? Shared subterms are visited once (a term of 60
+/// nested pairs of one part has 2^60 leaves but 61 distinct subterms).
+fn has_inexact<'h>(h: &'h Heap, t: T<'h>) -> bool {
+    let ar = Arith::new(h);
+    let mut seen = rustc_hash::FxHashSet::default();
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
+        if let Some(n) = ar.num(u) {
+            if n.kind() != mc_arith::Kind::Exact {
+                return true;
+            }
+            continue;
+        }
+        if let View::App { head, args } = h.view(u) {
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    false
 }
 
 /// A number of decimal digits: a positive integer, or a positive finite machine real rounded up (a precision of

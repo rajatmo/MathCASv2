@@ -160,8 +160,11 @@ fn inverse_jacobi_functions_invert_at_complex_arguments() {
             assert!(err < 1e-9, "{f}({x}, {m}): {r}");
         }
     }
-    // cd(u) = 0.2 + i for u = 1.492 - 1.018 i (2K - the formula's first answer)
-    assert!(s.run("inverse_jacobi_cd(0.2 + im, 0.1 - 0.3*im)").contains("1.49215077803159"));
+    // cd(u) = 0.2 + i for u = 1.492 - 1.018 i (2K - the formula's first answer); the last digit of the machine value
+    // differs between the platforms' maths libraries (Linux 1.492150778031589), so the value is compared within 1e-13
+    // of the 20-digit one, 1.4921507780315904 - 1.0183489578518048 i
+    let r = s.run("abs(inverse_jacobi_cd(0.2 + im, 0.1 - 0.3*im) - (1.4921507780315904 - 1.0183489578518048*im))");
+    assert!(number(&r) < 1e-13, "{r}");
 }
 
 #[test]

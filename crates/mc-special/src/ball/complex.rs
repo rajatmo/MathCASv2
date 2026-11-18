@@ -152,8 +152,37 @@ fn stirling(x: &CBall, p: u64, w: u64) -> Option<CBall> {
     Some(widen(s, 2f64.powf(lb + 1.0), w))
 }
 
-/// The analytic log gamma on a complex ball.
+/// The analytic log gamma on a complex ball. A ball of positive radius that does not meet the cut (-inf, 0] also
+/// takes the mean value form log Gamma(c) + psi(Z) (Z - c) (the segment from the centre c to any point of the box Z
+/// stays in Z, where log gamma is analytic, so the difference is z - c times an average of psi over the segment,
+/// inside the convex enclosure psi(Z)), met with the direct enclosure: the direct one widens by the dependency of
+/// the terms of Stirling's series and of the logarithms of the shift (11 times the radius at 7/4 + 5/6 i, where
+/// |psi| is 0.6), the mean value form only to second order.
 pub fn log_gamma(z: &CBall, p: u64) -> Option<CBall> {
+    let direct = log_gamma_direct(z, p)?;
+    if z.re.rad.is_zero() && z.im.rad.is_zero() {
+        return Some(direct);
+    }
+    let off_cut = !z.im.contains_zero() || super::is_pos(&z.re);
+    if !off_cut {
+        return Some(direct);
+    }
+    let w = p + 20;
+    let c = CBall::new(Ball::exact(z.re.mid.clone()), Ball::exact(z.im.mid.clone()));
+    let mvf = (|| {
+        let fc = log_gamma_direct(&c, p)?;
+        let d = super::cseries::digamma_at(z, 64)?;
+        let dz = z.sub(&c, w);
+        Some(fc.add(&d.mul(&dz, w), w))
+    })();
+    Some(match mvf {
+        Some(m) => CBall::new(super::meet(&direct.re, &m.re), super::meet(&direct.im, &m.im)).round(p),
+        None => direct,
+    })
+}
+
+/// The analytic log gamma on a complex ball by Stirling's series at z + N less the logarithms of the shift.
+fn log_gamma_direct(z: &CBall, p: u64) -> Option<CBall> {
     let w = p + 20;
     let n = stirling_shift(z, p)?;
     let shift = log_shift(z, n, w)?;
@@ -417,8 +446,9 @@ mod tests {
         (m.m as f64) * 2f64.powi(m.e as i32)
     }
 
-    /// The radius of gamma on a grid of centres and radii is never wider than that of the logarithm form by more
-    /// than a few percent (and a few units of the last place for points).
+    /// The radius of gamma on a grid of centres and radii is never wider than that of the logarithm form (exp of
+    /// Stirling's series less the shift, without the mean value form that log gamma now also takes) by more than a
+    /// few percent (and a few units of the last place for points).
     #[test]
     fn gamma_is_as_tight_as_the_logarithm_form() {
         let p = 64;
@@ -429,7 +459,8 @@ mod tests {
                     let rad = if k == 0 { Mag::ZERO } else { Mag::pow2(k) };
                     let part = |n: i64| Ball { mid: Ball::from_ratio(n, 2, p).mid, rad };
                     let z = CBall::new(part(re), part(im));
-                    let (Some(a), Some(b)) = (gamma(&z, p), gamma_by_log(&z, p)) else { continue };
+                    let direct_log = log_gamma_direct(&z, p + 32).and_then(|l| cball::exp(&l, p + 16)).map(|v| v.round(p));
+                    let (Some(a), Some(b)) = (gamma(&z, p), direct_log) else { continue };
                     let (ra, rb) = (mag(&a.re.rad).max(mag(&a.im.rad)), mag(&b.re.rad).max(mag(&b.im.rad)));
                     let size = f64_of(&b.re).abs().max(f64_of(&b.im).abs());
                     let slack = size * 2f64.powi(-(p as i32) + 8);

@@ -119,13 +119,13 @@ impl Native for Out {
             },
             _ => return Ok(Reply::Decline),
         };
-        let line = cx.value(h.sym(LINE)).and_then(|t| match h.view(t) {
+        let line = cx.value_volatile(h.sym(LINE)).and_then(|t| match h.view(t) {
             View::Int(n) => Some(n),
             _ => None,
         });
         // relative to the running statement; outside a numbered evaluation only absolute numbers make sense
         let n = if k > 0 { Some(k) } else { line.map(|l| l + k).filter(|&n| n > 0) };
-        let value = n.and_then(|n| cx.value(h.sym(&entry(n as u64))));
+        let value = n.and_then(|n| cx.value_volatile(h.sym(&entry(n as u64))));
         Ok(Reply::Done(match value {
             Some(v) => without_display_wrapper(h, v),
             None => failure(h, &[h.int(n.unwrap_or(k))], "history"),

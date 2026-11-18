@@ -17,6 +17,30 @@ fn heat_equation_dirichlet() {
     assert!(s.run("rewrite(u(0.1, 2), sol)").starts_with("failure(out_of_range"));
 }
 
+/// The heat equation on [0, 5] with u(0, x) = 0, u(t, 0) = sin t, u(t, 5) = 0 against its series solution
+/// u = sin(t) (1 - x/5) + sum_n b_n(t) sin(n pi x/5), b_n = -(2/(n pi)) (l_n cos t + sin t - l_n e^(-l_n t))/(l_n^2 + 1),
+/// l_n = (n pi/5)^2 (the values below: 400,000 terms), including the boundary layer of the first hundredth of time,
+/// where the three-point differences were 4% off.
+#[test]
+fn heat_equation_with_a_moving_end_against_the_series_solution() {
+    let mut s = Sys::new();
+    s.run("sol = n_dsolve([d(u(t, x), t) == d(u(t, x), x, x), u(0, x) == 0, u(t, 0) == sin(t), u(t, 5) == 0], u, [t, 0, 10], [x, 0, 5]); null");
+    let series = [
+        (10.0, 1.0, 0.06845657927061878),
+        (5.0, 0.5, -0.6904918158486054),
+        (2.0, 2.0, 0.23010366013780686),
+        (1.0, 0.25, 0.6469879943648084),
+        (7.5, 3.0, -0.08758564453508388),
+        (7.011849688903379, 1.0416666666666667, 0.0031247235018663664),
+        (0.1, 0.3, 0.030072396277534257),
+        (0.01, 0.15, 0.0013159516241787995),
+    ];
+    for (t, x, exact) in series {
+        let v = number(&s.run(&format!("rewrite(u({t}, {x}), sol)")));
+        assert!((v - exact).abs() < 2e-7, "u({t}, {x}) = {v}, series {exact}");
+    }
+}
+
 /// The wave equation u_tt = u_xx with u(0, x) = sin(pi x), u_t(0, x) = 0: u = cos(pi t) sin(pi x).
 #[test]
 fn wave_equation() {

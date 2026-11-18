@@ -2,7 +2,7 @@
 //!
 //! Search strings are literal (no patterns). Several search strings are tried at each position in the order given,
 //! the leftmost occurrence wins and occurrences do not overlap (decision S.3).
-use crate::ctx::{charge, take, too_large, Lib, MAX_BYTES};
+use crate::ctx::{charge, over_memory, take, too_large, Lib};
 use crate::scan;
 use mc_core::{Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
@@ -149,7 +149,7 @@ pub(crate) fn string_replace<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<
         let Some((p, k)) = next_match(cx, s, start, &needles)? else { break };
         out.push_str(&s[start..p]);
         out.push_str(rs[k].1);
-        if out.len() > MAX_BYTES {
+        if over_memory(cx, out.len()) {
             return Ok(too_large(lib, h, t));
         }
         start = p + rs[k].0.len();

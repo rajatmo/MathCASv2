@@ -402,6 +402,10 @@ pub(crate) fn outer<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     if total.saturating_mul(xss.len() as u128 + 1) > MAX_CELLS {
         return Ok(Reply::Done(lib.too_large(h, t)));
     }
+    // each result cell is a call of f with k arguments (k + 1 handles) beside the list cell: against the memory left
+    if crate::ctx::over_memory(cx, (total as usize).saturating_mul(xss.len() + 2)) {
+        return Ok(Reply::Done(lib.too_large(h, t)));
+    }
     let mut chosen = Vec::with_capacity(xss.len());
     let v = outer_at(cx, f, head, xss, depth, 0, &mut chosen)?;
     // a structure of fixed shape does not read the loop signals: `break()` or `continue()` from `f` is an ordinary

@@ -553,7 +553,7 @@ impl CoreEngine {
                 // compiler's registration
                 guard::catch(|| -> Result<Finished, EngineError> {
                     if let Some(nr) = new_line {
-                        k.set_own(h.sym(history::LINE), h.int(nr as i64));
+                        k.set_own_unseen(h.sym(history::LINE), h.int(nr as i64));
                     }
                     let t = k.roots.get(h, i);
                     let assigned = assigned_symbol(h, t);
@@ -577,7 +577,7 @@ impl CoreEngine {
                     // `x = v` (whose value is `null`) records the value assigned
                     let recorded = if is_null { assigned.and_then(|s| k.value_of(h, s)) } else { Some(e.value) };
                     if let (Some(nr), Some(_), Some(v)) = (term.number, term.ends, recorded) {
-                        k.set_own(h.sym(&history::entry(nr)), v);
+                        k.set_own_unseen(h.sym(&history::entry(nr)), v);
                     }
                     let show = !failure && !is_null && term.ends == Some(true);
                     let mut done = Finished { output, fail: None, value: None, last: None };

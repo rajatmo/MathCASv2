@@ -196,24 +196,28 @@ pub(crate) fn apply<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>], n
         }
         return Ok(Some(fx.list(&out)));
     }
-    // the natural enclosure over the boxes, met with the mean value form f(c) + f'(B) (B - c) when one argument is
-    // spread (the segment from c to any point of the convex box B stays in B, so f(z) - f(c) is z - c times an
-    // average of f' over it, inside the convex enclosure of f'(B)): the natural form widens by the dependency of
-    // the terms of a series, the mean value form only to second order in the radius
-    let natural = hook(&name, &balls, None, P);
-    let mvf = match spread[..] {
-        [i] => (|| {
-            let fc = hook(&name, &centres, None, P)?;
-            let d = hook(&name, &balls, Some(i), P)?;
-            Some(fc.add(&d.mul(&balls[i].sub(&centres[i], P), P), P))
-        })(),
-        _ => None,
+    // the natural enclosure over the boxes, met with the mean value form f(c) + sum_i d_i f(B) (B_i - c_i) over the
+    // spread arguments when the function has an enclosure of each of those partial derivatives (the segment from c
+    // to any point of the convex box B stays in B, so f(z) - f(c) is the sum of z_i - c_i times averages of the
+    // partials over it, inside the convex enclosures d_i f(B)): the natural form widens by the dependency of the
+    // terms of a series, the mean value form only to second order in the radii
+    // no natural enclosure: a pole or a cut may be inside, where the mean value form does not hold
+    let Some(natural) = hook(&name, &balls, None, P) else { return Ok(None) };
+    let mvf = if spread.is_empty() {
+        None
+    } else {
+        (|| {
+            let mut v = hook(&name, &centres, None, P)?;
+            for &i in &spread {
+                let d = hook(&name, &balls, Some(i), P)?;
+                v = v.add(&d.mul(&balls[i].sub(&centres[i], P), P), P);
+            }
+            Some(v)
+        })()
     };
-    let v = match (natural, mvf) {
-        (Some(a), Some(b)) => CBall::new(meet(&a.re, &b.re), meet(&a.im, &b.im)),
-        (Some(a), None) => a,
-        // no natural enclosure: a pole or a cut may be inside, where the mean value form does not hold
-        (None, _) => return Ok(None),
+    let v = match mvf {
+        Some(b) => CBall::new(meet(&natural.re, &b.re), meet(&natural.im, &b.im)),
+        None => natural,
     };
     Ok(written(fx, &v))
 }

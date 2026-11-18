@@ -234,8 +234,10 @@ fn images_of_principal_branches() {
         let r = function_range(p[1](z), z, w, complexes)
         for a in vals { for b in vals {
           let y = a + im*b
-          let gy = simplify(complex_expand(p[2](y)))
-          if is_number(n(gy)) and abs(n(gy)) < 10^10 then {
+          # the forward function at its own poles (sech(-i pi/2)) is the pole failure: those points are skipped, as
+          # the large values beyond 10^10 are
+          let gy = if is_failure(p[2](y)) then null else simplify(complex_expand(p[2](y)))
+          if not (gy === null) and is_number(n(gy)) and abs(n(gy)) < 10^10 then {
             let inr = simplify(rewrite(r, w -> y))
             let dd = n(p[1](gy), 30) - n(y, 30)
             let d = abs(re(dd)) + abs(im_part(dd))

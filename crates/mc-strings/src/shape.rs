@@ -2,7 +2,7 @@
 //! `string_reverse`, `to_upper`, `to_lower`, `string_pad`, `string_trim`.
 //!
 //! Positions count characters (Unicode scalar values), 1-based, negative from the end (decision S.1).
-use crate::ctx::{charge, take, too_large, Lib, MAX_BYTES};
+use crate::ctx::{charge, over_memory, take, too_large, Lib};
 use mc_core::{Heap, Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
 
@@ -236,7 +236,7 @@ pub(crate) fn string_pad<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
     }
     let missing = n - len;
     let pad_len = pad.chars().count() as u64;
-    if missing.saturating_mul(pad.len() as u64 / pad_len) > MAX_BYTES as u64 {
+    if over_memory(cx, (missing.saturating_mul(pad.len() as u64 / pad_len) as usize).saturating_add(s.len())) {
         return Ok(too_large(lib, h, t));
     }
     charge(cx, (missing as usize).saturating_mul(4) + s.len())?;

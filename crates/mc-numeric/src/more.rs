@@ -15,15 +15,33 @@ use mc_eval::Res;
 
 type R<'h> = Res<Option<T<'h>>>;
 
-/// f(x) = 1/base(x): `Some` for a value of base(x) without base calls, the parity forms `f(-x)`, or `None`.
+/// `failure(pole, f(x))`: an exact argument where f has a pole on both sides (the base function's value is exactly
+/// 0), as the special functions answer at their poles (`gamma(0)`).
+pub(crate) fn pole<'h>(fx: &Fx<'_, '_, '_, 'h>, me: &str, x: T<'h>) -> T<'h> {
+    fx.call("failure", &[fx.sym("pole"), fx.call(me, &[x])])
+}
+
+/// f(x) = 1/base(x): `Some` for a value of base(x) without base calls, the parity forms `f(-x)`, the pole failure
+/// where base(x) is exactly 0 (an exact or symbolic x: the sine of an integer multiple of pi is 0 only when the
+/// multiple is proved an integer), or `None`.
 fn reciprocal<'h>(fx: &mut Fx<'_, '_, '_, 'h>, base: &str, me: &str, x: T<'h>) -> R<'h> {
     if fx.infinity(x).is_none() && fx.num(x).is_none() {
         // symbolic: only parity (cos(-x) = cos(x) makes sec(-x) = sec(x), sin(-x) = -sin(x) makes csc(-x) = -csc(x))
         let Some(y) = fx.negated(x) else {
             let g = fx.eval(fx.call(base, &[x]))?;
-            return Ok((!fx.contains(g, base) && !fx.is_int(g, 0)).then(|| reciprocal_form(fx, g)));
+            if fx.is_int(g, 0) {
+                return Ok(Some(pole(fx, me, x)));
+            }
+            // the base at its own pole: the reciprocal is 0 there (cot(pi/2) = 0)
+            if fx.call_of(g, "failure").is_some_and(|a| a.first().is_some_and(|&t| t == fx.sym("pole"))) {
+                return Ok(Some(fx.int(0)));
+            }
+            return Ok((!fx.contains(g, base)).then(|| reciprocal_form(fx, g)));
         };
         let g = fx.eval(fx.call(base, &[x]))?;
+        if fx.is_int(g, 0) {
+            return Ok(Some(pole(fx, me, x)));
+        }
         let by = fx.call(base, &[y]);
         if g == by {
             return Ok(Some(fx.call(me, &[y])));
@@ -34,6 +52,10 @@ fn reciprocal<'h>(fx: &mut Fx<'_, '_, '_, 'h>, base: &str, me: &str, x: T<'h>) -
         return Ok(None);
     }
     let g = fx.eval(fx.call(base, &[x]))?;
+    // an exact zero of the base at an exact number (an inexact one takes the numeric rule)
+    if fx.is_int(g, 0) && fx.num(x).is_some_and(|n| n.is_exact()) {
+        return Ok(Some(pole(fx, me, x)));
+    }
     if fx.contains(g, base) || fx.is_int(g, 0) {
         return Ok(None);
     }
@@ -346,6 +368,10 @@ fn acsch_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     }
     if let Some(v) = odd(fx, "acsch", a[0]) {
         return Ok(Some(v));
+    }
+    // acsch(0): +inf from the right, -inf from the left, a pole
+    if fx.is_int(a[0], 0) {
+        return Ok(Some(pole(fx, "acsch", a[0])));
     }
     inv_recip(fx, "asinh", a[0], None)
 }

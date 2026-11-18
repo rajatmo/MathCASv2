@@ -13,6 +13,9 @@
 # `cot(x)` stays unevaluated for symbolic `x`; where `tan(x)` has an exact value, `cot(x)` is its reciprocal.
 
 #% item
+# At an exact pole, `k*pi` (k an integer number, or a symbol proved an integer), the value is `failure(pole, cot(...))`, as the special functions answer at their poles (`gamma(0)`); at the poles of `tan` the value is 0. Plots treat a pole as a gap.
+
+#% item
 # Machine numbers, balls and complex numbers give numerical values.
 
 #% item

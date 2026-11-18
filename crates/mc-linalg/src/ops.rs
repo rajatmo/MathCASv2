@@ -176,6 +176,12 @@ fn dot2<'h>(env: &Env<'h>, a: &Arr<'h>, b: &Arr<'h>, m: &mut Meter) -> WorkResul
         }
     };
     let (br, bc) = (n2, c);
+    // the result's entries against the memory left: 8 bytes a machine real, else a handle per entry and a sum of n
+    // products (the factors exist already)
+    let per = if a.domain.join(b.domain) == Domain::Real { 8 } else { 16 * (n + 2) };
+    if env.over_memory(r.saturating_mul(c), per) {
+        return Err(Halt::Memory);
+    }
     Ok(Ok(match a.domain.join(b.domain) {
         Domain::Real => {
             let am = a.reals(env);
@@ -290,6 +296,11 @@ pub fn kronecker_product<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> Wo
         let (ra, ca, rb, cb) = (acc.rows(), acc.cols(), b.rows(), b.cols());
         let (r, c) = (ra * rb, ca * cb);
         if r.checked_mul(c).is_none_or(|e| e > MAX_ENTRIES) {
+            return Err(Halt::Memory);
+        }
+        // 8 bytes a machine real, else a handle and a product per entry: against the memory left
+        let per = if acc.domain.join(b.domain) == Domain::Real { 8 } else { 48 };
+        if env.over_memory(r * c, per) {
             return Err(Halt::Memory);
         }
         m.step((r * c) as u64 + 1)?;

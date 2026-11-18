@@ -13,6 +13,9 @@
 # `tanh(0)` is 0 and `tanh(-x)` is `-tanh(x)`; the value tends to 1 as `x` tends to `inf`.
 
 #% item
+# At an exact pole, `(1/2 + k)*pi*im` (k an integer), the value is a pole failure (`tanh(i x)` is `i tan(x)`, so the failure names `tan`), as the special functions answer at their poles. Plots treat a pole as a gap.
+
+#% item
 # Machine numbers, balls and complex numbers give numerical values, without overflow for large arguments. `tanh` is listable.
 
 #% section

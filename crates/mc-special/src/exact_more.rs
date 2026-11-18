@@ -610,6 +610,18 @@ impl<'a, 'h> More<'a, 'h> {
                     let pieces = self.call("list", &[self.call("list", &[value, on_plane]), self.call("list", &[self.sym("complex_infinity"), pole])]);
                     return self.val(self.call("piecewise", &[pieces, self.n(0)]));
                 }
+                // the integral diverges at m = 1 (1/cos t at t = pi/2, DLMF 19.6.1), at n = 1 (1/cos^2 t there) and at
+                // n = m > 1 (the pole of 1/(1 - n sin^2 t) meets the branch point of sqrt(1 - m sin^2 t), where the
+                // integrand grows as (t0 - t)^(-3/2)); for n = m < 1 it is E(m)/(1 - m)
+                if let (Some(n), Some(m)) = (self.rat(a[0]), self.rat(a[1])) {
+                    let one = Rat::from_i64(1);
+                    let n_is_one = n.cmp_value(&one) == std::cmp::Ordering::Equal;
+                    let m_cmp = m.cmp_value(&one);
+                    let equal_beyond = n.cmp_value(&m) == std::cmp::Ordering::Equal && m_cmp == std::cmp::Ordering::Greater;
+                    if n_is_one || m_cmp == std::cmp::Ordering::Equal || equal_beyond {
+                        return Some(Exact::Pole);
+                    }
+                }
                 None
             }
             S::EllipticPiInc => {

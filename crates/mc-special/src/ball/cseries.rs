@@ -269,6 +269,69 @@ pub fn pfq_sum(a: &[CBall], b: &[CBall], z: &CBall, wp: u64) -> Option<CBall> {
     None
 }
 
+/// 1F1(a; b; z) with its partial derivatives in a, b and z, each enclosed over the balls: [M, dM/da, dM/db, dM/dz]
+/// (`None` where a + k or b + k may vanish, z may be 0, or the series does not settle). With t_k the terms of
+/// [`pfq_sum`], dt_k/da = t_k h_k with h_k = sum_(j<k) 1/(a + j), dt_k/db = -t_k sum_(j<k) 1/(b + j) and
+/// dt_k/dz = t_k k/z; the series of the derivatives converge with the series (the weights grow at most linearly).
+/// Tails: from the k where the term ratio is at most rho < 1 for every later term, a weight W_k with steps at
+/// most 1/d (d <= |a + j| for every j >= k) gives sum_(i>=0) |t_k| rho^i (W_k + i/d) = |t_k| (W_k/(1 - rho) +
+/// rho/(d (1 - rho)^2)). Used for the mean value form of functions built from Kummer's function, where the
+/// enclosure of a series with ball parameters widens by the dependency of its terms.
+pub(crate) fn hyp1f1_grad(a: &CBall, b: &CBall, z: &CBall, wp: u64) -> Option<[CBall; 4]> {
+    if z.contains_zero() {
+        return None;
+    }
+    let (au, bu, za) = (up(a), up(b), up(z));
+    let (aa, bb, bl) = ([au], [bu], [nonneg_low(b)]);
+    let bmax = if bl[0].is_some() { -1.0 } else { bu };
+    if !au.is_finite() || !bu.is_finite() || too_many_terms(1, 1, za) {
+        return None;
+    }
+    let one = int(1);
+    let (mut t, mut tm, mut lrel) = (one.clone(), one.clone(), f64::NEG_INFINITY);
+    let (mut ha, mut hb) = (int(0), int(0));
+    let (mut s, mut sa, mut sb, mut sk) = (one, int(0), int(0), int(0));
+    for k in 0..MAX_TERMS {
+        if k % 32 == 0 && stopped() {
+            return None;
+        }
+        let kf = k as f64;
+        if kf > bmax + 1.0 && kf > au + 1.0 && kf > bu + 1.0 {
+            if let Some(rho) = ratio_bound(&aa, &bb, &bl, za, kf) {
+                let target = log2_up(&s) - wp as f64 - 4.0;
+                if rho < 1.0 && log2_up(&t) - (1.0 - rho).log2() < target {
+                    let tail = |w: f64, d: f64| mag_up_c(&t).mul(&mag_f(w / (1.0 - rho) + rho / (d * (1.0 - rho) * (1.0 - rho))));
+                    let (da, db) = (kf - au, kf - bu);
+                    let m0 = mag_up_c(&t).mul(&mag_f(1.0 / (1.0 - rho)));
+                    let ma = tail(up(&ha), da);
+                    let mb = tail(up(&hb), db);
+                    let mk = tail(kf, 1.0);
+                    let v = widen(s.sub(&t, wp), &m0);
+                    let va = widen(sa.sub(&t.mul(&ha, wp), wp), &ma);
+                    let vb = widen(sb.sub(&t.mul(&hb, wp), wp), &mb).neg();
+                    let vk = widen(sk.sub(&t.mul(&int(k as i64), wp), wp), &mk).div(z, wp)?;
+                    return Some([v, va, vb, vk]);
+                }
+            }
+        }
+        let kb = int(k as i64);
+        let ak = a.add(&kb, wp);
+        let bk = b.add(&kb, wp);
+        if ak.contains_zero() || bk.contains_zero() {
+            return None;
+        }
+        let q = z.mul(&ak, wp).div(&bk.mul(&int(k as i64 + 1), wp), wp)?;
+        ha = ha.add(&ak.recip(wp)?, wp);
+        hb = hb.add(&bk.recip(wp)?, wp);
+        (t, tm, lrel) = polar_step(&tm, lrel, &q, wp);
+        s = s.add(&t, wp);
+        sa = sa.add(&t.mul(&ha, wp), wp);
+        sb = sb.add(&t.mul(&hb, wp), wp);
+        sk = sk.add(&t.mul(&int(k as i64 + 1), wp), wp);
+    }
+    None
+}
+
 /// log2 of the largest term of the series over 1, in machine arithmetic.
 pub(crate) fn max_term_log2(a: &[(f64, f64)], b: &[(f64, f64)], za: f64) -> f64 {
     if za == 0.0 {
@@ -604,6 +667,12 @@ fn polygamma_point(n: u64, z: &CBall, wp: u64) -> Option<CBall> {
     // psi^(n)(z) = psi^(n)(x) - (-1)^n n! corr
     let corr = if n == 0 { corr } else { corr.mul_real(&Ball::from_nat(super::gamma::fact_nat(n)), w) };
     Some(if n.is_multiple_of(2) { s.sub(&corr, w) } else { s.add(&corr, w) })
+}
+
+/// digamma(z) on a complex ball at working precision wp, without refinement (for the derivative part of a mean
+/// value form, where a few correct bits are enough; `None` at or touching a pole).
+pub(crate) fn digamma_at(z: &CBall, wp: u64) -> Option<CBall> {
+    polygamma_point(0, z, wp)
 }
 
 /// digamma(z) on a complex ball to p bits (`None` at or touching a pole).

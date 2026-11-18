@@ -417,6 +417,16 @@ impl Kernel {
         self.defined(e, bit(s), || self.defs.set_own(s, v));
     }
 
+    /// `s = v` for a symbol that evaluations read only through [`crate::NativeCx::value_volatile`] (whose readers
+    /// are never remembered): no remembered result can depend on it, so its read-set bit is left alone. A definition
+    /// counted against the bit would make stale every remembered result whose read set shares it (a set over many
+    /// symbols has most of the 63 bits), so a notebook that records each statement's value in a new symbol lost
+    /// remembered results at random from statement to statement.
+    pub fn set_own_unseen(&mut self, s: Sym, v: T<'_>) {
+        let e = *self.epoch.get_mut();
+        self.defined(e, 0, || self.defs.set_own(s, v));
+    }
+
     /// Set a symbol's attributes (argument modes, AC, effect, failure handling).
     pub fn set_attributes(&mut self, s: Sym, a: Attributes) {
         let e = *self.epoch.get_mut();

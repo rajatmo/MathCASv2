@@ -111,7 +111,170 @@ fn derivative(name: &str, a: &[CBall], i: usize, w: u64) -> Option<CBall> {
             }
         }
         ("exp_integral_ei", [z]) => cball::exp(z, w)?.div(z, w)?,
+        ("hypergeometric_1f1", [a, b, z]) => {
+            let [_, da, db, dz] = super::cseries::hyp1f1_grad(a, b, z, w)?;
+            [da, db, dz][i].clone()
+        }
+        ("coulomb_f" | "coulomb_g" | "coulomb_h1" | "coulomb_h2", [l, eta, rho]) => coulomb_gradient(name, l, eta, rho, w)?[i].clone(),
         _ => return None,
+    })
+}
+
+/// A remembered gradient: the function's name, its three arguments, the precision and the partials.
+type Gradient = (String, [CBall; 3], u64, [CBall; 3]);
+
+thread_local! {
+    /// The last Coulomb gradient: the mean value form asks for the three partials in turn with the same box.
+    static COULOMB_GRADIENT: std::cell::RefCell<Option<Gradient>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The partial derivatives of a Coulomb function in l, eta and rho, enclosed over the box (one forward pass).
+fn coulomb_gradient(name: &str, l: &CBall, eta: &CBall, rho: &CBall, w: u64) -> Option<[CBall; 3]> {
+    let key = [l.clone(), eta.clone(), rho.clone()];
+    let hit = COULOMB_GRADIENT.with(|c| match &*c.borrow() {
+        Some((n, k, p, g)) if n == name && *k == key && *p == w => Some(g.clone()),
+        _ => None,
+    });
+    if hit.is_some() {
+        return hit;
+    }
+    let seed = |j: usize, x: &CBall| {
+        let mut d = Du::zero();
+        d[j] = CBall::from_i64(1);
+        Du { v: x.clone(), d }
+    };
+    let g = coulomb_du(name, &seed(0, l), &seed(1, eta), &seed(2, rho), w)?.d;
+    COULOMB_GRADIENT.with(|c| *c.borrow_mut() = Some((name.to_string(), key, w, g.clone())));
+    Some(g)
+}
+
+/// A value with its gradient in three directions, both enclosed over the box of the arguments (forward-mode
+/// differentiation in ball arithmetic): the derivative part of the mean value form of a function given by a
+/// formula, whose own enclosure over the box widens by the dependency of its pieces.
+#[derive(Clone)]
+struct Du {
+    v: CBall,
+    d: [CBall; 3],
+}
+
+/// x d componentwise.
+fn times(d: &[CBall; 3], x: &CBall, w: u64) -> [CBall; 3] {
+    [d[0].mul(x, w), d[1].mul(x, w), d[2].mul(x, w)]
+}
+
+fn plus(a: &[CBall; 3], b: &[CBall; 3], w: u64) -> [CBall; 3] {
+    [a[0].add(&b[0], w), a[1].add(&b[1], w), a[2].add(&b[2], w)]
+}
+
+fn is_zero(d: &[CBall; 3]) -> bool {
+    d.iter().all(CBall::is_exact_zero)
+}
+
+impl Du {
+    fn zero() -> [CBall; 3] {
+        [CBall::from_i64(0), CBall::from_i64(0), CBall::from_i64(0)]
+    }
+    fn int(v: i64) -> Du {
+        Du { v: CBall::from_i64(v), d: Du::zero() }
+    }
+    fn add(&self, o: &Du, w: u64) -> Du {
+        Du { v: self.v.add(&o.v, w), d: plus(&self.d, &o.d, w) }
+    }
+    fn sub(&self, o: &Du, w: u64) -> Du {
+        Du { v: self.v.sub(&o.v, w), d: plus(&self.d, &times(&o.d, &CBall::from_i64(-1), w), w) }
+    }
+    fn mul(&self, o: &Du, w: u64) -> Du {
+        Du { v: self.v.mul(&o.v, w), d: plus(&times(&self.d, &o.v, w), &times(&o.d, &self.v, w), w) }
+    }
+    fn div(&self, o: &Du, w: u64) -> Option<Du> {
+        let q = self.v.div(&o.v, w)?;
+        let r = o.v.recip(w)?;
+        let d = times(&plus(&self.d, &times(&o.d, &q.neg(), w), w), &r, w);
+        Some(Du { v: q, d })
+    }
+    fn scale(&self, x: &CBall, w: u64) -> Du {
+        Du { v: self.v.mul(x, w), d: times(&self.d, x, w) }
+    }
+    fn mul_i(&self) -> Du {
+        Du { v: self.v.mul_i(), d: [self.d[0].mul_i(), self.d[1].mul_i(), self.d[2].mul_i()] }
+    }
+    /// f(self) with f(v) = `v` and f'(v) = `dv`.
+    fn chain(&self, v: CBall, dv: &CBall, w: u64) -> Du {
+        Du { d: times(&self.d, dv, w), v }
+    }
+    fn exp(&self, w: u64) -> Option<Du> {
+        let e = cball::exp(&self.v, w)?;
+        Some(self.chain(e.clone(), &e, w))
+    }
+    fn log(&self, w: u64) -> Option<Du> {
+        Some(self.chain(cball::log(&self.v, w)?, &self.v.recip(w)?, w))
+    }
+    /// The principal power x^y = exp(y log x): d = x^y (y' log x + y x'/x).
+    fn pow(&self, y: &Du, w: u64) -> Option<Du> {
+        let v = cball::pow(&self.v, &y.v, w)?;
+        let mut d = Du::zero();
+        if !is_zero(&y.d) {
+            d = plus(&d, &times(&y.d, &cball::log(&self.v, w)?, w), w);
+        }
+        if !is_zero(&self.d) {
+            d = plus(&d, &times(&self.d, &y.v.div(&self.v, w)?, w), w);
+        }
+        Some(Du { d: times(&d, &v, w), v })
+    }
+    fn log_gamma(&self, w: u64) -> Option<Du> {
+        let v = Special::LogGamma.ball_complex(std::slice::from_ref(&self.v), w)?;
+        Some(self.chain(v, &super::cseries::digamma_at(&self.v, w)?, w))
+    }
+    fn gamma(&self, w: u64) -> Option<Du> {
+        let v = Special::Gamma.ball_complex(std::slice::from_ref(&self.v), w)?;
+        let dv = v.mul(&super::cseries::digamma_at(&self.v, w)?, w);
+        Some(self.chain(v, &dv, w))
+    }
+    fn hyp1f1(a: &Du, b: &Du, z: &Du, w: u64) -> Option<Du> {
+        let [v, da, db, dz] = super::cseries::hyp1f1_grad(&a.v, &b.v, &z.v, w)?;
+        let d = plus(&plus(&times(&a.d, &da, w), &times(&b.d, &db, w), w), &times(&z.d, &dz, w), w);
+        Some(Du { v, d })
+    }
+}
+
+/// The formula of [`coulomb`] in dual numbers: the value and the derivative in the direction seeded in l, eta, rho.
+fn coulomb_du(name: &str, l: &Du, eta: &Du, rho: &Du, w: u64) -> Option<Du> {
+    let (one, two) = (Du::int(1), Du::int(2));
+    let pi = CBall::real(Const::Pi.ball(w)?);
+    let half = CBall::real(Ball::from_ratio(1, 2, w));
+    let ie = eta.mul_i();
+    let l1 = l.add(&one, w);
+    let lgp = l1.add(&ie, w).log_gamma(w)?;
+    let lgm = l1.sub(&ie, w).log_gamma(w)?;
+    let b = l.scale(&CBall::from_i64(2), w).add(&two, w);
+    let c_exp = lgp.add(&lgm, w).scale(&half, w).sub(&eta.scale(&pi, w).scale(&half, w), w).exp(w)?;
+    let c = two.pow(l, w)?.mul(&c_exp, w).div(&b.gamma(w)?, w)?;
+    let f = c
+        .mul(&rho.pow(&l1, w)?, w)
+        .mul(&rho.mul_i().scale(&CBall::from_i64(-1), w).exp(w)?, w)
+        .mul(&Du::hyp1f1(&l1.sub(&ie, w), &b, &rho.scale(&CBall::from_i64(2), w).mul_i(), w)?, w);
+    if name == "coulomb_f" {
+        return Some(f);
+    }
+    let a = l1.add(&ie, w);
+    let z = rho.scale(&CBall::from_i64(2), w).mul_i().scale(&CBall::from_i64(-1), w);
+    let amb1 = a.sub(&b, w).add(&one, w);
+    let m1 = Du::hyp1f1(&a, &b, &z, w)?;
+    let m2 = Du::hyp1f1(&amb1, &two.sub(&b, w), &z, w)?;
+    let t1 = one.sub(&b, w).gamma(w)?.div(&amb1.gamma(w)?, w)?.mul(&m1, w);
+    let t2 = b.sub(&one, w).gamma(w)?.div(&a.gamma(w)?, w)?.mul(&z.pow(&one.sub(&b, w), w)?, w).mul(&m2, w);
+    let u = t1.add(&t2, w);
+    let sigma = lgp.sub(&lgm, w).scale(&half.mul_i().neg(), w);
+    let theta = rho
+        .sub(&eta.mul(&rho.scale(&CBall::from_i64(2), w).log(w)?, w), w)
+        .sub(&l.scale(&pi, w).scale(&half, w), w)
+        .add(&sigma, w);
+    let hp = theta.mul_i().exp(w)?.mul(&z.pow(&a, w)?, w).mul(&u, w);
+    let i_f = f.mul_i();
+    Some(match name {
+        "coulomb_h1" => hp,
+        "coulomb_g" => hp.sub(&i_f, w),
+        _ => hp.sub(&i_f.scale(&CBall::from_i64(2), w), w),
     })
 }
 

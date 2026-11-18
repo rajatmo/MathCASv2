@@ -31,7 +31,8 @@ fn exact_values() {
         ("sin(-x)", "-sin(x)"),
         ("tan(pi/4)", "1"),
         ("tan(pi/3)", "3^(1/2)"),
-        ("tan(pi/2)", "tan((1/2)*pi)"),
+        // an exact pole is the pole failure, as for the special functions (gamma(0))
+        ("tan(pi/2)", "failure(pole, tan((1/2)*pi))"),
         ("log(1)", "0"),
         ("log(e)", "1"),
         ("log(e^3)", "3"),

@@ -276,6 +276,29 @@ impl Native for FormulaNative {
         }
         let ar = Arith::new(h);
         let nums: Vec<Option<Num>> = args.iter().map(|&a| ar.num(a)).collect();
+        // a machine infinity (an overflow, semantics 2.7) is the infinity: the value there is the function's value
+        // at inf or -inf (log_barnes_g(10.^1000) is log_barnes_g(inf) = inf), when it has one
+        if nums.iter().flatten().any(|n| matches!(n, Num::Real(Real::Machine(v)) if v.is_infinite())) {
+            let inf = h.sym_term(h.sym("inf"));
+            let xs: Vec<T<'h>> = args
+                .iter()
+                .zip(&nums)
+                .map(|(&a, n)| match n {
+                    Some(Num::Real(Real::Machine(v))) if v.is_infinite() => {
+                        if *v > 0.0 {
+                            inf
+                        } else {
+                            ar.neg(inf)
+                        }
+                    }
+                    _ => a,
+                })
+                .collect();
+            let View::App { head, .. } = h.view(t) else { return Ok(Reply::Decline) };
+            let v = cx.eval(h.app(head, &xs))?;
+            let still = matches!(h.view(v), View::App { head: vh, .. } if vh == head);
+            return Ok(if still { Reply::Decline } else { Reply::Done(v) });
+        }
         let numeric = nums.iter().all(Option::is_some) && nums.iter().flatten().any(inexact);
         let rule = if numeric { d.numeric.or(d.exact) } else { d.exact };
         let Some(rule) = rule else { return Ok(Reply::Decline) };
@@ -284,7 +307,11 @@ impl Native for FormulaNative {
             let mut fx = Fx { cx, ar, h };
             rule(&mut fx, args)?
         };
+        // a failure is the value as it stands (`failure(pole, sec(pi/2))` holds the call, which must not be
+        // evaluated again)
+        let is_failure = |v: T<'h>| matches!(h.view(v), View::App { head, .. } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == names::FAILURE));
         Ok(match r {
+            Some(v) if v != t && is_failure(v) => Reply::Done(v),
             Some(v) if v != t => Reply::Again(v),
             _ => Reply::Decline,
         })

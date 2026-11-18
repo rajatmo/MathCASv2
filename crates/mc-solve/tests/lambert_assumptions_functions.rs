@@ -42,3 +42,21 @@ fn lambert_equation_with_a_coefficient_that_does_not_divide() {
         ("n(solve(x + 2*exp(x) == 1, x, reals))", "[[x -> -0.37482252818362327]]"),
     ]);
 }
+
+/// sin(x + e^x - 1) == 1/2: the period of the sine and the branch of W are two independent integers, c(1) and c(2);
+/// one constant for both lost every solution with different period and branch. Each solution is substituted back at
+/// several (period, branch) pairs.
+#[test]
+fn period_and_lambert_branch_are_independent_parameters() {
+    let mut s = common::Sys::new();
+    let r = s.run("r = reduce(sin(x + e^x - 1) == 1/2, x); r");
+    assert!(r.contains("c(1)") && r.contains("c(2)"), "{r}");
+    let sols = s.run("sols = map(q => q[2], cases(r, equal(x, _), inf)); length(sols)");
+    assert_eq!(sols, "2", "{r}");
+    for (k1, k2) in [(0, 0), (0, 1), (1, 0), (-1, 2), (2, -1)] {
+        for j in 1..=2 {
+            let src = format!("abs(n(rewrite(sin(x + e^x - 1) - 1/2, x -> rewrite(sols[{j}], [c(1) -> {k1}, c(2) -> {k2}])), 20)) < 10^-15");
+            assert_eq!(s.run(&src), "true", "solution {j} at c(1) = {k1}, c(2) = {k2}");
+        }
+    }
+}

@@ -925,18 +925,26 @@ pub fn elliptic_e_beyond(phi: &Real, m: &Real, p: u64) -> Option<CBall> {
     })
 }
 
-/// Pi(n | m) for m > 1 and n < 1 (m on the cut from below, as for [`elliptic_e`]): split at t0 with sin t0 =
+/// Pi(n | m) for m > 1 and n != 1, m (m on the cut from below, as for [`elliptic_e`]): split at t0 with sin t0 =
 /// 1/sqrt(m); up to t0, sin t = sin b/sqrt(m) gives Pi(n/m | mu)/sqrt(m) with mu = 1/m (DLMF 19.7.4); beyond, where
 /// sqrt(1 - m sin^2 t) = +i sqrt(m sin^2 t - 1), cos t = sqrt(q) sin u (q = 1 - mu) gives -i Pi(N | q)/((1 - n)
-/// sqrt(m)) with N = n q/(n - 1) < 1, since 1 - n sin^2 t = (1 - n) + n q sin^2 u. Both are complete integrals of
-/// the third kind with parameters in (0, 1) and characteristics below 1. At n = 0 it is K(m) of [`elliptic_k`].
+/// sqrt(m)) with N = n q/(n - 1), since 1 - n sin^2 t = (1 - n) + n q sin^2 u. Both are complete integrals of the
+/// third kind with parameters in (0, 1). For n < 1 both characteristics are below 1. For n > 1 the factor
+/// 1 - n sin^2 t vanishes on the path, at sin^2 t = 1/n, and the value is the Cauchy principal value there (as for
+/// m < 1, DLMF 19.6.5 and 19.2.4): for 1 < n < m the pole lies beyond t0 and N > 1, for n > m it lies before t0 and
+/// n/m > 1; the principal value is kept by each smooth monotone substitution, so the part with the pole is
+/// [`pi_complete_b`]'s principal value (with 1 - mu/(n/m) = 1 - 1/n and 1 - q/N = 1/n) and the other part is an
+/// ordinary integral. At n = 1 (a double pole at t = pi/2) and n = m (the pole meets the branch point t0, where the
+/// integrand grows as (t0 - t)^(-3/2)) the integral diverges: no value here. At n = 0 it is K(m) of
+/// [`elliptic_k`].
 pub fn elliptic_pi_beyond(n: &Real, m: &Real, p: u64) -> Option<CBall> {
     refine(p, 32, |wp| {
         let na = arg(n, wp)?;
         let ma = arg(m, wp)?;
         let mc = one_minus(&ma, wp);
         let omn = one_minus(&na, wp);
-        if !is_neg(&mc) || !is_pos(&omn) {
+        // n = 1 and n = m must be excluded by the balls: each is a divergence, and n on either side of it differs
+        if !is_neg(&mc) || !(is_pos(&omn) || is_neg(&omn)) {
             return None;
         }
         let one = int(1);
@@ -945,11 +953,12 @@ pub fn elliptic_pi_beyond(n: &Real, m: &Real, p: u64) -> Option<CBall> {
         if !is_pos(&mu) || !is_pos(&q) {
             return None;
         }
+        let n_rec = || one.div(&na.b, wp);
         let rt = el::sqrt(&ma.b, wp)?;
         let n1 = na.b.mul(&mu, wp);
-        let re = pi_complete_b(&n1, &mu, &q, &one.sub(&n1, wp), || None, wp)?.div(&rt, wp)?;
+        let re = pi_complete_b(&n1, &mu, &q, &one.sub(&n1, wp), || Some(one.sub(&n_rec()?, wp)), wp)?.div(&rt, wp)?;
         let nn = na.b.mul(&q, wp).div(&na.b.sub(&one, wp), wp)?;
-        let im = pi_complete_b(&nn, &q, &mu, &one.sub(&nn, wp), || None, wp)?.div(&omn.mul(&rt, wp), wp)?.neg();
+        let im = pi_complete_b(&nn, &q, &mu, &one.sub(&nn, wp), n_rec, wp)?.div(&omn.mul(&rt, wp), wp)?.neg();
         Some(CBall::new(re, im))
     })
 }

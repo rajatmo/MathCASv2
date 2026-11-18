@@ -164,6 +164,14 @@ pub(crate) fn charge(cx: &mut NativeCx<'_, '_, '_>, n: usize) -> Res<()> {
 /// The most bytes a native builds in one string: a larger result is `failure(limit, memory, call)`.
 pub(crate) const MAX_BYTES: usize = 1 << 30;
 
+/// Would a string of `bytes` bytes exceed [`MAX_BYTES`] or the memory the evaluation may still allocate (the
+/// session's budget or an enclosing `memory_constrained` cap)? The native's buffer and the store's copy both hold it
+/// at the peak. Asked before the string grows, so that a result the memory cannot hold is `failure(limit, memory,
+/// call)` and not a failed allocation that ends the process.
+pub(crate) fn over_memory(cx: &NativeCx<'_, '_, '_>, bytes: usize) -> bool {
+    bytes > MAX_BYTES || bytes.saturating_mul(2) > cx.memory_left()
+}
+
 /// `failure(limit, memory, t)`.
 pub(crate) fn too_large<'h>(lib: &Lib, h: &'h Heap, t: T<'h>) -> Reply<'h> {
     let memory = h.sym_term(h.sym(names::failure::MEMORY));

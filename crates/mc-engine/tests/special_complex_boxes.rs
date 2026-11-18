@@ -1,4 +1,5 @@
-//! Special functions in depth, third part: complex boxes of the Weierstrass and modular functions, the Ferrers and
+//! Special functions in depth, third part: complex boxes of the Weierstrass and modular functions, the Coulomb
+//! functions, log gamma and Kummer's function (the mean value form in every spread argument), the Ferrers and
 //! Laguerre functions of a non-integer degree at 0, the Lerch transcendent beyond the unit circle at inexact integer
 //! parameters. Each new enclosure is sampled at 40-digit points of its box and each new value is compared with an
 //! independent route (the term path at more digits, a hypergeometric form, an integral representation).
@@ -173,4 +174,42 @@ fn lerch_transcendent_beyond_the_unit_circle_at_inexact_integer_parameters() {
         assert!(truth(&mut e, &d), "{d}");
     }
     assert!(t0.elapsed() < Duration::from_secs(60), "{:?}", t0.elapsed());
+}
+
+/// Coulomb H+ and H- of three spread arguments, log gamma and 1F1 of a spread argument: the mean value form with the
+/// partial derivatives over the box (forward differentiation through the formula of the point value; psi over the box
+/// for log gamma; (a/b) 1F1(a + 1; b + 1; z) and the parameter series for Kummer's function) gives radii of the order
+/// of the true first-order spread, sum |d f/d x_i| r_i (about 9e-6 + 6e-7 i for H+ at 1e-6), where the enclosure of
+/// the formula over the box was 2e-2. Every corner of the box lies inside.
+#[test]
+fn coulomb_log_gamma_and_kummer_of_spread_arguments() {
+    let t0 = Instant::now();
+    let mut e = CoreEngine::new();
+    let d = "10^-6";
+    for f in ["coulomb_h1", "coulomb_h2"] {
+        ev(&mut e, &format!("res = {f}(centered_interval(3/4, {d}), centered_interval(5/6, {d}), centered_interval(7/8, {d}))"));
+        let res = ev(&mut e, "res");
+        assert!(res.starts_with("centered_interval("), "{f}: {res}");
+        assert!(truth(&mut e, "re(part(res, 2)) < 2*10^-5 and im_part(part(res, 2)) < 3*10^-6"), "{f}: {res}");
+        for (sl, se, sr) in [(0, 0, 0), (1, 1, 1), (-1, -1, -1), (1, -1, 1), (-1, 1, -1)] {
+            let v = format!("{f}(3/4 + ({sl})*{d}, 5/6 + ({se})*{d}, 7/8 + ({sr})*{d})");
+            assert!(inside(&mut e, "res", &v), "{f} at {v}: {res}");
+        }
+    }
+    let (zc, zr) = ("7/4 + 5/6 im", "(1 + im)/10^6");
+    ev(&mut e, &format!("res = log_gamma(centered_interval({zc}, {zr}))"));
+    assert!(truth(&mut e, "re(part(res, 2)) < 2*10^-6 and im_part(part(res, 2)) < 2*10^-6"), "{}", ev(&mut e, "res"));
+    for &(sx, sy) in &CORNERS {
+        assert!(inside(&mut e, "res", &format!("log_gamma({})", point(zc, zr, sx, sy))));
+    }
+    let (wc, wr) = ("7/4 im", "(1 + im)/10^6");
+    ev(&mut e, &format!("res = hypergeometric_1f1(7/4 - 5/6 im, 7/2, centered_interval({wc}, {wr}))"));
+    assert!(truth(&mut e, "re(part(res, 2)) < 2*10^-6 and im_part(part(res, 2)) < 2*10^-6"), "{}", ev(&mut e, "res"));
+    for &(sx, sy) in &CORNERS {
+        assert!(inside(&mut e, "res", &format!("hypergeometric_1f1(7/4 - 5/6 im, 7/2, {})", point(wc, wr, sx, sy))));
+    }
+    // the parameters spread too: the partials in a and b
+    ev(&mut e, &format!("res = hypergeometric_1f1(centered_interval(7/4 - 5/6 im, {wr}), centered_interval(7/2, {d}), centered_interval({wc}, {wr}))"));
+    assert!(truth(&mut e, "re(part(res, 2)) < 10^-5 and im_part(part(res, 2)) < 10^-5"), "{}", ev(&mut e, "res"));
+    assert!(t0.elapsed() < Duration::from_secs(120), "{:?}", t0.elapsed());
 }
