@@ -50,6 +50,7 @@ mod sets;
 mod shape;
 mod smooth;
 mod spec;
+mod special_range;
 mod table;
 
 use crate::common::is_free;
@@ -629,7 +630,19 @@ fn conditions_of<'h>(
 /// The conditions of a call of a function the table knows ([`table`]): where it is defined (and real, over the
 /// reals), or with `analytic` the complement of its singular atoms; `None` when the table does not know them.
 fn table_conditions<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, vars: &[T<'h>], complex: bool, analytic: bool) -> Res<Option<Vec<T<'h>>>> {
-    let facts = cx.assumptions().to_vec();
+    let mut facts = cx.assumptions().to_vec();
+    // over the reals the parameters are real too (`function_domain(mathieu_characteristic_a(r, x), x)` is about a
+    // real order r), so an entry stated for real parameters applies to symbolic ones
+    if !complex {
+        let h = b.heap();
+        let mut ps = rustc_hash::FxHashSet::default();
+        symbols(b, u, &mut ps);
+        let mut ps: Vec<(String, T<'h>)> = ps.into_iter().filter(|p| !vars.contains(p)).filter_map(|p| Some((h.sym_name(b.sym_of(p)?).to_string(), p))).collect();
+        ps.sort_by(|x, y| x.0.cmp(&y.0));
+        for (_, p) in ps {
+            facts.push(b.call("element", &[p, h.sym_term(h.sym("reals"))]));
+        }
+    }
     let Some(hit) = table::lookup(cx, b, u, vars, &facts)? else { return Ok(None) };
     // over the reals the facts are about a real argument: an argument that is never real (`x + im`) is not read
     if !complex {
@@ -2172,6 +2185,9 @@ fn sign_multi<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, or
     let h = b.heap();
     // a domain not known: only a grid of samples can show a change of sign
     let Some(cs) = conditions(cx, b, c.f, &c.vars, false)? else { return grid_witness(cx, b, c, 0) };
+    if let Some(k) = joint_table_sign(cx, b, c, &cs)? {
+        return Ok(Some(k));
+    }
     let mut facts = cs;
     let reals = h.sym_term(h.sym("reals"));
     facts.push(h.call(h.sym("element"), &[cx.list(&c.vars), reals]));
@@ -2188,6 +2204,52 @@ fn sign_multi<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, or
         (false, true) => Some(b.int(-1)),
         _ => grid_witness(cx, b, c, 0)?,
     })
+}
+
+/// The sign in several variables of a function of the table whose arguments are the variables (or free of them),
+/// on a condition that keeps every point inside the function's real domain: the sign the table records for its
+/// parameters' facts holds at every such point (`inverse_gamma_regularized(a, x)` is nonnegative for `a > 0`, 0 at
+/// `x = 1`: 1, not a strict sign). `None` when the table does not settle it.
+fn joint_table_sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, domain: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let Some(k) = c.cond else { return Ok(None) };
+    if c.complex || c.integers {
+        return Ok(None);
+    }
+    let View::App { args, .. } = h.view(c.f) else { return Ok(None) };
+    // each argument a variable (each at most once) or free of the variables
+    let mut seen = vec![];
+    for &a in args {
+        if c.vars.contains(&a) {
+            if seen.contains(&a) {
+                return Ok(None);
+            }
+            seen.push(a);
+        } else if c.vars.iter().any(|&v| !is_free(b, a, v)) {
+            return Ok(None);
+        }
+    }
+    let mut pf = c.facts.clone();
+    pf.extend(cx.assumptions().iter().copied());
+    pf.push(k);
+    pf.push(h.call(h.sym("element"), &[cx.list(&c.vars), h.sym_term(h.sym("reals"))]));
+    // the condition's region lies in the real domain
+    for &d in domain {
+        let r = cx.eval_assuming(&pf, h.call(h.sym("refine"), &[d]))?;
+        if !cx.is_true(r) {
+            return Ok(None);
+        }
+    }
+    let Some(hit) = table::lookup(cx, b, c.f, &c.vars, &pf)? else { return Ok(None) };
+    if !c.vars.contains(&hit.arg) {
+        return Ok(None);
+    }
+    let s = match hit.shape(cx, b, 0)? {
+        None => hit.range_sign(cx, b)?,
+        s => s,
+    };
+    // 2 (-2): only nonnegative (nonpositive), which a strict question does not settle
+    Ok(s.filter(|s| s.abs() == 1 || !c.strict).map(|s| b.int(i64::from(s.signum()))))
 }
 
 /// Convexity in several variables (no parameters, no condition): the restriction of a convex (concave, affine)

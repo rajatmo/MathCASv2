@@ -47,7 +47,7 @@ const FORMULA: &[&str] = &[
     "acsch", "gudermannian", "sinc", "product_log", "dawson_f", "fresnel_s", "fresnel_c", "harmonic_number", "surd",
     "ramp", "real_abs", "fractional_part", "chebyshev_t", "chebyshev_u", "legendre_p", "hermite_h", "laguerre_l",
     "gegenbauer_c", "spherical_bessel_j", "spherical_bessel_y", "hankel_h1", "hankel_h2", "jacobi_cd", "jacobi_cs",
-    "hyperfactorial", "jacobi_dc", "jacobi_ds", "jacobi_nc", "jacobi_nd", "jacobi_ns", "jacobi_sc", "jacobi_sd", "pochhammer",
+    "hyperfactorial", "jacobi_dc", "jacobi_ds", "jacobi_nc", "jacobi_nd", "jacobi_ns", "jacobi_sc", "jacobi_sd", "pochhammer", "elliptic_theta",
     // numeric at machine precision or for integer orders only
     "kelvin_ber", "kelvin_bei", "kelvin_ker", "kelvin_kei", "legendre_q", "elliptic_nome_q", "hypergeometric_0f1_regularized", "hypergeometric_1f1_regularized",
     "hypergeometric_2f1_regularized", "factorial",

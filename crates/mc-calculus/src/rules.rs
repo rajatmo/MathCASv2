@@ -611,6 +611,8 @@ pub const OPAQUE: &[(&str, usize, usize)] = &[
     ("weierstrass_sigma", 2, 1),
     ("inverse_weierstrass_p", 2, 1),
     ("elliptic_exp", 2, 1),
+    ("elliptic_theta", 3, 0),
+    ("elliptic_theta", 3, 2),
     ("coulomb_f", 3, 0),
     ("coulomb_f", 3, 1),
     ("coulomb_g", 3, 0),
@@ -842,6 +844,16 @@ pub const RULES: &[(&str, usize, Rule)] = &[
     ("spheroidal_s1_prime", 4, Rule::Partials(&[|b, a| opaque_partial(b, "spheroidal_s1_prime", a, 0), |b, a| opaque_partial(b, "spheroidal_s1_prime", a, 1), |b, a| opaque_partial(b, "spheroidal_s1_prime", a, 2), spheroidal_s1_second])),
     ("fox_h", 3, Rule::Partials(&[|b, a| opaque_partial(b, "fox_h", a, 0), |b, a| opaque_partial(b, "fox_h", a, 1), fox_dz])),
     ("meijer_g", 3, Rule::Partials(&[|b, a| opaque_partial(b, "meijer_g", a, 0), |b, a| opaque_partial(b, "meijer_g", a, 1), meijer_dz])),
+    // d/dz theta_a(z, q) is theta_a'(z, q) by definition (DLMF 20.2)
+    (
+        "elliptic_theta",
+        3,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "elliptic_theta", a, 0),
+            |b, a| b.call("elliptic_theta_prime", &[a[0], a[1], a[2]]),
+            |b, a| opaque_partial(b, "elliptic_theta", a, 2),
+        ]),
+    ),
     ("struve_h", 2, Rule::Partials(&[|b, a| opaque_partial(b, "struve_h", a, 0), |b, a| struve_z(b, a, "struve_h", -1)])),
     ("struve_l", 2, Rule::Partials(&[|b, a| opaque_partial(b, "struve_l", a, 0), |b, a| struve_z(b, a, "struve_l", 1)])),
     // Anger and Weber functions: 2 J'_nu(z) = J_(nu-1)(z) - J_(nu+1)(z), the same for E_nu (DLMF 11.10.33-34)

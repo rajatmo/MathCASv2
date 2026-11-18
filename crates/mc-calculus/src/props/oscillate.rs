@@ -41,6 +41,8 @@ enum Fam {
     Bi,
     /// `sin(x)/sqrt(x)` on `x > 0`
     SinSqrt,
+    /// `cos(x)/sqrt(x)` on `x > 0`
+    CosSqrt,
 }
 
 /// A critical point found by scanning: its position and the kind (a maximum: `true`).
@@ -119,6 +121,7 @@ fn value_at_crit<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, fam: Fam, at:
         Fam::Ai => ("airy_ai(t_osc)".to_string(), "airy_ai(ROOT)".to_string()),
         Fam::Bi => ("airy_bi(t_osc)".to_string(), "airy_bi(ROOT)".to_string()),
         Fam::SinSqrt => ("sin(t_osc)/sqrt(t_osc)".to_string(), "sin(ROOT)/sqrt(ROOT)".to_string()),
+        Fam::CosSqrt => ("cos(t_osc)/sqrt(t_osc)".to_string(), "cos(ROOT)/sqrt(ROOT)".to_string()),
     };
     let root_src = format!("root([t_osc => d({call}, t_osc), {at:.9}])");
     let root = cx.eval(b.call("to_expression", &[h.string(&root_src)]))?;
@@ -138,8 +141,8 @@ pub fn osc_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: 
     if !spec::params(b, &[f], &[x]).is_empty() {
         return Ok(None);
     }
-    if let Some(c) = sin_sqrt_coefficient(cx, b, f, x)? {
-        return sin_sqrt_range(cx, b, x, y, c);
+    if let Some((c, cos)) = trig_sqrt_coefficient(cx, b, f, x)? {
+        return if cos { cos_sqrt_range(cx, b, x, y, c) } else { sin_sqrt_range(cx, b, x, y, c) };
     }
     let (g, c, d) = outer_affine(cx, b, f, x)?;
     let View::App { head, args } = h.view(g) else { return Ok(None) };
@@ -220,7 +223,7 @@ pub fn osc_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: 
             }
             (Some(v2), Some(v1))
         }
-        Fam::SinSqrt => return Ok(None),
+        Fam::SinSqrt | Fam::CosSqrt => return Ok(None),
         Fam::Bi => {
             let Some(cs) = scan(cx, b, b.call("airy_bi", &[x]), x, 0.0, -1.0, 8.0, 1)? else { return Ok(None) };
             let [c1] = cs.as_slice() else { return Ok(None) };
@@ -261,22 +264,56 @@ fn dawson_max<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, x: T<'h>) -> Res
     Ok(Some(v))
 }
 
-/// `c` when `f = c sin(x)/sqrt(x)` with `c` free of `x`.
-fn sin_sqrt_coefficient<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<Option<T<'h>>> {
+/// `(c, cos)` when `f = c sin(x)/sqrt(x)` (`cos` false) or `f = c cos(x)/sqrt(x)` (`cos` true) with `c` free of `x`; the
+/// root may be written `(k x)^(-1/2)` with a constant `k` proved positive (`(pi x)^(-1/2)` of the Bessel functions of
+/// half-integer order), which is `k^(-1/2) x^(-1/2)` for `x > 0`.
+fn trig_sqrt_coefficient<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<Option<(T<'h>, bool)>> {
     let h = b.heap();
     let View::App { head, args } = h.view(f) else { return Ok(None) };
     if b.sym_of(head) != Some(b.hd.mul) {
         return Ok(None);
     }
-    let (free, dep): (Vec<T<'h>>, Vec<T<'h>>) = args.iter().partition(|&&a| crate::common::is_free(b, a, x));
-    let is_sin = |t: T<'h>| matches!(h.view(t), View::App { head, args: &[u] } if u == x && b.sym_of(head).is_some_and(|s| h.sym_name(s) == "sin"));
-    let is_rsqrt = |t: T<'h>| matches!(h.view(t), View::App { head, args: &[base, ex] } if base == x && ex == b.rat(-1, 2) && b.sym_of(head) == Some(b.hd.pow));
-    let ok = matches!(dep.as_slice(), [p, q] if is_sin(*p) && is_rsqrt(*q) || is_sin(*q) && is_rsqrt(*p));
-    if !ok {
-        return Ok(None);
+    let (mut free, dep): (Vec<T<'h>>, Vec<T<'h>>) = args.iter().partition(|&&a| crate::common::is_free(b, a, x));
+    let trig = |t: T<'h>| match h.view(t) {
+        View::App { head, args: &[u] } if u == x => b.sym_of(head).and_then(|s| match h.sym_name(s).as_str() {
+            "sin" => Some(false),
+            "cos" => Some(true),
+            _ => None,
+        }),
+        _ => None,
+    };
+    // the base of a power with the exponent -1/2: x itself (factor 1), or k x with k free of x
+    let rsqrt = |t: T<'h>| -> Option<Option<T<'h>>> {
+        let View::App { head, args: &[base, ex] } = h.view(t) else { return None };
+        if b.sym_of(head) != Some(b.hd.pow) || ex != b.rat(-1, 2) {
+            return None;
+        }
+        if base == x {
+            return Some(None);
+        }
+        let View::App { head: mh, args: margs } = h.view(base) else { return None };
+        if b.sym_of(mh) != Some(b.hd.mul) {
+            return None;
+        }
+        let (kf, kd): (Vec<T<'h>>, Vec<T<'h>>) = margs.iter().partition(|&&a| crate::common::is_free(b, a, x));
+        (kd.as_slice() == [x] && !kf.is_empty()).then(|| Some(b.mul(&kf)))
+    };
+    let (cos, k) = match dep.as_slice() {
+        [p, q] => match (trig(*p), rsqrt(*q), trig(*q), rsqrt(*p)) {
+            (Some(c), Some(k), _, _) | (_, _, Some(c), Some(k)) => (c, k),
+            _ => return Ok(None),
+        },
+        _ => return Ok(None),
+    };
+    if let Some(k) = k {
+        // k > 0 proved: (k x)^(-1/2) = k^(-1/2) x^(-1/2) on x > 0
+        if super::proof::closed_sign(cx, b, k)? != Some(1) {
+            return Ok(None);
+        }
+        free.push(b.pow(k, b.rat(-1, 2)));
     }
     let c = cx.eval(b.mul(&free))?;
-    Ok(num(cx, b, c)?.is_some_and(|v| v != 0.0).then_some(c))
+    Ok(num(cx, b, c)?.is_some_and(|v| v != 0.0).then_some((c, cos)))
 }
 
 /// The range of `c sin(x)/sqrt(x)` on `x > 0`: at a critical point `tan x = 2 x`, so `g^2 = sin^2 x/x = 4 x/(1 + 4
@@ -295,6 +332,28 @@ fn sin_sqrt_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, x: T<'h>, y:
         return Ok(None);
     }
     finish(cx, b, y, c, b.zero(), Some((v2, true)), Some((v1, true)))
+}
+
+/// The range of `c cos(x)/sqrt(x)` on `x > 0`: `g = cos(x)/sqrt(x)` tends to `inf` at `0+` and to 0 at `inf`; `g' =
+/// -(x sin x + cos(x)/2)/x^(3/2)` is negative on `(0, pi/2]` (both terms of the numerator positive there) and its
+/// numerator `N` changes sign exactly once in `(pi/2, pi)` (`-pi/2` at `pi/2`, `1/2` at `pi`; `N' = -(sin(x)/2 + x
+/// cos x)` vanishes once there, where `tan x = -2 x`, so `N` falls and then rises), so the first critical point `c1`
+/// is the only one in `(pi/2, pi)`, a minimum with `g(c1) < 0` (the certified root object near the scanned point in that
+/// interval is `c1`). At every critical point `tan x = -1/(2 x)`, so `g^2 =
+/// cos^2 x/x = 4 x/(1 + 4 x^2)`, which decreases for `x > 1/2`: the values `|g|` at the later critical points are
+/// smaller, and the range is `[g(c1), inf)` (continuity on the interval `x > 0`).
+fn cos_sqrt_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, x: T<'h>, y: T<'h>, c: T<'h>) -> Res<Option<T<'h>>> {
+    let g = cx.eval(b.mul(&[b.call("cos", &[x]), b.pow(x, b.rat(-1, 2))]))?;
+    let Some(cs) = scan(cx, b, g, x, 0.5, 1.0, 4.0, 1)? else { return Ok(None) };
+    let [c1] = cs.as_slice() else { return Ok(None) };
+    if c1.max || !(std::f64::consts::FRAC_PI_2..std::f64::consts::PI).contains(&c1.at) {
+        return Ok(None);
+    }
+    let Some((v1, n1)) = value_at_crit(cx, b, Fam::CosSqrt, c1.at)? else { return Ok(None) };
+    if n1 >= 0.0 {
+        return Ok(None);
+    }
+    finish(cx, b, y, c, b.zero(), Some((v1, true)), None)
 }
 
 /// An end of a range: the value and whether it is taken.

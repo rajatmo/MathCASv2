@@ -16,6 +16,20 @@ fn full_simplify_special_functions() {
 }
 
 #[test]
+fn coulomb_hankel_pairs_become_regular_and_irregular_functions() {
+    // H+- = G +- i F (DLMF 33.2.7)
+    check(&[
+        ("full_simplify((coulomb_h2(l, e, r) + coulomb_h1(l, e, r))/2)", "coulomb_g(l, e, r)"),
+        ("full_simplify(im*(coulomb_h2(l, e, r) - coulomb_h1(l, e, r))/2)", "coulomb_f(l, e, r)"),
+        ("full_simplify((coulomb_h2(l, e, r) - coulomb_h1(l, e, r))/(2*im))", "-coulomb_f(l, e, r)"),
+        // a pair whose real form is not shorter is kept
+        ("simplify(coulomb_h1(l, e, r) + 3*coulomb_h2(l, e, r))", "coulomb_h1(l, e, r) + 3*coulomb_h2(l, e, r)"),
+        // different arguments are not paired
+        ("simplify(coulomb_h1(l, e, r) + coulomb_h2(l, e, s))", "coulomb_h1(l, e, r) + coulomb_h2(l, e, s)"),
+    ]);
+}
+
+#[test]
 fn relations() {
     check(&[
         ("simplify(x^2 > x^2 + 1)", "false"),

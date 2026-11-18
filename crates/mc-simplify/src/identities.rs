@@ -34,7 +34,7 @@
 //! Families (sums): gamma functions whose arguments differ by integers over the lowest one (DLMF 5.5.1),
 //! polygammas the same way (DLMF 5.15.5), `Li2(z) + Li2(1 - z) = pi^2/6 - log(z) log(1 - z)` (DLMF 25.12.6),
 //! arctangents of rationals combined ([`crate::trigconst::atan_sum`]), and `I_-nu(z) - I_nu(z) = 2 sin(nu pi)
-//! K_nu(z)/pi` (DLMF 10.27.4).
+//! K_nu(z)/pi` (DLMF 10.27.4), and the Coulomb pair `a H+ + c H- = (a + c) G + i (a - c) F` (DLMF 33.2.7).
 use crate::facts::{Facts, Kind};
 use crate::term::B;
 use mc_api::{Store, View, T};
@@ -182,6 +182,11 @@ pub fn family<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, mask: u8, t: T<'h>) 
     }
     if mask & SIMPLIFY != 0 && has("bessel_i") {
         if let Some(r) = bessel_i_difference(b, t) {
+            return Ok(Some(r));
+        }
+    }
+    if mask & SIMPLIFY != 0 && has("coulomb_h1") && has("coulomb_h2") {
+        if let Some(r) = coulomb_h_pair(b, t) {
             return Ok(Some(r));
         }
     }
@@ -953,6 +958,37 @@ fn polylog_reflection<'h>(b: &B<'h>, t: T<'h>) -> Option<T<'h>> {
 }
 
 /// `c I_-nu(z) - c I_nu(z) = 2 c sin(nu pi) K_nu(z)/pi` (DLMF 10.27.4).
+/// `a H+ + c H- = (a + c) G + i (a - c) F` for the Coulomb functions of one `(l, eta, rho)`: `H+- = G +- i F`
+/// (DLMF 33.2.7 with 33.2.4, 33.2.6), so a pair of the two Hankel-type functions becomes the real pair `F`, `G`.
+fn coulomb_h_pair<'h>(b: &B<'h>, t: T<'h>) -> Option<T<'h>> {
+    let h = b.heap();
+    let (h1, h2) = (h.sym("coulomb_h1"), h.sym("coulomb_h2"));
+    let terms = b.terms(t);
+    let parts: Vec<Option<(T<'h>, bool, &[T<'h>])>> = terms
+        .iter()
+        .map(|&u| {
+            let (c, l) = match b.call_of(u) {
+                Some((m, &[c, l])) if m == b.hd.mul && b.is_number(c) => (c, l),
+                _ => (b.int(1), u),
+            };
+            match b.call_of(l) {
+                Some((s, args)) if args.len() == 3 && (s == h1 || s == h2) => Some((c, s == h1, args)),
+                _ => None,
+            }
+        })
+        .collect();
+    for i in 0..parts.len() {
+        let Some((a, true, args)) = parts[i] else { continue };
+        let Some(j) = (0..parts.len()).find(|&j| matches!(parts[j], Some((_, false, o)) if o == args)) else { continue };
+        let Some((c, _, _)) = parts[j] else { continue };
+        let mut out: Vec<T<'h>> = terms.iter().enumerate().filter(|&(k, _)| k != i && k != j).map(|(_, &x)| x).collect();
+        out.push(b.mul(&[b.add(&[a, c]), b.call_named("coulomb_g", args)]));
+        out.push(b.mul(&[b.i(), b.add(&[a, b.neg(c)]), b.call_named("coulomb_f", args)]));
+        return Some(b.add(&out));
+    }
+    None
+}
+
 fn bessel_i_difference<'h>(b: &B<'h>, t: T<'h>) -> Option<T<'h>> {
     let h = b.heap();
     let bi = h.sym("bessel_i");

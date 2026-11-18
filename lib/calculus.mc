@@ -5371,3 +5371,27 @@ rule laplacian(f_, q_, sys_) := {
   let big = apply(mul, hs)
   simplify(total(map(i => d(big/hs[i]^2*d(f, q[i]), q[i]), range(length(q))))/big)
 } when vc_ok(sys, q) and not is_list(f)
+
+# Antiderivatives in u of the theta-quotient family: d/du theta_a(u, q) is theta_a'(u, q) (entire in u, so the
+# definite integral is the difference); Z(u) = d/du log Theta_n(u) and E(u) = Z(u) + E u/K (DLMF 22.16.32, 22.16.27),
+# where the Neville theta_n is Theta_n up to a factor free of u (DLMF 20.9, 22.2).
+rule integrate(f_, x_) := elliptic_theta(f[1], x, f[3]) when is_symbol(x) and head(f) === elliptic_theta_prime and length(f) == 3 and f[2] === x and free_of([f[1], f[3]], x)
+rule integrate(f_, s_) := elliptic_theta(f[1], s[3], f[3]) - elliptic_theta(f[1], s[2], f[3]) when is_list(s) and length(s) == 3 and is_symbol(s[1]) and head(f) === elliptic_theta_prime and length(f) == 3 and f[2] === s[1] and free_of([f[1], f[3], s[2], s[3]], s[1])
+rule integrate(f_, x_) := log(neville_theta_n(x, f[2])) when is_symbol(x) and head(f) === jacobi_zn and length(f) == 2 and f[1] === x and free_of(f[2], x)
+rule integrate(f_, x_) := log(neville_theta_n(x, f[2])) + elliptic_e(f[2])*x^2/(2*elliptic_k(f[2])) when is_symbol(x) and head(f) === jacobi_epsilon and length(f) == 2 and f[1] === x and free_of(f[2], x)
+
+# The sum over all integers k of prod (a_i)_k / prod (b_j)_k z^k is, by definition, the bilateral series
+# bilateral_hypergeometric_pfq([a...], [b...], z) (Slater, Generalized Hypergeometric Functions, 6.1; DLMF 16.4(v))
+fn calc_bil_up(g, k) = not is_atom(g) and head(g) === pochhammer and length(g) == 2 and g[2] === k and free_of(g[1], k)
+fn calc_bil_down(g, k) = not is_atom(g) and head(g) === pow and g[2] === -1 and calc_bil_up(g[1], k)
+fn calc_bil_z(g, k) = not is_atom(g) and head(g) === pow and g[2] === k and free_of(g[1], k)
+fn calc_bil(f, k) = {
+  let fs = calc_factors(f)
+  let ups = select(fs, g => calc_bil_up(g, k))
+  let downs = select(fs, g => calc_bil_down(g, k))
+  let zs = select(fs, g => calc_bil_z(g, k))
+  if length(ups) + length(downs) + length(zs) == length(fs) and length(zs) <= 1 and length(downs) >= 1
+  then bilateral_hypergeometric_pfq(map(g => g[1], ups), map(g => g[1][1], downs), if length(zs) == 1 then zs[1][1] else 1)
+  else null
+}
+rule sum(f_, sp_) := calc_bil(f, sp[1]) when is_list(sp) and length(sp) == 3 and is_symbol(sp[1]) and sp[2] === -inf and sp[3] === inf and not (calc_bil(f, sp[1]) === null)

@@ -232,6 +232,9 @@ pub static TABLE: &[Entry] = &[
         var: 1,
         joint: true,
         real: "$a > 0 and 0 < $u and $u <= 1",
+        // the inverse is the one of the real function on its principal branch: it is not continued into the plane
+        // (it stays unevaluated at a non-real a or x), so the complex domain is the real one
+        complex: "$a > 0 and 0 < $u and $u <= 1",
         sr: Some(&[("$a <= 0", BR), ("$u <= 0", BR), ("$u >= 1", BR)]),
         ranges: &[("", "$a > 0 and $y >= 0")],
         onto: &[("$a > 0", false)],
@@ -996,13 +999,15 @@ pub static TABLE: &[Entry] = &[
     // F_l(eta, rho) = C_l(eta) rho^(l + 1) e^(-i rho) M(l + 1 - i eta, 2 l + 2, 2 i rho): for an integer l >= 0 and a
     // real eta, rho^(l + 1) times a power series in rho with real coefficients (DLMF 33.2.4, 33.6.5: the coefficients
     // of the Maclaurin series follow a real three-term recurrence), so entire and real on the line; otherwise real for
-    // rho > 0, for rho < 0 when l is an integer, finite at 0 for l >= -1
+    // rho > 0, for rho < 0 when l is an integer, finite at 0 for l >= -1. Not for l = -1, -3/2, -2, ...: there the
+    // second parameter 2 l + 2 of M is 0, -1, ..., where M is not defined (DLMF 13.2.2), and the values stay
+    // unevaluated
     Entry { name: "coulomb_f", arity: 3, var: 2, when: "element($a, integers) and $a >= 0 and element($b, reals)", refs: "DLMF 33.2.4, 33.6.5", ..ENTIRE },
     Entry {
         name: "coulomb_f",
         arity: 3,
         var: 2,
-        when: "element($a, reals) and element($b, reals)",
+        when: "element($a, reals) and element($b, reals) and not(element(2*$a, integers) and $a <= -1)",
         real: "element($a, integers) and $u < 0 or $u >= 0 and $a >= -1 or $u > 0",
         refs: "DLMF 33.2.4",
         ..E
@@ -1490,6 +1495,9 @@ pub fn lookup<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, vars: 
     if let Some(hit) = weierstrass_lattice(cx, b, &name, args, vars)? {
         return Ok(Some(hit));
     }
+    if let Some(hit) = inverse_weierstrass(cx, b, &name, args, vars)? {
+        return Ok(Some(hit));
+    }
     for e in TABLE.iter().filter(|e| e.name == name && e.arity == args.len()) {
         let others: Vec<T<'h>> = args.iter().enumerate().filter(|&(i, _)| i != e.var).map(|(_, &a)| a).collect();
         if !e.joint && others.iter().any(|&o| depends(b, o, vars)) {
@@ -1597,6 +1605,40 @@ fn weierstrass_lattice<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &
     f.sr = Some(sr);
     f.singular_only = root;
     Ok(Some(Hit { facts: f, rules, arg: inv, pf: vec![] }))
+}
+
+/// `inverse_weierstrass_p(x, [g2, g3])` on the real line for rational invariants with `g2^3 - 27 g3^2 < 0`: the
+/// cubic `c(t) = 4 t^3 - g2 t - g3` has one real root `e1` and a pair `e2 = conj(e3)` (DLMF 23.3.(i)), so `c(x) = 4
+/// (x - e1) |x - e2|^2` has the sign of `x - e1`. The lattice is rhombic and p is real on the real axis with the values
+/// `[e1, inf)` only (p decreases from inf at 0 to its minimum `e1` at the real half-period, DLMF 23.5.(ii), 23.6.(iv)
+/// with `c(p) = p'^2 >= 0` there), so for `x < e1` no real u has `p(u) = x`: the value is not real. For `x > e1` the
+/// evaluator's value `+-R_F(x - e1, x - e2, x - e3)` (DLMF 19.16.1; the arguments a positive number and a conjugate
+/// pair off the negative axis, where R_F is analytic and real) with the sign that makes `p'(u)` the positive root
+/// `c(x)^(1/2)`, moved by the real period when negative, is real-analytic: the sign test compares `p'(u) = +-c(x)^(1/2)`
+/// with `c(x)^(1/2) > 0` and so does not change on the interval. At `x = e1` (`c = 0`) the inverse of p has the square
+/// root branch of a critical value (`p'(w1) = 0`, DLMF 23.3.6): singular. So on the line the singular (and
+/// discontinuity) set is `c(x) <= 0`, the real domain `c(x) > 0`.
+fn inverse_weierstrass<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, args: &[T<'h>], vars: &[T<'h>]) -> Res<Option<Hit<'h>>> {
+    let h = b.heap();
+    let ("inverse_weierstrass_p", &[x, inv]) = (name, args) else { return Ok(None) };
+    if cx.as_list(x).is_some() || depends(b, inv, vars) {
+        return Ok(None);
+    }
+    let Some(&[g2, g3]) = cx.as_list(inv) else { return Ok(None) };
+    let exact = |t: T<'h>| matches!(h.view(t), View::Int(_) | View::Rational { .. });
+    if !exact(g2) || !exact(g3) {
+        return Ok(None);
+    }
+    let disc = cx.eval(b.sub(b.powi(g2, 3), b.mul(&[b.int(27), b.powi(g3, 2)])))?;
+    if b.ar.compare(disc, b.zero()) != Some(mc_arith::Cmp3::Less) {
+        return Ok(None);
+    }
+    let rule = |k: &str, v: T<'h>| h.call(h.sym(names::RULE), &[placeholder(b, k), v]);
+    let rules = vec![rule("u", x), rule("a", g2), rule("b", g3)];
+    let mut f = Facts::of(&E);
+    f.real = "4*$u^3 - $a*$u - $b > 0".into();
+    f.sr = Some(vec![("4*$u^3 - $a*$u - $b <= 0".into(), Kind::Branch)]);
+    Ok(Some(Hit { facts: f, rules, arg: x, pf: vec![] }))
 }
 
 /// The hypergeometric families (DLMF 16.2, 15.2, 13.2) and the orthogonal families of non-integer degree through

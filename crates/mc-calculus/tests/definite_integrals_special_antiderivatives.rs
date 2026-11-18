@@ -45,3 +45,28 @@ fn definite_integrals_through_special_function_antiderivatives() {
 fn kelvin_derivative_closed_form() {
     assert_eq!(run("d(kelvin_ber(x), x)"), "(1/2)*(kelvin_bei(1, x) + kelvin_ber(1, x))*2^(1/2)");
 }
+
+#[test]
+fn theta_quotient_antiderivatives() {
+    assert_eq!(run("integrate(elliptic_theta_prime(a, u, q), u)"), "elliptic_theta(a, u, q)");
+    assert_eq!(run("integrate(elliptic_theta_prime(a, u, q), [u, 0, 5])"), "elliptic_theta(a, 5, q) - elliptic_theta(a, 0, q)");
+    assert_eq!(run("integrate(jacobi_zn(u, m), u)"), "log(neville_theta_n(u, m))");
+    assert_eq!(run("integrate(jacobi_epsilon(u, m), u)"), "log(neville_theta_n(u, m)) + (1/2)*elliptic_e(m)*u^2/elliptic_k(m)");
+    // the derivatives of the antiderivatives are the integrands
+    for f in ["jacobi_zn", "jacobi_epsilon"] {
+        for (u, m) in [("0.7", "1/3"), ("-1.9", "0.8"), ("2.5", "-2")] {
+            let v = real(&format!("n(rewrite(d(integrate({f}(u, {m}), u), u), u -> {u}) - {f}({u}, {m}))"));
+            assert!(v.abs() < 1e-12, "{f} at {u}, {m}: {v}");
+        }
+    }
+    // an argument that is not the variable itself is left alone
+    assert_eq!(run("integrate(jacobi_zn(u^2, m), u)"), "integrate(jacobi_zn(u^2, m), u)");
+}
+
+#[test]
+fn theta_derivative_in_its_argument() {
+    assert_eq!(run("d(elliptic_theta(a, u, q), u)"), "elliptic_theta_prime(a, u, q)");
+    assert_eq!(run("d(integrate(elliptic_theta_prime(a, u, q), u), u)"), "elliptic_theta_prime(a, u, q)");
+    let v = real("n(rewrite(d(elliptic_theta(3, u, 1/3), u), u -> 0.7) - elliptic_theta_prime(3, 0.7, 1/3))");
+    assert!(v.abs() < 1e-14, "{v}");
+}

@@ -114,8 +114,9 @@ fn struve_functions_of_half_integer_order() {
 
 #[test]
 fn undecided_cases_stay_unevaluated() {
-    // a non-integer order: Anger's and Bessel's functions are not read; an order above the checked ones
-    assert!(ev("function_range(bessel_j(1/2, x), x, y)").starts_with("function_range("));
+    // a non-integer order: Anger's and Bessel's functions are not read (order 1/2 is the elementary form
+    // sin(x) sqrt(2/(pi x)), whose range is proved); an order above the checked ones
+    assert!(ev("function_range(bessel_j(1/3, x), x, y)").starts_with("function_range("));
     assert!(ev("function_range(bessel_j(20, x), x, y)").starts_with("function_range("));
     assert!(ev("function_range(bessel_j(a, x), x, y)").starts_with("function_range("));
 }

@@ -91,6 +91,14 @@ pub fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) -
             None => circular(cx, b, f, cond, x, y)?,
         },
     };
+    // special functions whose range is proved one by one (the hyperfactorial on x >= a, elliptic_pi in n)
+    if r.is_none() {
+        if let Some(t) = super::special_range::special_range(cx, b, f, cond, x, y)? {
+            if checks_out_with(cx, b, f, cond, x, y, t, true)? {
+                return Ok(Some(t));
+            }
+        }
+    }
     // a special function of the variable: its range from the table (proved there), checked against samples. It
     // answers before the search for critical points (the zeros of a derivative such as W(x)/(x (1 + W(x))) can be
     // slow to settle) when it is one interval, whose form is the one that search gives (it writes the two rays

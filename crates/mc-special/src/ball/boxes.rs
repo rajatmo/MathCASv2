@@ -25,7 +25,8 @@ use mc_numeric::consts::Const;
 /// I by (I_(nu-1) + I_(nu+1))/2, K by -(K_(nu-1) + K_(nu+1))/2 (10.6.1, 10.29.1); d/dz Gamma(a, z) = -z^(a-1) e^-z
 /// (8.8.13), Q likewise over Gamma(a); erf' = 2/sqrt(pi) e^(-z^2), erfi' = 2/sqrt(pi) e^(z^2); Gamma' = Gamma psi;
 /// (x)_n in x: (x)_n (psi(x + n) - psi(x)); K'(m) = (E - (1 - m) K)/(2 m (1 - m)), E'(m) = (E - K)/(2m) (19.4.1);
-/// Ei' = e^z/z.
+/// Ei' = e^z/z; P, Q and the Zernike R by the derivative of their 2F1 forms (DLMF 15.5.1); Weber E by
+/// 2 E_nu' = E_(nu-1) - E_(nu+1) (DLMF 11.10.36).
 pub fn complex_box_d(name: &str, a: &[CBall], deriv: Option<usize>, p: u64) -> Option<CBall> {
     match deriv {
         None => complex_box(name, a, p),
@@ -116,6 +117,14 @@ fn derivative(name: &str, a: &[CBall], i: usize, w: u64) -> Option<CBall> {
             [da, db, dz][i].clone()
         }
         ("coulomb_f" | "coulomb_g" | "coulomb_h1" | "coulomb_h2", [l, eta, rho]) => coulomb_gradient(name, l, eta, rho, w)?[i].clone(),
+        ("legendre_p", [nu, z]) if last => legendre_p_d(nu, &CBall::from_i64(0), z, w)?,
+        ("legendre_p", [nu, mu, z]) if last => legendre_p_d(nu, mu, z, w)?,
+        ("legendre_q", [nu, z]) if last => legendre_q_d(nu, z, w)?,
+        ("zernike_r", [n, m, r]) if last => zernike_d(n, m, r, w)?,
+        ("weber_e", [nu, z]) if last => {
+            let d = weber_box(&nu.sub(&one, w), z, w)?.sub(&weber_box(&nu.add(&one, w), z, w)?, w);
+            d.mul(&half(), w)
+        }
         _ => return None,
     })
 }
@@ -317,6 +326,11 @@ pub fn complex_box(name: &str, a: &[CBall], p: u64) -> Option<CBall> {
         }
         ("coulomb_f" | "coulomb_g" | "coulomb_h1" | "coulomb_h2", [l, eta, rho]) => coulomb(name, l, eta, rho, w)?,
         ("product_log", [z]) => lambert_box(z, w)?,
+        ("legendre_p", [nu, z]) => legendre_p_box(nu, &CBall::from_i64(0), z, w)?,
+        ("legendre_p", [nu, mu, z]) => legendre_p_box(nu, mu, z, w)?,
+        ("legendre_q", [nu, z]) => legendre_q_box(nu, z, w)?,
+        ("zernike_r", [n, m, r]) => zernike_box(n, m, r, w)?,
+        ("weber_e", [nu, z]) => weber_box(nu, z, w)?,
         _ if super::lattice::has(name) => super::lattice::enclose(name, a, w)?,
         _ => Special::find(name, a.len())?.ball_complex(a, w)?,
     };
@@ -450,6 +464,168 @@ fn coulomb(name: &str, l: &CBall, eta: &CBall, rho: &CBall, w: u64) -> Option<CB
         "coulomb_g" => hp.sub(&i_f, w),
         _ => hp.sub(&i_f.mul(&two, w), w),
     })
+}
+
+/// A real box or a point: the complex-ball 2F1 of a box off the real line costs seconds (its series refined at
+/// growing precision), so the 2F1 forms below take real spreads only.
+fn real_or_point(z: &CBall) -> bool {
+    z.is_real() || (z.re.rad.is_zero() && z.im.rad.is_zero())
+}
+
+/// d/dz of [`legendre_p_box`]: with A = (1 + z)^(mu/2), B = (1 - z)^(-mu/2), F = 2F1(-nu, nu + 1; 1 - mu; (1 - z)/2),
+/// (A B F)' = A B (mu/2) (1/(1 + z) + 1/(1 - z)) F - A B (1/2) (ab/c) 2F1(a + 1, b + 1; c + 1; (1 - z)/2)
+/// (DLMF 15.5.1), all over Gamma(1 - mu).
+fn legendre_p_d(nu: &CBall, mu: &CBall, z: &CBall, w: u64) -> Option<CBall> {
+    if !real_or_point(z) {
+        return None;
+    }
+    let one = CBall::from_i64(1);
+    let half = Ball::from_ratio(1, 2, w);
+    let c = one.sub(mu, w);
+    if super::cseries::nonpos_int(&c).is_some() {
+        return None;
+    }
+    let (a, b) = (nu.neg(), nu.add(&one, w));
+    let x = one.sub(z, w).mul_real(&half, w);
+    let rg = super::cseries::rgamma(&c, w)?;
+    let f1 = super::cspecial::hyp2f1(&a.add(&one, w), &b.add(&one, w), &c.add(&one, w), &x, w)?;
+    let mut d = a.mul(&b, w).div(&c, w)?.mul(&f1, w).mul_real(&half, w).neg();
+    if mu.is_exact_zero() {
+        return Some(d.mul(&rg, w));
+    }
+    let f = super::cspecial::hyp2f1(&a, &b, &c, &x, w)?;
+    let hm = mu.mul_real(&half, w);
+    let lp = one.add(z, w).recip(w)?.add(&one.sub(z, w).recip(w)?, w);
+    d = d.add(&hm.mul(&lp, w).mul(&f, w), w);
+    let ab = cball::pow(&one.add(z, w), &hm, w)?.mul(&cball::pow(&one.sub(z, w), &hm.neg(), w)?, w);
+    Some(ab.mul(&d, w).mul(&rg, w))
+}
+
+/// d/dz of [`legendre_q_box`]: pi/(2 sin(nu pi)) (cos(nu pi) P'(z) + P'(-z)).
+fn legendre_q_d(nu: &CBall, z: &CBall, w: u64) -> Option<CBall> {
+    let pi = CBall::real(Const::Pi.ball(w)?);
+    let (s, c) = cball::sin_cos(&nu.mul(&pi, w), w)?;
+    let zero = CBall::from_i64(0);
+    let p = legendre_p_d(nu, &zero, z, w)?;
+    let q = legendre_p_d(nu, &zero, &z.neg(), w)?;
+    Some(pi.div(&s.mul(&CBall::from_i64(2), w), w)?.mul(&c.mul(&p, w).add(&q, w), w))
+}
+
+/// d/dr of [`zernike_box`]: cos(k pi) binomial(s, k) (m r^(m-1) F + 2 r^(m+1) (ab/c) 2F1(a + 1, b + 1; c + 1; r^2))
+/// with F = 2F1(a, b; c; r^2), a = -k, b = s + 1, c = m + 1 (DLMF 15.5.1).
+fn zernike_d(n: &CBall, m: &CBall, r: &CBall, w: u64) -> Option<CBall> {
+    if !real_or_point(r) {
+        return None;
+    }
+    let one = CBall::from_i64(1);
+    let half = Ball::from_ratio(1, 2, w);
+    let k = n.sub(m, w).mul_real(&half, w);
+    let s = n.add(m, w).mul_real(&half, w);
+    let m1 = m.add(&one, w);
+    if super::cseries::nonpos_int(&m1).is_some() {
+        return None;
+    }
+    let pi = CBall::real(Const::Pi.ball(w)?);
+    let cosk = cball::cos(&k.mul(&pi, w), w)?;
+    let g = Special::Gamma.ball_complex(&[s.add(&one, w)], w)?;
+    let binom = g.mul(&super::cseries::rgamma(&k.add(&one, w), w)?, w).mul(&super::cseries::rgamma(&m1, w)?, w);
+    let (a, b, r2) = (k.neg(), s.add(&one, w), r.square(w));
+    let f = super::cspecial::hyp2f1(&a, &b, &m1, &r2, w)?;
+    let f1 = super::cspecial::hyp2f1(&a.add(&one, w), &b.add(&one, w), &m1.add(&one, w), &r2, w)?;
+    let t1 = m.mul(&cball::pow(r, &m.sub(&one, w), w)?, w).mul(&f, w);
+    let t2 = cball::pow(r, &m.add(&one, w), w)?.mul(&a.mul(&b, w).div(&m1, w)?, w).mul(&f1, w).mul(&CBall::from_i64(2), w);
+    Some(cosk.mul(&binom, w).mul(&t1.add(&t2, w), w))
+}
+
+/// P_nu^mu(z) of type 2 (the function of the point evaluation): (1 + z)^(mu/2) (1 - z)^(-mu/2)
+/// 2F1~(-nu, nu + 1; 1 - mu; (1 - z)/2) (DLMF 14.3.1); on the cut z > 1 the principal branch of (1 - z)^(-mu/2) and
+/// the 2F1 from below, as at a point. `None` where 1 - mu is a pole of Gamma (the regularized limit).
+fn legendre_p_box(nu: &CBall, mu: &CBall, z: &CBall, w: u64) -> Option<CBall> {
+    if !real_or_point(z) {
+        return None;
+    }
+    let one = CBall::from_i64(1);
+    let c = one.sub(mu, w);
+    if super::cseries::nonpos_int(&c).is_some() {
+        return None;
+    }
+    let x = one.sub(z, w).mul_real(&Ball::from_ratio(1, 2, w), w);
+    let f = super::cspecial::hyp2f1(&nu.neg(), &nu.add(&one, w), &c, &x, w)?.mul(&super::cseries::rgamma(&c, w)?, w);
+    if mu.is_exact_zero() {
+        return Some(f);
+    }
+    let hm = mu.mul_real(&Ball::from_ratio(1, 2, w), w);
+    let a = cball::pow(&one.add(z, w), &hm, w)?;
+    let b = cball::pow(&one.sub(z, w), &hm.neg(), w)?;
+    Some(a.mul(&b, w).mul(&f, w))
+}
+
+/// Q_nu(z) = pi/(2 sin(nu pi)) (cos(nu pi) P_nu(z) - P_nu(-z)) (DLMF 14.9.10 at mu = 0), the combination of the
+/// point evaluation: an identity of the functions analytic off (-inf, -1] and [1, inf), and on the cuts the
+/// combination of the limits taken there. `None` for a box that holds -1 or 1, or where sin(nu pi) may vanish.
+fn legendre_q_box(nu: &CBall, z: &CBall, w: u64) -> Option<CBall> {
+    let one = CBall::from_i64(1);
+    if one.sub(z, w).contains_zero() || one.add(z, w).contains_zero() {
+        return None;
+    }
+    let pi = CBall::real(Const::Pi.ball(w)?);
+    let (s, c) = cball::sin_cos(&nu.mul(&pi, w), w)?;
+    if s.contains_zero() {
+        return None;
+    }
+    let zero = CBall::from_i64(0);
+    let p = legendre_p_box(nu, &zero, z, w)?;
+    let q = legendre_p_box(nu, &zero, &z.neg(), w)?;
+    Some(pi.div(&s.mul(&CBall::from_i64(2), w), w)?.mul(&c.mul(&p, w).sub(&q, w), w))
+}
+
+/// R_n^m(r) for any numbers, as at a point: cos(k pi) r^m binomial(s, k) 2F1(-k, s + 1; m + 1; r^2) with
+/// k = (n - m)/2, s = (n + m)/2 (the Jacobi form, Born and Wolf 9.2.1, appendix VII; DLMF 18.5.7), binomial(s, k) =
+/// Gamma(s + 1)/(Gamma(k + 1) Gamma(m + 1)).
+fn zernike_box(n: &CBall, m: &CBall, r: &CBall, w: u64) -> Option<CBall> {
+    if !real_or_point(r) {
+        return None;
+    }
+    let one = CBall::from_i64(1);
+    let half = Ball::from_ratio(1, 2, w);
+    let k = n.sub(m, w).mul_real(&half, w);
+    let s = n.add(m, w).mul_real(&half, w);
+    let m1 = m.add(&one, w);
+    if super::cseries::nonpos_int(&m1).is_some() {
+        return None;
+    }
+    let pi = CBall::real(Const::Pi.ball(w)?);
+    let cosk = cball::cos(&k.mul(&pi, w), w)?;
+    let g = Special::Gamma.ball_complex(&[s.add(&one, w)], w)?;
+    let binom = g.mul(&super::cseries::rgamma(&k.add(&one, w), w)?, w).mul(&super::cseries::rgamma(&m1, w)?, w);
+    let f = super::cspecial::hyp2f1(&k.neg(), &s.add(&one, w), &m1, &r.square(w), w)?;
+    Some(cosk.mul(&cball::pow(r, m, w)?, w).mul(&binom, w).mul(&f, w))
+}
+
+/// The Weber function E_nu(z) = sin(nu pi/2) S1 - cos(nu pi/2) S2 (DLMF 11.10.5) with the entire series
+/// S1 = sum (-1)^k (z/2)^(2k)/(Gamma(k + 1 + nu/2) Gamma(k + 1 - nu/2)) and
+/// S2 = sum (-1)^k (z/2)^(2k+1)/(Gamma(k + 3/2 + nu/2) Gamma(k + 3/2 - nu/2)) (DLMF 11.10.8-9), each a 1F2 in
+/// -z^2/4 over the Gamma functions of its first term. `None` where a lower parameter is a pole (an even or odd
+/// integer order, where the series' first terms vanish and the closed forms apply).
+fn weber_box(nu: &CBall, z: &CBall, w: u64) -> Option<CBall> {
+    // the alternating series cancels about |z| log2(e) bits: beyond |z| = 24 the enclosure costs seconds
+    if super::cseries::log2_up(z) > 4.6 {
+        return None;
+    }
+    let one = CBall::from_i64(1);
+    let half = Ball::from_ratio(1, 2, w);
+    let hn = nu.mul_real(&half, w);
+    let t = z.square(w).mul_real(&Ball::from_ratio(-1, 4, w), w);
+    let series = |b1: CBall, b2: CBall| -> Option<CBall> {
+        let r = super::cseries::rgamma(&b1, w)?.mul(&super::cseries::rgamma(&b2, w)?, w);
+        Some(super::cspecial::hyp_pfq(std::slice::from_ref(&one), &[b1, b2], &t, w)?.mul(&r, w))
+    };
+    let s1 = series(one.add(&hn, w), one.sub(&hn, w))?;
+    let th = CBall::real(Ball::from_ratio(3, 2, w));
+    let s2 = series(th.add(&hn, w), th.sub(&hn, w))?.mul(&z.mul_real(&half, w), w);
+    let pi = CBall::real(Const::Pi.ball(w)?);
+    let (sn, cs) = cball::sin_cos(&hn.mul(&pi, w), w)?;
+    Some(sn.mul(&s1, w).sub(&cs.mul(&s2, w), w))
 }
 
 /// S(z) (`sine`) or C(z) by the error function.

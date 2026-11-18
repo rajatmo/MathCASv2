@@ -232,6 +232,10 @@ fn surjective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps
     if s.dom == Dom::Integers {
         return Ok(Ans::Unknown);
     }
+    // a function proved bounded on the whole line (and real there) takes no value beyond its bound
+    if !complex && s.ycond.is_none() && s.comps.len() == 1 && s.vars.len() == 1 && bounded_on_line(b, s.comps[0], s.vars[0]) {
+        return Ok(Ans::Bool(false));
+    }
     // linear maps
     if ps.is_empty() && s.cond.is_none() && s.ycond.is_none() {
         if let Some(m) = linear_matrix(cx, b, s)? {
@@ -335,6 +339,22 @@ fn surjective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps
     Ok(r)
 }
 
+/// Is `f` real and bounded at every real `x`, by a proof written here? So far `im_part(subfactorial(x))`: with
+/// `!x = Gamma(x + 1, -1)/e` and `Gamma(s, -1) = Gamma(s) - gamma(s, -1)`, `gamma(s, -1) = (-1)^s sum_k 1/(k! (s +
+/// k))` (DLMF 8.7.1 with `z = -1`; `Gamma(s, z)` is entire in `s` for `z != 0`, DLMF 8.2.(ii)), so for real `x` the
+/// imaginary part is `+-sin(pi x)/e sum_k 1/(k! (x + 1 + k))` (the sign by the side of the cut, either way). As
+/// `|sin(pi x)| = |sin(pi (x - n))| <= pi |x - n|` for every integer `n`, each term is at most `pi/k!` in absolute
+/// value, and `|Im(!x)| <= pi e/e = pi` on the whole line.
+fn bounded_on_line<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
+    let h = b.heap();
+    let View::App { head, args: &[u] } = h.view(f) else { return false };
+    if b.sym_of(head) != Some(h.sym("im_part")) {
+        return false;
+    }
+    let View::App { head, args: &[v] } = h.view(u) else { return false };
+    b.sym_of(head) == Some(h.sym("subfactorial")) && v == x
+}
+
 /// One real variable, when the limits do not decide: the range of `f` ([`super::range`]) against the
 /// codomain condition (`for_all(y, ycond implies range)`); nothing else (values growing along samples, as for
 /// `x sin(x)`, prove nothing).
@@ -347,6 +367,11 @@ fn surjective_by_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spe
         None => f,
     };
     if let Some(r) = super::range::range(cx, b, &[fc, x, y])? {
+        // one bound or two (a comparison of y with a real closed term each, joined by `and`; exact terms such as root
+        // objects that the decision procedure does not read): the values beyond a bound are not taken
+        if s.ycond.is_none() && bounds_y(cx, b, r, y)? {
+            return Ok(Some(Ans::Bool(false)));
+        }
         let sentence = match s.ycond {
             Some(yc) => b.call("for_all", &[cx.list(&[y]), b.call("implies", &[yc, r])]),
             None => b.call("for_all", &[cx.list(&[y]), r]),
@@ -362,6 +387,35 @@ fn surjective_by_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spe
     }
     // (values unbounded above and below along samples prove nothing: the call stays)
     Ok(None)
+}
+
+/// Is the range condition `r` one comparison of `y` with a closed real term (`y <= c`, `c < y`, ...) or a conjunction
+/// of such comparisons? Then `r` bounds `y` on a side, and a value beyond that bound is not taken.
+fn bounds_y<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, r: T<'h>, y: T<'h>) -> Res<bool> {
+    let h = b.heap();
+    let parts: Vec<T<'h>> = match h.view(r) {
+        View::App { head, args } if b.sym_of(head) == Some(h.sym("and")) => args.to_vec(),
+        _ => vec![r],
+    };
+    for p in parts {
+        let View::App { head, args: &[l, rt] } = h.view(p) else { return Ok(false) };
+        let Some(s) = b.sym_of(head) else { return Ok(false) };
+        if !matches!(h.sym_name(s).as_str(), "less" | "less_equal" | "greater" | "greater_equal") {
+            return Ok(false);
+        }
+        let c = if l == y {
+            rt
+        } else if rt == y {
+            l
+        } else {
+            return Ok(false);
+        };
+        // a closed real term: free of y, with a real 30-digit enclosure (the slot of a root object is not a parameter)
+        if !is_free(b, c, y) || super::proof::bounds(b, cx.eval(b.call("n", &[c, b.int(30)]))?).is_none() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// Real singular points of the discontinuity atoms of `f` (families enumerated for `c(1)` in -3..3), sorted, and
@@ -979,6 +1033,10 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps:
                 _ => Ans::Unknown,
             });
         }
+        // exp(p(x)) R(x): an essential singularity at infinity, not injective
+        if s.comps.len() == 1 && s.vars.len() == 1 && dcond.is_none() && ps.is_empty() && exp_times_rational(cx, b, s.comps[0], s.vars[0])? {
+            return Ok(Ans::Bool(false));
+        }
         // a nonzero complex period: not injective
         if s.comps.len() == 1 && s.vars.len() == 1 && dcond.is_none() && ps.is_empty() {
             let p = cx.eval(b.call("function_period", &[s.comps[0], s.vars[0], h.sym_term(h.sym("complexes"))]))?;
@@ -1044,6 +1102,86 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ps:
     let sentence = b.call("for_all", &[cx.list(&all), b.call("implies", &[hyp, concl])]);
     let r = resolve(cx, b, sentence, false)?;
     under_facts(cx, b, s, r)
+}
+
+/// Is `f` (after `function_expand`, which writes the spherical Hankel functions of integer order as `e^(+-i x)` times
+/// a polynomial in `1/x`, DLMF 10.49.6-7) of the form `exp(p(x)) R(x)` with `p` a polynomial of degree at least 1 and
+/// `R` a nonzero rational function, all coefficients numeric? Such an `f` is holomorphic on `|x| > r` (beyond the
+/// poles of `R`) with an essential singularity at infinity (`exp(p) = f/R` is not meromorphic there), so it is not
+/// injective on its domain in the plane: for a disc `D` in `r < |x| < rho` the image `f(D)` is open (open mapping
+/// theorem) and `f(|x| > rho)` is dense (Casorati-Weierstrass), so some value is taken in `D` and again outside
+/// (Ahlfors, Complex Analysis, 3rd ed., 4.3.3 and 4.3.4).
+fn exp_times_rational<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> Res<bool> {
+    let h = b.heap();
+    // exp(u) is the power e^u
+    let e = h.sym_term(h.sym("e"));
+    let named = ["spherical_hankel_h1", "spherical_hankel_h2"];
+    let mut stack = mc_api::walk::Walk::new(f);
+    let mut has_exp = false;
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if b.sym_of(head) == Some(b.hd.pow) && args.first() == Some(&e) {
+                has_exp = true;
+                break;
+            }
+            stack.extend(args.iter().copied());
+        }
+    }
+    if !has_exp && !named.iter().any(|n| super::contains_call(b, f, n)) {
+        return Ok(false);
+    }
+    let g = cx.eval(b.call("function_expand", &[f]))?;
+    let factors: Vec<T<'h>> = match h.view(g) {
+        View::App { head, args } if b.sym_of(head) == Some(b.hd.mul) => args.to_vec(),
+        _ => vec![g],
+    };
+    let mut exponent = vec![];
+    let mut rest = vec![];
+    for t in factors {
+        match h.view(t) {
+            View::App { head, args: &[base, u] } if b.sym_of(head) == Some(b.hd.pow) && base == e => exponent.push(u),
+            _ => rest.push(t),
+        }
+    }
+    if exponent.is_empty() {
+        return Ok(false);
+    }
+    let p = cx.eval(b.add(&exponent))?;
+    if !spec::params(b, &[g], &[x]).is_empty() || !numeric_poly_degree(b, p, x).is_some_and(|d| d >= 1) {
+        return Ok(false);
+    }
+    let r = cx.eval(b.call("together", &[b.mul(&rest)]))?;
+    let num = cx.eval(b.call("numerator", &[r]))?;
+    let den = cx.eval(b.call("denominator", &[r]))?;
+    Ok(num != b.zero() && den != b.zero() && numeric_poly_degree(b, num, x).is_some() && numeric_poly_degree(b, den, x).is_some())
+}
+
+/// The degree in `x` of a polynomial whose coefficients are free of `x` (numeric constants such as `im` and `pi`
+/// allowed; the caller checks there are no parameters); `None` for anything else. The degree is that of the written
+/// form (the caller's terms are evaluated, so a vanishing leading coefficient has been dropped).
+fn numeric_poly_degree<'h>(b: &Build<'h>, t: T<'h>, x: T<'h>) -> Option<u32> {
+    let h = b.heap();
+    if t == x {
+        return Some(1);
+    }
+    if is_free(b, t, x) {
+        return Some(0);
+    }
+    let View::App { head, args } = h.view(t) else { return None };
+    let s = b.sym_of(head)?;
+    if s == b.hd.add {
+        args.iter().map(|&a| numeric_poly_degree(b, a, x)).try_fold(0, |m, d| d.map(|d| m.max(d)))
+    } else if s == b.hd.mul {
+        args.iter().map(|&a| numeric_poly_degree(b, a, x)).try_fold(0u32, |m, d| d.map(|d| m.saturating_add(d)))
+    } else if s == b.hd.pow {
+        let [base, ex] = args else { return None };
+        match h.view(*ex) {
+            View::Int(k) if (1..=64).contains(&k) => numeric_poly_degree(b, *base, x).map(|d| d.saturating_mul(k as u32)),
+            _ => None,
+        }
+    } else {
+        None
+    }
 }
 
 /// Is the region of the condition `c` on `x` one interval with an interior for every value of the parameters (a
