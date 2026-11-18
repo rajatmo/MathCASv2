@@ -126,10 +126,10 @@ pub(crate) fn parts(nb: &Notebook) -> Vec<Part> {
 }
 
 /// The title of the document: the first title cell's text (its first line), if any.
-/// Where the multiplication signs of a code text go (a space between two operands multiplies, and the
-/// notebook shows a faint sign there): for each such gap on one line, the byte offset of its middle space. An export
-/// writes the sign in place of that space, so the columns of the code do not move. A product across a line end has
-/// no space to take and gets none.
+/// Where the multiplication signs of a code text go (a space between two numbers multiplies them, and the
+/// notebook shows a sign there, `mc_syntax::product_shows_sign`): for each such gap on one line, the byte offset
+/// of its middle space. An export writes the sign in place of that space, so the columns of the code do not move.
+/// A product across a line end has no space to take and gets none.
 pub(crate) fn product_marks(src: &str) -> Vec<usize> {
     mc_syntax::parse(src)
         .products
@@ -137,7 +137,8 @@ pub(crate) fn product_marks(src: &str) -> Vec<usize> {
         .filter_map(|g| {
             let (a, b) = (g.start as usize, g.end as usize);
             let gap = src.get(a..b)?;
-            (!gap.is_empty() && gap.bytes().all(|c| c == b' ')).then_some(a + gap.len() / 2)
+            (!gap.is_empty() && gap.bytes().all(|c| c == b' ') && mc_syntax::product_shows_sign(src, &(a..b)))
+                .then_some(a + gap.len() / 2)
         })
         .collect()
 }

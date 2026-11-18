@@ -100,7 +100,7 @@ fn between(src: &str, a: usize, b: usize, marks: &[usize]) -> String {
     out
 }
 
-/// Source text with syntax colouring, escaped; a space that multiplies shows the faint sign the notebook draws.
+/// Source text with syntax colouring, escaped; a space that multiplies two numbers shows the sign the notebook draws.
 fn coloured(src: &str) -> String {
     let mut out = String::with_capacity(src.len() * 2);
     let marks = crate::model::product_marks(src);
@@ -136,7 +136,7 @@ pub(crate) fn row_html(row: &Row) -> String {
     row_html_marked(row, false)
 }
 
-/// [`row_html`]; with `products`, a space of the top row that multiplies (typeset input) shows the faint sign.
+/// [`row_html`]; with `products`, a space of the top row that multiplies two numbers (typeset input) shows the sign.
 fn row_html_marked(row: &Row, products: bool) -> String {
     // the top row as text, a box standing as a one-letter name (an operand): the items whose space multiplies
     let marked: Vec<usize> = if products {
@@ -500,14 +500,23 @@ mod tests {
     #[test]
     fn a_space_that_multiplies_shows_the_sign() {
         let x = "<span class=\"x\">\u{d7}</span>";
-        assert_eq!(coloured("m c"), format!("m{x}c"));
+        // between two numbers only: a space between names reads as a product by itself
+        let plain = |s: &str| {
+            let mut t = coloured(s).replace(x, "\u{d7}");
+            while let (Some(a), Some(b)) = (t.find('<'), t.find('>')) {
+                t.replace_range(a..=b, "");
+            }
+            t
+        };
+        assert_eq!(plain("2 3"), "2\u{d7}3");
+        assert_eq!(plain("m c"), "m c");
         // the middle space of a wider gap; an operator's spaces stay
-        assert_eq!(coloured("a   b + c"), format!("a {x} b + c"));
+        assert_eq!(plain("1.5   2 + c"), "1.5 \u{d7} 2 + c");
         assert!(!coloured("f(x) + 1").contains("class=\"x\""));
-        // typeset input: beside a box
-        let row = mc_boxes::from_text("2 ((sqrt(x))) + a b");
+        // typeset input: beside a box no sign, between numbers one
+        let row = mc_boxes::from_text("2 ((sqrt(x))) + a b + 4 5");
         let h = super::row_html_marked(&row, true);
-        assert_eq!(h.matches("class=\"x\"").count(), 2, "{h}");
+        assert_eq!(h.matches("class=\"x\"").count(), 1, "{h}");
         assert!(!row_html(&row).contains("class=\"x\""));
     }
 

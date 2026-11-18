@@ -302,8 +302,8 @@ impl App {
         format!("{} [{}]", ws.len(), ws.join("; "))
     }
 
-    /// The faint multiplication signs of the cell with the caret (self-test): the gaps of the canonical
-    /// text and where each `×` is drawn (layout coordinates).
+    /// The multiplication signs of the cell with the caret (self-test): the gaps of the canonical text that
+    /// show a sign and where each `×` is drawn (layout coordinates).
     pub fn products_state(&mut self, ctx: &egui::Context) -> String {
         let id = match *self.doc.nb.selection() {
             Selection::Caret { cell, .. } => cell,
@@ -311,7 +311,8 @@ impl App {
         };
         let Some(c) = self.doc.nb.cell(id) else { return "no cell".into() };
         let text = c.text.clone();
-        let gaps = self.doc.view.colouring(c).products.clone();
+        let mut gaps = self.doc.view.colouring(c).products.clone();
+        gaps.retain(|g| mc_syntax::product_shows_sign(&text, g));
         let marks = self.doc.view.product_marks(ctx, c);
         let shown: Vec<String> = gaps
             .iter()

@@ -35,7 +35,8 @@ quantity(3, "Meters") + quantity(2, "Feet")   # quantity(1504/127, "Feet")
 Three things to know before you type:
 
 - **A space multiplies.** `2 pi r` and `m c^2` are products. `f(x)` is a call and `f (x)` is the product of `f`
-  and `x`; the notebook shows a faint `×` wherever a space multiplies, so you can see which one you wrote.
+  and `x`, and the notebook warns about `sin x`. Between two numbers the notebook shows a `×` in the space
+  (`2 3` is 6), so it never reads as 23.
 - **Exact stays exact.** `1/3` is a rational and `sqrt(2)` a root until you ask for digits with `n(...)`. Numbers
   with a decimal point are machine numbers; `n(x, 50)` gives 50 digits, and only correct digits are shown.
 - **Failures are values.** `1/0` gives `failure(division_by_zero)`, and a function that cannot do something returns

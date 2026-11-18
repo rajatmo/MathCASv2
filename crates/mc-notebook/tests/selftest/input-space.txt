@@ -1,7 +1,7 @@
 # A space between operands multiplies: formulas typed with spaces, each checked for its stored text,
-# its linear text, the gaps the faint multiplication sign is drawn in, and its value; the warning on `sin x` and its
-# fix; `Esc * Esc`; screenshots of the faint signs in both themes at 100, 150 and 200 %. Driven by
-# tests/input_selftest.rs (`space`).
+# its linear text, the gaps that multiply, the multiplication signs drawn (between two numbers and across a line
+# end only), and its value; the warning on `sin x` and its fix; `Esc * Esc`; screenshots in both themes at 100,
+# 150 and 200 %. Driven by tests/input_selftest.rs (`space`).
 size 1000 700
 ppp 1
 theme light
@@ -23,6 +23,14 @@ expect gaps " | "
 products
 eval
 expect output "2*pi*r"
+
+formula space/numbers
+keys Ctrl+End "2 3 + 1.5 4 x"
+expect canon "2 3 + 1.5 4 x"
+expect gaps " | | "
+products
+eval
+expect output "6 + 6.0*x"
 
 formula space/two-products
 keys Ctrl+End "a b + c d"
@@ -101,8 +109,8 @@ warnings
 eval
 expect output "sin(x)"
 
-log the faint signs in one cell, in both themes at 100, 150 and 200 %
-keys Ctrl+End "E = m c^2 + 2 pi r + (x + 1) (x - 1) + [a" Enter "b, c d]"
+log products with and without a sign in one cell, in both themes at 100, 150 and 200 %
+keys Ctrl+End "E = m c^2 + 2 pi r + 2 3 + (x + 1) (x - 1) + [a" Enter "b, c d]"
 keys Ctrl+End "x" Ctrl+6 "2" Ctrl+Space " y " Ctrl+2 "z" Ctrl+Space " + 2 x y"
 wait 3
 products

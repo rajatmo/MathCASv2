@@ -107,8 +107,25 @@ pub struct Colouring {
     /// The same pairs keyed both ways (`(a, b)` and `(b, a)`), sorted by the first offset.
     partners: Vec<(usize, usize)>,
     /// The white space between two operands that multiplies them (`m c^2`; [`crate::Parsed::products`]), sorted;
-    /// the editor draws a faint `×` there. None for texts coloured lexically only.
+    /// the editor draws a `×` in those of them [`product_shows_sign`] names. None for texts coloured lexically only.
     pub products: Vec<Range<usize>>,
+}
+
+/// Whether the product written with the white space `gap` of `src` is shown with a multiplication sign. A space
+/// between operands reads as a product by itself (`m c^2`, `2 pi r`), as in written mathematics, so it stays a
+/// space; the sign is shown only where the product is easy to misread without it: between two numbers (`2 3`,
+/// which would read as 23) and across a line end (inside brackets).
+pub fn product_shows_sign(src: &str, gap: &Range<usize>) -> bool {
+    let Some(g) = src.get(gap.clone()) else { return false };
+    if g.contains('\n') {
+        return true;
+    }
+    let numeric = |c: Option<u8>| c.is_some_and(|c| c.is_ascii_digit() || c == b'.');
+    let b = src.as_bytes();
+    // the token on the left is a number: it starts with a digit (`x1 2` multiplies a name and shows no sign)
+    let word = |c: &u8| c.is_ascii_alphanumeric() || *c == b'_' || *c == b'.' || *c >= 0x80;
+    let start = b[..gap.start].iter().rposition(|c| !word(c)).map_or(0, |k| k + 1);
+    start < gap.start && numeric(b.get(start).copied()) && numeric(b.get(gap.end).copied())
 }
 
 impl Colouring {

@@ -110,8 +110,9 @@ const RECOLOUR_PAUSE: std::time::Duration = std::time::Duration::from_millis(350
 
 /// A cell's colouring with what it was made for: the key (revision, names), the text (to find the next edit),
 /// whether it is a full colouring or one moved over edits since (and when), and a generation for kept galleys.
-/// A faint multiplication sign: where white space between two operands multiplies them, a `×` is drawn
-/// centred in that space, in layout coordinates: its centre and its half size (the arms' reach from the centre).
+/// A multiplication sign that is not typed: where white space multiplies two numbers, or two operands across a
+/// line end, a `×` is drawn in that space, in layout coordinates: its centre and its half size (the arms' reach
+/// from the centre).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ProductMark {
     pub x: f32,
@@ -2049,8 +2050,9 @@ impl View {
         }
     }
 
-    /// The faint multiplication signs of a code cell, placed on its layout: one per gap of
-    /// `Colouring::products`, cached by layout key and gaps.
+    /// The multiplication signs of a code cell, placed on its layout: one per gap of `Colouring::products`
+    /// that shows a sign (`mc_syntax::product_shows_sign`: between two numbers, across a line end), cached by
+    /// layout key and gaps.
     pub fn product_marks(&mut self, ctx: &egui::Context, c: &Cell) -> Arc<Vec<ProductMark>> {
         let colouring = self.colouring(c);
         if colouring.products.is_empty() {
@@ -2065,14 +2067,18 @@ impl View {
         }
         let lay = self.box_layout(ctx, c);
         let mapped = self.text_map(c);
-        let marks: Vec<ProductMark> =
-            colouring.products.iter().filter_map(|g| product_mark(&c.text, g.clone(), &mapped.1, &lay)).collect();
+        let marks: Vec<ProductMark> = colouring
+            .products
+            .iter()
+            .filter(|g| mc_syntax::product_shows_sign(&c.text, g))
+            .filter_map(|g| product_mark(&c.text, g.clone(), &mapped.1, &lay))
+            .collect();
         let marks = Arc::new(marks);
         self.product_marks.insert(c.id, (key, colouring.products.clone(), marks.clone()));
         marks
     }
 
-    /// Paint the faint multiplication signs of a code cell: a `×` of two strokes in the theme's faint text colour,
+    /// Paint the multiplication signs of a code cell: a `×` of two strokes in the theme's faint text colour,
     /// not an item of the text (never selected, copied or a caret stop).
     fn paint_products(&mut self, ctx: &egui::Context, painter: &Painter, c: &Cell, content: Pos2) {
         let marks = self.product_marks(ctx, c);

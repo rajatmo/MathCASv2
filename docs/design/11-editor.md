@@ -96,9 +96,12 @@ item its ink rectangle. Selection rectangles and hit tests use the ink rectangle
 - Caret: the stop's box, 2 px wide (1 px in rows smaller than 0.8 of the text size), drawn to the right of the
   boundary when the item on its left ends there, so it never covers a glyph.
 - Syntax colours come from the canonical text through the text map, as today.
-- Where white space between two operands multiplies (design 04, 3.1), a faint `×` in the theme's faint
-  text colour is drawn centred in that space (after the first line's last character for a product across a line
-  end); it is not an item: never selected, copied or a caret stop. The box editor inserts `*` only where a box
+- White space between two operands multiplies (design 04, 3.1) and is shown as the space it is. Only between
+  two numbers (`2 3`) and for a product across a line end a `×` in the theme's faint text colour is drawn, centred
+  in that space (after the first line's last character across a line end); it is not an item: never selected,
+  copied or a caret stop.
+- The text pointer over a page is painted by the window (`mc_ui::pointer`): the system's I-beam can stay white
+  on a light page. The box editor inserts `*` only where a box
   touches an operand directly.
 - Hit testing: nearest ink box first, then the nearest stop of its row.
 

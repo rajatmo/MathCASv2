@@ -21,7 +21,7 @@ pub struct Parsed {
     pub program: Program,
     pub errors: Vec<Diagnostic>,
     /// The white space (with any comments and line ends in it) between two operands that a product joins with no
-    /// operator (`m c^2`, `2 pi r`, `(x + 1) (x - 1)`), in text order (the editor draws a faint `×` there).
+    /// operator (`m c^2`, `2 pi r`, `(x + 1) (x - 1)`), in text order (the editor draws a `×` in some, [`crate::product_shows_sign`]).
     /// Adjacent factors (`2x`) have none. Products the parser reached in a statement that later failed are kept.
     pub products: Vec<Span>,
 }

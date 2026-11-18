@@ -737,5 +737,6 @@ impl eframe::App for DocsApp {
         egui::CentralPanel::default().frame(Frame::new().fill(p.bg)).show(ui, |ui| self.content(ui, &p));
         self.update_title(&ctx);
         self.frame_ms = start.elapsed().as_secs_f64() * 1000.0;
+        mc_ui::pointer::paint_text_pointer(&ctx, p.text, p.bg);
     }
 }

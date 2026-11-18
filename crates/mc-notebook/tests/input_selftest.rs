@@ -106,8 +106,8 @@ fn brackets() {
     check("input-brackets");
 }
 
-/// A space between operands multiplies; the faint multiplication signs, the `sin x` warning and its fix,
-/// `Esc * Esc`, and screenshots of the signs (looked at by eye).
+/// A space between operands multiplies; the multiplication signs (between two numbers and across a line end
+/// only), the `sin x` warning and its fix, `Esc * Esc`, and screenshots (looked at by eye).
 #[test]
 #[ignore = "opens a window"]
 fn space() {
@@ -118,11 +118,14 @@ fn space() {
     assert!(warned[0].contains("sin x is the product sin*x; for the function write sin(x)"), "{log}");
     assert!(warned[1].starts_with("warnings: 0 "), "{log}");
     assert!(log.contains("fixwarning: true"), "{log}");
-    // every gap has its mark
-    for l in log.lines().filter(|l| l.starts_with("products: ")) {
+    // every gap that shows a sign has its mark; names multiply without one, numbers with one
+    let products: Vec<&str> = log.lines().filter(|l| l.starts_with("products: ")).collect();
+    for l in &products {
         let n: Vec<&str> = l["products: ".len()..].split_whitespace().collect();
         assert_eq!(n[0], n[2], "a gap without its mark: {l}");
     }
+    assert!(products[0].starts_with("products: 0 gaps"), "m c^2 shows no sign: {log}");
+    assert!(products[2].starts_with("products: 2 gaps"), "2 3 + 1.5 4 x shows two signs: {log}");
     for s in ["space-light-100", "space-dark-100", "space-dark-150", "space-light-150", "space-light-200", "space-dark-200"] {
         assert!(log.contains(&format!("shot {s}")), "{s}\n{log}");
     }

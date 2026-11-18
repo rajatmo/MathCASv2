@@ -36,7 +36,7 @@ mod span;
 mod stack;
 
 pub use colour::{
-    classify, colour, colour_lint, names_in_scope, Colouring, LocalKind, LocalName, TokenClass, LEXICAL_ONLY_ABOVE, SHOW_ERRORS_AT_END,
+    classify, colour, colour_lint, names_in_scope, product_shows_sign, Colouring, LocalKind, LocalName, TokenClass, LEXICAL_ONLY_ABOVE, SHOW_ERRORS_AT_END,
 };
 pub use heads::{as_sym, Head, Heads};
 /// Unicode operator characters and their ASCII spellings; the template placeholder `□`.

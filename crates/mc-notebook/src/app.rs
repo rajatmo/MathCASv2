@@ -744,6 +744,9 @@ impl eframe::App for App {
             st.after_frame(self, &ctx);
             self.selftest = Some(st);
         }
+        // the text pointer is painted here: the system's can be white on the light page
+        let (ink, page) = (self.doc.view.palette.text, self.doc.view.palette.bg);
+        mc_ui::pointer::paint_text_pointer(&ctx, ink, page);
     }
 
     fn on_exit(&mut self) {

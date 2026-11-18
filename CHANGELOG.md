@@ -2,6 +2,11 @@
 
 ## Not released yet
 
+**Notebook.** A space that multiplies is shown as a space, as in written mathematics (`m c^2`, `2 pi r`); the
+multiplication sign that is not typed appears only between two numbers (`2 3`, which would read as 23) and
+where a product runs across a line end. The text pointer over a page is drawn by the window, so it no longer
+turns white on a light page on systems where the system's pointer loses its colour.
+
 **Linux.** The AppImage carries update information, and each release has its `.zsync` file: AppImageUpdate and
 similar tools can bring an installed AppImage to the newest release.
 

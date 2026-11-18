@@ -136,7 +136,7 @@ Binding power, low to high:
   never with a sign, a keyword (`in`, `and`, `or`, `not`, `when`, `then`, `else`, ...), a string, or the contextual
   words `where` and `except`. At the top level and in `{ }` blocks a line end still ends the statement; inside
   `( )` and `[ ]`, where a line end is white space, juxtaposition across it multiplies (`[a` new line `b]` is
-  `[a*b]`; the notebook's faint `×` shows a forgotten comma). Comments between operands count as white space. The
+  `[a*b]`; the notebook's `×` at the line end shows a forgotten comma). Comments between operands count as white space. The
   printer writes `*`.
 
   Two warnings come with the rule (`lint.rs`, in the notebook and the language server, each with a quick fix): a
@@ -144,7 +144,9 @@ Binding power, low to high:
   sin(x)"), and a parenthesised expression called with no space ("this calls (a+b); for the product write a space
   or `*`"). *Reason:* written mathematics and the notebook users come from multiply by juxtaposition; the
   ambiguity of `f (x)` that made v1 reject it is settled by the space (a call never has one before its bracket) and
-  shown by the editor's faint multiplication sign and the warnings.
+  shown by the warnings. The editor draws a multiplication sign only where a product is easy to misread: between
+  two numbers (`2 3`) and across a line end (decision of 2026-11-18, which replaces "a faint `×` in every space
+  that multiplies": a sign in every space made formulas look unlike written mathematics).
 
 ### 3.2 Calls, lists, indexing
 
@@ -589,4 +591,4 @@ containing it; `None` after the whole content (the editor selects the cell).
 | `√` binds like a call | `√x^2` as `(√x)^2` follows the usual precedence of prefix radicals in linear input; `√(x^2)` needs parentheses. |
 | `□` is a token that is always an error | One clear message at the first placeholder instead of an unexpected-character error followed by cascades. |
 | Scopes from tokens, not the tree | Colouring must not flicker while a statement is unfinished; the token walk is linear and never fails. |
-| A space between operands multiplies (2026-11-11, user decision; reverses "two names never multiply") | As written mathematics; a call never has a space before its bracket, so `f(x)` and `f (x)` differ visibly, and the editor marks every such product with a faint `×` (section 14.1). |
+| A space between operands multiplies (2026-11-11, user decision; reverses "two names never multiply") | As written mathematics; a call never has a space before its bracket, so `f(x)` and `f (x)` differ visibly; the editor warns about `sin x` and shows a `×` between two numbers and across a line end (section 14.1). |

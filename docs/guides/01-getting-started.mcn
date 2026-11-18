@@ -129,7 +129,7 @@ x*(x - k)
 #= x*(x - k)
 
 #% item
-# A space between two operands is a product, as on paper: `2x`, `2 x` and `x y` mean `2*x`, `2*x` and `x*y`, and the editor shows a faint × in the space. A call has no space before its bracket: `f(x)` calls `f`, `f (x)` is `f*x`.
+# A space between two operands is a product, as on paper: `2x`, `2 x` and `x y` mean `2*x`, `2*x` and `x*y`. Between two numbers the editor shows a × in the space (`2 3` is 6). A call has no space before its bracket: `f(x)` calls `f`, `f (x)` is `f*x`.
 
 #% cell
 2x + 3x

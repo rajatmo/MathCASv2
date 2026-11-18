@@ -157,6 +157,26 @@ fn the_parser_reports_the_gaps() {
     assert_eq!(gaps("m c^"), [" "]);
 }
 
+/// A multiplication sign is shown only between two numbers and across a line end.
+#[test]
+fn only_products_easy_to_misread_show_a_sign() {
+    fn shown(src: &str) -> Vec<&str> {
+        parse(src)
+            .products
+            .iter()
+            .map(|s| s.start as usize..s.end as usize)
+            .filter(|g| mc_syntax::product_shows_sign(src, g))
+            .map(|g| &src[g])
+            .collect()
+    }
+    for src in ["m c^2", "2 pi r", "x 2", "(x + 1) (x - 1)", "[a b, c]", "2 (x + 1)", "f (x)", "x1 2", "2 x1"] {
+        assert!(shown(src).is_empty(), "{src:?}: {:?}", shown(src));
+    }
+    assert_eq!(shown("2 3"), [" "]);
+    assert_eq!(shown("1.5  2 x + 2 0.5"), ["  ", " "]);
+    assert_eq!(shown("[a\n  b, c d]"), ["\n  "]);
+}
+
 #[test]
 fn the_new_forms_round_trip() {
     let forms = [
