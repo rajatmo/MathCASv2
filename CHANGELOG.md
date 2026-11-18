@@ -4,7 +4,9 @@
 
 **Notebook.** A space that multiplies is shown as a space, as in written mathematics (`m c^2`, `2 pi r`); the
 multiplication sign that is not typed appears only between two numbers (`2 3`, which would read as 23) and
-where a product runs across a line end. The text pointer over a page is drawn by the window, so it no longer
+where a product runs across a line end. A letter typed right after a number gets a space before it (`3pi`
+becomes `3 pi`, so `3 pi^2` cannot be read as the square of `3 pi`); `2e5`, `3im`, `0x1F` and `0b101` stay as
+typed. On Windows the text pointer over a page is the window's own, in the theme's colours, so it no longer
 turns white on a light page on systems where the system's pointer loses its colour.
 
 **Linux.** The AppImage carries update information, and each release has its `.zsync` file: AppImageUpdate and

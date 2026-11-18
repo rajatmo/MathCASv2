@@ -25,6 +25,10 @@ pub trait Old {
     fn insert_char(&mut self, c: char) {
         self.run(Command::Insert(c.to_string()));
     }
+    /// A key typed (the editor's typing rules apply), where `insert_char` inserts as a paste does.
+    fn type_char(&mut self, c: char) {
+        self.run(Command::Type(c.to_string()));
+    }
     fn insert_text(&mut self, s: &str) {
         self.run(Command::Insert(s.to_string()));
     }

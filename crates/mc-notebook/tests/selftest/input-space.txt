@@ -71,7 +71,8 @@ expect output "[2*a*b, c]"
 
 formula space/adjacent
 keys Ctrl+End "2x + 3x"
-expect gaps ""
+expect canon "2 x + 3 x"
+expect gaps " | "
 products
 eval
 expect output "5*x"

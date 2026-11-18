@@ -50,6 +50,58 @@ fn structure_table() {
     assert_eq!(n, 24);
 }
 
+/// A letter typed right after a number gets a space before it, so the number and the name stand apart; the letters
+/// that can continue a literal wait for the next key.
+#[test]
+fn a_name_typed_after_a_number_stands_apart() {
+    for (typed, want) in [
+        ("3pi", "3 pi"),
+        ("2x + 3y", "2 x + 3 y"),
+        ("1.5x", "1.5 x"),
+        (".5x", ".5 x"),
+        ("1_000x", "1_000 x"),
+        ("3π", "3 π"),
+        // an exponent, the imaginary unit, hexadecimal and binary numbers stay literals
+        ("2e5", "2e5"),
+        ("2e-5", "2e-5"),
+        ("2E+5x", "2E+5 x"),
+        ("3im", "3im"),
+        ("0x1F", "0x1F"),
+        ("0b101", "0b101"),
+        // the letter that waited is a name after all
+        ("2e ", "2 e "),
+        ("2e+x", "2e+x"),
+        ("2ex", "2 ex"),
+        ("2i+1", "2 i+1"),
+        ("2in", "2 in"),
+        ("10x", "10 x"),
+        ("10b", "10 b"),
+        // not inside names, strings and comments
+        ("x1y", "x1y"),
+        ("a2b + f3(x)", "a2b + f3(x)"),
+        ("\"3pi\"", "\"3pi\""),
+        ("# 3pi", "# 3pi"),
+    ] {
+        let mut ed = Editor::new(Row::text(""));
+        for c in typed.chars() {
+            ed.type_char(c);
+        }
+        assert_eq!(ed.text(), want, "{typed}");
+    }
+    // a power typed after `2e` is a power of the name e
+    let mut ed = Editor::new(Row::text(""));
+    ed.type_char('2');
+    ed.type_char('e');
+    assert!(ed.structure(Structure::Superscript));
+    assert_eq!(ed.notation(), "2 (e^▮□)");
+    // the caret stays behind what was typed
+    let mut ed = Editor::new(Row::text(""));
+    for c in "3p".chars() {
+        ed.type_char(c);
+    }
+    assert_eq!(ed.notation(), "3 p▮");
+}
+
 #[test]
 fn operands_are_primaries() {
     // juxtaposed number and name: the name; a number with a fraction part; primes; strings; indexing

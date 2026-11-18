@@ -100,8 +100,12 @@ item its ink rectangle. Selection rectangles and hit tests use the ink rectangle
   two numbers (`2 3`) and for a product across a line end a `×` in the theme's faint text colour is drawn, centred
   in that space (after the first line's last character across a line end); it is not an item: never selected,
   copied or a caret stop.
-- The text pointer over a page is painted by the window (`mc_ui::pointer`): the system's I-beam can stay white
-  on a light page. The box editor inserts `*` only where a box
+- The text pointer over a page is the window's own on Windows (`mc_ui::pointer`, a system pointer in the theme's
+  colours): the system's I-beam can stay white on a light page.
+- A letter typed right after a decimal number gets a space before it (`rules::space_after_number`): `3 pi^2`
+  shows that the power belongs to `pi`, where `3pi^2` could be read as the square of `3pi`. The letters that can
+  continue a literal wait for the next key (`2e5`, `2e-5`, `3im`; `0x`, `0b`); pasted text is left as it is.
+  The linear text of a box after a space needs no parentheses (`2 m^2`). The box editor inserts `*` only where a box
   touches an operand directly.
 - Hit testing: nearest ink box first, then the nearest stop of its row.
 

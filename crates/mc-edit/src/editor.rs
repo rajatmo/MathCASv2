@@ -359,6 +359,10 @@ impl Editor {
                 if t.is_empty() {
                     return Status::Done;
                 }
+                let mut typed = t.chars();
+                if let (Some(ch), None) = (typed.next(), typed.next()) {
+                    self.number_space(Some(ch));
+                }
                 if !(cx.auto_close && self.auto_close(t)) {
                     self.insert_items(Row::text(t).0);
                 }
@@ -583,6 +587,18 @@ impl Editor {
         self.edit(&c.path, at..at, items);
         self.set_head(&c.path, at + n);
         self.implicit_times(&c.path, at, at + n)
+    }
+
+    /// The space between a number and the name typed after it ([`rules::space_after_number`]), put in before
+    /// `next` is typed at the caret (`None`: a structure key). Not over a selection nor inside an alias being typed.
+    fn number_space(&mut self, next: Option<char>) {
+        if self.range().is_some() || self.alias.is_some() {
+            return;
+        }
+        let c = self.sel.head.clone();
+        let Some(at) = rules::space_after_number(self.row(&c.path), c.offset, next) else { return };
+        self.edit(&c.path, at..at, vec![Item::Char(' ')]);
+        self.set_head(&c.path, c.offset + 1);
     }
 
     /// Implicit multiplication where newly inserted items `start..end` of the row at `path` make a box touch an
@@ -1258,6 +1274,7 @@ impl Editor {
         }
         self.unknown = None;
         self.settle();
+        self.number_space(None);
         let range = match self.range() {
             Some((_, r)) => {
                 // spaces at the edges of a selection stay outside the box
@@ -1477,6 +1494,12 @@ impl Editor {
                 match aliases::lookup_cell(&name) {
                     Some(Alias::Text(t)) => {
                         self.sel = Selection::items(&m.path, m.start..m.end);
+                        self.delete_selection();
+                        // a Greek letter after a number stands apart like a typed name
+                        let mut letters = t.chars();
+                        if let (Some(ch), None) = (letters.next(), letters.next()) {
+                            self.number_space(Some(ch));
+                        }
                         self.insert_items(Row::text(t).0);
                         Status::Done
                     }

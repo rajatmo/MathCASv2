@@ -182,10 +182,12 @@ fn write_row(row: &Row, out: &mut String) {
                 // juxtaposition, which binds like `*` (`2x^2`, not `2(x^2)`)
                 let coefficient = ends_with_number(&out[start..])
                     && t.chars().next().is_some_and(|c| c.is_alphabetic() || c == '(');
+                // after a space nothing attaches: the space multiplies (`2 m^2`, `x sqrt(y)`)
+                let left = attaches_left(prev) && !coefficient && !out[start..].ends_with(' ');
                 let wrap = match form {
-                    Form::Atom => attaches_left(prev) && !coefficient,
+                    Form::Atom => left,
                     Form::Pow => {
-                        (attaches_left(prev) && !coefficient)
+                        left
                             || match next {
                                 Side::Edge => false,
                                 Side::Box => true,
@@ -314,7 +316,9 @@ mod tests {
         assert_eq!(lin("2(((1 + x))^(2))"), "2(1 + x)^2");
         assert_eq!(lin("x2((x)^(2))"), "x2(x^2)");
         assert_eq!(lin("2((3)^(2))"), "2(3^2)");
-        assert_eq!(lin("2 ((x)^(2))"), "2 (x^2)");
+        assert_eq!(lin("2 ((x)^(2))"), "2 x^2");
+        assert_eq!(lin("x ((sqrt(y))) z"), "x sqrt(y) z");
+        assert_eq!(lin("a ((b)^(2)) c"), "a (b^2) c");
         assert_eq!(lin("y((sqrt(x)))"), "y(sqrt(x))");
         assert_eq!(lin("1 + ((sqrt(x)))"), "1 + sqrt(x)");
         assert_eq!(lin("((subscript(x, i)))"), "subscript(x, i)");

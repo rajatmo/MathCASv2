@@ -343,8 +343,8 @@ expect output "-9"
 
 formula algebra/coefficient
 keys Ctrl+End "2x" Ctrl+6 "2" Ctrl+Space " /. x -> 3"
-expect boxes "2(x^2) /. x -> 3▮"
-expect linear "2x^2 /. x -> 3"
+expect boxes "2 (x^2) /. x -> 3▮"
+expect linear "2 x^2 /. x -> 3"
 eval
 expect output "18"
 

@@ -138,12 +138,12 @@ fn home_and_end_twice_reach_the_line_edges() {
             Command::Insert("n".into()),
         ],
     );
-    assert_eq!(notation(&nb), "a + (x^2n▮)");
+    assert_eq!(notation(&nb), "a + (x^2 n▮)");
     typed(&mut nb, &mut env, vec![Command::Move(mc_nbmodel::Motion::Home, false)]);
-    assert_eq!(notation(&nb), "a + (x^▮2n)");
+    assert_eq!(notation(&nb), "a + (x^▮2 n)");
     typed(&mut nb, &mut env, vec![Command::Move(mc_nbmodel::Motion::Home, false)]);
-    assert_eq!(notation(&nb), "▮a + (x^2n)");
+    assert_eq!(notation(&nb), "▮a + (x^2 n)");
     typed(&mut nb, &mut env, vec![Command::Move(mc_nbmodel::Motion::Right, false)]);
     typed(&mut nb, &mut env, vec![Command::Move(mc_nbmodel::Motion::End, false)]);
-    assert_eq!(notation(&nb), "a + (x^2n)▮");
+    assert_eq!(notation(&nb), "a + (x^2 n)▮");
 }

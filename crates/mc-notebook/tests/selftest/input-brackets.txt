@@ -7,17 +7,17 @@ theme light
 new
 formula base/typed-parens
 keys "(2m)" Ctrl+6 "2"
-expect boxes "((2m)^2▮)"
-expect linear "(2m)^2"
+expect boxes "((2 m)^2▮)"
+expect linear "(2 m)^2"
 keys Ctrl+End Down
 formula base/selection
-keys "2m" Shift+Left Shift+Left Ctrl+6 "2"
-expect boxes "(2m^2▮)"
-expect linear "(2m)^2"
+keys "2m" Shift+Left Shift+Left Shift+Left Ctrl+6 "2"
+expect boxes "(2 m^2▮)"
+expect linear "(2 m)^2"
 keys Ctrl+End Down
 formula base/coefficient
 keys "2m" Ctrl+6 "2"
-expect linear "2m^2"
+expect linear "2 m^2"
 keys Ctrl+End Down
 formula base/negative
 keys "-x" Shift+Left Shift+Left Ctrl+6 "2"

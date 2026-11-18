@@ -390,14 +390,14 @@ same
 # ---- formulas as written ----
 formula mix/quadratic
 keys Ctrl+End "x = " Ctrl+/ "-b + " Ctrl+2 "b" Ctrl+6 "2" Ctrl+Space " - 4a c" Down "2a"
-expect boxes "x = (-b + √((b^2) - 4a c)/2a▮)"
-expect canon "x = ((-b + ((sqrt(((b)^(2)) - 4a c))))/(2a))"
+expect boxes "x = (-b + √((b^2) - 4 a c)/2 a▮)"
+expect canon "x = ((-b + ((sqrt(((b)^(2)) - 4 a c))))/(2 a))"
 same
 
 formula mix/gauss
 keys Ctrl+End "g = " Ctrl+/ "1" Down Ctrl+2 "2pi" Ctrl+Space Ctrl+Space Ctrl+Space "e" Ctrl+6 "-" Ctrl+/ "x" Ctrl+6 "2" Ctrl+Space Down "2"
-expect boxes "g = (1/√(2pi))*(e^-((x^2)/2▮))"
-expect canon "g = ((1)/(((sqrt(2pi)))))*((e)^(-((((x)^(2)))/(2))))"
+expect boxes "g = (1/√(2 pi))*(e^-((x^2)/2▮))"
+expect canon "g = ((1)/(((sqrt(2 pi)))))*((e)^(-((((x)^(2)))/(2))))"
 same
 
 formula mix/continued-fraction
@@ -488,8 +488,8 @@ keys Ctrl+End "x = " Ctrl+/ "1" Down "2a"
 wait 40
 help
 keys Up "b"
-expect boxes "x = (1b▮/2a)"
-expect canon "x = ((1b)/(2a))"
+expect boxes "x = (1 b▮/2 a)"
+expect canon "x = ((1 b)/(2 a))"
 same
 
 formula mix/closer-after-moves

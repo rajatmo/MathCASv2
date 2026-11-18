@@ -152,6 +152,61 @@ pub fn lexical_at(row: &Row, k: usize) -> Lexical {
     state
 }
 
+/// Where a space goes when `next` is typed at offset `k` of `row` (`None`: a structure key), so that a number and
+/// the name it multiplies stand apart (`3 pi^2`, where `3pi^2` could be read as the square of `3pi`): at `k` when
+/// a letter is typed right after a decimal number. The letters that can continue a literal wait for the next key:
+/// after `2e` a digit or a sign makes an exponent (`2e5`), after `2i` an `m` makes the imaginary unit (`2im`), and
+/// anything else puts the space before the letter. `0x` and `0b` start hexadecimal and binary numbers. Nothing in
+/// strings and comments, nor inside a name (`x1y`) or another literal (`0x1F`, `2e5x`).
+pub fn space_after_number(row: &Row, k: usize, next: Option<char>) -> Option<usize> {
+    if k == 0 || k > row.len() || lexical_at(row, k) != Lexical::Code {
+        return None;
+    }
+    let ch = |j: usize| match row.0.get(j) {
+        Some(Item::Char(c)) => Some(*c),
+        _ => None,
+    };
+    let digit = |j: usize| ch(j).is_some_and(|c| c.is_ascii_digit() || c == '_');
+    // the decimal number that ends at `end`: where it starts and whether it is the lone digit 0
+    let number = |end: usize| -> Option<bool> {
+        let mut s = end;
+        while s > 0 && digit(s - 1) {
+            s -= 1;
+        }
+        if s == end || ch(s) == Some('_') {
+            return None;
+        }
+        let mut t = s;
+        if t > 0 && ch(t - 1) == Some('.') {
+            t -= 1;
+            while t > 0 && digit(t - 1) {
+                t -= 1;
+            }
+        }
+        if t > 0 && ch(t - 1).is_some_and(|c| is_word(c) || c == '.') {
+            return None;
+        }
+        Some(t == s && end == s + 1 && ch(s) == Some('0'))
+    };
+    if let Some(c) = next.filter(|c| c.is_alphabetic() && *c != 'ⅈ') {
+        if let Some(zero) = number(k) {
+            let waits = matches!(c, 'e' | 'E' | 'i') || (zero && matches!(c, 'x' | 'X' | 'b' | 'B'));
+            return (!waits).then_some(k);
+        }
+    }
+    // a letter that waited
+    let waited = ch(k - 1).filter(|c| matches!(c, 'e' | 'E' | 'i'))?;
+    if k < 2 || number(k - 1).is_none() || ch(k).is_some_and(is_word) {
+        return None;
+    }
+    let continues = match next {
+        Some(d) if waited == 'i' => d == 'm',
+        Some(d) => d.is_ascii_digit() || d == '+' || d == '-',
+        None => false,
+    };
+    (!continues).then_some(k - 1)
+}
+
 /// Whether a `*` belongs at the boundary before item `j` of `row` (implicit multiplication next to boxes, a user
 /// decision for the box editor): a box touches an operand at it, since the text would otherwise read as a call
 /// (`x((sqrt(Q)))` is `x(sqrt(Q))`) or not read at all (`((sqrt(Q)))x`). Left of a box: a box, a closing bracket, a
