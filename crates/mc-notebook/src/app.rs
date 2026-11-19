@@ -310,6 +310,8 @@ pub struct App {
     pub(crate) help: help::HelpState,
     /// the canvas's visible rectangle in the last frame (screen coordinates)
     canvas_clip: egui::Rect,
+    /// the phone layout: the canvas's height when the caret was last brought into view because the height changed
+    caret_height: f32,
 }
 
 impl App {
@@ -342,6 +344,7 @@ impl App {
             plot_tip: None,
             help: help::HelpState::default(),
             canvas_clip: egui::Rect::NOTHING,
+            caret_height: 0.0,
             tabs: Tabs::new(),
             ctx: ctx.clone(),
             keys: KeyTable::default(),

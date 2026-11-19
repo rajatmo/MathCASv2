@@ -71,12 +71,33 @@ impl App {
                 Some(t) => resp.on_hover_text_at_pointer(t),
                 None => self.hover_tooltip(&ctx, resp),
             };
-            if resp.secondary_clicked() {
-                self.help.menu_warning = self.help.warning.clone();
+            // (the phone layout has no menu at the pointer: a finger that rests would open it, with the desktop's
+            // commands and shortcuts; its long press has the tools above the keys and the cell's sheet)
+            if !crate::layout::mobile() {
+                if resp.secondary_clicked() {
+                    self.help.menu_warning = self.help.warning.clone();
+                }
+                resp.context_menu(|ui| self.context_menu(ui));
             }
-            resp.context_menu(|ui| self.context_menu(ui));
             let time = ctx.input(|i| i.time);
             let clip = ui.clip_rect();
+            // the phone layout: the on-screen keyboard or a bar came or went (the canvas is another height): the
+            // caret is brought back into view, it is where the user types
+            // (against the height it had when the caret was last brought into view: a keyboard slides in over
+            // many frames, the last of them by less than a point each)
+            let changed = (clip.height() - self.caret_height).abs() > 1.0;
+            if changed {
+                self.caret_height = clip.height();
+            }
+            let resized = changed && self.canvas_clip.is_positive();
+            if crate::layout::mobile() && resized && self.doc.view.graphic.is_none() {
+                // (in a cell that is edited: a result that was touched stays under the finger)
+                let typing = match self.doc.nb.selection() {
+                    Selection::Caret { cell, .. } => self.doc.nb.cell(*cell).is_some_and(|c| !c.generated()),
+                    _ => false,
+                };
+                self.doc.scroll_pending |= typing;
+            }
             self.canvas_clip = clip;
             self.doc.view.caret = match self.doc.nb.selection() {
                 Selection::Caret { cell, anchor, pos } if anchor == pos => Some((*cell, *pos)),
@@ -108,7 +129,10 @@ impl App {
             });
             if std::mem::take(&mut self.doc.scroll_pending) {
                 if let Some(r) = self.selection_rect(&ctx) {
-                    ui.scroll_to_rect(r.translate(origin.to_vec2()).expand(8.0), None);
+                    // (with room to spare around it, where there is room: a phone held sideways shows one line
+                    // above its keyboard)
+                    let spare = if clip.height() < 60.0 { 1.0 } else { 8.0 };
+                    ui.scroll_to_rect(r.translate(origin.to_vec2()).expand(spare), None);
                 }
             }
         });
@@ -494,6 +518,9 @@ impl App {
                         self.doc.view.live_view = Some((id, v));
                     }
                 }
+                // (a finger that rests trembles: until it has moved away from where it came down, the word its
+                // long press selected stays selected)
+                Some(Drag::Text) if self.touch_on && (screen - self.last_click.1).length() <= 8.0 => {}
                 Some(Drag::Text) => {
                     let hit = self.doc.view.hit(ctx, &self.doc.nb, p);
                     // a drag that started in typeset boxes stays in their cell: beyond its edges it selects to the

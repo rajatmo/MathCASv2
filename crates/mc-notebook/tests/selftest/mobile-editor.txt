@@ -1,0 +1,182 @@
+# The editor of the phone layout (MCNB_LAYOUT=mobile) under fingers: a long press in each place, the tools above
+# the keys (Cut, Copy, Paste, Select all), the cell's sheet, deleting with Undo, the keys of the key row, Run, and the
+# caret staying in view when the canvas gets shorter (the on-screen keyboard). @NB@ is the notebook of the run:
+# cell 0 `first = 12` / `second = first + 30`, cell 1 `x + y` with its result (cell 2), cell 3 `solids` with a
+# picture (cell 4), cell 5 `last = 99`. @OUT@ is the folder for the log and the screenshots.
+out @OUT@
+size 411 890
+ppp 1
+theme light
+wait 20
+log -- the only cell
+calc
+wait 10
+keys "seven = 7"
+hold text 0 2
+wait 10
+sel
+mui
+mtap Cell
+wait 10
+mui
+shot sheet-input
+mtap Delete cell
+wait 10
+mui
+show canon
+shot deleted-last
+mtap Undo
+wait 10
+mui
+show canon
+log -- the key row
+tapat text 0 9
+wait 10
+mstate
+mtap +
+wait 4
+keys "1"
+swipe on = -500 0
+wait 10
+mtap left
+wait 4
+mtap left
+wait 4
+keys "*3"
+show canon
+log -- typeset boxes from the key row
+tapat text 0 13
+wait 6
+keys "+"
+mtap a/b
+wait 6
+keys "1"
+mtap right
+wait 4
+keys "2"
+mtap right
+wait 4
+keys "+x"
+mtap xⁿ
+wait 6
+keys "2"
+mtap right
+wait 4
+keys "+"
+mtap √
+wait 6
+keys "y"
+mtap right
+wait 4
+show boxes
+show linear
+show canon
+shot keys
+log -- Run
+mtap Run
+wait 10
+idle
+mui
+mstate
+dump after-run
+log -- a long press on a word
+mopen @NB@
+wait 40
+hold text 0 13
+wait 10
+sel
+mui
+mstate
+shot word
+mtap Copy
+wait 6
+clip
+mui
+log -- paste over a word
+hold text 5 8
+wait 10
+sel
+mtap Paste
+wait 6
+show canon
+mui
+log -- cut
+hold text 0 2
+wait 10
+mtap Cut
+wait 6
+show canon
+clip
+log -- select all
+hold text 5 2
+wait 10
+mtap Select all
+wait 6
+sel
+mui
+log -- a long press that moves
+holddrag text 1 0 60 0
+wait 10
+sel
+mui
+log -- a long press on a result
+hold cell 2
+wait 10
+mui
+shot sheet-result
+mtap Copy
+wait 10
+clip
+mui
+log -- a long press on a picture
+hold cell 4
+wait 10
+mui
+mstate
+shot sheet-picture
+mtap Delete result
+wait 10
+mui
+shot snack
+mtap Undo
+wait 10
+mui
+log -- insert below, Backspace in the empty cell
+hold text 3 3
+wait 10
+mtap Cell
+wait 10
+mtap Insert input below
+wait 10
+mui
+sel
+keys Backspace
+wait 6
+mui
+sel
+mtap Undo
+wait 10
+mui
+keys Backspace
+wait 6
+mui
+log -- an input goes with its result
+hold text 1 0
+wait 10
+mtap Cell
+wait 10
+mtap Delete cell
+wait 10
+mui
+mtap Undo
+wait 10
+mui
+log -- the caret stays in view
+tapat text 5 4
+wait 10
+mui
+size 411 300
+wait 20
+mui
+shot short
+quit

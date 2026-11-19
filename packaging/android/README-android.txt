@@ -18,11 +18,18 @@ result to another app. The cells, the typeset output, the plots and the kernel a
               it works), and the dots for the rest: Evaluate all, Clear results, Delete this cell, Restart kernel,
               Share notebook, Share as PDF, Theme, Text size, About.
   Editing     Tap a cell to edit it. A row of keys sits on the keyboard: brackets, operators, caret left and right,
-              tab, and Run (what Shift+Enter is on a desktop). Names that complete what is typed show above the
-              keys; tap one to take it. The round + adds a new input at the end.
+              tab, a fraction, a power and a square root (typeset; the arrows go through and out of them), and
+              Run (what Shift+Enter is on a desktop). Names that complete what is typed show above the keys; tap
+              one to take it. The round + adds a new input at the end.
+  Selecting   A long press on a word selects it; moving the finger then selects further. Cut, Copy, Paste and
+              Select all show above the keys while text is selected and after a long press, with Cell for the
+              cell's sheet.
+  Cells       A long press on a result, a picture or (through Cell) an input opens the cell's sheet: Evaluate,
+              Copy input, Insert input above or below, Delete cell; for a result Copy, Copy as LaTeX, Share,
+              Delete result. An input is deleted with its results. After a deletion a line with Undo shows for
+              a few seconds. Backspace in an empty cell removes the cell.
   Results     Tap a result or a picture: Copy, Share (the system's share sheet; a picture goes as a PNG) and
-              Delete show at the bottom; a result also has LaTeX (copies it as LaTeX). A long press on a picture
-              opens the share sheet with it at once.
+              Delete show at the bottom; a result also has LaTeX (copies it as LaTeX).
   Touch       A finger that moves scrolls, and the page runs on when the finger is lifted in motion. A tap is a
               click. A finger that rests for half a second and then moves drags as the mouse does (it selects
               text, resizes a picture).

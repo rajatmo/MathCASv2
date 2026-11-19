@@ -20,6 +20,9 @@ use std::time::SystemTime;
 const AUTOSAVE: f64 = 2.0;
 /// The height of the top app bar (points).
 const TOP: f32 = 64.0;
+/// A notebook screen lower than this (points) shows no top app bar: the on-screen keyboard of a phone held sideways
+/// leaves about half of that.
+const LOW: f32 = 260.0;
 /// The height of the bars at the bottom (points).
 const BAR: f32 = 56.0;
 /// The height of the strip of completions above the keys (points).
@@ -30,6 +33,12 @@ const TARGET: f32 = 48.0;
 const COLUMN: f32 = 720.0;
 /// The keys above the on-screen keyboard: what a phone's keyboard hides two levels deep.
 const KEYS: [&str; 11] = ["(", ")", "[", "]", ",", "^", "*", "/", "+", "-", "="];
+/// The keys that make typeset boxes, at the end of the row (after the arrows and tab).
+const BOXES: [(&str, mc_nbmodel::Structure); 3] = [
+    ("a/b", mc_nbmodel::Structure::Fraction),
+    ("x\u{207f}", mc_nbmodel::Structure::Superscript),
+    ("\u{221a}", mc_nbmodel::Structure::Radical),
+];
 
 /// The screen that shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -54,6 +63,34 @@ enum Sheet {
     More,
     /// a notebook of the Home list
     File(PathBuf),
+    /// a cell of the notebook (a long press on it)
+    Cell(mc_nbmodel::CellId),
+}
+
+/// The line that shows for a few seconds after a cell was deleted, with its way back.
+#[derive(Clone, Debug)]
+struct Snack {
+    text: &'static str,
+    /// how many undo steps bring back what was deleted
+    undo: usize,
+    /// until when it shows (seconds of the frame clock)
+    until: f64,
+    /// the notebook's structure when it came up: once cells come or go otherwise, Undo would undo something else
+    rev: u64,
+    /// it came up in this frame
+    fresh: bool,
+}
+
+/// How long (seconds) the line after a deletion shows.
+const SNACK_TIME: f64 = 6.0;
+
+/// Where the controls of the layout were drawn in this frame, by label (the self-test taps them by name).
+fn targets() -> egui::Id {
+    egui::Id::unique("m-targets")
+}
+
+fn mark(ui: &egui::Ui, label: &str, rect: Rect) {
+    ui.ctx().data_mut(|d| d.get_temp_mut_or_default::<Vec<(String, Rect)>>(targets()).push((label.to_string(), rect)));
 }
 
 /// The state of the mobile layout.
@@ -84,6 +121,15 @@ pub(super) struct Mobile {
     picking_until: f64,
     /// the names the completion offers now (from `completion_popup`, drawn above the keys)
     pub(super) completions: Vec<String>,
+    /// a long press in the text of a cell: Cut, Copy, Paste and Select all show above the keys until the next key
+    edit_tools: bool,
+    /// the notebook screen is low (the on-screen keyboard of a phone held sideways is up): what is not needed to
+    /// type gives way
+    pub(super) low: bool,
+    /// the cell a long press came down on, when lifting the finger in place opens its sheet
+    held: Option<mc_nbmodel::CellId>,
+    /// the line after a deletion
+    snack: Option<Snack>,
 }
 
 impl Mobile {
@@ -229,6 +275,7 @@ fn button(ui: &mut egui::Ui, icon: Option<Icon>, label: &str, fill: Option<Color
     let lead = if icon.is_some() { 26.0 } else { 0.0 };
     let width = text.size().x + 2.0 * pad + lead - if icon.is_some() { 8.0 } else { 0.0 };
     let (rect, resp) = ui.allocate_exact_size(vec2(width, TARGET.min(ui.available_height())), Sense::click());
+    mark(ui, label, rect);
     let face = Rect::from_center_size(rect.center(), vec2(width, 40.0));
     if let Some(f) = fill {
         ui.painter().rect_filled(face, 20.0, f);
@@ -243,11 +290,14 @@ fn button(ui: &mut egui::Ui, icon: Option<Icon>, label: &str, fill: Option<Color
     resp.clicked()
 }
 
-/// A chip: a small outlined control with a label in the code font (a name the completion offers).
-fn chip(ui: &mut egui::Ui, m: &Material, label: &str) -> bool {
-    let text = ui.painter().layout_no_wrap(label.to_string(), FontId::monospace(16.0), m.on_surface);
+/// A chip: a small outlined control with a label, in the code font (`code`: a name the completion offers) or the
+/// font of the other controls.
+fn chip(ui: &mut egui::Ui, m: &Material, label: &str, code: bool) -> bool {
+    let font = if code { FontId::monospace(16.0) } else { FontId::proportional(15.0) };
+    let text = ui.painter().layout_no_wrap(label.to_string(), font, m.on_surface);
     let width = text.size().x + 32.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(width, ui.available_height()), Sense::click());
+    mark(ui, label, rect);
     let face = Rect::from_center_size(rect.center(), vec2(width, 32.0));
     ui.painter().rect(
         face,
@@ -306,6 +356,7 @@ fn fab(
 /// A row of a sheet or a menu: a full-width target with its label.
 fn sheet_row(ui: &mut egui::Ui, label: &str, color: Color32) -> bool {
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 56.0), Sense::click());
+    mark(ui, label, rect);
     ui.painter().rect_filled(rect, 0.0, layer(color, state(&resp)));
     let at = rect.left_center() + vec2(24.0, 0.0);
     ui.painter().text(at, egui::Align2::LEFT_CENTER, label, FontId::proportional(16.0), color);
@@ -319,6 +370,21 @@ impl App {
         if self.doc.view.metrics != Metrics::mobile() {
             self.doc.view.metrics = Metrics::mobile();
             self.doc.view.clear();
+        }
+        ctx.data_mut(|d| d.remove::<Vec<(String, Rect)>>(targets()));
+        // typing puts the tools of a long press away, and it is no longer the deletion that Undo would undo
+        let typed = ctx.input(|i| {
+            i.events.iter().any(|e| {
+                matches!(e, egui::Event::Text(_) | egui::Event::Ime(egui::ImeEvent::Commit(_)) | egui::Event::Key { pressed: true, .. })
+            })
+        });
+        if typed {
+            self.mobile.edit_tools = false;
+            // (not the key that deleted: Backspace in an empty cell)
+            self.mobile.snack.take_if(|s| !s.fresh);
+        }
+        if let Some(s) = &mut self.mobile.snack {
+            s.fresh = false;
         }
         // the system's Back (and Esc): the sheet, then the notebook, close
         let back = ctx.input(|i| i.key_pressed(Key::BrowserBack))
@@ -405,6 +471,67 @@ impl App {
                 format!("notebook {} {bottom}", file.unwrap_or_else(|| "-".into()))
             }
         }
+    }
+
+    /// What lies over or beside the notebook (for the self-test): the sheet that is up, whether the tools of a long
+    /// press show above the keys, the line after a deletion, and how many cells the notebook has.
+    pub fn mobile_overlays(&mut self) -> String {
+        let sheet = match (&self.mobile.sheet, self.mobile.sheet_up) {
+            (Some(Sheet::More), true) => "more",
+            (Some(Sheet::File(_)), true) => "file",
+            (Some(Sheet::Cell(_)), true) => "cell",
+            _ => "none",
+        };
+        let editing = self.mobile_selection().0;
+        let tools = editing && (self.mobile.edit_tools || self.text_selected());
+        let snack = self.mobile.snack.as_ref().map_or("none", |s| s.text);
+        // the caret: whether it lies in what shows of the notebook (its middle and most of its height: on the one
+        // line a phone held sideways shows above its keyboard the line's edges are cut)
+        let caret = match *self.doc.nb.selection() {
+            Selection::Caret { cell, pos, .. } => {
+                let ctx = self.ctx.clone();
+                let r = self.doc.view.caret_rect(&ctx, &self.doc.nb, cell, pos);
+                let seen = r.is_some_and(|r| {
+                    let r = r.translate(self.doc.view.origin.to_vec2());
+                    let inside = r.intersect(self.canvas_clip);
+                    self.canvas_clip.contains(r.center()) && inside.height() >= 0.7 * r.height()
+                });
+                if seen { "shown" } else { "hidden" }
+            }
+            _ => "none",
+        };
+        format!("sheet {sheet}, tools {tools}, snack {snack}, cells {}, caret {caret}", self.doc.nb.cells().len())
+    }
+
+    /// The middle of the control of the mobile layout drawn last with `label` (for the self-test: it is tapped
+    /// there as a finger taps it).
+    pub fn mobile_target(&self, label: &str) -> Option<egui::Pos2> {
+        let all = self.ctx.data(|d| d.get_temp::<Vec<(String, Rect)>>(targets())).unwrap_or_default();
+        all.iter().rev().find(|(l, _)| l == label).map(|(_, r)| r.center())
+    }
+
+    /// Scroll so that cell `i` starts at the top of what shows of the notebook (for the self-test).
+    pub fn show_cell(&mut self, i: usize) {
+        if i < self.doc.nb.cells().len() {
+            self.doc.restore_offset = Some(self.doc.view.cell_rect(i).top() - 4.0);
+        }
+    }
+
+    /// A point of cell `i` on the screen (for the self-test): in its text at byte `at`, or the middle of what
+    /// shows of the cell (a result, a picture).
+    pub fn cell_point(&mut self, i: usize, at: Option<usize>) -> Option<egui::Pos2> {
+        let id = self.doc.nb.cells().get(i)?.id;
+        let origin = self.doc.view.origin.to_vec2();
+        if let Some(pos) = at {
+            let ctx = self.ctx.clone();
+            let r = self.doc.view.caret_rect(&ctx, &self.doc.nb, id, pos)?;
+            return Some(r.center() + origin + vec2(1.0, 0.0));
+        }
+        let r = match self.doc.view.graphic_rect(&self.doc.nb, i) {
+            Some(r) => r,
+            None => self.doc.view.cell_rect(i),
+        };
+        Some(r.translate(origin).intersect(self.canvas_clip).center())
     }
 
     /// A bar shows at the bottom of the screen (the keys, or the actions of a selected result): the colour under
@@ -601,12 +728,17 @@ impl App {
         let busy = self.doc.nb.kernel_state() == KernelState::Busy;
         let mut leave = false;
         let m = Material::of(p.dark);
-        // the top app bar: back, the name, the kernel, the dots
+        // the top app bar: back, the name, the kernel, the dots. Where the screen is low and the on-screen keyboard
+        // is up (a phone held sideways) it gives its place to the text that is typed; the system's Back still
+        // leaves, and the bar is back when the keyboard goes
+        let low = ui.available_height() < LOW;
+        self.mobile.low = low;
         egui::Panel::top("m-bar")
             .frame(Frame::new().fill(m.surface).inner_margin(Margin::symmetric(4, 0)))
             .show_separator_line(false)
-            .exact_size(TOP)
+            .exact_size(if low { 0.0 } else { TOP })
             .show(ui, |ui| {
+                ui.set_clip_rect(ui.max_rect());
                 ui.horizontal_centered(|ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
                     leave = icon_button(ui, Icon::ArrowLeft, m.on_surface).clicked();
@@ -653,18 +785,29 @@ impl App {
         let frame = Frame::new().fill(m.surface_container).inner_margin(Margin::symmetric(8, 0));
         match self.mobile.bottom {
             Some(Bottom::Keys) => {
-                // the keys lie on the keyboard, the completions above them
-                let completing = !self.mobile.completions.is_empty();
-                let height = if completing { BAR + STRIP } else { BAR };
+                // the keys lie on the keyboard; above them the completions, or Cut, Copy and Paste while text is
+                // selected and after a long press
+                // (a low screen has room for one row: the tools take the place of the keys until the next key is
+                // typed, and the completions do not show: tab takes the first)
+                let tools = self.mobile.edit_tools || self.text_selected();
+                let completing = !tools && !low && !self.mobile.completions.is_empty();
+                let keys = !(tools && low);
+                let height = if (completing || tools) && keys { BAR + STRIP } else { BAR };
                 egui::Panel::bottom("m-keys").frame(frame).show_separator_line(false).exact_size(height * up).show(
                     ui,
                     |ui| {
                         ui.set_clip_rect(ui.max_rect());
                         ui.spacing_mut().item_spacing.y = 0.0;
+                        if tools {
+                            let room = if keys { STRIP } else { BAR };
+                            ui.allocate_ui(vec2(ui.available_width(), room), |ui| self.edit_strip(ui));
+                        }
                         if completing {
                             ui.allocate_ui(vec2(ui.available_width(), STRIP), |ui| self.completion_strip(ui));
                         }
-                        ui.allocate_ui(vec2(ui.available_width(), BAR), |ui| self.key_row(ui));
+                        if keys {
+                            ui.allocate_ui(vec2(ui.available_width(), BAR), |ui| self.key_row(ui));
+                        }
                     },
                 );
             }
@@ -682,8 +825,9 @@ impl App {
             // a picture, goes on as a drag)
             None => ui.skip_ahead_auto_ids(1),
         }
-        // the picture that was selected before this frame's presses: a long press on another one shares it
-        let selected = self.doc.view.graphic;
+        if !editing {
+            self.mobile.edit_tools = false;
+        }
         let mut canvas = Rect::NOTHING;
         egui::CentralPanel::default().frame(Frame::new().fill(p.bg)).show(ui, |ui| {
             // the content column: the whole width of a phone, the middle of a wider screen
@@ -692,8 +836,12 @@ impl App {
             ui.scope_builder(egui::UiBuilder::new().max_rect(canvas), |ui| self.canvas(ui));
         });
         if let Some(at) = self.touch.take_long_press() {
-            self.long_press(&ctx, at, canvas, selected);
+            self.long_press(&ctx, at, canvas);
         }
+        if self.touch.take_long_tap().is_some() {
+            self.long_tap();
+        }
+        self.snackbar(&ctx, canvas);
         // a new input at the end
         let corner = pos2(ui.ctx().content_rect().right(), canvas.bottom()) - vec2(16.0, 16.0);
         let shown = !editing && picked.is_none() && !self.modal_open();
@@ -709,20 +857,225 @@ impl App {
         }
     }
 
-    /// A finger rested at `at`: on a picture of the notebook (`canvas`) that was not the selected one (`selected`),
-    /// it is selected and handed to the system's share sheet. On the selected picture the finger drags instead (it
-    /// turns a 3D picture, or resizes by a handle), as a resting finger does everywhere.
-    pub(super) fn long_press(&mut self, ctx: &egui::Context, at: egui::Pos2, canvas: Rect, selected: Option<mc_nbmodel::CellId>) {
+    /// A finger has rested at `at` (a long press; the button went down there in this frame, so the canvas has put
+    /// the caret there or selected the result or picture): in the text of a cell that can be edited the word under
+    /// it is selected, and Cut, Copy, Paste and Select all show above the keys. The finger may go on to drag: it
+    /// then extends the selection, turns a 3D picture or resizes a picture by a handle.
+    pub(super) fn long_press(&mut self, ctx: &egui::Context, at: egui::Pos2, canvas: Rect) {
         if !canvas.contains(at) || self.modal_open() {
             return;
         }
         // (the notebook's own coordinates: the page may be scrolled)
         let p = (at - self.doc.view.origin).to_pos2();
-        if let crate::view::Hit::Graphic(id) = self.doc.view.hit(ctx, &self.doc.nb, p) {
-            if selected != Some(id) {
-                self.doc.view.graphic = Some(id);
-                self.share_picture(id);
+        // the cell whose sheet comes up if the finger is lifted in place: found now, since the page may move under
+        // the resting finger (the keyboard goes when a result is selected)
+        self.mobile.held = None;
+        match self.doc.view.hit(ctx, &self.doc.nb, p) {
+            crate::view::Hit::Text(id, pos) if self.edited(id) => {
+                self.run(ctx, Command::SelectWord(id, pos));
+                self.mobile.edit_tools = true;
             }
+            crate::view::Hit::Boxes(id) if self.edited(id) => {
+                self.run(ctx, Command::ExtendSelection);
+                self.mobile.edit_tools = true;
+            }
+            crate::view::Hit::Text(id, _) | crate::view::Hit::Boxes(id) | crate::view::Hit::Graphic(id) => {
+                self.mobile.held = Some(id);
+            }
+            _ => self.mobile.held = self.cell_at_y(p.y).map(|i| self.doc.nb.cells()[i].id),
+        }
+    }
+
+    /// The finger of a long press at `at` was lifted where it rested: anywhere but in text that is edited (there
+    /// the tools above the keys are the answer), the sheet of the cell under it comes up.
+    pub(super) fn long_tap(&mut self) {
+        let held = self.mobile.held.take();
+        if self.modal_open() {
+            return;
+        }
+        if let Some(id) = held.filter(|id| self.doc.nb.cell(*id).is_some()) {
+            self.mobile.show_sheet(Sheet::Cell(id));
+        }
+    }
+
+    /// Whether cell `id` is one the user writes (not a result) and may change.
+    fn edited(&self, id: mc_nbmodel::CellId) -> bool {
+        self.doc.nb.cell(id).is_some_and(|c| !c.generated() && c.editable())
+    }
+
+    /// Whether text is selected in the cell that is edited.
+    fn text_selected(&self) -> bool {
+        match self.doc.nb.selection() {
+            Selection::Caret { anchor, pos, .. } if anchor != pos => true,
+            Selection::Caret { .. } => self.doc.nb.any_editor().is_some_and(|(_, e)| e.selection().is_some()),
+            _ => false,
+        }
+    }
+
+    /// Cut, Copy, Paste and Select all for the cell that is edited, and the way to the cell's sheet.
+    fn edit_strip(&mut self, ui: &mut egui::Ui) {
+        let ctx = ui.ctx().clone();
+        let m = Material::of(self.doc.view.palette.dark);
+        let selected = self.text_selected();
+        let mut act = None;
+        ui.horizontal_centered(|ui| {
+            let bars = egui::scroll_area::ScrollBarVisibility::AlwaysHidden;
+            ScrollArea::horizontal().id_salt("m-edit").scroll_bar_visibility(bars).show(ui, |ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                for label in ["Cut", "Copy", "Paste", "Select all", "Cell"] {
+                    if matches!(label, "Cut" | "Copy") && !selected {
+                        continue;
+                    }
+                    if chip(ui, &m, label, false) {
+                        act = Some(label);
+                    }
+                }
+            });
+        });
+        match act {
+            Some("Cut") => self.run(&ctx, Command::Cut),
+            Some("Copy") => self.run(&ctx, Command::Copy),
+            Some("Paste") => self.run(&ctx, Command::Paste),
+            Some("Select all") => self.run(&ctx, Command::SelectAll),
+            Some("Cell") => {
+                if let Some(id) = self.doc.nb.current_cell() {
+                    self.mobile.show_sheet(Sheet::Cell(id));
+                }
+            }
+            _ => {}
+        }
+        // the tools stay while there is more to do with them
+        if matches!(act, Some("Cut" | "Paste")) {
+            self.mobile.edit_tools = false;
+        } else if act.is_some() {
+            self.mobile.edit_tools = true;
+        }
+    }
+
+    /// A row of the sheet of cell `id` was tapped.
+    fn cell_action(&mut self, ctx: &egui::Context, id: mc_nbmodel::CellId, what: &str) {
+        let Some(i) = self.doc.nb.index_of(id) else { return };
+        let cell = &self.doc.nb.cells()[i];
+        let (text, picture) = (cell.text.clone(), cell.graphic().is_some());
+        // the tools of the long press that led here have done their work
+        self.mobile.edit_tools = false;
+        match what {
+            "evaluate" => {
+                self.doc.view.graphic = None;
+                self.run(ctx, Command::SelectText(id, text.len(), text.len()));
+                self.run(ctx, Command::Evaluate);
+            }
+            "copy" if picture => self.copy_graphic(id),
+            "copy" => self.clip.set(Contents { text: Some(text), ..Contents::default() }),
+            "latex" => {
+                self.run(ctx, Command::ClickText(id, 0, false));
+                self.run(ctx, Command::CopyLatex);
+            }
+            "share-cell" if picture => self.share_picture(id),
+            "share-cell" => mc_ui::platform::share_text(&text),
+            "above" | "below" => {
+                // below: after the results the input has
+                let after = self.doc.nb.cells()[i + 1..].iter().take_while(|c| c.input_of == Some(id)).count();
+                let gap = if what == "above" { i } else { i + 1 + after };
+                self.doc.view.graphic = None;
+                self.run(ctx, Command::ClickGap(gap));
+                self.run(ctx, Command::NewCell(Style::Input));
+                self.doc.scroll_pending = true;
+            }
+            "delete" => self.delete_cell(ctx, id),
+            _ => {}
+        }
+    }
+
+    /// Delete cell `id` (an input goes with its results) and offer the way back for a few seconds; a notebook
+    /// left without cells gets an empty input.
+    pub(super) fn delete_cell(&mut self, ctx: &egui::Context, id: mc_nbmodel::CellId) {
+        let Some(i) = self.doc.nb.index_of(id) else { return };
+        let cells = self.doc.nb.cells();
+        let (generated, before) = (cells[i].generated(), cells.len());
+        let last = if generated {
+            id
+        } else {
+            cells[i + 1..].iter().take_while(|c| c.input_of == Some(id)).last().map_or(id, |c| c.id)
+        };
+        self.doc.view.graphic = None;
+        self.run(ctx, Command::ClickBracket(Bracket::Cell(id), false, false));
+        if last != id {
+            self.run(ctx, Command::ClickBracket(Bracket::Cell(last), true, false));
+        }
+        self.run(ctx, Command::Delete);
+        if self.doc.nb.cells().len() == before {
+            // a cell that may not be deleted
+            return;
+        }
+        let mut undo = 1;
+        if self.doc.nb.cells().is_empty() {
+            self.run(ctx, Command::NewCell(Style::Input));
+            undo = 2;
+        }
+        self.mobile.edit_tools = false;
+        let text = if generated { "Result deleted" } else { "Cell deleted" };
+        let until = ctx.input(|i| i.time) + SNACK_TIME;
+        self.mobile.snack = Some(Snack { text, undo, until, rev: self.doc.nb.structure_rev(), fresh: true });
+    }
+
+    /// Backspace in an empty cell that is edited removes the cell (the caret goes to the end of the cell before
+    /// it); `false` when the key is not that. The only cell stays.
+    pub(super) fn backspace_empty_cell(&mut self, ctx: &egui::Context) -> bool {
+        let Selection::Caret { cell, .. } = *self.doc.nb.selection() else { return false };
+        let Some(i) = self.doc.nb.index_of(cell) else { return false };
+        let cells = self.doc.nb.cells();
+        if !self.edited(cell) || !cells[i].text.is_empty() || cells.iter().filter(|c| !c.generated()).count() < 2 {
+            return false;
+        }
+        let before = cells[..i].iter().rev().find(|c| !c.generated() && c.editable()).map(|c| (c.id, c.text.len()));
+        self.delete_cell(ctx, cell);
+        if let (Some((id, end)), true) = (before, self.doc.nb.cell(cell).is_none()) {
+            self.run(ctx, Command::SelectText(id, end, end));
+        }
+        true
+    }
+
+    /// The line after a deletion: what went, and Undo; it goes after a few seconds, with the next key, and when
+    /// cells come or go otherwise.
+    fn snackbar(&mut self, ctx: &egui::Context, canvas: Rect) {
+        let Some(snack) = self.mobile.snack.clone() else { return };
+        let now = ctx.input(|i| i.time);
+        if now >= snack.until || snack.rev != self.doc.nb.structure_rev() || self.mobile.screen != Screen::Notebook {
+            self.mobile.snack = None;
+            return;
+        }
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(snack.until - now));
+        let m = Material::of(self.doc.view.palette.dark);
+        let width = (canvas.width() - 32.0).min(480.0);
+        // above the round "+" when that shows (no bar at the bottom)
+        let (editing, picked) = self.mobile_selection();
+        let lift = if editing || picked.is_some() { 0.0 } else { 56.0 + 12.0 };
+        let at = pos2(canvas.center().x - width / 2.0, canvas.bottom() - 16.0 - 48.0 - lift);
+        let mut undo = false;
+        egui::Area::new(egui::Id::unique("m-snack")).fixed_pos(at).order(egui::Order::Foreground).show(ctx, |ui| {
+            let (rect, _) = ui.allocate_exact_size(vec2(width, 48.0), Sense::hover());
+            ui.painter().rect_filled(rect.translate(vec2(0.0, 2.0)).expand(1.0), 5.0, Color32::from_black_alpha(40));
+            // the page's colours the other way round: the line stands out on it in both themes
+            let (ground, ink, accent) = (m.on_surface, m.surface, m.primary_container);
+            ui.painter().rect_filled(rect, 4.0, ground);
+            let font = FontId::proportional(15.0);
+            let text_at = rect.left_center() + vec2(16.0, 0.0);
+            ui.painter().text(text_at, egui::Align2::LEFT_CENTER, snack.text, font.clone(), ink);
+            let label = ui.painter().layout_no_wrap("Undo".to_string(), font, accent);
+            let target = Rect::from_min_max(pos2(rect.right() - label.size().x - 32.0, rect.top()), rect.max);
+            let resp = ui.interact(target, egui::Id::unique("m-snack-undo"), Sense::click());
+            mark(ui, "Undo", target);
+            ui.painter().rect_filled(target.shrink2(vec2(4.0, 6.0)), 18.0, layer(accent, state(&resp)));
+            ui.painter().galley(target.center() - label.size() / 2.0, label, accent);
+            undo = resp.clicked();
+        });
+        if undo {
+            for _ in 0..snack.undo {
+                self.run(ctx, Command::Undo);
+            }
+            self.mobile.snack = None;
+            self.doc.scroll_pending = true;
         }
     }
 
@@ -761,6 +1114,7 @@ impl App {
                         // a key: its character in the code font, a round state layer when pressed
                         let key = |ui: &mut egui::Ui, label: &str| {
                             let (rect, resp) = ui.allocate_exact_size(vec2(42.0, TARGET), Sense::click());
+                            mark(ui, label, rect);
                             let face = Rect::from_center_size(rect.center(), vec2(40.0, 40.0));
                             ui.painter().rect_filled(face, 20.0, layer(m.on_surface, state(&resp)));
                             let font = FontId::monospace(if label.len() > 1 { 15.0 } else { 20.0 });
@@ -772,13 +1126,25 @@ impl App {
                                 fire = Some(Command::Insert(k.to_string()));
                             }
                         }
-                        if icon_button(ui, Icon::ArrowLeft, m.on_surface_variant).clicked() {
+                        let left = icon_button(ui, Icon::ArrowLeft, m.on_surface_variant);
+                        mark(ui, "left", left.rect);
+                        if left.clicked() {
                             fire = Some(Command::Move(mc_nbmodel::Motion::Left, false));
                         }
-                        if icon_button(ui, Icon::ArrowRight, m.on_surface_variant).clicked() {
+                        let right = icon_button(ui, Icon::ArrowRight, m.on_surface_variant);
+                        mark(ui, "right", right.rect);
+                        if right.clicked() {
                             fire = Some(Command::Move(mc_nbmodel::Motion::Right, false));
                         }
                         tab = key(ui, "tab");
+                        // the typeset boxes (on a desktop they are Ctrl chords): a fraction, a power, a square root
+                        // around the selection or with empty places; the arrows and tab beside them go through and
+                        // out of them
+                        for (label, what) in BOXES {
+                            if key(ui, label) {
+                                fire = Some(Command::Structure(what));
+                            }
+                        }
                     });
                 });
             });
@@ -805,7 +1171,7 @@ impl App {
             ScrollArea::horizontal().id_salt("m-complete").scroll_bar_visibility(bars).show(ui, |ui| {
                 ui.spacing_mut().item_spacing.x = 8.0;
                 for (k, name) in names.iter().enumerate() {
-                    if chip(ui, &m, name) {
+                    if chip(ui, &m, name, true) {
                         chosen = Some(k);
                     }
                 }
@@ -864,9 +1230,7 @@ impl App {
         } else if share {
             mc_ui::platform::share_text(&text);
         } else if delete {
-            self.doc.view.graphic = None;
-            self.run(&ctx, Command::ClickBracket(mc_nbmodel::Bracket::Cell(id), false, false));
-            self.run(&ctx, Command::Delete);
+            self.delete_cell(&ctx, id);
         }
     }
 
@@ -1015,6 +1379,30 @@ impl App {
                     ui.painter().hline(line.x_range(), line.center().y, egui::Stroke::new(1.0, m.outline_variant));
                 }
                 Sheet::More => {}
+                Sheet::Cell(id) => {
+                    // what can be done with the cell: an input, a result, a picture
+                    let cell = self.doc.nb.cell(*id);
+                    let generated = cell.is_some_and(|c| c.generated());
+                    let picture = cell.is_some_and(|c| c.graphic().is_some());
+                    let rows: &[(&str, &str)] = match (generated, picture) {
+                        (_, true) => &[("Copy picture", "copy"), ("Share", "share-cell")],
+                        (true, false) => &[("Copy", "copy"), ("Copy as LaTeX", "latex"), ("Share", "share-cell")],
+                        (false, false) => &[
+                            ("Evaluate", "evaluate"),
+                            ("Copy input", "copy"),
+                            ("Insert input above", "above"),
+                            ("Insert input below", "below"),
+                        ],
+                    };
+                    for (label, what) in rows {
+                        if sheet_row(ui, label, p.text) {
+                            act = Some(*what);
+                        }
+                    }
+                    if sheet_row(ui, if generated { "Delete result" } else { "Delete cell" }, p.red) {
+                        act = Some("delete");
+                    }
+                }
                 Sheet::File(_) => {
                     for (label, what, color) in
                         [("Rename", "rename", p.text), ("Share", "share-file", p.text), ("Delete", "delete-file", p.red)]
@@ -1071,11 +1459,10 @@ impl App {
             (Some("clear"), _) => self.run(&ctx, Command::DeleteAllOutput),
             (Some("delete-cell"), _) => {
                 if let Some(id) = self.doc.nb.current_cell() {
-                    self.doc.view.graphic = None;
-                    self.run(&ctx, Command::ClickBracket(mc_nbmodel::Bracket::Cell(id), false, false));
-                    self.run(&ctx, Command::Delete);
+                    self.delete_cell(&ctx, id);
                 }
             }
+            (Some(what), Sheet::Cell(id)) => self.cell_action(&ctx, *id, what),
             (Some("restart"), _) => self.run(&ctx, Command::QuitKernel),
             (Some("share"), _) => self.share_notebook(false),
             (Some("share-pdf"), _) => self.share_notebook(true),

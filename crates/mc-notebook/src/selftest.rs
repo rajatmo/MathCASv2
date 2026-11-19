@@ -61,7 +61,15 @@
 //! - fingers (the events of a touch screen, followed as on Android from the first such step on): `tap <x> <y>`;
 //!   `finger <x0> <y0> <x1> <y1>` (one finger lands, moves in steps and is lifted after a rest);
 //!   `pinch <x> <y> <from> <to>` (two fingers level with each other around a point, `from` apart, move until
-//!   they are `to` apart); `twofingers <x> <y> <dx> <dy>` (two fingers 80 apart around a point move together)
+//!   they are `to` apart); `twofingers <x> <y> <dx> <dy>` (two fingers 80 apart around a point move together);
+//!   `tapat <place>`, `hold <place>` (a long press: the finger rests, then is lifted in place) and
+//!   `holddrag <place> <dx> <dy>` (it rests, then moves), `swipe <place> <dx> <dy>` (it moves at once), where a
+//!   place is `x y`, `cell <i>` (the middle of what shows of the cell at index `i`), `text <i> <byte>` (in the
+//!   text of cell `i`) or `on <label>` (a control of the phone layout); `mtap <label>` taps the
+//!   control of the phone layout with that label (a row of a sheet, a button, a chip); `mui` logs what lies over
+//!   the notebook there (the sheet, the tools above the keys, the line after a deletion), the number of cells and
+//!   whether the caret is in view; `idle` waits until the kernel has answered (30 s at most); `showcell <i>`
+//!   scrolls the cell at index `i` to the top of what shows
 //! - `quit`
 use crate::app::App;
 use crate::theme::ThemeChoice;
@@ -94,6 +102,8 @@ pub struct SelfTest {
     until_idle: Option<(std::time::Instant, u32)>,
     /// `roundtrip`: the printed output that the pasted cell must evaluate to again
     roundtrip: Option<String>,
+    /// `hold`: the events that follow once a finger has rested long enough, one batch per frame
+    timed: Option<(std::time::Instant, Vec<Vec<Event>>)>,
 }
 
 impl SelfTest {
@@ -118,6 +128,7 @@ impl SelfTest {
             evaluated: None,
             until_idle: None,
             roundtrip: None,
+            timed: None,
         })
     }
 
@@ -200,6 +211,16 @@ impl SelfTest {
                     }
                 }
             }
+        }
+        // a finger that rests: the rest of its gesture follows when the time is up
+        if let Some((at, _)) = &self.timed {
+            if std::time::Instant::now() < *at {
+                return;
+            }
+            let frames = self.timed.take().map(|(_, f)| f).unwrap_or_default();
+            self.wait = frames.len() as u32 + 4;
+            self.later.extend(frames);
+            return;
         }
         let Some(step) = self.steps.get(self.next).cloned() else {
             return;
@@ -291,6 +312,50 @@ impl SelfTest {
                     self.wait = 12;
                 }
             }
+            "mtap" => match app.mobile_target(arg).filter(|p| ctx.content_rect().contains(*p)) {
+                Some(p) => {
+                    app.follow_touches();
+                    self.later.extend([finger(0, egui::TouchPhase::Start, p), finger(0, egui::TouchPhase::End, p)]);
+                    self.wait = 8;
+                }
+                None => self.log.push(format!("mtap: no control `{arg}` on the screen")),
+            },
+            "mui" => self.log.push(format!("overlays: {}", app.mobile_overlays())),
+            "showcell" => {
+                app.show_cell(arg.parse().unwrap_or(0));
+                self.wait = 6;
+            }
+            // the kernel has answered everything asked of it (30 s at most)
+            "idle" => self.until_idle = Some((std::time::Instant::now() + std::time::Duration::from_secs(30), 3)),
+            "tapat" | "hold" | "holddrag" | "swipe" => match place(app, arg) {
+                Some((p, rest)) => {
+                    app.follow_touches();
+                    if let ("swipe", &[dx, dy]) = (cmd, rest.as_slice()) {
+                        let frames = one_finger(p, p + egui::vec2(dx, dy));
+                        self.wait = frames.len() as u32 + 4;
+                        self.later.extend(frames);
+                    } else if cmd == "tapat" {
+                        self.later.extend([finger(0, egui::TouchPhase::Start, p), finger(0, egui::TouchPhase::End, p)]);
+                        self.wait = 8;
+                    } else {
+                        // the finger lands now and stays for longer than a long press takes, whatever the frame rate
+                        self.pending.extend(finger(0, egui::TouchPhase::Start, p));
+                        let d = match (cmd, rest.as_slice()) {
+                            ("holddrag", &[dx, dy]) => egui::vec2(dx, dy),
+                            _ => egui::Vec2::ZERO,
+                        };
+                        let mut frames = vec![];
+                        if d != egui::Vec2::ZERO {
+                            frames.extend((1..=MOVES).map(|k| finger(0, egui::TouchPhase::Move, p + d * (k as f32 / MOVES as f32))));
+                            frames.extend((0..4).map(|_| vec![]));
+                        }
+                        frames.push(finger(0, egui::TouchPhase::End, p + d));
+                        let rest = std::time::Duration::from_secs_f64(crate::touch::HOLD + 0.25);
+                        self.timed = Some((std::time::Instant::now() + rest, frames));
+                    }
+                }
+                None => self.log.push(format!("{cmd}: no such place `{arg}`")),
+            },
             "tap" | "finger" | "pinch" | "twofingers" => {
                 let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
                 let frames = match (cmd, v.as_slice()) {
@@ -721,6 +786,26 @@ fn finger(id: u64, phase: egui::TouchPhase, pos: egui::Pos2) -> Vec<Event> {
     events
 }
 
+/// A place on the screen named in a script, and the numbers that follow it: `x y`, `cell <i>` (the middle of what
+/// shows of the cell at index `i`), `text <i> <byte>` (in the text of cell `i` at that byte), `on <label>` (the
+/// control of the phone layout with that one-word label).
+fn place(app: &mut App, arg: &str) -> Option<(egui::Pos2, Vec<f32>)> {
+    let words: Vec<&str> = arg.split_whitespace().collect();
+    let numbers = |from: usize| words[from.min(words.len())..].iter().filter_map(|w| w.parse::<f32>().ok()).collect::<Vec<f32>>();
+    match words.first().copied() {
+        Some("cell") => Some((app.cell_point(words.get(1)?.parse().ok()?, None)?, numbers(2))),
+        Some("on") => Some((app.mobile_target(words.get(1)?)?, numbers(2))),
+        Some("text") => {
+            let at = app.cell_point(words.get(1)?.parse().ok()?, Some(words.get(2)?.parse().ok()?))?;
+            Some((at, numbers(3)))
+        }
+        _ => {
+            let n = numbers(0);
+            (n.len() >= 2).then(|| (egui::pos2(n[0], n[1]), n[2..].to_vec()))
+        }
+    }
+}
+
 /// The moves of a gesture: one per frame.
 const MOVES: usize = 8;
 
@@ -791,7 +876,21 @@ fn output_of(nb: &Notebook, id: CellId) -> Option<(CellId, String)> {
 /// linear text (what Copy gives), `canon` its stored text (what the kernel reads), `output` the printed output of
 /// the last evaluated cell, `messages` the other cells that evaluation made (prints and messages), `pasted` the
 /// linear text of the cell with the caret.
-fn field(app: &App, evaluated: Option<CellId>, what: &str) -> String {
+///
+/// The phone layout: `sheet`, `tools`, `snack`, `cells` and `caret` are the parts of what `mui` logs; `bottom` is
+/// what shows at the bottom (keys, actions, add); `clipboard` is the system clipboard's text.
+fn field(app: &mut App, evaluated: Option<CellId>, what: &str) -> String {
+    match what {
+        "sheet" | "tools" | "snack" | "cells" | "caret" => {
+            let all = app.mobile_overlays();
+            let part = all.split(", ").find_map(|p| p.strip_prefix(what).and_then(|v| v.strip_prefix(' ')));
+            return part.unwrap_or("<none>").to_string();
+        }
+        "bottom" => return app.mobile_state().rsplit(' ').next().unwrap_or_default().to_string(),
+        "clipboard" => return app.clipboard_text().unwrap_or_else(|| "<none>".into()),
+        _ => {}
+    }
+    let app = &*app;
     let nb = app.notebook();
     match what {
         // a cell without boxes is `none`

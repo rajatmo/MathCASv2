@@ -7,6 +7,10 @@
 # a plot and takes screenshots), and checks the self-test's log, the screenshots and the system log. The work folder
 # (default: a temporary one) keeps the log, the screenshots and the app's lines of the system log.
 #
+# The self-test also puts fingers on the editor: long presses, the tools above the keys, the cell's sheet, Delete
+# and Undo, Paste, the key row, half of it in the dark theme. With ROTATION=1 the device is turned a quarter for the
+# run (and turned back after it).
+#
 # Needs adb (the Android SDK's platform-tools; ANDROID_HOME names the SDK) and one device: `adb devices` must list
 # exactly one, or ANDROID_SERIAL names it.
 set -uo pipefail
@@ -45,6 +49,12 @@ echo "smoke: device $(sh getprop ro.product.model), Android $(sh getprop ro.buil
 "$adb" install -r "$apk" >"$work/install.out" 2>&1
 check "the package installs" "Success" "$(tail -1 "$work/install.out" | tr -d '\r')"
 
+# ROTATION=1: the device turned a quarter (a phone held sideways, a tablet upright) for the run
+if [ -n "${ROTATION:-}" ]; then
+    auto_rotate="$(sh settings get system accelerometer_rotation)"
+    sh wm user-rotation lock "$ROTATION"
+fi
+
 # the self-test script goes into the app's notebooks folder; the app runs it when it starts
 sh am force-stop "$pkg"
 sh rm -rf "$files/smoke" "$files/selftest.txt"
@@ -73,14 +83,25 @@ sh am force-stop "$pkg"
 # the calculation the self-test made is not the user's: the notebooks that were not there before go
 sh ls "$files" >"$work/after.txt" 2>/dev/null
 grep -v -x -F -f "$work/before.txt" "$work/after.txt" | grep '^Calculation [0-9]*\.mcn$' | while read -r made; do
-    sh rm -f "$files/$made"
+    # (quoted for the device's shell: the name has a space)
+    sh rm -f "'$files/$made'"
 done
+if [ -n "${ROTATION:-}" ]; then
+    if [ "$auto_rotate" = 1 ]; then sh wm user-rotation free; else sh wm user-rotation lock 0; fi
+fi
 
 log="$work/smoke/selftest.log"
 check "the self-test ran to its end" "1" "$(grep -c '^finished' "$log" 2>/dev/null)"
 check "the integral's value" "1" "$(grep -c '^result smoke/integral: pass' "$log" 2>/dev/null)"
 check "the plot" "1" "$(grep -c '^result smoke/plot: pass' "$log" 2>/dev/null)"
-check "three screenshots" "3" "$(ls "$work/smoke"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+check "a long press on a word: the tools, Copy" "1" "$(grep -c '^result smoke/long-press: pass' "$log" 2>/dev/null)"
+check "a long press on a result: the cell's sheet" "1" "$(grep -c '^result smoke/sheet: pass' "$log" 2>/dev/null)"
+check "Delete and Undo" "1" "$(grep -c '^result smoke/delete: pass' "$log" 2>/dev/null)"
+check "Paste over a word" "1" "$(grep -c '^result smoke/paste: pass' "$log" 2>/dev/null)"
+check "the key row, the caret above the keyboard" "1" "$(grep -c '^result smoke/keys: pass' "$log" 2>/dev/null)"
+check "Backspace in an empty cell" "1" "$(grep -c '^result smoke/backspace: pass' "$log" 2>/dev/null)"
+check "nothing on the screen was missed" "0" "$(grep -c 'no control\|no such place\|unknown step' "$log" 2>/dev/null)"
+check "nine screenshots" "9" "$(ls "$work/smoke"/*.png 2>/dev/null | wc -l | tr -d ' ')"
 check "no panic in the system log" "0" "$(grep -c 'panic' "$work/logcat.txt")"
 
 echo "smoke: $passed passed, $failed failed; files in $work"

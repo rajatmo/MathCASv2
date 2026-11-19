@@ -56,6 +56,10 @@ impl App {
         if self.doc.completion.is_some() || self.modal_open() {
             return;
         }
+        // the phone layout with the keyboard up on a low screen: the hint would lie on the keys
+        if crate::layout::mobile() && self.mobile.low {
+            return;
+        }
         let Some(cc) = self.code_caret().filter(|c| c.anchor == c.pos) else {
             self.help.hint_hidden = None;
             return;

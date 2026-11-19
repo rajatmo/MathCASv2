@@ -1,6 +1,8 @@
 # mc-notebook self-test for the Android smoke run (packaging/android/smoke.sh): the start screen, a new calculation,
-# an input evaluated with the kernel, then a plot. @OUT@ is replaced by the folder on the device where the log and
-# the screenshots go.
+# an input evaluated with the kernel, a plot; then the editor under fingers: a long press on a word (the tools above
+# the keys, Copy to the system clipboard), a long press on a result and on the plot (the cell's sheet, Delete with
+# Undo), Paste over a word, the keys of the key row, and the caret in view above the on-screen keyboard. The second
+# half is run in the dark theme. @OUT@ is replaced by the folder on the device where the log and the screenshots go.
 out @OUT@
 theme light
 wait 30
@@ -17,5 +19,88 @@ keys Ctrl+End "plot(sin(x), [x, 0, 6])"
 eval
 wait 30
 shot evaluated
+# cells: 0 the integral, 1 its result, 2 the plot's input, 3 the plot
+formula smoke/long-press
+showcell 0
+hold text 0 3
+wait 10
+expect tools "true"
+expect sheet "none"
+expect bottom "keys"
+shot tools
+mtap Copy
+wait 10
+expect clipboard "integrate"
+formula smoke/sheet
+showcell 1
+hold cell 1
+wait 10
+expect sheet "cell"
+shot sheet
+mtap Copy
+wait 10
+expect sheet "none"
+expect clipboard "2*cos(x) - cos(x)*x^2 + 2*x*sin(x)"
+theme dark
+wait 10
+formula smoke/delete
+showcell 2
+hold cell 3
+wait 10
+expect sheet "cell"
+expect bottom "actions"
+shot sheet-plot-dark
+mtap Delete result
+wait 10
+expect cells "3"
+expect snack "Result deleted"
+shot deleted-dark
+mtap Undo
+wait 10
+expect cells "4"
+expect snack "none"
+formula smoke/paste
+showcell 0
+hold text 0 3
+wait 10
+mtap Copy
+wait 10
+showcell 2
+hold text 2 2
+wait 10
+mtap Paste
+wait 10
+expect canon "integrate(sin(x), [x, 0, 6])"
+expect tools "false"
+formula smoke/keys
+showcell 2
+tapat text 2 9
+wait 60
+expect bottom "keys"
+expect caret "shown"
+mtap (
+wait 6
+keys "1"
+shot keyboard-dark
+expect caret "shown"
+formula smoke/backspace
+showcell 2
+hold text 2 2
+wait 10
+mtap Cell
+wait 10
+mtap Insert input below
+# (the on-screen keyboard comes back up)
+wait 60
+expect cells "5"
+expect tools "false"
+expect caret "shown"
+keys Backspace
+wait 10
+expect cells "4"
+expect snack "Cell deleted"
+theme light
+wait 10
+shot end
 log finished
 quit

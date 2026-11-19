@@ -100,6 +100,10 @@ pub struct Touch {
     defer: bool,
     /// where a finger has rested for [`HOLD`] seconds, until it is asked for
     long_press: Option<Pos2>,
+    /// the finger of a long press is still down: where it rests, and whether it has moved away since
+    resting: Option<(Pos2, bool)>,
+    /// where a finger of a long press was lifted without having moved, until it is asked for
+    long_tap: Option<Pos2>,
     /// the zoom two fingers made, until it is asked for
     pinch: Option<Pinch>,
     /// where the pictures that turn are (screen rectangles of the last frame)
@@ -118,6 +122,8 @@ impl Default for Touch {
             later: vec![],
             defer: false,
             long_press: None,
+            resting: None,
+            long_tap: None,
             pinch: None,
             pictures: vec![],
             scrolled: false,
@@ -129,6 +135,12 @@ impl Touch {
     /// Where a finger came to rest for [`HOLD`] seconds since the last call (a long press), if one did.
     pub fn take_long_press(&mut self) -> Option<Pos2> {
         self.long_press.take()
+    }
+
+    /// Where the finger of a long press was lifted since the last call without having moved (a long press that was
+    /// not the start of a drag), if one was.
+    pub fn take_long_tap(&mut self) -> Option<Pos2> {
+        self.long_tap.take()
     }
 
     /// The zoom two fingers made on a picture since the last call, if they did.
@@ -237,6 +249,7 @@ impl Touch {
                 self.press(&mut out, at);
                 self.state = State::Dragging { id, from: at, at, turn: grab };
                 self.long_press = Some(at);
+                self.resting = Some((at, false));
             } else {
                 wake = Some(wake.map_or(HOLD - (now - since), |w: f64| w.min(HOLD - (now - since))));
             }
@@ -290,6 +303,7 @@ impl Touch {
             State::Scrolling { id: a, last, .. } => self.state = two(a, last, None, Pair::Pan),
             // the picture has turned as far as the first finger took it
             State::Dragging { id: a, from, at, turn: true } => {
+                self.resting = None;
                 let up = button(at, false, self.modifiers);
                 self.emit(out, up);
                 self.state = two(a, at, Some(from), Pair::Open);
@@ -331,6 +345,9 @@ impl Touch {
                 self.state = State::Scrolling { id, last: pos, from, t, v };
             }
             State::Dragging { id: a, from, turn, .. } if a == id => {
+                if let Some((at, moved)) = &mut self.resting {
+                    *moved |= (pos - *at).length() > SLOP;
+                }
                 self.emit(out, Event::PointerMoved(pos));
                 self.state = State::Dragging { id, from, at: pos, turn };
             }
@@ -395,6 +412,9 @@ impl Touch {
                 self.emit(out, up);
                 self.emit(out, Event::PointerGone);
                 self.state = rest;
+                if let Some((at, false)) = self.resting.take() {
+                    self.long_tap = Some(at);
+                }
             }
             State::Two { a, b, .. } if a == id || b == id => {
                 self.end_pinch();
@@ -419,6 +439,7 @@ impl Touch {
             self.emit(out, up);
         }
         self.end_pinch();
+        self.resting = None;
         if !matches!(self.state, State::Idle | State::Fling { .. }) {
             self.emit(out, Event::PointerGone);
             self.state = State::Idle;
@@ -783,5 +804,54 @@ mod tests {
         t.rewrite(&mut e, 0.6);
         assert!(wheels(&e).is_empty());
         assert_eq!(pointer(&e), vec![pos2(260.0, 250.0)]);
+        // it moved: lifting it is the end of a drag, not of a long press in place
+        let mut e = up(pos2(260.0, 250.0));
+        t.rewrite(&mut e, 0.7);
+        assert_eq!(t.take_long_tap(), None);
+    }
+
+    #[test]
+    fn a_long_press_lifted_in_place_is_told_apart_from_a_drag() {
+        let mut t = Touch::default();
+        let mut e = down(pos2(100.0, 300.0));
+        t.rewrite(&mut e, 0.0);
+        // not yet: the finger may still scroll or tap
+        let mut e = vec![];
+        t.rewrite(&mut e, HOLD - 0.05);
+        assert_eq!(t.take_long_press(), None);
+        let mut e = vec![];
+        t.rewrite(&mut e, HOLD + 0.01);
+        assert_eq!(t.take_long_press(), Some(pos2(100.0, 300.0)));
+        assert_eq!(t.take_long_tap(), None, "the finger is still down");
+        // a finger trembles: within the slop it has not moved
+        let mut e = moved(pos2(103.0, 302.0));
+        t.rewrite(&mut e, 0.6);
+        let mut e = up(pos2(103.0, 302.0));
+        t.rewrite(&mut e, 0.9);
+        assert_eq!(presses(&e), vec![false]);
+        assert_eq!(t.take_long_tap(), Some(pos2(100.0, 300.0)));
+        assert_eq!(t.take_long_tap(), None);
+        // a finger that moved before the time was up scrolls: no long press at all
+        let mut all = run(&mut t, 2.0, vec![down(pos2(100.0, 300.0)), moved(pos2(100.0, 250.0))]).concat();
+        let mut e = vec![];
+        t.rewrite(&mut e, 2.0 + HOLD + 0.1);
+        all.extend(e);
+        let mut e = up(pos2(100.0, 250.0));
+        t.rewrite(&mut e, 3.0);
+        all.extend(e);
+        assert!(presses(&all).is_empty() && !wheels(&all).is_empty());
+        assert_eq!((t.take_long_press(), t.take_long_tap()), (None, None));
+        // a tap is no long press
+        run(&mut t, 4.0, vec![down(pos2(100.0, 300.0)), up(pos2(100.0, 300.0)), vec![]]);
+        assert_eq!((t.take_long_press(), t.take_long_tap()), (None, None));
+        // fingers the system takes away during a long press: nothing follows
+        let mut e = down(pos2(100.0, 300.0));
+        t.rewrite(&mut e, 5.0);
+        let mut e = vec![];
+        t.rewrite(&mut e, 5.0 + HOLD + 0.01);
+        let mut e = vec![touch(TouchPhase::Cancel, pos2(100.0, 300.0)), Event::PointerGone];
+        t.rewrite(&mut e, 5.6);
+        assert_eq!(presses(&e), vec![false]);
+        assert_eq!(t.take_long_tap(), None);
     }
 }

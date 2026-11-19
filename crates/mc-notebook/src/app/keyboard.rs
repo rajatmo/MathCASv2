@@ -63,9 +63,15 @@ impl App {
                 continue;
             }
             match e {
-                egui::Event::Key { key, pressed: true, modifiers, .. } => {
+                egui::Event::Key { key, pressed: true, modifiers, repeat, .. } => {
                     swallow_text = None;
                     self.doc.auto_complete_at = None;
+                    // the phone layout: Backspace in an empty cell removes the cell (not while the key repeats: a
+                    // key held to empty a cell stops there)
+                    if crate::layout::mobile() && key == Key::Backspace && !repeat && modifiers.is_none() && self.backspace_empty_cell(ctx)
+                    {
+                        continue;
+                    }
                     // the menus from the keyboard: F10 opens File, Alt+letter the menu of that letter
                     if let Some(id) = self.menu_for_key(key, modifiers) {
                         egui::Popup::open_id(ctx, id.with("popup"));
