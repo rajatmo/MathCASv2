@@ -24,7 +24,7 @@ let the summation index escape; `function_domain` of `gamma_regularized` treated
 the domains of hypergeometric functions left out terminating series; `function_domain((-1)^x, x)` gave true
 (it is the integers); `hankel_transform` conditions excluded the boundary point where the formula holds;
 `subsequences` with overlaps dropped the empty runs; `chebyshev_t(inf, 0)` is `interval([-1, 1])`;
-`inverse_weierstrass_p` in the degenerate case; `n(gamma_regularized(1 + im, 0))` is 1.
+`inverse_weierstrass_p` in the degenerate case; `n(gamma_regularized(1 + im, 0))` is 1. `hypergeometric_2f1` beyond z = 1 is real where Euler's transformation terminates (`hypergeometric_2f1(5/2, 1, -5/2, 1.5)` is -22574.0), and its domain says so; a divergent series at z = 1 is `complex_infinity` at once.
 
 **New.** Real roots of sparse polynomials of huge degree (`x^1234567 + 5*x + 1 == 0`) as certified root
 objects; `discrete_asymptotic` of Fibonacci and Lucas numbers; `names` and the `constant` attribute of the
