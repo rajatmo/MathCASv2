@@ -1051,8 +1051,10 @@ fn sparse_array_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
             (0..k).map(|j| ps.iter().map(|p| p[j]).max().unwrap_or(1)).collect()
         }
     };
-    let total: i64 = dims.iter().product();
-    if dims.is_empty() || dims.iter().any(|&d| d < 1) || total > 1_000_000 {
+    // built dense: fewer than 2^20 entries (a 1023 x 1023 matrix, a vector of 2^20 - 1); larger arrays stay as
+    // written
+    let total: i64 = dims.iter().try_fold(1i64, |a, &d| a.checked_mul(d)).unwrap_or(i64::MAX);
+    if dims.is_empty() || dims.iter().any(|&d| d < 1) || total >= 1 << 20 {
         return Ok(None);
     }
     let default = match (a.get(2).copied(), default_rule) {

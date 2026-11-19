@@ -102,6 +102,8 @@ pub struct Attributes {
     /// the symbol's definitions may not be changed: assignments, rule definitions, `unset` and attribute changes
     /// other than `unprotect` give `failure(protected, f)` (decision 13.9 of design 01)
     pub protected: bool,
+    /// a mathematical constant (`pi`, `e`, ...): a mark `attributes` reports; it changes no evaluation
+    pub constant: bool,
 }
 
 const A_AC: u64 = 1 << 3;
@@ -111,6 +113,7 @@ const A_LISTABLE: u64 = 1 << 6;
 const A_ASSUMPTIONS: u64 = 1 << 7;
 const A_PROTECTED: u64 = 1 << 8;
 const A_FLAT: u64 = 1 << 9;
+const A_CONSTANT: u64 = 1 << 10;
 
 impl Attributes {
     fn bits(self) -> u64 {
@@ -122,6 +125,7 @@ impl Attributes {
             | if self.listable { A_LISTABLE } else { 0 }
             | if self.uses_assumptions { A_ASSUMPTIONS } else { 0 }
             | if self.protected { A_PROTECTED } else { 0 }
+            | if self.constant { A_CONSTANT } else { 0 }
     }
     pub(crate) fn from_bits(b: u64) -> Attributes {
         Attributes {
@@ -133,6 +137,7 @@ impl Attributes {
             listable: b & A_LISTABLE != 0,
             uses_assumptions: b & A_ASSUMPTIONS != 0,
             protected: b & A_PROTECTED != 0,
+            constant: b & A_CONSTANT != 0,
         }
     }
 }

@@ -10,6 +10,9 @@
 # Details
 
 #% item
+# An ellipsoid `ellipsoid(c, m)` with a symmetric positive definite matrix `m` (the points with (x - c)^T m^-1 (x - c) <= 1) has the exact bounds c_i -+ sqrt(m_ii).
+
+#% item
 # Implicit and parametric regions are bounded numerically, by sampling and bisection.
 
 #% section

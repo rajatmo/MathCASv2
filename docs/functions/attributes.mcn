@@ -18,6 +18,12 @@
 #% item
 # `protected` (given by `protect`): the symbol's definitions may not change.
 
+#% item
+# `constant` marks a mathematical constant; the built-in constants (`pi`, `e`, `degree`, `euler_gamma`, `catalan`, `glaisher`, `khinchin`, `golden_ratio`, `golden_angle`, `champernowne_number`, `machine_precision`) have it. It changes no evaluation.
+
+#% item
+# A string names the symbol of that name, as `names` gives them: `attributes("pi")`.
+
 #% section
 # Examples
 

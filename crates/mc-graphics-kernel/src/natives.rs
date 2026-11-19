@@ -483,18 +483,18 @@ impl Native for Show {
                 }
             }
         }
+        // a primitive of 2D or 3D graphics (an ellipsoid of either)
+        let primitive = |m: &str| mc_graphics::three::PRIMITIVES.contains(&m) || PRIMITIVES.contains(&m) || m == "ellipsoid";
         for e in flat.iter_mut() {
             // the discretization of a primitive left as written: the primitive
             if let Some((_, ra)) = model::head_name(h, e.1).filter(|(n, ra)| n == "discretize_region" && !ra.is_empty()) {
-                if model::head_name(h, ra[0]).is_some_and(|(m, _)| mc_graphics::three::PRIMITIVES.contains(&m.as_str()) || PRIMITIVES.contains(&m.as_str())) {
+                if model::head_name(h, ra[0]).is_some_and(|(m, _)| primitive(&m)) {
                     e.1 = ra[0];
                 }
             }
             // a region (a mesh region or a primitive) as its picture
             if let Some((name, ra)) = model::head_name(h, e.1) {
-                let region = matches!(name.as_str(), "mesh_region" | "boundary_mesh_region")
-                    || mc_graphics::three::PRIMITIVES.contains(&name.as_str())
-                    || PRIMITIVES.contains(&name.as_str());
+                let region = matches!(name.as_str(), "mesh_region" | "boundary_mesh_region") || primitive(&name);
                 if region && name != "text" {
                     let solid = matches!(name.as_str(), "pyramid" | "prism" | "hexahedron" | "tetrahedron" | "torus" | "filled_torus" | "cuboid" | "cylinder" | "cone" | "infinite_plane" | "parallelepiped");
                     let three = solid || ra.first().is_some_and(|&p| mc_graphics::three::is_coords(h, p));

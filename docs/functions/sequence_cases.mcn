@@ -18,6 +18,9 @@
 #% item
 # A list pattern with sequence variables (`[a, __]`) matches runs of several lengths.
 
+#% item
+# `overlaps: true` gives the longest run at each start; `overlaps: all` every matching run, longer ones first at each start, and the empty runs too (one at each start and one at the end) when the pattern matches an empty list (`_`, `[___]`).
+
 #% section
 # Examples
 

@@ -15,6 +15,9 @@
 #% item
 # `^` groups to the right: `2^3^2` is `2^9`.
 
+#% item
+# `x^0` is 1 for every x, `0^0` included (the empty product, as for a symbol whose value is not known yet); `0^b` for b > 0 is 0.
+
 #% section
 # Examples
 

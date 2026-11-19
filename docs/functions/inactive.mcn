@@ -12,6 +12,9 @@
 #% item
 # The arguments of an inactive call are evaluated; only the call itself is kept.
 
+#% item
+# `d` of an inactive sum, integral or transform is itself inactive: `d(inactive(sum)(f(k, y), [k, a, b]), y)` is `inactive(sum)(d(f(k, y), y), [k, a, b])` when the bounds do not depend on y.
+
 #% section
 # Examples
 

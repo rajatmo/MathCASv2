@@ -207,6 +207,8 @@ impl CoreEngine {
     /// An engine with these settings.
     pub fn with_config(cfg: EngineConfig) -> CoreEngine {
         let arith_stop = Arc::new(AtomicBool::new(false));
+        let system: crate::history::SystemSymbols = Arc::default();
+        let names_system = system.clone();
         let mut jit = None;
         let session = Session::with_state(cfg.heap, cfg.threads, |h| {
             let mut k = Kernel::new(h, cfg.eval);
@@ -248,7 +250,13 @@ impl CoreEngine {
                 k.set_value_head(h.sym(name));
             }
             // the notebook protocol's history (`out`) and library warnings (`message`)
-            crate::history::install(&mut k, h);
+            crate::history::install(&mut k, h, names_system);
+            // the built-in constants are marked as such (`attributes(pi)` lists `constant`)
+            for &name in crate::attrs::CONSTANTS {
+                let s = h.sym(name);
+                let a = k.attributes(s);
+                k.set_attributes(s, mc_eval::Attributes { constant: true, ..a });
+            }
             k.roots.push(h.sym_term(h.sym(names::NULL)));
             k
         });
@@ -284,6 +292,11 @@ impl CoreEngine {
             // the prelude's value is not a result of the session
             e.has_last = false;
         }
+        // the symbols defined now are the system's (`names("System`*")`); those defined later the session's
+        let library = &e.library_names;
+        let marks: Vec<bool> = e.session.step(|h, k| (0..h.sym_count() as u32).map(Sym).map(|s| k.is_defined(s) || library.contains(&s)).collect());
+        // invariant: set once, here
+        let _ = system.set(marks);
         e
     }
 
@@ -411,7 +424,8 @@ impl CoreEngine {
     pub fn name_kinds(&mut self) -> Vec<(String, NameKind)> {
         let library = &self.library_names;
         let kind = |h: &mc_core::Heap, k: &Kernel, s: Sym| {
-            if k.value_of(h, s).is_some() || (library.contains(&s) && !k.is_defined(s)) {
+            // a library constant has no native and no rules (it may carry attributes: `constant`)
+            if k.value_of(h, s).is_some() || (library.contains(&s) && !k.has_native(s) && k.rule_count(s) == 0) {
                 NameKind::Value
             } else if k.has_native(s) || k.rule_count(s) > 0 {
                 NameKind::Function
@@ -866,7 +880,7 @@ fn echoes(output: Option<&Emitted>, printed: &str) -> bool {
 }
 
 /// Whether `name` is a plain identifier (a letter or `_`, then letters, digits, `_`): the names completion offers.
-fn is_identifier(name: &str) -> bool {
+pub(crate) fn is_identifier(name: &str) -> bool {
     let mut chars = name.chars();
     chars.next().is_some_and(|c| c.is_alphabetic() || c == '_') && chars.all(|c| c.is_alphanumeric() || c == '_')
 }

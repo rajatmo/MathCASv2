@@ -586,8 +586,59 @@ fn region_centroid<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<
     }
 }
 
+/// The centre and the rows of the matrix of an ellipsoid.
+type CentreMatrix<'h> = (Vec<T<'h>>, Vec<Vec<T<'h>>>);
+
+/// The centre and the matrix of `ellipsoid(c, m)` with `m` a symmetric positive definite matrix of numbers (the
+/// region `(x - c)^T m^-1 (x - c) <= 1`), or `None`.
+fn matrix_ellipsoid<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<CentreMatrix<'h>>> {
+    let h = cx.heap();
+    let Some(("ellipsoid", &[c, m])) = call_parts(h, t).as_ref().map(|(n, a)| (n.as_str(), *a)) else { return Ok(None) };
+    let (Some(c), Some(rows)) = (cx.as_list(c).map(|l| l.to_vec()), cx.as_list(m).map(|l| l.to_vec())) else { return Ok(None) };
+    let n = c.len();
+    if !(1..=3).contains(&n) || rows.len() != n {
+        return Ok(None);
+    }
+    let mut mat = Vec::with_capacity(n);
+    let mut f = vec![vec![0.0; n]; n];
+    for (i, &row) in rows.iter().enumerate() {
+        let Some(r) = cx.as_list(row).map(|l| l.to_vec()).filter(|r| r.len() == n) else { return Ok(None) };
+        for (j, &x) in r.iter().enumerate() {
+            let Some(v) = crate::ex::num(cx, x)? else { return Ok(None) };
+            f[i][j] = v;
+        }
+        mat.push(r);
+    }
+    // symmetric, with positive leading principal minors (Sylvester's criterion)
+    let sym = (0..n).all(|i| (0..n).all(|j| mat[i][j] == mat[j][i]));
+    let m2 = |a: usize, b: usize| f[a][a] * f[b][b] - f[a][b] * f[b][a];
+    let det3 = || f[0][0] * m2(1, 2) - f[0][1] * (f[1][0] * f[2][2] - f[1][2] * f[2][0]) + f[0][2] * (f[1][0] * f[2][1] - f[1][1] * f[2][0]);
+    let pd = f[0][0] > 0.0 && (n < 2 || m2(0, 1) > 0.0) && (n < 3 || det3() > 0.0);
+    if !sym || !pd || c.iter().any(|&x| crate::ex::num(cx, x).ok().flatten().is_none()) {
+        return Ok(None);
+    }
+    Ok(Some((c, mat)))
+}
+
 fn region_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // an ellipsoid (x - c)^T m^-1 (x - c) <= 1: the largest x_i is c_i + sqrt(m_ii) (Cauchy-Schwarz in the inner
+    // product of m^-1), so every kind of bounds is the box c_i -+ sqrt(m_ii)
+    if let [r] | [r, _] = a {
+        if let Some((c, m)) = matrix_ellipsoid(cx, *r)? {
+            let e = E { h };
+            let rows: Vec<T<'h>> = c
+                .iter()
+                .enumerate()
+                .map(|(i, &ci)| {
+                    let s = e.sqrt(m[i][i]);
+                    e.list(&[e.sub(ci, s), e.add(&[ci, s])])
+                })
+                .collect();
+            let t = cx.eval(e.list(&rows))?;
+            return finish(cx, t, inexact(h, *r));
+        }
+    }
     let Some(r) = (match a {
         [r] | [r, _] => read(cx, *r),
         _ => None,

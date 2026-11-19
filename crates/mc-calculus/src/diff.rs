@@ -200,6 +200,42 @@ impl<'b, 'h> Diff<'b, 'h> {
         }
     }
 
+    /// The derivative of an inert sum `inactive(sum)(g, s1, s2, ...)` (each `si` an index `k`, `[k, n]`,
+    /// `[k, a, b]` or `[k, a, b, step]`) whose bounds do not depend on the variable: the sum of the derivatives
+    /// (term by term: a sum is linear), itself inert; 0 when the summand does not vary or the variable is the index
+    /// of a definite sum (bound). `None` when a bound depends on the variable, the sum is indefinite in the
+    /// variable, or a spec has another shape.
+    fn sum(&self, args: &[T<'h>], head: T<'h>) -> Option<T<'h>> {
+        let b = self.b;
+        let h = b.heap();
+        let [g, specs @ ..] = args else { return None };
+        if specs.is_empty() {
+            return None;
+        }
+        let mut bound = false;
+        for &s in specs {
+            match h.view(s) {
+                // an indefinite sum in the variable is a function of it (an antidifference): not handled here
+                View::Sym(_) if s == self.x => return None,
+                View::Sym(_) => {}
+                View::App { head: lh, args: sa } if b.sym_of(lh) == Some(b.hd.list) && (2..=4).contains(&sa.len()) => {
+                    if !matches!(h.view(sa[0]), View::Sym(_)) || sa[1..].iter().any(|&e| !b.is_zero(self.dv(e))) {
+                        return None;
+                    }
+                    bound |= sa[0] == self.x;
+                }
+                _ => return None,
+            }
+        }
+        let dg = if bound { b.zero() } else { self.dv(*g) };
+        if b.is_zero(dg) {
+            return Some(b.zero());
+        }
+        let mut out = vec![dg];
+        out.extend_from_slice(specs);
+        Some(h.app(head, &out))
+    }
+
     /// The derivative of an inert transform `inactive(T)(f, t, s)` (T a Laplace, Fourier, Fourier sine or cosine
     /// transform) or `inactive(convolve)(f, g, t, s)`, itself inert: 0 in the bound variable t; in s the transform
     /// of -t f (Laplace), i t f (Fourier, kernel exp(i w t)), t f under the cosine transform (sine), -t f under the
@@ -534,6 +570,12 @@ impl<'b, 'h> Diff<'b, 'h> {
                 if let Some(v) = self.integral(args, head) {
                     return Ok(v);
                 }
+            }
+            if b.sym_of(ih).map(|s| h.sym_name(s)).as_deref() == Some("inactive")
+                && b.sym_of(inner).map(|s| h.sym_name(s)).as_deref() == Some("sum")
+            {
+                // a bound that varies (a sum over a range that moves in steps) has no derivative here
+                return self.sum(args, head).ok_or(Halt::Unsupported);
             }
             if b.sym_of(ih).map(|s| h.sym_name(s)).as_deref() == Some("inactive") {
                 if let Some(name) = b.sym_of(inner).map(|s| h.sym_name(s).to_string()) {

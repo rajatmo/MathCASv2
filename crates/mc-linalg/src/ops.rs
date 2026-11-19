@@ -21,6 +21,12 @@ pub fn identity_matrix<'h>(env: &Env<'h>, args: &[T<'h>]) -> WorkResult<Out<'h>>
     let all = args;
     let (args, opts) = options(env, args);
     let Some(opts) = opts else { return Ok(Out::Decline) };
+    // `identity_matrix(n, sparse_array)` (or `dense`): the matrix in the dense list form, as target_structure gives it
+    let structure = |t: T<'h>| matches!(env.h().view(t), View::Sym(s) if matches!(env.h().sym_name(s).as_str(), "sparse_array" | "dense"));
+    let args = match args {
+        [n, s] if structure(*s) => std::slice::from_ref(n),
+        _ => args,
+    };
     let [n] = args else { return Ok(Out::Decline) };
     // n, or [rows, cols] for a rectangular matrix with ones on the main diagonal
     let (r, c) = match env.as_list(*n) {

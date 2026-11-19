@@ -7,6 +7,7 @@
 //! evaluator records reads of own values, so a memoised `out()` is stale as soon as the line number changes.
 use mc_api::names;
 use mc_core::{Heap, Store, View, T};
+use std::sync::{Arc, OnceLock};
 use mc_eval::{Attributes, CallKind, Hold, Kernel, Native, NativeCx, Reply, Res};
 
 /// The functions of this module with a one-line description.
@@ -50,7 +51,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "profile",
         "profile(e): [seconds, value, rows]: e evaluated with every call measured; rows [f, kind, calls, own seconds, total seconds] by own time",
     ),
-    ("names", "names(pattern), names([pattern, ...]): the sorted names of the symbols matching the string pattern (* any characters, @ any characters but capitals), as strings"),
+    ("names", "names(pattern), names([pattern, ...]): the sorted names of the symbols matching the string pattern (* any characters, @ any characters but capitals), as strings; \"System`p\" only the built-in symbols, \"Global`p\" only the session's"),
     ("own_values", "own_values(x): [x :> value] for a symbol with a value, [] without one"),
     ("down_values", "down_values(f): the rules defined for calls f(...), as [lhs :> rhs, ...] in the order they are tried"),
     ("up_values", "up_values(g): the rules attached to g (@on(g)) for calls with g(...) or g as an argument, as [lhs :> rhs, ...]"),
@@ -67,15 +68,15 @@ pub(crate) fn entry(n: u64) -> String {
     format!("out#{n}")
 }
 
-/// Register `out`, `message` and `timing`.
-pub(crate) fn install(k: &mut Kernel, h: &Heap) {
+/// Register `out`, `message` and `timing`; `names` reads which symbols are the system's from `system`.
+pub(crate) fn install(k: &mut Kernel, h: &Heap, system: SystemSymbols) {
     k.register(h.sym("out"), Attributes::default(), Box::new(Out));
     k.register(h.sym("message"), Attributes { effect: true, ..Attributes::default() }, Box::new(Message));
     // the argument is held (it is timed here, not before the call); reading the clock is an effect, so a timing is
     // never memoised or run speculatively
     k.register(h.sym("timing"), Attributes { hold: Hold::All, effect: true, ..Attributes::default() }, Box::new(Timing));
     k.register(h.sym("profile"), Attributes { hold: Hold::All, effect: true, ..Attributes::default() }, Box::new(Profile));
-    k.register(h.sym("names"), Attributes::default(), Box::new(Names));
+    k.register(h.sym("names"), Attributes::default(), Box::new(Names(system)));
     // the symbol is held: its value is read here, not substituted
     k.register(h.sym("own_values"), Attributes { hold: Hold::All, ..Attributes::default() }, Box::new(OwnValues));
     // an indexed name: inert (no definitions), so it can stand for a variable
@@ -304,10 +305,24 @@ impl Native for Profile {
     }
 }
 
+/// The symbols the system defines: marked by symbol index when the engine has loaded its prelude and libraries
+/// (unset while they load: every symbol is the system's then).
+pub(crate) type SystemSymbols = Arc<OnceLock<Vec<bool>>>;
+
 /// `names(pattern)`: the sorted names of the symbols whose name matches the string pattern (`*` any characters,
 /// `@` any characters but capitals; a list of patterns: those matching any), as strings. Symbols that no program
-/// can write (names that are not identifiers: the hidden ones and the renamed locals) are left out.
-struct Names;
+/// can write (names that are not identifiers: the hidden ones and the renamed locals) are left out. A pattern
+/// `"System`p"` matches only the symbols the system defines (built-in functions and constants, the libraries'
+/// definitions), `"Global`p"` only the session's symbols (new since its start, or given definitions by it).
+struct Names(SystemSymbols);
+
+/// Which symbols a pattern of `names` looks at.
+#[derive(Clone, Copy, PartialEq)]
+enum Scope {
+    All,
+    System,
+    Session,
+}
 
 impl Native for Names {
     fn reads_term(&self) -> bool {
@@ -331,11 +346,38 @@ impl Native for Names {
             }
             _ => return Ok(Reply::Decline),
         };
+        let pats: Vec<(Scope, &str)> = pats
+            .iter()
+            .map(|p| match (p.strip_prefix("System`"), p.strip_prefix("Global`")) {
+                (Some(rest), _) => (Scope::System, rest),
+                (_, Some(rest)) => (Scope::Session, rest),
+                _ => (Scope::All, p.as_str()),
+            })
+            .collect();
+        let system = self.0.get();
+        let is_system = |i: usize| system.is_none_or(|s| s.get(i).copied().unwrap_or(false));
+        // the session's: symbols new since the start, and older ones it has given definitions (the names the
+        // libraries use only as local variables are neither)
+        let is_session = |cx: &mut NativeCx<'_, '_, 'h>, i: usize| match system {
+            None => false,
+            Some(s) if i >= s.len() => true,
+            Some(s) => !s[i] && cx.is_defined(mc_api::Sym(i as u32)),
+        };
         let mut found: Vec<String> = (0..h.sym_count())
-            .map(|i| h.sym_name(mc_api::Sym(i as u32)))
-            .filter(|n| n.chars().next().is_some_and(|c| c.is_alphabetic() || c == '$') && n.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$'))
-            .filter(|n| !n.contains('$') || n.starts_with('$') && !n[1..].contains('$'))
-            .filter(|n| pats.iter().any(|p| glob(p.as_bytes(), n.as_bytes())))
+            .map(|i| (i, h.sym_name(mc_api::Sym(i as u32))))
+            .filter(|(_, n)| n.chars().next().is_some_and(|c| c.is_alphabetic() || c == '$') && n.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$'))
+            .filter(|(_, n)| !n.contains('$') || n.starts_with('$') && !n[1..].contains('$'))
+            .filter(|(i, n)| {
+                pats.iter().any(|&(scope, p)| {
+                    let inside = match scope {
+                        Scope::All => true,
+                        Scope::System => is_system(*i),
+                        Scope::Session => is_session(cx, *i),
+                    };
+                    inside && glob(p.as_bytes(), n.as_bytes())
+                })
+            })
+            .map(|(_, n)| n)
             .collect();
         found.sort();
         found.dedup();

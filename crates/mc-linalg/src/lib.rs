@@ -58,7 +58,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("eigenvectors", "eigenvectors(m): one eigenvector per eigenvalue in the order of eigenvalues(m); zero vectors for a defective eigenvalue"),
     ("eigensystem", "eigensystem(m): [eigenvalues(m), eigenvectors(m)]"),
     ("characteristic_polynomial", "characteristic_polynomial(m, x): det(x I - m), monic in x"),
-    ("identity_matrix", "identity_matrix(n): the n x n identity matrix; identity_matrix([m, n]) rectangular; working_precision: d"),
+    ("identity_matrix", "identity_matrix(n): the n x n identity matrix; identity_matrix([m, n]) rectangular; identity_matrix(n, sparse_array) the same; working_precision: d"),
     ("diagonal_matrix", "diagonal_matrix(v), diagonal_matrix(v, k): the square matrix with v on the k-th diagonal and zeros elsewhere; diagonal_matrix(v, k, n) or (v, k, [m, n]) of that size"),
     ("dot", "dot(a, b, ...): the product of vectors and matrices (scalar product, matrix-vector, matrix-matrix), from the left"),
     ("cross", "cross(u, v): the cross product of two vectors of length 3"),

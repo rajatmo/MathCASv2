@@ -1497,13 +1497,17 @@ fn sequence_runs<'h>(
     }
     let mut out = vec![];
     let mut i = 0;
-    while i < xs.len() && out.len() < limit {
+    // with `overlaps: all` every run is listed, the empty ones too (one at each start and one at the end) when the
+    // pattern can match an empty list; otherwise runs have at least one element (an empty run would never advance)
+    let empty = overlaps == Overlaps::All;
+    let end = if empty { xs.len() + 1 } else { xs.len() };
+    while i < end && out.len() < limit {
         let top = xs.len().min(i + 4096);
         let mut next = i + 1;
         for (m, rhs, (lo, hi)) in ms.iter_mut() {
             let mut any = false;
             // only the run lengths the list pattern can match (a run of three single elements is three long)
-            let (first, last) = (i + (*lo).max(1), top.min(i.saturating_add(*hi)));
+            let (first, last) = (i + if empty { *lo } else { (*lo).max(1) }, top.min(i.saturating_add(*hi)));
             for j in (first..=last).rev() {
                 cx.tick(1)?;
                 let run = cx.list(&xs[i..j]);

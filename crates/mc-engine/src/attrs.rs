@@ -5,22 +5,40 @@
 //! (associative only: nested calls spliced in, order kept, an argument pattern matching a run of arguments wrapped in
 //! the head: `ff(x_)` matches `ff(1, 2)` with `x = ff(1, 2)`), `effect` (calls perform effects: never evaluated ahead of their turn), `handles_failures` (failures
 //! arrive as arguments), `protected` (definitions may not change: assignments, rules, `unset` and other attribute
-//! changes give `failure(protected, f)`; decision 13.9 of design 01). `locked`, `read_protected`, `numeric_function`,
-//! `one_identity` and `constant` are accepted and change nothing.
+//! changes give `failure(protected, f)`; decision 13.9 of design 01), `constant` (a mathematical constant: a mark
+//! only; the built-in constants have it). `locked`, `read_protected`, `numeric_function` and `one_identity` are
+//! accepted and change nothing.
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Attributes, Hold, Kernel, Native, NativeCx, Reply, Res};
 
 /// The names [`attributes`] gives, in this order.
-const NAMES: &[&str] = &["effect", "flat", "handles_failures", "hold_all", "hold_first", "hold_rest", "listable", "orderless", "protected"];
+const NAMES: &[&str] =
+    &["constant", "effect", "flat", "handles_failures", "hold_all", "hold_first", "hold_rest", "listable", "orderless", "protected"];
 
 /// Names accepted and ignored.
-const IGNORED: &[&str] = &["locked", "read_protected", "numeric_function", "one_identity", "constant"];
+const IGNORED: &[&str] = &["locked", "read_protected", "numeric_function", "one_identity"];
+
+/// The built-in symbols with the `constant` attribute: the named mathematical constants and `machine_precision`.
+pub(crate) const CONSTANTS: &[&str] = &[
+    "catalan",
+    "champernowne_number",
+    "degree",
+    "e",
+    "euler_gamma",
+    "glaisher",
+    "golden_angle",
+    "golden_ratio",
+    "khinchin",
+    "machine_precision",
+    "pi",
+];
 
 fn names_of(a: Attributes) -> Vec<&'static str> {
     NAMES
         .iter()
         .copied()
         .filter(|n| match *n {
+            "constant" => a.constant,
             "effect" => a.effect,
             "handles_failures" => a.handles_failures,
             "hold_all" => a.hold == Hold::All,
@@ -61,6 +79,7 @@ fn with(mut a: Attributes, name: &str, on: bool) -> Option<Attributes> {
             a.ac = false;
         }
         "protected" => a.protected = on,
+        "constant" => a.constant = on,
         n if IGNORED.contains(&n) => {}
         _ => return None,
     }
@@ -75,14 +94,23 @@ fn syms<'h>(h: &'h Heap, cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Option<Vec<Sym>
     }
 }
 
-/// `attributes(f)`: the list of the attribute names of the symbol `f`.
+/// `attributes(f)`: the list of the attribute names of the symbol `f` (or of the symbol named by the string `f`, as
+/// `names` gives it).
 struct AttributesOf;
 
 impl Native for AttributesOf {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let [f] = args else { return Ok(Reply::Decline) };
-        let View::Sym(s) = h.view(*f) else { return Ok(Reply::Decline) };
+        let s = match h.view(*f) {
+            View::Sym(s) => s,
+            View::Str(n) if crate::engine::is_identifier(n) => h.sym(n),
+            _ => return Ok(Reply::Decline),
+        };
+        // a name of no symbol the session knows: no answer (not the empty list of a new symbol)
+        if matches!(h.view(*f), View::Str(_)) && !cx.is_defined(s) {
+            return Ok(Reply::Decline);
+        }
         // a function that maps over lists itself is listable to the user
         let a = Attributes { listable: cx.maps_lists(s), ..cx.attributes(s) };
         let v: Vec<T<'h>> = names_of(a).iter().map(|n| h.sym_term(h.sym(n))).collect();

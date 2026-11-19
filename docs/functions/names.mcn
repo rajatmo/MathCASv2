@@ -15,6 +15,9 @@
 #% item
 # The symbols are those the session knows: the functions and constants of the language and everything the program wrote.
 
+#% item
+# A pattern that starts with `System`` matches only the built-in symbols (the functions and constants of the language and of its libraries); one that starts with `Global`` only the session's symbols (those new since it started, and those it gave definitions).
+
 #% section
 # Examples
 
@@ -36,6 +39,23 @@ names("bessel_*")
 names(["golden_ratio", "catalan"])
 #% output
 #= ["catalan", "golden_ratio"]
+
+#% text
+# The session's own symbols:
+
+#% cell
+rule f(x_)(y_) := x + y
+names("Global`f*")
+#% output
+#= ["f"]
+
+#% text
+# The built-in constants, by their attribute:
+
+#% cell
+select(names("System`*"), &(member_of(attributes(&1), constant)))
+#% output
+#= ["catalan", "champernowne_number", "degree", "e", "euler_gamma", "glaisher", "golden_angle", "golden_ratio", "khinchin", "machine_precision", "pi"]
 
 #% section
 # See also
