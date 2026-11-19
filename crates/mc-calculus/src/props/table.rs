@@ -1722,6 +1722,24 @@ fn hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, 
         poly = format!("element({}, integers)", nm[0]);
     }
     let excess = format!("re(({}) - ({})) > 0", join(dm.clone(), " + ", "0"), join(nm.clone(), " + ", "0"));
+    // 2F1 (a, b; c; z) beyond the cut: Euler's transformation 2F1(a, b; c; z) = (1 - z)^(c - a - b) 2F1(c - a, c - b;
+    // c; z) (DLMF 15.8.1) has a terminating series when c - a or c - b is 0, -1, ... (DLMF 15.4.6 for c = b), so the
+    // function is the rational function (1 - z)^(c - a - b) P(z) when moreover c - a - b is an integer: real and
+    // single-valued for z > 1, analytic at z = 1 when c - a - b > 0. A nonpositive integer c with c - a = -n leaves
+    // c <= a <= 0, a case of B and P already.
+    let family = matches!(name, "chebyshev_t" | "chebyshev_u" | "legendre_p" | "gegenbauer_c" | "jacobi_p");
+    let (beyond, cut_r, at_one, no_euler) = if p == 2 && q == 1 && !family {
+        let (a, bb, c) = (&nm[0], &nm[1], &dm[0]);
+        let euler = format!("(element({c} - {a}, integers) and {c} - {a} <= 0 or element({c} - {bb}, integers) and {c} - {bb} <= 0) and element({c} - {a} - {bb}, integers)");
+        (
+            format!(" or ({euler}) and $u > 1"),
+            format!("($u > 1 and not({euler}) or $u == 1 and not(({euler}) and {excess}))"),
+            format!(" and not(({euler}) and {excess})"),
+            format!(" and not({euler})"),
+        )
+    } else {
+        (String::new(), "$u >= 1".to_string(), String::new(), String::new())
+    };
     let f = if p <= q {
         Facts {
             real: br.clone(),
@@ -1745,13 +1763,13 @@ fn hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, 
     } else if p == q + 1 {
         Facts {
             // at u = 0 the series is its first term 1 whatever the denominators (the value the function takes)
-            real: if reg { format!("({poly} or $u < 1 or $u == 1 and {excess})") } else { format!("$u == 0 or ({br}) and ({poly} or $u < 1 or $u == 1 and {excess})") },
+            real: if reg { format!("({poly} or $u < 1 or $u == 1 and {excess}{beyond})") } else { format!("$u == 0 or ({br}) and ({poly} or $u < 1 or $u == 1 and {excess}{beyond})") },
             complex: if reg { format!("({poly} or $u != 1 or {excess})") } else { format!("$u == 0 or ({bc}) and ({poly} or $u != 1 or {excess})") },
-            sr: Some(vec![(format!("not({br})"), Kind::Branch), (format!("not({poly}) and $u >= 1"), Kind::Branch)]),
+            sr: Some(vec![(format!("not({br})"), Kind::Branch), (format!("not({poly}) and {cut_r}"), Kind::Branch)]),
             sc: Some(vec![
                 (format!("not({bc})"), Kind::Branch),
-                (format!("not({poly}) and $u == 1"), Kind::Branch),
-                (format!("not({poly}) and im_part($u) == 0 and re($u) >= 1"), Kind::Branch),
+                (format!("not({poly}) and $u == 1{at_one}"), Kind::Branch),
+                (format!("not({poly}){no_euler} and im_part($u) == 0 and re($u) >= 1"), Kind::Branch),
             ]),
             partial: false,
             cpartial: false,

@@ -237,7 +237,7 @@ fn connection_one_minus(a: &CBall, b: &CBall, cc: &CBall, z: &CBall, kind: u8, w
 pub fn hyp2f1(a: &CBall, b: &CBall, cc: &CBall, z: &CBall, p: u64) -> Option<CBall> {
     if let Some(m) = nonpos_int(cc) {
         // a series that ends before the pole of c
-        if ![a, b].iter().filter_map(|x| nonpos_int(x)).any(|n| n < m) {
+        if ![a, b].iter().filter_map(|x| nonpos_int(x)).any(|n| n <= m) {
             return None;
         }
     }

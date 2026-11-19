@@ -82,8 +82,32 @@ hypergeometric_2f1(0.5, 0.25, 2.0, 1.0) - gamma(2.0)*gamma(1.25)/(gamma(1.5)*gam
 #% output
 #= 2.220446049250313e-16
 
+#% text
+# When `c - a` or `c - b` is `0, -1, ...`, Euler's transformation `2F1(a, b; c; z) = (1 - z)^(c - a - b)*2F1(c - a, c - b; c; z)` (DLMF 15.8.1) has a terminating series; with `c - a - b` an integer the function is rational and real beyond the cut:
+
+#% cell
+[hypergeometric_2f1(1, 1/2, 1/2, 3/2), hypergeometric_2f1(5/2, 1, -5/2, 3/2), hypergeometric_2f1(5/2, 1, -5/2, 1.5)]
+#% output
+#= [-2, -22574, -22574.0]
+
+#% text
+# `function_domain` includes these points:
+
+#% cell
+rewrite(function_domain(hypergeometric_2f1(a, b, c, z), z), [a -> 5/2, b -> 1, c -> -5/2, z -> 3/2])
+#% output
+#= true
+
 #% subsection
 # Possible issues
+
+#% text
+# At `z = 0` the value is the first term `1` of the series, also when `c` is `0, -1, ...` and the later terms have no value; the real and complex domains with symbolic parameters include `z == 0` for every `c`:
+
+#% cell
+[hypergeometric_2f1(1, 1, 0, 0), rewrite(function_domain(hypergeometric_2f1(a, b, c, z), z), [a -> 1, b -> 1, c -> 0, z -> 0])]
+#% output
+#= [1, true]
 
 #% text
 # Symbolic arguments stay unevaluated, also when the series terminates:

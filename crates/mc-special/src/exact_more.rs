@@ -492,11 +492,19 @@ impl<'a, 'h> More<'a, 'h> {
                 if self.is(a[3], 1) {
                     let (x, y, c) = (self.rat(a[0])?, self.rat(a[1])?, self.rat(a[2])?);
                     let d = c.sub(&x).sub(&y);
-                    if d.cmp_value(&Rat::from_i64(0)).is_gt() {
+                    let nonpos = |q: &Rat| q.is_int() && (q.is_zero() || q.num.neg);
+                    // a terminating series is summed below (Gauss's product would hold a gamma at a pole:
+                    // 2F1(-1, 1; 1; 1) = 0 is Gamma(1) Gamma(1)/(Gamma(2) Gamma(0)))
+                    if d.cmp_value(&Rat::from_i64(0)).is_gt() && !nonpos(&x) && !nonpos(&y) {
                         let g = |q: &Rat| self.call("gamma", &[self.q(q)]);
                         let num = self.ar.mul(&[g(&c), g(&d)]);
                         let den = self.ar.mul(&[g(&c.sub(&x)), g(&c.sub(&y))]);
                         return self.val(self.ar.div(num, den));
+                    }
+                    // c - a - b <= 0 and no terminating series: unbounded as z -> 1 (DLMF 15.4.21-15.4.23, the
+                    // factor Gamma(c) / (Gamma(a) Gamma(b)) nonzero; a logarithm at c - a - b = 0, so no pole order)
+                    if !nonpos(&x) && !nonpos(&y) && !nonpos(&c) && d.cmp_value(&Rat::from_i64(0)).is_le() {
+                        return self.val(self.sym("complex_infinity"));
                     }
                 }
                 // 2F1(a, b; b; z) = (1 - z)^-a (DLMF 15.4.6), 2F1(1, 1; 2; z) = -log(1 - z)/z (15.4.1),

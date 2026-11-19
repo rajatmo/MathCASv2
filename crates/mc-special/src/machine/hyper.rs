@@ -264,8 +264,11 @@ pub(crate) fn f21_near_one_dd(a: DD, b: DD, c: DD, z: DD) -> Option<DD> {
 /// The Gauss hypergeometric function 2F1(a, b; c; z) for real z <= 1 (NaN for z > 1, at poles c = 0, -1, ...
 /// that the series reaches, and where the value is complex).
 pub fn hyp_2f1(a: f64, b: f64, c: f64, z: f64) -> f64 {
-    if [a, b, c, z].iter().any(|v| !v.is_finite()) || z > 1.0 {
+    if [a, b, c, z].iter().any(|v| !v.is_finite()) {
         return f64::NAN;
+    }
+    if z > 1.0 {
+        return euler_terminating(a, b, c, z).unwrap_or(f64::NAN);
     }
     let (ad, bd, cd) = (DD::new(a), DD::new(b), DD::new(c));
     // 2F1(a, b; b; z) = (1 - z)^-a (DLMF 15.4.6)
@@ -290,6 +293,46 @@ pub fn hyp_2f1(a: f64, b: f64, c: f64, z: f64) -> f64 {
         return if sg == 0.0 { f64::NAN } else { f64::INFINITY.copysign(sg) };
     }
     fin(f21(ad, bd, cd, DD::new(z), DD::sum(1.0, -z)))
+}
+
+/// 2F1 at z > 1 when c - a or c - b is 0, -1, ... and c - a - b is an integer (to rounding of the parameters; a, b, c
+/// not 0, -1, ...): Euler's transformation (DLMF 15.8.1) makes it (1 - z)^(c - a - b) times the finite sum
+/// 2F1(c - a, c - b; c; z), a real value on the cut.
+fn euler_terminating(a: f64, b: f64, c: f64, z: f64) -> Option<f64> {
+    let tol = 8.0 * f64::EPSILON * (a.abs() + b.abs() + c.abs() + 1.0);
+    let near = |x: f64| (x - x.round()).abs() <= tol;
+    let nonpos = |x: f64| near(x) && x.round() <= 0.0;
+    if nonpos(a) || nonpos(b) || nonpos(c) {
+        return None;
+    }
+    let (ca, cb) = (c - a, c - b);
+    let e = c - a - b;
+    if !near(e) || e.round().abs() > 1e4 {
+        return None;
+    }
+    // the terminating pair: the integer -n exactly, the other parameter in double-double
+    let (n, other) = match (nonpos(ca), nonpos(cb)) {
+        (true, true) if ca >= cb => (-ca.round(), DD::new(c) - DD::new(b)),
+        (true, true) => (-cb.round(), DD::new(c) - DD::new(a)),
+        (true, false) => (-ca.round(), DD::new(c) - DD::new(b)),
+        (false, true) => (-cb.round(), DD::new(c) - DD::new(a)),
+        (false, false) => return None,
+    };
+    if n > 1e5 {
+        return None;
+    }
+    let (cd, zd) = (DD::new(c), DD::new(z));
+    let (mut t, mut s) = (DD::ONE, DD::ONE);
+    for k in 0..n as u64 {
+        let kf = k as f64;
+        t = t * DD::new(kf - n) * other.add_f(kf) * zd / (cd.add_f(kf) * DD::new(kf + 1.0));
+        s = s + t;
+    }
+    let omz = DD::sum(1.0, -z);
+    let k = e.round();
+    let p = omz.powi(k.abs() as u64);
+    let v = if k < 0.0 { s / p } else { s * p };
+    Some(v.to_f64())
 }
 
 // ---------------------------------------------------------------- 1F1

@@ -20,8 +20,8 @@
 //! - **0F1**: the series, with about 2.9 sqrt|z| extra bits for z < 0 (the terms reach e^(2 sqrt|z|)).
 //! - **pFq** in general: p <= q any z, p = q + 1 for |z| < 1, finite sums for any p, q.
 use super::gamma::gamma_ball;
-use super::{f64_of, float_of, int, is_pos, log2_up, lower, mag_up, real, real_ball, refine, upper, widen};
-use mc_arith::num::{stopped, Ball, Mag};
+use super::{f64_of, float_of, int, is_pos, log2_up, lower, mag_up, rat_ball, real, real_ball, refine, upper, widen};
+use mc_arith::num::{stopped, Ball, Mag, Rat};
 use mc_arith::Real;
 use mc_numeric::cball::CBall;
 use mc_numeric::elementary as el;
@@ -295,6 +295,10 @@ fn f21(a: &Ball, b: &Ball, c: &Ball, z: &Ball, wp: u64) -> Option<Ball> {
             let g = gamma_ball(c, wp)?.mul(&gamma_ball(&s, wp)?, wp);
             return Some(g.mul(&rgamma(&c.sub(a, wp), wp)?, wp).mul(&rgamma(&c.sub(b, wp), wp)?, wp));
         }
+        // beyond 1 only a terminating series is real (a polynomial: the finite sum)
+        Some(std::cmp::Ordering::Greater) if term.is_some() => {
+            return pfq_sum(&[a.clone(), b.clone()], std::slice::from_ref(c), z, wp);
+        }
         _ => return None,
     }
     if za <= 0.5 + 1e-9 {
@@ -343,11 +347,45 @@ fn f21(a: &Ball, b: &Ball, c: &Ball, z: &Ball, wp: u64) -> Option<Ball> {
 /// reached by the series, a divergent z = 1, or z close to -infinity in the degenerate case b - a an integer).
 pub fn hyp_2f1(a: &Real, b: &Real, c: &Real, z: &Real, p: u64) -> Option<CBall> {
     let (af, bf, cf, zf) = (approx(a), approx(b), approx(c), approx(z));
+    if zf > 1.0 {
+        if let Some(v) = euler_terminating(a, b, c, z, p) {
+            return Some(v);
+        }
+    }
     let g =
         if zf.abs() <= 0.5 { guard_for(&[af, bf], &[cf], zf) } else { 24 + (af.abs() + bf.abs() + cf.abs()) as u64 };
     refine(p, g, |wp| {
         let (ab, bb, cb, zb) = (real_ball(a, wp)?, real_ball(b, wp)?, real_ball(c, wp)?, real_ball(z, wp)?);
         Some(real(f21(&ab, &bb, &cb, &zb, wp)?))
+    })
+}
+
+/// 2F1 at a real z > 1 when c - a or c - b is 0, -1, ... and c - a - b is an integer (exact parameters, c, a, b not
+/// 0, -1, ...): Euler's transformation (DLMF 15.8.1) 2F1(a, b; c; z) = (1 - z)^(c - a - b) 2F1(c - a, c - b; c; z)
+/// is a rational function of z, real on the cut (the continuation from either side, so no imaginary part).
+fn euler_terminating(a: &Real, b: &Real, c: &Real, z: &Real, p: u64) -> Option<CBall> {
+    let (Real::Exact(qa), Real::Exact(qb), Real::Exact(qc)) = (a, b, c) else { return None };
+    let nonpos = |q: &Rat| q.is_int() && (q.is_zero() || q.num.neg);
+    if nonpos(qa) || nonpos(qb) || nonpos(qc) {
+        return None;
+    }
+    let (ca, cb) = (qc.sub(qa), qc.sub(qb));
+    let e = ca.sub(qb);
+    let n = [&ca, &cb].into_iter().filter(|q| nonpos(q)).filter_map(|q| q.num.to_i64()).map(|v| -v).min()?;
+    if !e.is_int() || n > 1 << 16 {
+        return None;
+    }
+    let k = e.num.clone();
+    let one = int(1);
+    let g = 24 + n.max(1).unsigned_abs().ilog2() as u64 * 2 + (approx(a).abs() + approx(b).abs() + approx(c).abs()) as u64;
+    refine(p, g, |wp| {
+        let zb = real_ball(z, wp)?;
+        if zb.cmp3(&one) != Some(std::cmp::Ordering::Greater) {
+            return None;
+        }
+        let (cab, cbb, cc) = (rat_ball(&ca, wp), rat_ball(&cb, wp), rat_ball(qc, wp));
+        let f = pfq_sum(&[cab, cbb], &[cc], &zb, wp)?;
+        Some(real(el::pow_int(&one.sub(&zb, wp), &k, wp)?.mul(&f, wp)))
     })
 }
 
