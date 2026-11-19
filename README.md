@@ -147,9 +147,11 @@ mc-repl notebook.mcn --update    # evaluate a notebook and write its outputs bac
 
 ## How it is checked
 
-- **Answers check themselves.** Every antiderivative is differentiated back, every solution of an equation is
-  substituted in, every new rewrite of the simplifier and every transform value is compared numerically. A result
-  that fails its check is not returned.
+- **Answers are checked where a check exists.** An antiderivative is differentiated back and compared with the
+  integrand at sample points, a closed form of a sum is compared with partial sums, and a solution of an
+  equation is substituted in. A result that its check refutes is not returned. These are numerical checks at
+  a few points, not proofs, and some results have no check: a solution whose substitution cannot be decided
+  is kept, and so are values of functions computed by a single method.
 - **The test suite** has about 3,900 tests, and the 1,900 documentation pages are re-run on each build: a stored
   output that no longer matches fails the build.
 - **A large example corpus** (about 44,000 inputs with known answers, of which about 40,000 can be compared) is
