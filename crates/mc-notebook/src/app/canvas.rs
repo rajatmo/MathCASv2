@@ -83,6 +83,11 @@ impl App {
                 _ => None,
             };
             self.doc.view.paint(&ctx, ui.painter(), &self.doc.nb, origin, clip, time);
+            // a finger that moves on a 3D picture turns it (not while a dialog or a sheet lies over the notebook)
+            if !self.modal_open() && !self.mobile.covered() {
+                let seen = self.doc.view.turning.iter().map(|r| r.intersect(clip)).filter(|r| r.is_positive());
+                self.touch.set_pictures(seen.collect());
+            }
             // a long cell coloured by moving its colouring over an edit: a frame when typing has paused, which
             // colours it again
             if let Some(due) = self.doc.view.recolour_due.take() {
@@ -364,7 +369,9 @@ impl App {
         }
         if pressed && resp.hovered() {
             let (t0, p0, n0) = self.last_click;
-            let count = if time - t0 < DOUBLE_CLICK && (screen - p0).length() < 5.0 { n0 + 1 } else { 1 };
+            // (a finger does not come down twice on the same point as a mouse does)
+            let near = if self.touch_on { 24.0 } else { 5.0 };
+            let count = if time - t0 < DOUBLE_CLICK && (screen - p0).length() < near { n0 + 1 } else { 1 };
             self.last_click = (time, screen, count);
             // any press lets go of the keyboard slider (a press on a slider takes it again below)
             self.slider = None;
@@ -400,7 +407,12 @@ impl App {
                 Hit::Graphic(id) => {
                     // a click selects the picture (the caret goes before it, hidden); a double-click restores its
                     // own size (design 6), or a 3D picture's own view; dragging a 3D picture turns it
+                    let pending = self.doc.scroll_pending;
                     self.run(ctx, Command::ClickText(id, 0, false));
+                    // under a finger the picture stays where it is: the page does not move to show all of it
+                    if self.touch_on {
+                        self.doc.scroll_pending = pending;
+                    }
                     self.doc.view.graphic = Some(id);
                     let double = count >= 2 || resp.double_clicked();
                     let turning = self.view3d_of(id);

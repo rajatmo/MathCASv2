@@ -58,6 +58,10 @@
 //! - the phone layout (`MCNB_LAYOUT=mobile`, Android): `calc` starts a new calculation as the Home screen's button
 //!   does; `mopen <file>` opens a notebook from Home; `mhome` goes back to Home (the notebook is written);
 //!   `mstate` logs the screen, the open notebook's file name and what shows at the bottom (keys, actions, add)
+//! - fingers (the events of a touch screen, followed as on Android from the first such step on): `tap <x> <y>`;
+//!   `finger <x0> <y0> <x1> <y1>` (one finger lands, moves in steps and is lifted after a rest);
+//!   `pinch <x> <y> <from> <to>` (two fingers level with each other around a point, `from` apart, move until
+//!   they are `to` apart); `twofingers <x> <y> <dx> <dy>` (two fingers 80 apart around a point move together)
 //! - `quit`
 use crate::app::App;
 use crate::theme::ThemeChoice;
@@ -285,6 +289,33 @@ impl SelfTest {
                         modifiers: Modifiers::NONE,
                     }]);
                     self.wait = 12;
+                }
+            }
+            "tap" | "finger" | "pinch" | "twofingers" => {
+                let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
+                let frames = match (cmd, v.as_slice()) {
+                    ("tap", &[x, y]) => {
+                        let p = egui::pos2(x, y);
+                        vec![finger(0, egui::TouchPhase::Start, p), finger(0, egui::TouchPhase::End, p)]
+                    }
+                    ("finger", &[x0, y0, x1, y1]) => one_finger(egui::pos2(x0, y0), egui::pos2(x1, y1)),
+                    ("pinch", &[x, y, from, to]) => {
+                        let half = |d: f32| egui::vec2(d / 2.0, 0.0);
+                        let c = egui::pos2(x, y);
+                        two_fingers((c - half(from), c - half(to)), (c + half(from), c + half(to)))
+                    }
+                    ("twofingers", &[x, y, dx, dy]) => {
+                        let (a, b, d) = (egui::pos2(x - 40.0, y), egui::pos2(x + 40.0, y), egui::vec2(dx, dy));
+                        two_fingers((a, a + d), (b, b + d))
+                    }
+                    _ => vec![],
+                };
+                if frames.is_empty() {
+                    self.log.push(format!("{cmd}: bad arguments `{arg}`"));
+                } else {
+                    app.follow_touches();
+                    self.wait = frames.len() as u32 + 4;
+                    self.later.extend(frames);
                 }
             }
             "generate" => {
@@ -672,6 +703,57 @@ impl SelfTest {
             self.log.push(line);
         }
     }
+}
+
+/// What the window system reports of finger `id` in `phase` at `pos`: the touch and, for the first finger (0), the
+/// pointer it makes of it.
+fn finger(id: u64, phase: egui::TouchPhase, pos: egui::Pos2) -> Vec<Event> {
+    let button = |pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    let mut events = vec![Event::Touch { device_id: egui::TouchDeviceId(0), id: egui::TouchId(id), phase, pos, force: None }];
+    if id == 0 {
+        match phase {
+            egui::TouchPhase::Start => events.extend([Event::PointerMoved(pos), button(true)]),
+            egui::TouchPhase::Move => events.push(Event::PointerMoved(pos)),
+            egui::TouchPhase::End => events.extend([button(false), Event::PointerGone]),
+            egui::TouchPhase::Cancel => events.push(Event::PointerGone),
+        }
+    }
+    events
+}
+
+/// The moves of a gesture: one per frame.
+const MOVES: usize = 8;
+
+/// A finger lands at `a`, moves to `b` and is lifted there after a rest (so nothing runs on): the events frame by
+/// frame. It lands and first moves in one frame: a slow frame between the two must not make it a long press.
+fn one_finger(a: egui::Pos2, b: egui::Pos2) -> Vec<Vec<Event>> {
+    let mut frames = vec![finger(0, egui::TouchPhase::Start, a)];
+    for k in 1..=MOVES {
+        let at = a + (b - a) * (k as f32 / MOVES as f32);
+        let moved = finger(0, egui::TouchPhase::Move, at);
+        if k == 1 {
+            frames[0].extend(moved);
+        } else {
+            frames.push(moved);
+        }
+    }
+    frames.extend((0..8).map(|_| vec![]));
+    frames.push(finger(0, egui::TouchPhase::End, b));
+    frames
+}
+
+/// Two fingers land together and move, the first from `a.0` to `a.1`, the second from `b.0` to `b.1`; the second is
+/// lifted first: the events frame by frame.
+fn two_fingers(a: (egui::Pos2, egui::Pos2), b: (egui::Pos2, egui::Pos2)) -> Vec<Vec<Event>> {
+    let mut frames = vec![[finger(0, egui::TouchPhase::Start, a.0), finger(1, egui::TouchPhase::Start, b.0)].concat()];
+    for k in 1..=MOVES {
+        let t = k as f32 / MOVES as f32;
+        let (pa, pb) = (a.0 + (a.1 - a.0) * t, b.0 + (b.1 - b.0) * t);
+        frames.push([finger(0, egui::TouchPhase::Move, pa), finger(1, egui::TouchPhase::Move, pb)].concat());
+    }
+    frames.push(finger(1, egui::TouchPhase::End, b.1));
+    frames.push(finger(0, egui::TouchPhase::End, a.1));
+    frames
 }
 
 /// A script value: `"text"` with `\n` and `\"`, or a bare word.

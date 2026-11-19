@@ -410,6 +410,8 @@ pub struct View {
     pub live_size: Option<(CellId, Vec2)>,
     /// a 3D picture being turned or zoomed: its view until the change is kept on the output
     pub live_view: Option<(CellId, mc_graphics::view3d::View3d)>,
+    /// where the 3D pictures were painted last (screen rectangles, not clipped)
+    pub turning: Vec<Rect>,
     /// the window's 3D pictures (turning them, `rotate3d`)
     pub rot: Option<Rc<RefCell<crate::rotate3d::Rotations>>>,
     /// while a right-justified picture is resized: the canvas x of the edge that stays put (the one opposite the
@@ -483,6 +485,7 @@ impl View {
             graphic: None,
             live_size: None,
             live_view: None,
+            turning: vec![],
             rot: None,
             live_anchor: None,
             budgets: HashMap::new(),
@@ -1575,6 +1578,7 @@ impl View {
         time: f64,
     ) {
         self.origin = origin;
+        self.turning.clear();
         let p = self.palette.clone();
         // pictures' chrome in the window's theme
         self.images.borrow_mut().set_theme(Some(p.plot_theme()));
@@ -1909,6 +1913,7 @@ impl View {
         let turned = self.rot.clone().and_then(|rot| {
             let mut rot = rot.borrow_mut();
             let scene = rot.scene(path)?;
+            self.turning.push(r);
             let view = match self.live_view {
                 Some((id, v)) if id == c.id => v,
                 _ => crate::rotate3d::view_of(&c.out_extra, scene.view())?,

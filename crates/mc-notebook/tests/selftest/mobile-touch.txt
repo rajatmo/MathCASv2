@@ -1,0 +1,57 @@
+# Fingers on a 3D picture in the phone layout (MCNB_LAYOUT=mobile): one finger turns it and the page stays, two
+# fingers zoom it, a finger beside it scrolls the page, and after that the picture still turns; two fingers moving
+# together scroll the page on the picture too; a tap selects it and turns nothing. @NB@ is replaced by the notebook of the run (a cell
+# of 12 lines, the picture, a cell of 60 lines), @OUT@ by the folder for the log and the screenshots.
+out @OUT@
+size 411 890
+ppp 1
+theme light
+wait 20
+mopen @NB@
+wait 40
+shot start
+log -- start
+hit 200 520
+anchor 520
+mstate
+log -- one finger on the picture
+finger 200 520 300 480
+wait 30
+view3d
+anchor 520
+mstate
+shot turned
+log -- two fingers apart
+pinch 200 520 80 200
+wait 40
+view3d
+anchor 520
+shot zoomed
+log -- one finger beside the picture
+finger 200 250 200 150
+wait 30
+anchor 520
+hit 200 420
+log -- one finger on the picture, the page scrolled
+finger 200 420 120 470
+wait 30
+view3d
+anchor 520
+log -- two fingers together
+twofingers 200 420 0 -60
+wait 30
+view3d
+anchor 520
+log -- two fingers together again
+pinch 200 360 200 80
+wait 40
+view3d
+anchor 520
+shot end
+log -- a tap on the picture
+tap 200 360
+wait 10
+mstate
+view3d
+anchor 520
+quit

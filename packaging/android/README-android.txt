@@ -25,7 +25,10 @@ result to another app. The cells, the typeset output, the plots and the kernel a
               opens the share sheet with it at once.
   Touch       A finger that moves scrolls, and the page runs on when the finger is lifted in motion. A tap is a
               click. A finger that rests for half a second and then moves drags as the mouse does (it selects
-              text, turns a selected 3D picture, resizes a picture).
+              text, resizes a picture).
+  3D pictures A finger that moves on a 3D picture turns it (the page stays); two fingers moving apart or
+              together zoom it; two fingers moving the same way scroll the page, also on a picture that fills
+              the screen. Two taps in a row give the picture its own view back.
   Plots       A plot made in the app is drawn with larger labels than on a desktop. One made on a desktop keeps
               its small labels while the phone is upright: hold the phone sideways, or evaluate it again.
   Saving      There is no Save: every change is written within two seconds and when the notebook is left. A new

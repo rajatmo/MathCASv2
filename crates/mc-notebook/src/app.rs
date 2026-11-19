@@ -257,6 +257,10 @@ pub struct App {
     pick: Option<pick::Pick>,
     /// a finger on a touch screen between frames (`touch.rs`)
     touch: crate::touch::Touch,
+    /// fingers are followed (`touch.rs`): always on Android, elsewhere once the self-test sends touches
+    touch_on: bool,
+    /// the 3D picture two fingers zoom, while they do
+    pinch3d: Option<mc_nbmodel::CellId>,
     /// the layout for phones and tablets (`mobile.rs`)
     mobile: mobile::Mobile,
     selftest: Option<SelfTest>,
@@ -365,6 +369,8 @@ impl App {
             error: None,
             pick: None,
             touch: crate::touch::Touch::default(),
+            touch_on: cfg!(target_os = "android"),
+            pinch3d: None,
             mobile: mobile::Mobile::default(),
             selftest,
             find: None,
@@ -481,6 +487,11 @@ impl App {
         self.run(ctx, Command::InitAnswer(a));
     }
 
+    /// Follow fingers as on Android (the self-test's touch steps).
+    pub fn follow_touches(&mut self) {
+        self.touch_on = true;
+    }
+
     /// Scroll the notebook by `dy` points (for the self-test).
     pub fn scroll(&mut self, dy: f32) {
         self.doc.scroll_by += dy;
@@ -538,9 +549,9 @@ impl eframe::App for App {
             st.inject(self, ctx, raw);
             self.selftest = Some(st);
         }
-        // Android: a finger scrolls, taps or (after a pause) drags (on the desktop systems a touch screen acts as
-        // the system's mouse, as before)
-        if cfg!(target_os = "android") {
+        // Android: a finger scrolls, taps, turns a 3D picture or (after a pause) drags, and two zoom a 3D picture (on
+        // the desktop systems a touch screen acts as the system's mouse, as before)
+        if self.touch_on {
             let now = raw.time.unwrap_or(0.0);
             if let Some(wait) = self.touch.rewrite(&mut raw.events, now) {
                 ctx.request_repaint_after(std::time::Duration::from_secs_f64(wait.max(0.0)));
@@ -556,8 +567,9 @@ impl eframe::App for App {
                 self.pointer_at = Some(*p);
             }
         }
+        // (a mouse's wheel: a finger that scrolls across the picture scrolls the notebook)
         if let (Some((_, rect)), Some(p)) = (self.wheel3d, self.pointer_at) {
-            if rect.contains(p) {
+            if rect.contains(p) && !self.touch.scrolled() {
                 let mut notches = 0.0;
                 raw.events.retain(|e| match e {
                     egui::Event::MouseWheel { unit, delta, .. } => {
@@ -579,7 +591,10 @@ impl eframe::App for App {
         self.images.borrow_mut().begin_frame();
         self.rot.borrow_mut().poll();
         self.doc.view.rot = Some(self.rot.clone());
+        self.pinch_picture(&ui.ctx().clone());
         self.zoom_picture(&ui.ctx().clone());
+        // where a moving finger turns a picture: told anew by the canvas when it is drawn
+        self.touch.set_pictures(vec![]);
         self.glyphs.borrow_mut().begin_frame();
         // the second frame: the first one reached the screen, the graphics interface works
         self.frames_shown += 1;

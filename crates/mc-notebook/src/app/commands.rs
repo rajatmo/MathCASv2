@@ -226,10 +226,44 @@ impl App {
     /// Keep view `v` on the 3D picture of cell `id` (an undo unit) and end the live view.
     pub(super) fn keep_view(&mut self, ctx: &egui::Context, id: mc_nbmodel::CellId, v: View3d) {
         if let Some((_, base)) = self.view3d_of(id) {
+            // (a picture turned or zoomed by fingers stays where it is on the screen)
+            let (selected, pending) = (self.doc.view.graphic, self.doc.scroll_pending);
             self.run(ctx, Command::SetOutputAttrs(id, crate::rotate3d::attrs_of(&v, &base)));
-            self.doc.view.graphic = Some(id);
+            if self.touch_on {
+                self.doc.scroll_pending = pending;
+                self.doc.view.graphic = selected;
+            } else {
+                self.doc.view.graphic = Some(id);
+            }
         }
         self.doc.view.live_view = None;
+    }
+
+    /// Two fingers moving apart or together on a 3D picture zoom it (selected or not); the zoom is kept on the
+    /// output when one of them is lifted.
+    pub(super) fn pinch_picture(&mut self, ctx: &egui::Context) {
+        let Some(pinch) = self.touch.take_pinch() else { return };
+        // the picture under the point the gesture began on, for as long as the gesture lasts
+        let id = self.pinch3d.or_else(|| {
+            let p = (pinch.at - self.doc.view.origin).to_pos2();
+            match self.doc.view.hit(ctx, &self.doc.nb, p) {
+                crate::view::Hit::Graphic(id) => Some(id),
+                _ => None,
+            }
+        });
+        self.pinch3d = if pinch.ended { None } else { id };
+        let Some(id) = id else { return };
+        let Some((v, _)) = self.view3d_of(id) else { return };
+        let notches = f64::from(pinch.factor).ln() / 1.1f64.ln();
+        if notches != 0.0 {
+            let zoom = mc_graphics::view3d::zoom_wheel(v.zoom, notches);
+            self.doc.view.live_view = Some((id, View3d { zoom, ..v }));
+            self.zoom3d_commit = None;
+            ctx.request_repaint();
+        }
+        if pinch.ended && self.doc.view.live_view.is_some_and(|(cell, _)| cell == id) {
+            self.zoom3d_commit = Some((id, ctx.input(|i| i.time)));
+        }
     }
 
     /// Wheel notches over the selected 3D picture zoom it (`zoom_wheel`: 10 % a notch); the zoom is kept on the

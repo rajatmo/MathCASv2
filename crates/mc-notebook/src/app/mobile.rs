@@ -93,6 +93,11 @@ impl Mobile {
         self.sheet_up = true;
     }
 
+    /// Whether a sheet or a question of the layout lies over the screen.
+    pub(super) fn covered(&self) -> bool {
+        self.sheet.is_some() || self.rename.is_some() || self.delete.is_some()
+    }
+
     /// The sheet is gone at once (the screen changes).
     fn drop_sheet(&mut self) {
         self.sheet = None;
@@ -672,7 +677,10 @@ impl App {
                     },
                 );
             }
-            None => {}
+            // (the place a bar takes among the screen's parts stays taken: what is drawn after it, the canvas, is
+            // then the same widget with and without a bar, and a press that brings up the bar, a finger landing on
+            // a picture, goes on as a drag)
+            None => ui.skip_ahead_auto_ids(1),
         }
         // the picture that was selected before this frame's presses: a long press on another one shares it
         let selected = self.doc.view.graphic;
@@ -708,7 +716,9 @@ impl App {
         if !canvas.contains(at) || self.modal_open() {
             return;
         }
-        if let crate::view::Hit::Graphic(id) = self.doc.view.hit(ctx, &self.doc.nb, at) {
+        // (the notebook's own coordinates: the page may be scrolled)
+        let p = (at - self.doc.view.origin).to_pos2();
+        if let crate::view::Hit::Graphic(id) = self.doc.view.hit(ctx, &self.doc.nb, p) {
             if selected != Some(id) {
                 self.doc.view.graphic = Some(id);
                 self.share_picture(id);
