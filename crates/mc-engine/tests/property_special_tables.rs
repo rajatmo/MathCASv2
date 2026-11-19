@@ -73,12 +73,13 @@ fn q_factorial_and_euler_function() {
     let (l, m, r) = (num(&mut e, "q_factorial(-199/100, 1/2)"), num(&mut e, "q_factorial(-3/2, 1/2)"), num(&mut e, "q_factorial(-101/100, 1/2)"));
     assert!(l.signum() == m.signum() && r.signum() == m.signum() && l.abs() > m.abs() && r.abs() > m.abs(), "{l} {m} {r}");
     // the singular set holds the poles at the negative integers for q < 0 as for q > 0 (the factor 1 - q^0 of the
-    // denominator): q_factorial(-1, -1/2) is infinite
+    // denominator): q_factorial(-1, -1/2) is infinite; for q < 0 the integers z >= 0 are isolated points of the real
+    // domain (the values between them are not real), so not analytic there either
     let sing = timed(&mut e, "function_singularities(q_factorial(z, q), z)", 5);
-    for (z, q) in [("-1", "-1/2"), ("-2", "1/2"), ("-3", "-2"), ("-1/2", "-1/2")] {
+    for (z, q) in [("-1", "-1/2"), ("-2", "1/2"), ("-3", "-2"), ("-1/2", "-1/2"), ("2", "-1/2")] {
         assert_eq!(timed(&mut e, &format!("rewrite({sing}, [z -> {z}, q -> {q}])"), 5), "true", "{sing} at {z}, {q}");
     }
-    for (z, q) in [("2", "-1/2"), ("-1/2", "1/2")] {
+    for (z, q) in [("-1/2", "1/2"), ("3/2", "2")] {
         assert_eq!(timed(&mut e, &format!("rewrite({sing}, [z -> {z}, q -> {q}])"), 5), "false", "{sing} at {z}, {q}");
     }
     let near = num(&mut e, "abs(q_factorial(-1.0001, -0.5))");

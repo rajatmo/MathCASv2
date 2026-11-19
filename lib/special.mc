@@ -18,13 +18,13 @@ fn ds_product(f, a, b) = fold((p, q) => p*q, 1, map(f, range(a, b)))
 # the heads with expansions
 fn ds_heads() = [sin_integral, sinh_integral, cos_integral, cosh_integral, exp_integral_ei, exp_integral_e,
   log_integral, bessel_j, bessel_y, bessel_i, bessel_k, kelvin_ber, kelvin_bei, kelvin_ker, kelvin_kei, struve_h, struve_l, elliptic_k,
-  elliptic_e, elliptic_nome_q, elliptic_theta, log_gamma, gamma, factorial, digamma, polygamma, harmonic_number,
+  elliptic_e, elliptic_f, elliptic_pi, elliptic_nome_q, elliptic_theta, log_gamma, gamma, factorial, digamma, polygamma, harmonic_number,
   polylog, product_log, weierstrass_p, weierstrass_p_prime, weierstrass_zeta, weierstrass_sigma, jacobi_cs,
   jacobi_ds, jacobi_ns, jacobi_nc, jacobi_nd, jacobi_sc, jacobi_sd, jacobi_cd, jacobi_dc, coulomb_f,
   jacobi_sn, jacobi_cn, jacobi_dn, jacobi_amplitude, jacobi_epsilon, jacobi_zn, inverse_jacobi_sn, inverse_jacobi_cn,
   inverse_jacobi_cd, inverse_jacobi_sd, inverse_jacobi_dc, inverse_jacobi_nc, inverse_jacobi_sc, inverse_jacobi_ns,
   inverse_jacobi_ds, inverse_jacobi_cs, heun_g, heun_c, heun_b, heun_d, heun_t, mathieu_c, mathieu_s, mathieu_characteristic_a,
-  spheroidal_eigenvalue, mittag_leffler_e, q_pochhammer, whittaker_m, whittaker_w, q_hypergeometric_pfq, inverse_elliptic_nome_q,
+  spheroidal_eigenvalue, spheroidal_ps, mittag_leffler_e, q_pochhammer, whittaker_m, whittaker_w, q_hypergeometric_pfq, inverse_elliptic_nome_q,
   hypergeometric_pfq_regularized, anger_j, weber_e, zeta, factorial2, barnes_g, log_barnes_g, hyperfactorial, elliptic_theta_prime,
   hypergeometric_u, airy_ai, airy_bi, airy_ai_prime, airy_bi_prime, airy_ai_zero, airy_bi_zero, riemann_siegel_z,
   bessel_j_zero, bessel_y_zero, erf, erfc, erfi, dawson_f, fresnel_c, fresnel_s, gamma_regularized, hankel_h1, hankel_h2,
@@ -175,6 +175,14 @@ rule ds_at(lommel_t2(mu_, nu_, u_), 3, 0, k_) := {
 # (DLMF 20.2.1-4)
 rule ds_at(elliptic_k(u_), 1, 0, k_) := pi/2*ds_sum(j => pochhammer(1/2, j)^2/factorial(j)^2*u^j, 0, k)
 rule ds_at(elliptic_e(u_), 1, 0, k_) := pi/2*ds_sum(j => pochhammer(-1/2, j)*pochhammer(1/2, j)/factorial(j)^2*u^j, 0, k)
+# incomplete integrals in m near 0: (1 - m s^2)^(-+1/2) = sum (+-1/2)_j/j! m^j s^(2j) under the integral, with
+# S_j = int_0^p sin^(2j) = ((2j - 1) S_(j-1) - sin(p)^(2j-1) cos(p))/(2j), S_0 = p, and for Pi
+# J_j = int_0^p sin^(2j)/(1 - n sin^2) = (J_(j-1) - S_(j-1))/n, J_0 = Pi(n; p|0) (DLMF 19.2.4-19.2.7)
+fn ds_ell_s(p, j) = if j == 0 then p else ((2*j - 1)*ds_ell_s(p, j - 1) - sin(p)^(2*j - 1)*cos(p))/(2*j)
+fn ds_ell_j(n, p, j) = if j == 0 then elliptic_pi(n, p, 0) else (ds_ell_j(n, p, j - 1) - ds_ell_s(p, j - 1))/n
+rule ds_at(elliptic_f(p_, u_), 2, 0, k_) := ds_sum(j => pochhammer(1/2, j)/factorial(j)*ds_ell_s(p, j)*u^j, 0, k)
+rule ds_at(elliptic_e(p_, u_), 2, 0, k_) := ds_sum(j => pochhammer(-1/2, j)/factorial(j)*ds_ell_s(p, j)*u^j, 0, k)
+rule ds_at(elliptic_pi(n_, p_, u_), 3, 0, k_) := ds_sum(j => pochhammer(1/2, j)/factorial(j)*ds_ell_j(n, p, j)*u^j, 0, k)
 fn ds_nome_c() = [1, 2, 15, 150, 1707, 20910, 268616, 3567400, 48555069, 673458874, 9481557398, 135119529972,
   1944997539623, 28235172753886, 412850231439240, 6074299605306120]
 rule ds_at(elliptic_nome_q(u_), 1, 0, k_) := {
@@ -378,6 +386,15 @@ rule ds_at(mathieu_characteristic_a(r_, q_), 2, 0, k_) := {
   else r^2 + q^2/(2*(r^2 - 1)) + (5*r^2 + 7)*q^4/(32*(r^2 - 1)^3*(r^2 - 4))
 } when is_integer(r) and r >= 0 and k <= 7
 rule ds_at(spheroidal_eigenvalue(n_, m_, g_), 3, 0, k_) := n*(n + 1) - 2*(n^2 + n - 1 + m^2)*g^2/((2*n - 1)*(2*n + 3)) when k <= 6
+# the angular function to first order in g^2: the equation ((1 - x^2) y')' + (lambda - g^2 x^2 - m^2/(1 - x^2)) y = 0
+# with y = P_n^m + g^2 y1, x^2 P_n^m = A P_(n+2)^m + B P_n^m + C P_(n-2)^m (DLMF 14.10.3 twice), and
+# lambda_(n+-2) - lambda_n = 2 (2n + 3), -2 (2n - 1), gives y1 = -A P_(n+2)^m/(2 (2n + 3)) + C P_(n-2)^m/(2 (2n - 1)),
+# A = (n - m + 1)(n - m + 2)/((2n + 1)(2n + 3)), C = (n + m)(n + m - 1)/((2n + 1)(2n - 1)); the coefficient of P_n^m
+# stays 1 (the normalization of the function at g = 0) and the g^3 term is 0 (the equation holds g^2 only)
+rule ds_at(spheroidal_ps(n_, m_, g_, x_), 3, 0, k_) := {
+  legendre_p(n, m, x) + g^2*(-(n - m + 1)*(n - m + 2)*legendre_p(n + 2, m, x)/(2*(2*n + 1)*(2*n + 3)^2) +
+    (n + m)*(n + m - 1)*legendre_p(n - 2, m, x)/(2*(2*n - 1)^2*(2*n + 1)))
+} when k <= 6 and not (2*n - 1 === 0) and not (2*n + 3 === 0) and not (2*n + 1 === 0)
 
 # Mittag-Leffler, Pochhammer and Whittaker functions at 0 (the Euler pentagonal series; DLMF 13.14.2, 13.2.7)
 rule ds_at(mittag_leffler_e(a_, b_, z_), 3, 0, k_) := ds_sum(j => z^j/gamma(b + a*j), 0, k)

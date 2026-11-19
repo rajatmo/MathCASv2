@@ -18,6 +18,9 @@
 #% item
 # At inexact m the tail is written with the Hurwitz zeta function (the digamma function for r = 1), so the function is continued to real and complex m.
 
+#% item
+# The continuation takes (-1)^m = exp(i pi m), the principal power, and satisfies the recurrence H(m) - H(m - 1) = (-1)^(m + 1)/m for every m; so at a negative half-integer the value has the imaginary part that recurrence brings, not only the real log 2.
+
 #% section
 # Examples
 
@@ -43,6 +46,14 @@ n(alternating_harmonic_number(3, 5, 1/2), 30)
 alternating_harmonic_number(inf, r)
 #% output
 #= (1 - 2^(1 - r))*zeta(r)
+
+#% text
+# At -3/2 (from H(1/2) by the recurrence twice):
+
+#% cell
+n(alternating_harmonic_number(-3/2))
+#% output
+#= 0.6931471805599453 + 3.5707963267948966im
 
 #% cell
 alternating_harmonic_number(2.5)

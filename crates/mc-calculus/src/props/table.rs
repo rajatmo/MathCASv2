@@ -845,14 +845,16 @@ pub static TABLE: &[Entry] = &[
     // prod_(k <= n) (1 - q^k)/(1 - q), real for every q. For q > 0: simple poles at x = -1, -2, ... (the factor
     // 1 - q^(x + 1 + k) of the denominator), no zero (every factor is finite and nonzero), so 0 is not a value (not
     // onto); between the poles -2 and -1 the sign is constant and |f| tends to inf at both ends, so a value is taken
-    // twice (not injective). For q < 0 a non-integer x gives the non-real q^(x + 1); at q = 0 the value is 1 for x > -1
-    // and q^(x + 1) is undefined for x < -1; for q < 0 the integers x <= -1 are poles too (the factor 1 - q^0).
+    // twice (not injective). For q < 0 a non-integer x gives the non-real q^(x + 1), so the real domain keeps only
+    // the integers x >= 0 there: isolated points, at which the function is not analytic (every x is singular for
+    // q < 0). At q = 0 the factors (0; 0)_x are 1 for every non-integer x (the value is 1 off the integers) and the
+    // negative integers stay poles, as for every q (the factor 1 - q^0 of the denominator).
     Entry {
         name: "q_factorial",
         arity: 2,
         joint: true,
-        real: "element($u, integers) and $u >= 0 or not_element($u, integers) and ($a > 0 or $a == 0 and $u > -1)",
-        sr: Some(&[("$a != 0 and sin(pi*$u) == 0 and $u <= -1", PO), ("$a < 0 and not_element($u, integers)", BR), ("$a == 0 and $u <= -1", BR)]),
+        real: "element($u, integers) and $u >= 0 or not_element($u, integers) and $a >= 0",
+        sr: Some(&[("sin(pi*$u) == 0 and $u <= -1", PO), ("$a < 0", BR)]),
         onto: &[("$a > 0", false)],
         inj: &[("$a > 0", false)],
         refs: "DLMF 5.18.1-5.18.4, 17.2.1",
@@ -1702,13 +1704,15 @@ fn hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, 
         dm.push(format!("${k}"));
     }
     let join = |v: Vec<String>, op: &str, empty: &str| if v.is_empty() { empty.to_string() } else { v.join(op) };
-    // B: no denominator parameter at a pole; P: a terminating series
+    // B: no denominator parameter at a pole, unless the series stops before it: a numerator -n with a denominator -k,
+    // n <= k (the terms up to z^n have nonzero denominators, 2F1(-1, 1; -2; z) = 1 + z/2); P: a terminating series
+    let stops = |m: &str| join(nm.iter().map(|a| format!("element({a}, integers) and {m} <= {a} and {a} <= 0")).collect(), " or ", "false");
     let (br, bc) = if reg {
         ("true".to_string(), "true".to_string())
     } else {
         (
-            join(dm.iter().map(|m| format!("({m} > 0 or not_element({m}, integers))")).collect(), " and ", "true"),
-            join(dm.iter().map(|m| format!("(re({m}) > 0 or not_element({m}, integers))")).collect(), " and ", "true"),
+            join(dm.iter().map(|m| format!("({m} > 0 or not_element({m}, integers) or {})", stops(m))).collect(), " and ", "true"),
+            join(dm.iter().map(|m| format!("(re({m}) > 0 or not_element({m}, integers) or {})", stops(m))).collect(), " and ", "true"),
         )
     };
     let mut poly = join(nm.iter().map(|a| format!("element({a}, integers) and {a} <= 0")).collect(), " or ", "false");
@@ -1740,8 +1744,9 @@ fn hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, 
         }
     } else if p == q + 1 {
         Facts {
-            real: format!("({br}) and ({poly} or $u < 1 or $u == 1 and {excess})"),
-            complex: format!("({bc}) and ({poly} or $u != 1 or {excess})"),
+            // at u = 0 the series is its first term 1 whatever the denominators (the value the function takes)
+            real: if reg { format!("({poly} or $u < 1 or $u == 1 and {excess})") } else { format!("$u == 0 or ({br}) and ({poly} or $u < 1 or $u == 1 and {excess})") },
+            complex: if reg { format!("({poly} or $u != 1 or {excess})") } else { format!("$u == 0 or ({bc}) and ({poly} or $u != 1 or {excess})") },
             sr: Some(vec![(format!("not({br})"), Kind::Branch), (format!("not({poly}) and $u >= 1"), Kind::Branch)]),
             sc: Some(vec![
                 (format!("not({bc})"), Kind::Branch),

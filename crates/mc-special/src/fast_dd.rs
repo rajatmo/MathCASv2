@@ -509,9 +509,9 @@ pub(crate) fn weierstrass(u: CD, g2: CD, g3: CD, real: bool, which: u8) -> Optio
 }
 
 /// inverse_weierstrass_p at machine arguments (the method of [`crate::weierstrass`]): u = R_F(p - e1, p - e2,
-/// p - e3), the sign with p'(u) = q (or the principal sqrt(4 p^3 - g2 p - g3)), real arguments a negative real u
-/// moved by the real period.
-pub(crate) fn inverse_p(p: CD, g2: CD, g3: CD, q: Option<CD>, real: bool) -> Option<C64> {
+/// p - e3), the sign with p'(u) = q (or the principal sqrt(4 p^3 - g2 p - g3)), real arguments (q too) a negative
+/// real u moved by the real period when `move_real` (not for elliptic_log, the integral itself).
+pub(crate) fn inverse_p(p: CD, g2: CD, g3: CD, q: Option<CD>, real: bool, move_real: bool) -> Option<C64> {
     let e = w_roots(g2, g3, real)?;
     let mut u = carlson_rf_cd(p - e[0], p - e[1], p - e[2])?;
     let chop = |u: CD| if real && u.im.hi.abs() <= 1e-26 * u.re.hi.abs() { CD::real(u.re) } else { u };
@@ -526,7 +526,7 @@ pub(crate) fn inverse_p(p: CD, g2: CD, g3: CD, q: Option<CD>, real: bool) -> Opt
     if (dp - target).abs() > (dp + target).abs() {
         u = -u;
     }
-    if q.is_none() && real && u.im.hi == 0.0 && u.re.hi < 0.0 {
+    if move_real && real && u.im.hi == 0.0 && u.re.hi < 0.0 {
         let mut reals: Vec<(f64, usize)> = e.iter().enumerate().filter(|(_, r)| r.im.hi == 0.0).map(|(k, r)| (r.re.hi, k)).collect();
         reals.sort_by(|a, b| b.0.total_cmp(&a.0));
         if let Some(&(_, k)) = reals.first() {

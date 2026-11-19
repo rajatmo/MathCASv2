@@ -618,6 +618,18 @@ fn special_rule<'h>(b: &B<'h>, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
             let p = b.call_named("legendre_p", &[*l, b.call_named("cos", &[*th])]);
             b.div(b.mul(&[p, b.pow(b.add(&[one, b.mul(&[b.int(2), *l])]), half)]), b.mul(&[b.int(2), b.pow(pi, half)]))
         }
+        // an order m that is not an integer: sqrt((2l + 1)/(4 pi) Gamma(l - m + 1)/Gamma(l + m + 1)) e^(i m phi) times
+        // the Ferrers function by Gauss's function (DLMF 14.30.1, 14.3.1), with x = cos(theta) on 0 < theta < pi:
+        // ((1 + x)/(1 - x))^(m/2) = sin(theta)^m (1 - cos(theta))^(-m) and (1 - x)/2 = sin(theta/2)^2
+        ("spherical_harmonic_y", [l, m, th, ph]) if rat(*m).map_or(b.ar.num(*m).is_none(), |q| !q.is_int()) => {
+            let ratio = b.div(g(b.add(&[*l, b.neg(*m), one])), g(b.add(&[*l, *m, one])));
+            let norm = b.pow(b.mul(&[b.add(&[b.mul(&[b.int(2), *l]), one]), b.rat(1, 4), b.powi(pi, -1), ratio]), half);
+            let s2 = b.powi(b.call_named("sin", &[b.mul(&[half, *th])]), 2);
+            let f = b.call_named("hypergeometric_2f1", &[b.neg(*l), b.add(&[*l, one]), b.sub(one, *m), s2]);
+            let p = b.mul(&[f, b.pow(b.call_named("sin", &[*th]), *m), b.pow(b.sub(one, b.call_named("cos", &[*th])), b.neg(*m))]);
+            let e = b.call_named("exp", &[b.mul(&[b.i(), *m, *ph])]);
+            b.div(b.mul(&[norm, e, p]), g(b.sub(one, *m)))
+        }
         ("anger_j", [n, z]) if is_integer(b, *n) => b.call_named("bessel_j", &[*n, *z]),
         // the power series of the Anger function as two 1F2 (DLMF 11.10.1 with 11.10.4): sin(pi nu)/(pi nu)
         // 1F2(1; 1 - nu/2, 1 + nu/2; -z^2/4) + z sin(pi nu)/(pi (1 - nu^2)) 1F2(1; 3/2 - nu/2, 3/2 + nu/2; -z^2/4)

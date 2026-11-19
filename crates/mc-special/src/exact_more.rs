@@ -298,6 +298,12 @@ impl<'a, 'h> More<'a, 'h> {
             S::GammaInc | S::GammaRegularized => {
                 let reg = f == S::GammaRegularized;
                 if self.is(a[1], 0) {
+                    // an exact complex a with re(a) > 0: Gamma(a, 0) = Gamma(a) and Q(a, 0) = 1 too (DLMF 8.2.2)
+                    if let Some(Num::Complex(mc_arith::number::Real::Exact(re), _)) = self.ar.num(a[0]) {
+                        if re.cmp_value(&Rat::from_i64(0)).is_gt() {
+                            return self.val(if reg { self.n(1) } else { self.call("gamma", &[a[0]]) });
+                        }
+                    }
                     return match self.positive(a[0])? {
                         true if reg => self.val(self.n(1)),
                         true => self.val(self.call("gamma", &[a[0]])),

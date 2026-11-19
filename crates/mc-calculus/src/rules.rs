@@ -313,6 +313,26 @@ fn ell_pi_phi<'h>(b: &Build<'h>, a: &[T<'h>]) -> T<'h> {
     b.div(delta(b, a[1], a[2], -1), den)
 }
 
+/// The derivative of elliptic_pi in m, complete `(n, m)` or incomplete `(n, phi, m)`: differentiating the integrand
+/// and reducing by parts (Byrd and Friedman 733.xx; checked against difference quotients at 30 digits),
+/// `(E(phi|m)/(m - 1) + Pi(n; phi|m) - m sin(2 phi)/(2 (m - 1) sqrt(1 - m sin^2 phi)))/(2 (n - m))`, the last term
+/// absent for the complete integral. At m = 0 it is `(Pi(n; phi|0) - phi)/(2 n)`, finite.
+fn ell_pi_m<'h>(b: &Build<'h>, a: &[T<'h>]) -> T<'h> {
+    let (n, m) = (a[0], a[a.len() - 1]);
+    let mm1 = b.sub(m, b.one());
+    let pi = b.call("elliptic_pi", a);
+    let mut parts = vec![pi];
+    if a.len() == 3 {
+        let phi = a[1];
+        parts.push(b.div(b.call("elliptic_e", &[phi, m]), mm1));
+        let s = b.call("sin", &[b.mul(&[b.int(2), phi])]);
+        parts.push(b.neg(b.div(b.mul(&[m, s, delta(b, phi, m, -1)]), b.mul(&[b.int(2), mm1]))));
+    } else {
+        parts.push(b.div(b.call("elliptic_e", &[m]), mm1));
+    }
+    b.div(b.add(&parts), b.mul(&[b.int(2), b.sub(n, m)]))
+}
+
 /// The Jacobi functions as calls: `s`, `c`, `d` (sn, cn, dn) and `n` (1).
 fn jac<'h>(b: &Build<'h>, f: char, a: &[T<'h>]) -> T<'h> {
     match f {
@@ -594,9 +614,7 @@ pub const OPAQUE: &[(&str, usize, usize)] = &[
     ("hypergeometric_1f1", 3, 1),
     ("hypergeometric_0f1", 2, 0),
     ("elliptic_pi", 2, 0),
-    ("elliptic_pi", 2, 1),
     ("elliptic_pi", 3, 0),
-    ("elliptic_pi", 3, 2),
     ("bessel_k_scaled", 2, 0),
     ("bessel_i_scaled", 2, 0),
     ("struve_h", 2, 0),
@@ -950,7 +968,7 @@ pub const RULES: &[(&str, usize, Rule)] = &[
     (
         "elliptic_pi",
         2,
-        Rule::Partials(&[|b, a| opaque_partial(b, "elliptic_pi", a, 0), |b, a| opaque_partial(b, "elliptic_pi", a, 1)]),
+        Rule::Partials(&[|b, a| opaque_partial(b, "elliptic_pi", a, 0), ell_pi_m]),
     ),
     (
         "elliptic_pi",
@@ -958,7 +976,7 @@ pub const RULES: &[(&str, usize, Rule)] = &[
         Rule::Partials(&[
             |b, a| opaque_partial(b, "elliptic_pi", a, 0),
             ell_pi_phi,
-            |b, a| opaque_partial(b, "elliptic_pi", a, 2),
+            ell_pi_m,
         ]),
     ),
     (

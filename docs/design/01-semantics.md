@@ -171,8 +171,8 @@ otherwise. So `directed_infinity(1)` is `inf`, `directed_infinity(-1)` is `-inf`
 
 The canonicaliser keeps one coefficient per direction: a real coefficient becomes its sign (`2*inf` is `inf`), an
 exact complex one the Gaussian integer `a + b*im` with coprime `a`, `b` on its ray (`(2 + 2*im)*inf` and
-`exp(im*pi/4)*inf` are `(1 + im)*inf`, `3*im*inf` is `im*inf`), an inexact one `c/abs(c)`; positive radicals beside
-`inf` go. Hence `c*directed_infinity(z)` is `directed_infinity(c*z)` for a nonzero number `c`. In a sum, directed
+`exp(im*pi/4)*inf` are `(1 + im)*inf`, `3*im*inf` is `im*inf`), an inexact one `c/abs(c)`; positive radicals and
+real powers of the positive numeric constants beside `inf` go (`pi*inf` and `inf/e` are `inf`). Hence `c*directed_infinity(z)` is `directed_infinity(c*z)` for a nonzero number `c`. In a sum, directed
 infinities of one direction absorb finite numbers and each other; two different directions, or a zero coefficient,
 give `failure(indeterminate, ...)`. Products multiply the directions (`(im*inf)^2` is `-inf`), a negative power of
 a directed infinity is 0, and `complex_infinity` absorbs every directed infinity in a product and is indeterminate

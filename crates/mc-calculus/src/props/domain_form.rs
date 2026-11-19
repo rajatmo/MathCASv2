@@ -30,8 +30,9 @@ pub fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, cs: &mut Vec<T<'
         }
         false
     };
-    // a region (an ordering among the conditions): over the real and imaginary parts
-    if complex && vars.len() == 1 && cs.iter().any(|&c| ordering(c)) {
+    // a region (an ordering among the conditions): over the real and imaginary parts; not with parameters, which
+    // are complex too and would be read as real there (`re(a) > 0` as `a > 0`)
+    if complex && vars.len() == 1 && cs.iter().any(|&c| ordering(c)) && super::spec::params(b, cs, vars).is_empty() {
         let z = vars[0];
         let mut parts = vec![];
         for &c in cs.iter() {

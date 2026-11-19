@@ -15,12 +15,18 @@ fn ev(e: &mut CoreEngine, src: &str) -> String {
 #[test]
 fn analytic_with_parameters_is_conditional() {
     let mut e = CoreEngine::new();
-    // 1F1(a; b; z) is entire in z unless b is a nonpositive integer
+    // 1F1(a; b; z) is entire in z unless b is a nonpositive integer that the series reaches: a = -n with b <= a
+    // stops it first (1F1(-1; -2; z) = 1 + z/2)
     assert_eq!(
         ev(&mut e, "function_analytic(hypergeometric_1f1(a, b, z), z)"),
-        "conditional_expression(true, element(a | b, reals) and (b > 0 or not_element(b, integers)))"
+        "conditional_expression(true, element(a | b, reals) and (b > 0 or not_element(b, integers) or element(a, integers) and b <= a and a <= 0))"
     );
-    assert_eq!(ev(&mut e, "[function_analytic(hypergeometric_1f1(a, 2, z), z), function_analytic(hypergeometric_1f1(a, -1, z), z)]"), "[true, false]");
+    // b = -1: only a = 0 (the constant 1) and a = -1 (1 + z) stop before the pole
+    assert_eq!(
+        ev(&mut e, "[function_analytic(hypergeometric_1f1(a, 2, z), z), function_analytic(hypergeometric_1f1(a, -1, z), z)]"),
+        "[true, conditional_expression(true, element(a, integers) and -1 <= a and a <= 0)]"
+    );
+    assert_eq!(ev(&mut e, "[hypergeometric_1f1(0, -1, z), hypergeometric_1f1(-1, -1, z), function_analytic(hypergeometric_1f1(1/2, -1, z), z)]"), "[1, 1 + z, false]");
     // variations: Legendre P is a polynomial for integer degree, with a cut at -1 otherwise
     assert_eq!(
         ev(&mut e, "function_analytic(legendre_p(n, z), z)"),

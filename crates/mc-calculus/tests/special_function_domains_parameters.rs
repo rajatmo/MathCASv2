@@ -76,9 +76,9 @@ fn inverse_weierstrass_p_sets_outside_the_case_end_undecided() {
         "function_singularities(inverse_weierstrass_p(x, [1, 2]), x, complexes)",
         "function_domain(inverse_weierstrass_p(x, [1, 2]), x, complexes)",
     ];
-    // g2 = g3 = 0: the value x^(-1/2), singular for x <= 0
+    // g2 = g3 = 0: the value -x/sqrt(x^3) (the sign rule p'(u) = sqrt(4 p^3)), singular for x^3 <= 0, i.e. x <= 0
     let src = format!("[{}, function_singularities(inverse_weierstrass_p(x, [0, 0]), x)]", open.join(", "));
-    let want = format!("[{}, x <= 0]", open.join(", ").replace("[1., 2.]", "[1.0, 2.0]"));
+    let want = format!("[{}, x^3 <= 0]", open.join(", ").replace("[1., 2.]", "[1.0, 2.0]"));
     // the stop flag is raised after the limit (the helper waits that long in any case)
     let (r, _) = Sys::new().interrupted(&src, Duration::from_secs(30));
     assert_eq!(r.expect("the calls end within 30 s"), want);

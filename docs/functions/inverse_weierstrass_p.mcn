@@ -13,7 +13,10 @@
 # `u` is plus or minus `R_F(p - e1, p - e2, p - e3)` (DLMF 23.6.31 with the roots `e1`, `e2`, `e3` of `4 t^3 - g2 t - g3`), the sign the one with `weierstrass_p_prime(u) = sqrt(4 p^3 - g2 p - g3)` (the principal root); for real arguments a negative real `u` is moved by the real period.
 
 #% item
-# `inverse_weierstrass_p([p, q], [g2, g3])` takes the sign with `weierstrass_p_prime(u, [g2, g3]) = q`.
+# `inverse_weierstrass_p([p, q], [g2, g3])` takes the sign with `weierstrass_p_prime(u, [g2, g3]) = q`; for real arguments a negative real `u` is moved by the real period here too.
+
+#% item
+# For `g2 = g3 = 0`, `weierstrass_p(u) = 1/u^2` has no period: `u = -p/sqrt(p^3)` by the same sign rule (`-1/sqrt(p)` for `p > 0`), and `u = -2 p/q` with `q`.
 
 #% item
 # The other solutions differ from `u` by a sign and a period.

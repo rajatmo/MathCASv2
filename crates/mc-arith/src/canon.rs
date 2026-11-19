@@ -281,6 +281,12 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
     fn any_symbol(&self, args: &[T<'h>]) -> bool {
         args.iter().any(|&a| matches!(self.st.view(a), mc_api::View::Sym(_)))
     }
+    /// Whether `t` is one of the numeric constants that stand for a positive real number (semantics 15); asked
+    /// only beside `inf`, so the names are compared there instead of being interned for every arithmetic.
+    fn positive_constant(&self, t: T<'h>) -> bool {
+        matches!(self.st.view(t), mc_api::View::Sym(s) if matches!(self.st.sym_name(s).as_str(),
+            "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio" | "glaisher" | "degree" | "khinchin"))
+    }
 
     /// Sums with `indeterminate` (which absorbs everything) or `complex_infinity` (which absorbs finite terms; with
     /// another infinity the sum is `indeterminate`).
@@ -801,6 +807,8 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
                     }
                     // positive radicals are positive real factors
                     p.rad_pos.clear();
+                    // so are real powers of the positive numeric constants (`pi*inf` is `inf`)
+                    p.groups.retain(|(b, exps)| !(self.positive_constant(*b) && real_of(self.st, exps[0]).is_some()));
                 }
                 _ => {}
             }

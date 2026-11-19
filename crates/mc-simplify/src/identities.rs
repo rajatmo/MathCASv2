@@ -190,6 +190,84 @@ pub fn family<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, mask: u8, t: T<'h>) 
             return Ok(Some(r));
         }
     }
+    if mask & SIMPLIFY != 0 {
+        for (f, g) in [("kelvin_ber", "kelvin_bei"), ("kelvin_ker", "kelvin_kei")] {
+            if has(f) || has(g) {
+                if let Some(r) = kelvin_family(cx, b, t, f, g)? {
+                    return Ok(Some(r));
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Kelvin functions of one argument `x` whose orders differ by integers, three or more orders in a sum: every order
+/// written by the lowest two `m0`, `m0 + 1` with the recurrences (DLMF 10.63.1, the same for `ker`, `kei`)
+/// `F_(m+1) = -F_(m-1) - sqrt(2) m (F_m - G_m)/x` and `G_(m+1) = -G_(m-1) - sqrt(2) m (F_m + G_m)/x`, where `F`, `G`
+/// is `ber`, `bei` or `ker`, `kei`; the coefficients of the four functions left collected and expanded.
+fn kelvin_family<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, f: &str, g: &str) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let (fs_, gs_) = (h.sym(f), h.sym(g));
+    let terms = b.terms(t);
+    // (term index, coefficient, is G, order, argument)
+    let mut items: Vec<(usize, T<'h>, bool, T<'h>, T<'h>)> = vec![];
+    for (i, &u) in terms.iter().enumerate() {
+        let fs = b.factors(u);
+        let pos: Vec<usize> = fs.iter().enumerate().filter(|(_, &x)| matches!(b.call_of(x), Some((s, [_, _])) if s == fs_ || s == gs_)).map(|(j, _)| j).collect();
+        let [j] = pos.as_slice() else { continue };
+        let Some((s, &[nu, x])) = b.call_of(fs[*j]) else { continue };
+        let coef = b.mul(&fs.iter().enumerate().filter(|(k, _)| k != j).map(|(_, &y)| y).collect::<Vec<_>>());
+        items.push((i, coef, s == gs_, nu, x));
+    }
+    for a in 0..items.len() {
+        let (x, nu_a) = (items[a].4, items[a].3);
+        let group: Vec<(usize, i64)> = (0..items.len())
+            .filter(|&c| items[c].4 == x)
+            .filter_map(|c| crate::powers::int_difference(b, items[c].3, nu_a).filter(|k| k.abs() <= 32).map(|k| (c, k)))
+            .collect();
+        let lo = group.iter().map(|&(_, k)| k).min().unwrap_or(0);
+        let hi = group.iter().map(|&(_, k)| k).max().unwrap_or(0);
+        if hi - lo < 2 {
+            continue;
+        }
+        let base = b.add(&[nu_a, b.int(lo)]);
+        // each order as coefficients of [F_m0, G_m0, F_(m0+1), G_(m0+1)]
+        let n = (hi - lo + 1) as usize;
+        let zero = b.int(0);
+        let mut fv: Vec<[T<'h>; 4]> = Vec::with_capacity(n);
+        let mut gv: Vec<[T<'h>; 4]> = Vec::with_capacity(n);
+        fv.push([b.int(1), zero, zero, zero]);
+        gv.push([zero, b.int(1), zero, zero]);
+        fv.push([zero, zero, b.int(1), zero]);
+        gv.push([zero, zero, zero, b.int(1)]);
+        let r2 = b.call(b.hd.pow, &[b.int(2), b.rat(1, 2)]);
+        for k in 2..n {
+            // m = base + k - 1
+            let m = b.add(&[base, b.int(k as i64 - 1)]);
+            let c = b.mul(&[r2, m, b.powi(x, -1)]);
+            let (f1, g1, f2, g2) = (fv[k - 1], gv[k - 1], fv[k - 2], gv[k - 2]);
+            let nf: [T<'h>; 4] = std::array::from_fn(|i| b.add(&[b.neg(f2[i]), b.neg(b.mul(&[c, b.add(&[f1[i], b.neg(g1[i])])]))]));
+            let ng: [T<'h>; 4] = std::array::from_fn(|i| b.add(&[b.neg(g2[i]), b.neg(b.mul(&[c, b.add(&[f1[i], g1[i]])]))]));
+            fv.push(nf);
+            gv.push(ng);
+        }
+        let mut sums: [Vec<T<'h>>; 4] = Default::default();
+        for &(c, k) in &group {
+            let v = if items[c].2 { gv[(k - lo) as usize] } else { fv[(k - lo) as usize] };
+            for i in 0..4 {
+                sums[i].push(b.mul(&[items[c].1, v[i]]));
+            }
+        }
+        let mut out: Vec<T<'h>> = terms.iter().enumerate().filter(|(i, _)| !group.iter().any(|&(c, _)| items[c].0 == *i)).map(|(_, &y)| y).collect();
+        let next = b.add(&[base, b.int(1)]);
+        let heads = [(fs_, base), (gs_, base), (fs_, next), (gs_, next)];
+        for i in 0..4 {
+            let c = cx.eval(b.call_named("expand", &[b.add(&sums[i])]))?;
+            out.push(b.mul(&[c, b.call(heads[i].0, &[heads[i].1, x])]));
+        }
+        return Ok(Some(b.add(&out)));
+    }
     Ok(None)
 }
 

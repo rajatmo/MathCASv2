@@ -508,19 +508,30 @@ fn weierstrass_sigma<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 
 /// u with p(u) = p: R_F(p - e1, p - e2, p - e3); with [p, q] the sign of u makes p'(u) = q.
 fn inverse_weierstrass_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    inverse_p_value(fx, a, true)
+}
+
+/// [`inverse_weierstrass_p`]; `move_real`: a negative real u at real arguments moved by the real period (the
+/// documented representative), off for elliptic_log, which is the integral from x to infinity itself.
+fn inverse_p_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], move_real: bool) -> R<'h> {
     let Some((g2, g3)) = invariants(fx, a[1]) else { return Ok(None) };
     let (p, q) = match fx.as_list(a[0]) {
         Some([p, q]) => (*p, Some(*q)),
         Some(_) => return Ok(None),
         None => (a[0], None),
     };
-    // g2 = g3 = 0: p(u) = 1/u^2, and u = p^(-1/2), the value R_F(p, p, p) of the formula below (complex infinity at
-    // p = 0, the pole of p being the only point where it is not finite)
-    if q.is_none() && fx.is_int(g2, 0) && fx.is_int(g3, 0) {
+    // g2 = g3 = 0: p(u) = 1/u^2 and p'(u) = -2/u^3, no period. With p'(u) = q, u = u^3/u^2 = -2 p/q; without q the
+    // sign rule below asks p'(u) = sqrt(4 p^3), so u = -p/sqrt(p^3) (-1/sqrt(p) for p > 0, -im at p = -1); complex
+    // infinity at p = 0, the pole of p being the only point where it is not finite
+    if fx.is_int(g2, 0) && fx.is_int(g3, 0) {
         if fx.is_int(p, 0) {
             return Ok(Some(fx.sym("complex_infinity")));
         }
-        return Ok(Some(fx.pow(p, fx.rat(-1, 2))));
+        return Ok(Some(match q {
+            Some(q) if !fx.is_int(q, 0) => fx.div(fx.mul(&[fx.int(-2), p]), q),
+            Some(_) => return Ok(None),
+            None => fx.neg(fx.mul(&[p, fx.pow(fx.pow(p, fx.int(3)), fx.rat(-1, 2))])),
+        }));
     }
     let mut args = vec![p, g2, g3];
     if let Some(q) = q {
@@ -531,7 +542,7 @@ fn inverse_weierstrass_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> 
         return Ok(None);
     }
     if let Some((ms, real)) = crate::fast_dd::machine_args(fx, &args) {
-        if let Some(v) = crate::fast_dd::inverse_p(ms[0], ms[1], ms[2], ms.get(3).copied(), real) {
+        if let Some(v) = crate::fast_dd::inverse_p(ms[0], ms[1], ms[2], ms.get(3).copied(), real, move_real) {
             let r = real && v.im == 0.0;
             return Ok(crate::fast_dd::machine_out(fx, v, r));
         }
@@ -566,8 +577,9 @@ fn inverse_weierstrass_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> 
     } else if q.is_some() {
         return Ok(None);
     }
-    // real arguments: a negative real u moved by the real period 2 R_F(0, e - e', e - e'') (e the largest real root)
-    if q.is_none() && all_real(fx, &args) {
+    // real arguments (with or without q): a negative real u moved by the real period 2 R_F(0, e - e', e - e'') (e the
+    // largest real root)
+    if move_real && all_real(fx, &args) {
         if let Some((ur, ui)) = cparts(fx, u) {
             if ui == 0.0 && ur < 0.0 {
                 let mut ef: Vec<(f64, usize)> = e.iter().enumerate().filter_map(|(k, &r)| match fx.num(r) {
@@ -633,7 +645,8 @@ fn elliptic_log<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>]) -> R<'h> {
     let (g2, g3) = (fx.eval(g2)?, fx.eval(g3)?);
     let pq = fx.list(&[p, q]);
     let gs = fx.list(&[g2, g3]);
-    let v = fx.eval(fx.call("inverse_weierstrass_p", &[pq, gs]))?;
+    let Some(v) = inverse_p_value(fx, &[pq, gs], false)? else { return Ok(None) };
+    let v = fx.eval(v)?;
     Ok(fx.num(v).map(|_| v))
 }
 
