@@ -150,14 +150,14 @@ mc-repl notebook.mcn --update    # evaluate a notebook and write its outputs bac
 - **Answers check themselves.** Every antiderivative is differentiated back, every solution of an equation is
   substituted in, every new rewrite of the simplifier and every transform value is compared numerically. A result
   that fails its check is not returned.
-- **The test suite** has about 3,700 tests, and the 1,900 documentation pages are re-run on each build: a stored
+- **The test suite** has about 3,900 tests, and the 1,900 documentation pages are re-run on each build: a stored
   output that no longer matches fails the build.
 - **A large example corpus** (about 44,000 inputs with known answers, of which about 40,000 can be compared) is
-  run before each release. In 0.17.0, 93.1% give the known answer or one proved equal to it (counted more
-  strictly than for 0.16.0: an answer of a form function that is equal but not in the form asked for no longer
-  counts). Of the rest, most are inputs MathCAS leaves unevaluated or answers only in part; about 70 answers are
-  proved different from the known one (for some of them MathCAS is right, each is being examined) and about 70
-  could not be decided. That is a
+  run before each release. In 0.18.0, 94.0% give the known answer or one shown equal to it by a check. Of the
+  rest, most are inputs MathCAS leaves unevaluated or answers only in part. Every answer whose value differed
+  from the known one was examined for this release, each with a computation independent of MathCAS: the wrong
+  ones were corrected, about 50 differ because the known answer is itself wrong or less accurate, and fewer
+  than 10 could not be decided. That is a
   statement about this corpus, not a proof: if you find a wrong answer, please open an issue with the input.
 
 The [changelog](CHANGELOG.md) lists what each release fixed.

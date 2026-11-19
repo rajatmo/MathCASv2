@@ -1,0 +1,1 @@
+Turning and zooming 3D pictures with fingers. Long press selects text and opens a cell sheet; cells can be deleted, with Undo. The caret stays above the keyboard. Keys for fractions, powers and roots. Many corrected answers and a faster kernel (see the changelog).

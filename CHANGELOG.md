@@ -1,6 +1,12 @@
 # Changelog
 
-## Not released yet
+## 0.18.0 (2026-11-19)
+
+**Android.** A finger turns a 3D picture and two fingers zoom it; the page scrolls only beside the picture. A
+long press on text selects the word and brings Cut, Copy, Paste and Select all above the keys; a long press on
+a result or a picture opens the cell's sheet. Cells can be deleted from the sheet and the action row, an input
+together with its results, with Undo for a few seconds. The caret stays above the keyboard, also with the
+phone held sideways, and the key row has keys for fractions, powers and square roots.
 
 **Documentation window.** A roomier layout: a taller bar with the search box in the middle, guides as cards on
 the start page, function lists with a wider name column and more space between rows, a function's area and
