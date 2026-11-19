@@ -622,7 +622,7 @@ pause	core	Session	pause(t): null after waiting t seconds (an interrupt stops it
 inactive	core	Session	inactive(f): an inert head: inactive(f)(x) stays a call until activate
 timing	core	Session	timing(e): [seconds, value]: e evaluated, with the wall-clock time the evaluation took in seconds; timing(e, breakdown: true) adds where the time went
 profile	core	Session	profile(e): [seconds, value, rows]: e evaluated with every call measured; rows [f, kind, calls, own seconds, total seconds] by own time
-names	core	Session	names(pattern), names([pattern, ...]): the sorted names of the symbols matching the string pattern (* any characters, @ any characters but capitals), as strings
+names	core	Session	names(pattern), names([pattern, ...]): the sorted names of the symbols matching the string pattern (* any characters, @ any characters but capitals), as strings; "System`p" only the built-in symbols, "Global`p" only the session's
 own_values	core	Session	own_values(x): [x :> value] for a symbol with a value, [] without one
 down_values	core	Session	down_values(f): the rules defined for calls f(...), as [lhs :> rhs, ...] in the order they are tried
 up_values	core	Session	up_values(g): the rules attached to g (@on(g)) for calls with g(...) or g as an argument, as [lhs :> rhs, ...]
@@ -1809,7 +1809,7 @@ eigenvalues	higher	Linear algebra	eigenvalues(m): the eigenvalues with multiplic
 eigenvectors	higher	Linear algebra	eigenvectors(m): one eigenvector per eigenvalue in the order of eigenvalues(m); zero vectors for a defective eigenvalue
 eigensystem	higher	Linear algebra	eigensystem(m): [eigenvalues(m), eigenvectors(m)]
 characteristic_polynomial	higher	Linear algebra	characteristic_polynomial(m, x): det(x I - m), monic in x
-identity_matrix	higher	Linear algebra	identity_matrix(n): the n x n identity matrix; identity_matrix([m, n]) rectangular; working_precision: d
+identity_matrix	higher	Linear algebra	identity_matrix(n): the n x n identity matrix; identity_matrix([m, n]) rectangular; identity_matrix(n, sparse_array) the same; working_precision: d
 diagonal_matrix	higher	Linear algebra	diagonal_matrix(v), diagonal_matrix(v, k): the square matrix with v on the k-th diagonal and zeros elsewhere; diagonal_matrix(v, k, n) or (v, k, [m, n]) of that size
 dot	higher	Linear algebra	dot(a, b, ...): the product of vectors and matrices (scalar product, matrix-vector, matrix-matrix), from the left
 cross	higher	Linear algebra	cross(u, v): the cross product of two vectors of length 3

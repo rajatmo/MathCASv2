@@ -16,6 +16,22 @@ uses fourth-order differences (error against the exact solution down from 5e-5 t
 `reduce(sin(x + e^x - 1) == 1/2, x)` gives each branch its own integer parameter (solutions were lost);
 `max_value` of a sum with a discontinuous part; `elliptic_pi(n, m)` beyond m = 1 for every n.
 
+**Wrong answers corrected after an independent check of every doubtful answer.** `solve` and
+`solve_values` with `max_roots` returned fewer roots than asked for (`5 == x*2^(x^2)` now gives three);
+`solve(y^4 - x*y^2 + 1 == 0, y, reals)` and quadratics lost the solutions at the boundary of their condition
+(the double root); parametric cubics lost every root when a sign was unknown; the derivative of an inert sum
+let the summation index escape; `function_domain` of `gamma_regularized` treated a complex parameter as real;
+the domains of hypergeometric functions left out terminating series; `function_domain((-1)^x, x)` gave true
+(it is the integers); `hankel_transform` conditions excluded the boundary point where the formula holds;
+`subsequences` with overlaps dropped the empty runs; `chebyshev_t(inf, 0)` is `interval([-1, 1])`;
+`inverse_weierstrass_p` in the degenerate case; `n(gamma_regularized(1 + im, 0))` is 1.
+
+**New.** Real roots of sparse polynomials of huge degree (`x^1234567 + 5*x + 1 == 0`) as certified root
+objects; `discrete_asymptotic` of Fibonacci and Lucas numbers; `names` and the `constant` attribute of the
+built-in constants; bounds and a picture of `ellipsoid(c, m)`; `identity_matrix(n, sparse_array)` for large n;
+the derivative of `elliptic_pi` in its parameter; `function_expand` of spherical harmonics of non-integer
+order. The page of `alternating_harmonic_number` states its continuation.
+
 **Changed.** `tan`, `cot`, `sec`, `csc`, `coth`, `csch` at an exact pole and `acsch(0)` give
 `failure(pole, ...)`, as `gamma(0)` does (they used to stay unevaluated); `ball()` is `ball([0, 0, 0])` and
 `annulus()` is `annulus([0, 0], [1/2, 1])`; `simplify` writes the constant side of an equation last; series
