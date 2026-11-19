@@ -203,6 +203,24 @@ symbols in it:
 - `around(x, scaled(s))` is `around(x, s*abs(x))`, and `around(d)` of a distribution is `around(mean(d),
   std_dev(d))`.
 
+### 3.3 Undefined
+
+`undefined` is the value of an expression that has none (`conditional_expression(a, false)`, a function at a point
+outside its domain). It **propagates through arithmetic and the numeric functions**: a sum, product or power with
+`undefined` as an operand is `undefined` (`1 + undefined`, `x*undefined`, `undefined^2`, `2^undefined`), `0*undefined`
+included, and so is a call of a numeric function with `undefined` as an argument (`sin(undefined)`,
+`gamma(undefined)`, `bessel_j(0, undefined)`). The numeric functions are the ones numerical evaluation computes (the
+elementary functions and the library functions registered with it); the evaluator marks them when the session starts.
+The canonicaliser does the arithmetic part, after its machine-number paths; the evaluator does the numeric functions,
+after a list argument has been threaded, so `sin([1, undefined])` is `[sin(1), undefined]`.
+
+It does **not** propagate through anything else: comparisons (`a == 1 + sin(undefined)` is `a == undefined`, a
+comparison), logical connectives (`undefined or p`), `if`, lists, associations, rules and other containers
+(`[1, undefined]`), calls of other functions (`f(undefined)` for an unknown `f`), held arguments and `quote`. `n` keeps
+it (`n(undefined)` is `undefined`). *Reason:* a value built from an undefined one by arithmetic has no value either,
+while a statement or a structure that contains it is still something to inspect (`select(xs, v => not (v ===
+undefined))` drops the undefined entries of a list).
+
 ## 4. Evaluation
 
 ### 4.1 The evaluator

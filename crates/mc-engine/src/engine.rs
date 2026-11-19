@@ -257,6 +257,13 @@ impl CoreEngine {
                 let a = k.attributes(s);
                 k.set_attributes(s, mc_eval::Attributes { constant: true, ..a });
             }
+            // the numeric functions (those numerical evaluation computes) give `undefined` for an `undefined`
+            // argument (semantics 3.3)
+            for name in mc_numeric::library::numeric_functions() {
+                let s = h.sym(name);
+                let a = k.attributes(s);
+                k.set_attributes(s, mc_eval::Attributes { numeric: true, ..a });
+            }
             k.roots.push(h.sym_term(h.sym(names::NULL)));
             k
         });

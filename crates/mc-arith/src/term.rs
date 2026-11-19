@@ -36,6 +36,9 @@ pub(crate) struct Names<'h> {
     /// (raw handles, 0 until interned: a `Cell` of a handle would make the arithmetic invariant in `'h`)
     pub cinf: std::cell::Cell<u32>,
     pub indet: std::cell::Cell<u32>,
+    /// `undefined`, which every sum, product and power with it as an operand is (semantics 3.3); interned on
+    /// first use as the two above
+    pub undef: std::cell::Cell<u32>,
     pub zero: T<'h>,
     pub one: T<'h>,
     pub minus_one: T<'h>,
@@ -57,6 +60,7 @@ impl<'h> Names<'h> {
             inf: s("inf"),
             cinf: std::cell::Cell::new(0),
             indet: std::cell::Cell::new(0),
+            undef: std::cell::Cell::new(0),
             zero: st.int(0),
             one: st.int(1),
             minus_one: st.int(-1),

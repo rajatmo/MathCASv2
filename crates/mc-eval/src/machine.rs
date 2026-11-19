@@ -504,6 +504,17 @@ impl<'k, 'h> Eval<'k, 'h> {
                 return Go::Again(e);
             }
         }
+        // a numeric function of `undefined` is `undefined` (semantics 3.3): only an argument that is the symbol
+        // itself counts, and a call with a list argument is left to map over it (threaded above, or by a native
+        // that maps over lists itself)
+        if attrs.numeric && attrs.hold == Hold::None {
+            let u = self.sym(self.k.names.undefined);
+            let list = self.sym(self.k.names.list);
+            let is_list = |a: T<'h>| h.packed(a).is_some() || matches!(h.view(a), View::App { head, .. } if head == list);
+            if vs.contains(&u) && !vs.iter().any(|&a| is_list(a)) {
+                return Go::Next(self.finish(cx, e, u));
+            }
+        }
         // canonicalise: flattened and sorted; with an identity element the result may be no call of the head
         let mut canon = [head; ARGS];
         let mut canon_big: Vec<T<'h>> = vec![];

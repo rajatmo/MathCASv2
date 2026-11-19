@@ -278,7 +278,14 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
         }
         T::from_raw(self.n.indet.get())
     }
-    /// Whether some term is a symbol (only then can it be `complex_infinity` or `indeterminate`).
+    /// The symbol `undefined`.
+    fn undef(&self) -> T<'h> {
+        if self.n.undef.get() == 0 {
+            self.n.undef.set(self.st.sym_term(self.st.sym("undefined")).raw());
+        }
+        T::from_raw(self.n.undef.get())
+    }
+    /// Whether some term is a symbol (only then can it be `complex_infinity`, `indeterminate` or `undefined`).
     fn any_symbol(&self, args: &[T<'h>]) -> bool {
         args.iter().any(|&a| matches!(self.st.view(a), mc_api::View::Sym(_)))
     }
@@ -289,11 +296,14 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
             "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio" | "glaisher" | "degree" | "khinchin"))
     }
 
-    /// Sums with `indeterminate` (which absorbs everything) or `complex_infinity` (which absorbs finite terms; with
-    /// another infinity the sum is `indeterminate`).
+    /// Sums with `undefined` (which absorbs everything, semantics 3.3), `indeterminate` (which absorbs everything
+    /// else) or `complex_infinity` (which absorbs finite terms; with another infinity the sum is `indeterminate`).
     fn undefined_sum(&self, args: &[T<'h>]) -> Option<T<'h>> {
-        if !self.any_symbol(args) || !args.iter().any(|&a| a == self.indet() || a == self.cinf()) {
+        if !self.any_symbol(args) || !args.iter().any(|&a| a == self.indet() || a == self.cinf() || a == self.undef()) {
             return None;
+        }
+        if args.contains(&self.undef()) {
+            return Some(self.undef());
         }
         if args.contains(&self.indet()) {
             return Some(self.indet());
@@ -302,11 +312,15 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
         Some(if infinite > 1 { self.indet() } else { self.cinf() })
     }
 
-    /// Products with `indeterminate` or `complex_infinity`: `indeterminate` absorbs everything; `complex_infinity`
-    /// absorbs nonzero numbers and other infinities, and times 0 is `indeterminate`.
+    /// Products with `undefined`, `indeterminate` or `complex_infinity`: `undefined` absorbs everything, 0 included
+    /// (semantics 3.3); `indeterminate` everything else; `complex_infinity` absorbs nonzero numbers and other
+    /// infinities, and times 0 is `indeterminate`.
     fn undefined_product(&self, args: &[T<'h>]) -> Option<T<'h>> {
-        if !self.any_symbol(args) || !args.iter().any(|&a| a == self.indet() || a == self.cinf()) {
+        if !self.any_symbol(args) || !args.iter().any(|&a| a == self.indet() || a == self.cinf() || a == self.undef()) {
             return None;
+        }
+        if args.contains(&self.undef()) {
+            return Some(self.undef());
         }
         if args.contains(&self.indet()) {
             return Some(self.indet());
@@ -346,9 +360,15 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
         if let Some(t) = self.machine_pow(base, exp) {
             return t;
         }
-        // complex_infinity^k: complex_infinity for k > 0, 0 for k < 0, indeterminate for k = 0; indeterminate^k
-        if self.any_symbol(&[base, exp]) && (base == self.indet() || exp == self.indet()) {
-            return self.indet();
+        // a power with `undefined` in either place is `undefined` (semantics 3.3); complex_infinity^k:
+        // complex_infinity for k > 0, 0 for k < 0, indeterminate for k = 0; indeterminate^k
+        if self.any_symbol(&[base, exp]) {
+            if base == self.undef() || exp == self.undef() {
+                return self.undef();
+            }
+            if base == self.indet() || exp == self.indet() {
+                return self.indet();
+            }
         }
         if matches!(self.st.view(base), mc_api::View::Sym(_)) && base == self.cinf() {
             if let Some(Num::Real(r)) = self.num(exp) {

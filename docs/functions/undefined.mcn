@@ -1,0 +1,101 @@
+#! mathcas 2 notebook
+
+#% title
+# undefined
+
+#% text
+# `undefined` is the value of an expression that has none, such as `conditional_expression(a, false)`.
+
+#% section
+# Details
+
+#% item
+# Arithmetic propagates it: a sum, product or power with `undefined` as an operand is `undefined`, `0*undefined` included.
+
+#% item
+# The numeric functions propagate it: a call of a function that numerical evaluation computes (`sin`, `exp`, `gamma`, `bessel_j`, `zeta`, ...) with `undefined` as an argument is `undefined`. A list argument is mapped over first, so only the entries that are `undefined` give `undefined`.
+
+#% item
+# Nothing else does: comparisons, `and`, `or`, `not`, `if`, lists, associations, rules, calls of other functions, held arguments and `quote` keep `undefined` as it is.
+
+#% item
+# `n(undefined)` is `undefined`. Test for it with `===`: `v === undefined`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Arithmetic and numeric functions of `undefined` are `undefined`:
+
+#% cell
+[1 + undefined, 0*undefined, undefined^2, sin(undefined), bessel_j(0, undefined)]
+#% output
+#= [undefined, undefined, undefined, undefined, undefined]
+
+#% text
+# A comparison stays a comparison:
+
+#% cell
+a == 1 + sin(undefined)
+#% output
+#= a == undefined
+
+#% text
+# A list keeps its entries:
+
+#% cell
+[1, undefined, x]
+#% output
+#= [1, undefined, x]
+
+#% subsection
+# Scope
+
+#% text
+# A condition that cannot hold gives `undefined`, and arithmetic with it stays `undefined`:
+
+#% cell
+conditional_expression(x^2, x > 0) /. x -> -2
+#% output
+#= undefined
+
+#% cell
+1 + conditional_expression(a, false)
+#% output
+#= undefined
+
+#% text
+# A numeric function maps over a list first:
+
+#% cell
+gamma([undefined, 2, 5])
+#% output
+#= [undefined, 1, 24]
+
+#% text
+# Connectives and calls of other functions keep it:
+
+#% cell
+[undefined or p, f(undefined)]
+#% output
+#= [undefined or p, f(undefined)]
+
+#% subsection
+# Applications
+
+#% text
+# Drop the undefined entries of a list:
+
+#% cell
+select([1, undefined, 3], v => not (v === undefined))
+#% output
+#= [1, 3]
+
+#% section
+# See also
+
+#% text
+# `conditional_expression`, `piecewise`, `n`

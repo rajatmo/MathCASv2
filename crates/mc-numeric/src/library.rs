@@ -62,6 +62,31 @@ pub fn lookup(name: &str, arity: usize) -> Option<LibRef> {
     r.iter().find(|g| g.0.arity() == arity && g.0.name() == name).copied()
 }
 
+/// The names of the registered functions (each once, in the order of registration).
+pub fn names() -> Vec<&'static str> {
+    let r = REGISTRY.read().unwrap_or_else(|e| e.into_inner());
+    let mut out: Vec<&'static str> = vec![];
+    for g in r.iter() {
+        if !out.contains(&g.0.name()) {
+            out.push(g.0.name());
+        }
+    }
+    out
+}
+
+/// The numeric functions: every head numerical evaluation computes as a function of numbers, the elementary
+/// functions of [`crate::fun::Fun`] and the registered library functions. The evaluator marks them (attribute
+/// `numeric`), so a call of one with `undefined` as an argument is `undefined` (semantics 3.3).
+pub fn numeric_functions() -> Vec<&'static str> {
+    let mut out: Vec<&'static str> = crate::fun::Fun::ALL.iter().map(|f| f.name()).collect();
+    for n in names() {
+        if !out.contains(&n) {
+            out.push(n);
+        }
+    }
+    out
+}
+
 /// Is any function registered? (Lets numerical evaluation skip the name lookup for unknown heads.)
 pub fn any() -> bool {
     !REGISTRY.read().unwrap_or_else(|e| e.into_inner()).is_empty()

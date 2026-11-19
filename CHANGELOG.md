@@ -34,7 +34,7 @@ order. The page of `alternating_harmonic_number` states its continuation.
 
 **Changed.** `tan`, `cot`, `sec`, `csc`, `coth`, `csch` at an exact pole and `acsch(0)` give
 `failure(pole, ...)`, as `gamma(0)` does (they used to stay unevaluated); `ball()` is `ball([0, 0, 0])` and
-`annulus()` is `annulus([0, 0], [1/2, 1])`; `simplify` writes the constant side of an equation last; series
+`annulus()` is `annulus([0, 0], [1/2, 1])`; `undefined` propagates through arithmetic and numeric functions (`1 + sin(undefined)` is `undefined`) and not through comparisons, `or` and lists; `simplify` writes the constant side of an equation last; series
 at a branch cut use the constant of the side they are taken on.
 
 **New.** `cylindrical_decomposition` of boundaries, closures, interiors and components; optimizers with

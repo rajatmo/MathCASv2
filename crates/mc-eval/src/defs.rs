@@ -104,6 +104,9 @@ pub struct Attributes {
     pub protected: bool,
     /// a mathematical constant (`pi`, `e`, ...): a mark `attributes` reports; it changes no evaluation
     pub constant: bool,
+    /// a numeric function (one numerical evaluation computes: it takes numbers and gives numbers): a call with
+    /// `undefined` among its arguments is `undefined` (semantics 3.3)
+    pub numeric: bool,
 }
 
 const A_AC: u64 = 1 << 3;
@@ -114,6 +117,7 @@ const A_ASSUMPTIONS: u64 = 1 << 7;
 const A_PROTECTED: u64 = 1 << 8;
 const A_FLAT: u64 = 1 << 9;
 const A_CONSTANT: u64 = 1 << 10;
+const A_NUMERIC: u64 = 1 << 11;
 
 impl Attributes {
     fn bits(self) -> u64 {
@@ -126,6 +130,7 @@ impl Attributes {
             | if self.uses_assumptions { A_ASSUMPTIONS } else { 0 }
             | if self.protected { A_PROTECTED } else { 0 }
             | if self.constant { A_CONSTANT } else { 0 }
+            | if self.numeric { A_NUMERIC } else { 0 }
     }
     pub(crate) fn from_bits(b: u64) -> Attributes {
         Attributes {
@@ -138,6 +143,7 @@ impl Attributes {
             uses_assumptions: b & A_ASSUMPTIONS != 0,
             protected: b & A_PROTECTED != 0,
             constant: b & A_CONSTANT != 0,
+            numeric: b & A_NUMERIC != 0,
         }
     }
 }

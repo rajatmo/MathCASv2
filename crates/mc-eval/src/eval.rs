@@ -206,6 +206,8 @@ pub(crate) struct Names {
     pub(crate) threaded: Sym,
     /// the term a `var` stands for: `local_cell(id)` (see [`crate::cells`])
     pub(crate) local_cell: Sym,
+    /// `undefined`: the value of a numeric function's call with it as an argument (semantics 3.3)
+    pub(crate) undefined: Sym,
     /// the binding forms (hygienic substitution, closures)
     pub(crate) scopes: Scopes,
 }
@@ -225,6 +227,7 @@ impl Names {
             unevaluated: h.sym("unevaluated"),
             threaded: h.sym("threaded"),
             local_cell: h.sym("local_cell"),
+            undefined: h.sym("undefined"),
             scopes: Scopes::new(h),
         }
     }
