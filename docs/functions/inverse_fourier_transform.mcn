@@ -96,7 +96,7 @@ inverse_fourier_transform(sinc(w), w, t)
 #% cell
 inverse_fourier_transform(exp(-abs(w)), w, t, fourier_parameters: [0, 1])
 #% output
-#= 2^(1/2)*(pi^-1)^(1/2)/(1 + t^2)
+#= 2^(1/2)/(pi^(1/2)*(1 + t^2))
 
 #% text
 # A number for `t` gives the value there:

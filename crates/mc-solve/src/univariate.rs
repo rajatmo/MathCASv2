@@ -570,7 +570,9 @@ impl<'h> Alg<'_, 'h> {
         };
         // (2/S)^(1/3) is 1/C off the cut only: for a negative real S the principal roots differ by a cube root of
         // unity (x^3 - 2 x + 7: S = -63 + sqrt(3873) < 0, and the three values were no roots)
-        let negative = mc_numeric::numeval::sign(e.h(), &e.ar, &e.nm, s) == Some(std::cmp::Ordering::Less);
+        // S of unknown sign (a parameter: y^3 + y^2 + x has S < 0 for x > 0) is taken as a negative one
+        let sign = mc_numeric::numeval::sign(e.h(), &e.ar, &e.nm, s);
+        let negative = sign != Some(std::cmp::Ordering::Greater);
         let inv = if integral || negative { self.pow(half, -1, 3) } else { self.pow(twice, 1, 3) };
         let third = self.pow(self.mul(&[self.int(3), a]), -1, 1);
         let sixth = self.pow(self.mul(&[self.int(6), a]), -1, 1);

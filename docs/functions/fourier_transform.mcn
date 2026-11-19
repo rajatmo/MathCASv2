@@ -184,7 +184,7 @@ fourier_transform(dirac_delta(t), t, w, fourier_parameters: [1, -1])
 #% cell
 fourier_transform(exp(-abs(t)), t, w, fourier_parameters: [0, 1])
 #% output
-#= 2^(1/2)*(pi^-1)^(1/2)/(1 + w^2)
+#= 2^(1/2)/(pi^(1/2)*(1 + w^2))
 
 #% cell
 fourier_transform(exp(-abs(t)), t, w, fourier_parameters: [1, 1])

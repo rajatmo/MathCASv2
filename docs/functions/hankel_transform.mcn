@@ -19,7 +19,7 @@
 # Functions without a classical transform (`cos(a r)`, `sin(a r)`, `sin_integral(r^2)`) get the generalized (Abel) transform, the limit as e -> 0+ of the transform of `exp(-e r) f(r)`.
 
 #% item
-# `cos(a r)/(r^2 + b^2)` and `sin(a r)/(r^2 + b^2)` have a closed form only for s > a resp. s < a; the value carries that range as `conditional_expression`, and a numeric s outside it leaves the transform unevaluated.
+# `cos(a r)/(r^2 + b^2)` and `sin(a r)/(r^2 + b^2)` have a closed form only for s >= a resp. s <= a (both integrals converge at s = a); the value carries that range as `conditional_expression`, and a numeric s outside it leaves the transform unevaluated.
 
 #% section
 # Examples
@@ -58,7 +58,7 @@ hankel_transform(cos(r), r, s)
 #% cell
 hankel_transform(cos(r)/(1 + r^2), r, s)
 #% output
-#= conditional_expression(bessel_k(0, s)*cosh(1), s > 1)
+#= conditional_expression(bessel_k(0, s)*cosh(1), s >= 1)
 
 #% cell
 hankel_transform(sin_integral(r^2), r, s)

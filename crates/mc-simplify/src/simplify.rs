@@ -574,6 +574,55 @@ fn decide_signs<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 
     }
 }
 
+/// Largest base (leaves) of a reciprocal factor that [`zero_denominator`] expands.
+const ZERO_DENOMINATOR_SIZE: u64 = 200;
+
+/// The failure of `0^k` when a factor `u^k` of `t` (k a negative machine integer, u a sum of moderate size)
+/// expands to 0: the moves of the search would reach that failure and drop it as no form, leaving the
+/// reciprocal of a zero sum (`1/((e + 1)^2 - (e^2 + 2 e + 1))`).
+fn zero_denominator<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, cost: &mut Cost<'h>, t: T<'h>) -> Res<Option<T<'h>>> {
+    for f in b.factors(t) {
+        let (u, k) = b.int_power(f);
+        if k >= 0
+            || b.call_of(u).is_none_or(|(s, _)| s != b.hd.add)
+            || cost.size(u) > ZERO_DENOMINATOR_SIZE
+            || expanded_terms(b, u) > ZERO_DENOMINATOR_SIZE
+        {
+            continue;
+        }
+        if cx.eval(b.call_named("expand", &[u]))? == b.int(0) {
+            return Ok(Some(cx.eval(b.powi(b.int(0), k))?));
+        }
+    }
+    Ok(None)
+}
+
+/// A bound on the number of terms of `t` expanded (saturating): sums add, products multiply, a power `s^k` of a sum
+/// with t terms and a positive integer k gives at most binomial(t + k - 1, k).
+fn expanded_terms<'h>(b: &B<'h>, t: T<'h>) -> u64 {
+    match b.call_of(t) {
+        Some((s, args)) if s == b.hd.add => args.iter().fold(0u64, |a, &u| a.saturating_add(expanded_terms(b, u))),
+        Some((s, args)) if s == b.hd.mul => args.iter().fold(1u64, |a, &u| a.saturating_mul(expanded_terms(b, u))),
+        Some((s, &[base, _])) if s == b.hd.pow => {
+            let (_, k) = b.int_power(t);
+            let n = expanded_terms(b, base);
+            if k <= 1 || n <= 1 {
+                return n;
+            }
+            // binomial(n + k - 1, k), stopped once it passes any bound of interest
+            let mut c: u64 = 1;
+            for i in 1..=k as u64 {
+                c = c.saturating_mul(n + i - 1) / i;
+                if c > 1 << 32 {
+                    return u64::MAX;
+                }
+            }
+            c
+        }
+        _ => 1,
+    }
+}
+
 /// Is `t` a failure term?
 fn h_is_failure<'h>(b: &B<'h>, t: T<'h>) -> bool {
     let h = b.heap();
@@ -677,6 +726,10 @@ fn run<'h>(
     cfg: &Config<'h>,
     t: T<'h>,
 ) -> Res<T<'h>> {
+    // a factor u^k (k a negative integer) whose base expands to 0 makes the term a division by zero, as 1/0 is
+    if let Some(f) = zero_denominator(cx, b, cost, t)? {
+        return Ok(f);
+    }
     // full_simplify: a term that function_expand brings to 0 (or an equation it brings to true) is that, before any
     // search (beta(a, b) - beta(b, a): the search over the gamma forms of the two terms is long)
     let mut forms = vec![t];

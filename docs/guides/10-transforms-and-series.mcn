@@ -92,12 +92,12 @@ fourier_transform(exp(-t^2), t, w, fourier_parameters: [1, -1])
 #% cell
 fourier_cos_transform(exp(-t), t, w)
 #% output
-#= 2^(1/2)*(pi^-1)^(1/2)/(1 + w^2)
+#= 2^(1/2)/(pi^(1/2)*(1 + w^2))
 
 #% cell
 fourier_sin_transform(exp(-t), t, w)
 #% output
-#= w*2^(1/2)*(pi^-1)^(1/2)/(1 + w^2)
+#= w*2^(1/2)/(pi^(1/2)*(1 + w^2))
 
 #% section
 # The Mellin transform

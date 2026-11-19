@@ -13,6 +13,9 @@
 # Bases of negative powers must be nonzero, bases of square roots (and other even roots) nonnegative, arguments of `log` positive (nonzero over the complexes), arguments of `asin` and `acos` between -1 and 1.
 
 #% item
+# Over the reals a power `c^x` with a negative base c (a number, or a symbol assumed negative) is defined at the integers only: its principal value `exp(x log|c|) e^(i pi x)` is not real elsewhere.
+
+#% item
 # `tan` and `sec` need `cos(u) != 0`, `cot` and `csc` need `sin(u) != 0`.
 
 #% item

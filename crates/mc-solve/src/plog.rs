@@ -155,6 +155,26 @@ pub(crate) fn solve<'h>(env: &Env<'h>, e: T<'h>, y: T<'h>, k: T<'h>, x: T<'h>, m
     // D^(n/mm) has mm values (the mm-th roots of D, each raised to n): every one gives equations `v e^(gamma v) = z`
     let root = env.ar.pow(d, env.ar.div(env.int(1), env.int(mm)));
     let order = mm.abs();
+    // over the complexes with `max_roots: k` and mm = 1: k members of the family of every branch j of W,
+    // x = W_j(z)/gamma for n = 1 and x = D e^(-W_j(z)/n) for n > 1 (x^n = D^n e^(-W) = D^n W/z = W/gamma and
+    // x e^(c1 L x^n) = D e^(-W/n + W/n) = D, so each member is a solution and distinct branches give distinct x;
+    // Corless et al. 1996, section 2), the branches in the order 0, 1, -1, 2, -2, ...
+    if mm == 1 && !env.cfg.reals {
+        if let Some(k) = crate::front::current().max_roots.filter(|&k| k > 1) {
+            let z = env.ar.mul(&[gamma, env.ar.pow(d, env.int(n as i64))]);
+            for i in 0..k.min(64) as i64 {
+                let j = if i % 2 == 1 { (i + 1) / 2 } else { -(i / 2) };
+                let w = if j == 0 { env.call("product_log", &[z]) } else { env.call("product_log", &[env.int(j), z]) };
+                let v = if n == 1 {
+                    env.ar.div(w, gamma)
+                } else {
+                    env.ar.mul(&[d, env.ar.pow(env.sym("e"), env.ar.neg(env.ar.div(w, env.int(n as i64))))])
+                };
+                out.push(vec![(x, v)]);
+            }
+            return Ok(Some(out));
+        }
+    }
     let roots: Vec<i64> = if order <= 1 { vec![0] } else { (0..order.min(8)).collect() };
     for k in roots {
         let unit = if k == 0 { env.int(1) } else { env.ar.pow(env.int(-1), env.ar.div(env.int(2 * k), env.int(order))) };

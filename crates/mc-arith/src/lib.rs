@@ -13,6 +13,7 @@
 #![warn(missing_docs)]
 
 mod canon;
+mod consts;
 pub mod num;
 pub mod number;
 mod order;

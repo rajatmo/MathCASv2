@@ -145,3 +145,29 @@ fn random_polygons() {
         ("f = list_interpolation(map(x => [sin(8*x), 8*cos(8*x)], range(0, 3, 0.5)), [[0, 3]]); abs(f(1.0) - sin(8.0)) < 10^-12", "true"),
     ]);
 }
+
+/// Mellin convolutions of functions given by pieces of bounded support: the values against the defining integral
+/// of tri(x - 2) box(m/x - 1)/x computed by quadrature on its pieces at 35 digits; outside the support and at the
+/// breaks; a product of factors in several variables is the product of the convolutions in each.
+#[test]
+fn mellin_convolution_of_pieces() {
+    let h = "mellin_convolve(unit_triangle(x - 2), unit_box(x - 1), x, m)";
+    let at = |m: &str, v: &str| (format!("abs(n(rewrite({h}, m -> {m}), 30) - {v}) < 10^-25"), "true");
+    let cases = [
+        at("56/27", "0.464581811004487564327391457138"),
+        at("7/10", "0.063527763378787069495406589783"),
+        at("1", "0.306852819440054690582767878542"),
+        at("3", "0.216395324324493145934039346393"),
+        at("4", "0.0200157736358170302830489950782"),
+        at("1/2", "0"),
+        at("9/2", "0"),
+        at("2/5", "0"),
+        at("5", "0"),
+        (
+            "abs(n(rewrite(mellin_convolve(2*unit_triangle(x - 2), 3*unit_box(x - 1, y - 1), [x, y], [m, n_u]), [m -> 56/27, n_u -> 8]), 30) - 3.06237171996729163014789026385) < 10^-25".to_string(),
+            "true",
+        ),
+    ];
+    let owned: Vec<(&str, &str)> = cases.iter().map(|(s, v)| (s.as_str(), *v)).collect();
+    run(&owned);
+}

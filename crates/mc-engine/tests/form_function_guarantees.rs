@@ -532,9 +532,9 @@ fn series_coefficients_with_gamma_at_rational_arguments_are_shortest() {
 #[test]
 fn function_expand_written_forms() {
     let mut e = CoreEngine::new();
-    is(&mut e, "function_expand(hankel_h1(1/2, x))", "-im*2^(1/2)*exp(im*x)*(pi^-1)^(1/2)/x^(1/2)");
-    is(&mut e, "function_expand(hankel_h2(1/2, x))", "im*2^(1/2)*exp(-im*x)*(pi^-1)^(1/2)/x^(1/2)");
-    is(&mut e, "function_expand(hankel_h1(5/2, x))", "im*(-3 + 3im*x + x^2)*2^(1/2)*exp(im*x)*(pi^-1)^(1/2)/x^(5/2)");
+    is(&mut e, "function_expand(hankel_h1(1/2, x))", "-im*2^(1/2)*exp(im*x)*pi^(-1/2)/x^(1/2)");
+    is(&mut e, "function_expand(hankel_h2(1/2, x))", "im*2^(1/2)*exp(-im*x)*pi^(-1/2)/x^(1/2)");
+    is(&mut e, "function_expand(hankel_h1(5/2, x))", "im*(-3 + 3im*x + x^2)*2^(1/2)*exp(im*x)*pi^(-1/2)/x^(5/2)");
     is(
         &mut e,
         "function_expand(hankel_h1(1/3, x))",

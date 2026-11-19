@@ -16,7 +16,10 @@
 # Factors that do not depend on `x` come out of the convolution.
 
 #% item
-# `mellin_convolve(f, g, [x1, ...], [y1, ...])` convolves in several variables.
+# `mellin_convolve(f, g, [x1, ...], [y1, ...])` convolves in several variables; when `f` and `g` are products of factors of one variable each (`unit_box` and `unit_triangle` of several arguments are such products), the result is the product of the convolutions in each variable.
+
+#% item
+# Functions given by pieces of bounded support (`unit_box`, `unit_triangle`, `piecewise` with polynomial pieces and rational bounds) give a `piecewise` result: between consecutive products of the bounds of the pieces the convolution is a sum of elementary integrals, and it is continuous in `y`.
 
 #% item
 # When the integral cannot be done the call stays unevaluated.
@@ -36,6 +39,11 @@ mellin_convolve(exp(-x), 1/(x + 1), x, 0.3)
 mellin_convolve(unit_box(x - 1), x, x, y)
 #% output
 #= (4/3)*y
+
+#% cell
+mellin_convolve(unit_triangle(x - 2), unit_box(x - 1), x, y)
+#% output
+#= piecewise([[-1 - log(2*y) + 2*y, 1/2 < y and y <= 1], [3 - 2*y - log(2) + 3*log(y), 1 < y and y <= 3/2], [1 + log(9) + log(y) - 3*log(2) - (2/3)*y, 3/2 < y and y <= 3], [-3 + log(27) - 3*(log(2/3) + log(y)) + (2/3)*y, 3 < y and y <= 9/2]], 0)
 
 #% cell
 mellin_convolve(3*f(x), g(x), x, y)

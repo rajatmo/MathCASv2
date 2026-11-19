@@ -382,6 +382,20 @@ fn conditions<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, vars: 
     conditions_of(cx, b, t, vars, complex, false)
 }
 
+/// Is the constant `c` (free of the variables) proved negative: a negative real number, or an expression that
+/// `simplify(c < 0)` under the assumptions in force decides `true`?
+fn negative_constant<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: T<'h>) -> Res<bool> {
+    let h = b.heap();
+    if let Some(cmp) = b.ar.compare(c, b.zero()) {
+        return Ok(cmp == mc_arith::Cmp3::Less);
+    }
+    if b.ar.num(c).is_some() {
+        return Ok(false);
+    }
+    let v = cx.eval(b.call("simplify", &[h.call(h.sym("less"), &[c, b.zero()])]))?;
+    Ok(v == h.sym_term(h.sym("true")))
+}
+
 /// [`conditions`]; with `analytic`, the conditions of analyticity (a fractional power's base positive, not only
 /// nonnegative).
 fn conditions_of<'h>(
@@ -424,7 +438,12 @@ fn conditions_of<'h>(
         if s == b.hd.pow {
             let [base, ex] = args else { return Ok(None) };
             if !depends(*base) {
-                // c^u: defined for a positive base (and any other constant base by the principal branch)
+                // c^u: defined for a positive base (and any other constant base by the principal branch over the
+                // complexes); over the reals a negative base gives a real principal value exp(u log|c|) e^(i pi u)
+                // only at integer u, a set without interior, so nowhere analytic
+                if !complex && negative_constant(cx, b, *base)? {
+                    out.push(if analytic { h.sym_term(h.sym("false")) } else { b.call("element", &[*ex, h.sym_term(h.sym("integers"))]) });
+                }
                 continue;
             }
             match h.view(*ex) {

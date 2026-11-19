@@ -30,7 +30,7 @@
 #% cell
 fourier_sin_transform(exp(-t), t, w)
 #% output
-#= w*2^(1/2)*(pi^-1)^(1/2)/(1 + w^2)
+#= w*2^(1/2)/(pi^(1/2)*(1 + w^2))
 
 #% cell
 fourier_sin_transform(t/(t^2 + 1), t, w)
@@ -48,12 +48,12 @@ fourier_sin_transform(1/sqrt(t), t, w)
 #% cell
 fourier_sin_transform(exp(-t^2), t, w)
 #% output
-#= dawson_f((1/2)*w)*2^(1/2)*(pi^-1)^(1/2)
+#= dawson_f((1/2)*w)*2^(1/2)/pi^(1/2)
 
 #% cell
 fourier_sin_transform(t*exp(-a*t), t, w)
 #% output
-#= 2*a*w*2^(1/2)*(pi^-1)^(1/2)/(a^2 + w^2)^2
+#= 2*a*w*2^(1/2)/(pi^(1/2)*(a^2 + w^2)^2)
 
 #% cell
 fourier_sin_transform(cos(t)*exp(-t)/t, t, w)

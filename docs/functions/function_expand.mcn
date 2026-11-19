@@ -193,7 +193,7 @@ function_expand(gamma(n + 3)/gamma(n), element(n, integers))
 #% cell
 function_expand(hankel_h1(1/2, x))
 #% output
-#= -im*2^(1/2)*exp(im*x)*(pi^-1)^(1/2)/x^(1/2)
+#= -im*2^(1/2)*exp(im*x)/(pi^(1/2)*x^(1/2))
 
 #% cell
 function_expand(dirac_delta(x^5 - 1))

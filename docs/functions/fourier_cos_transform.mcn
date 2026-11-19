@@ -30,7 +30,7 @@
 #% cell
 fourier_cos_transform(exp(-t), t, w)
 #% output
-#= 2^(1/2)*(pi^-1)^(1/2)/(1 + w^2)
+#= 2^(1/2)/(pi^(1/2)*(1 + w^2))
 
 #% cell
 fourier_cos_transform(1/(1 + t^2), t, w)
@@ -53,7 +53,7 @@ fourier_cos_transform(1/sqrt(t), t, w)
 #% cell
 fourier_cos_transform(unit_box(t - 1/2), t, w)
 #% output
-#= 2^(1/2)*(pi^-1)^(1/2)*sinc(w)
+#= 2^(1/2)*sinc(w)/pi^(1/2)
 
 #% cell
 fourier_cos_transform(sin(t)*exp(-t)/t, t, w)

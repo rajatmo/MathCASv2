@@ -7,6 +7,15 @@
 # `asymptotic_product(f, [k, a, b], [x, x0, m])` gives the expansion of the closed-form product of f over k to order m in x at x0; `x -> x0` gives the leading term.
 
 #% section
+# Details
+
+#% item
+# `asymptotic_product(f, k, [k, inf, m])` expands the indefinite product P with P(k + 1)/P(k) = f(k) and P -> 1, from the expansion of the indefinite sum of log(f) (`asymptotic_sum`).
+
+#% item
+# As in `series` at `inf`, order m keeps every term whose power of 1/x is at most m, fractional powers included: `(k^(13/4) - 1)/(k^(13/4) + 1)` gives `1 + 8/(9 k^(9/4))` at order 3 and adds `k^(-13/4)` at order 4.
+
+#% section
 # Examples
 
 #% subsection
@@ -26,6 +35,11 @@ asymptotic_product(k + m, [k, 1, 4], [m, 0, 1])
 asymptotic_product((k + 1)/k, [k, 1, n], [n, 2, 1])
 #% output
 #= 1 + n
+
+#% cell
+asymptotic_product((k^(13/4) - 1)/(k^(13/4) + 1), k, [k, inf, 4])
+#% output
+#= 1 + 8/(9*k^(9/4)) + k^(-13/4)
 
 #% section
 # See also

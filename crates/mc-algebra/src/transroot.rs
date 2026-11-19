@@ -583,7 +583,7 @@ fn canonical_body<'h>(cx: &mut NativeCx<'_, '_, 'h>, body: T<'h>, x: T<'h>, z: &
     }
     // the factors of the numerator that vanish on the box
     let size = term_size(h, num, 601);
-    let fac = if size <= 600 { cx.eval(h.call(h.sym("factor"), &[num]))? } else { num };
+    let fac = if size <= 600 && !huge_polynomial(h, &ar, num, x) { cx.eval(h.call(h.sym("factor"), &[num]))? } else { num };
     let factors: Vec<(T<'h>, i64)> = match args_of(h, fac, "mul") {
         Some(a) => a.to_vec(),
         None => vec![fac],
@@ -685,8 +685,10 @@ pub fn make_object<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, bo
     let slot = sym(h, "&1");
     let Some(cb) = canonical_body(cx, body, x, z)? else { return Ok(None) };
     let cb = if x == slot { cb } else { replace(cx, cb, &[(x, slot)])? };
-    // a polynomial factor: the root is algebraic, given exactly by solve
-    if !transcendental(h, &ar, cb, slot) {
+    // a polynomial factor: the root is algebraic, given exactly by solve (not one of a degree no exact method
+    // reaches: such a root is isolated numerically like that of an analytic function)
+    let huge = huge_polynomial(h, &ar, cb, slot);
+    if !huge && !transcendental(h, &ar, cb, slot) {
         let call = h.call(h.sym("solve"), &[h.call(h.sym("equal"), &[cb, h.int(0)]), slot]);
         return algebraic_value(cx, call, z);
     }
@@ -708,7 +710,7 @@ pub fn make_object<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, bo
     })?;
     let Some(k) = found else { return Ok(None) };
     // a real root of a small function that solve gives exactly on a short interval around it (sin(x) at pi)
-    if real && term_size(h, cb, 41) <= 40 {
+    if real && !huge && term_size(h, cb, 41) <= 40 {
         let c = float_f64(&k.re.mid);
         let d = 1e-9 * c.abs().max(1.0);
         if let (Some(lo), Some(hi)) = (mc_numeric::value::machine_rat(c - d), mc_numeric::value::machine_rat(c + d)) {
@@ -783,8 +785,8 @@ pub fn root_native<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, t:
     let Some((x, body, start)) = object_parts(cx, spec)? else { return Ok(Reply::Decline) };
     let h = cx.heap();
     let ar = Arith::new(h);
-    // a polynomial is the algebraic root object's business
-    if !transcendental(h, &ar, body, x) {
+    // a polynomial is the algebraic root object's business, unless its degree is beyond every exact method
+    if !transcendental(h, &ar, body, x) && !huge_polynomial(h, &ar, body, x) {
         return Ok(Reply::Decline);
     }
     let df = derivative(cx, body, x)?;
@@ -792,6 +794,51 @@ pub fn root_native<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, t:
     let Some((z, real)) = metered(cx, stop, |m| isolate_any(&fns, &start, m))? else { return Ok(Reply::Decline) };
     let Some(obj) = make_object(cx, stop, body, x, &z, real)? else { return Ok(Reply::Decline) };
     Ok(if obj == t { Reply::Decline } else { Reply::Done(obj) })
+}
+
+/// The least exponent of a power of x that no exact polynomial method takes (a dense polynomial of that degree is
+/// not built).
+pub const HUGE_DEGREE: i64 = 100_000;
+
+/// Is `body` a polynomial in x (sums, products and integer powers) with a power of x of degree beyond
+/// [`HUGE_DEGREE`] (`x^1234567 + 5 x + 1`)? Its roots are isolated numerically, as for an analytic function: the
+/// power is evaluated on balls by repeated squaring, nothing of the size of the degree is built.
+pub fn huge_polynomial<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, body: T<'h>, x: T<'h>) -> bool {
+    if transcendental(h, ar, body, x) {
+        return false;
+    }
+    let mut stack = vec![body];
+    while let Some(u) = stack.pop() {
+        let View::App { head, args } = h.view(u) else { continue };
+        if head == h.sym_term(h.sym(names::POW))
+            && args.len() == 2
+            && contains(h, args[0], x)
+            && ar.num(args[1]).and_then(|n| n.as_int().map(|k| k.to_i64().is_none_or(|v| v.abs() > HUGE_DEGREE))).unwrap_or(false)
+        {
+            return true;
+        }
+        stack.extend_from_slice(args);
+    }
+    false
+}
+
+/// A root object for the root of `body` in x inside the box of centre `re + im i` and half-width `rad` (a real
+/// root when `real`): the box must hold exactly one root, which Krawczyk's test proves. `None` when not proved.
+#[allow(clippy::too_many_arguments)]
+pub fn object_near<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    stop: &Arc<AtomicBool>,
+    body: T<'h>,
+    x: T<'h>,
+    re: f64,
+    im: f64,
+    rad: f64,
+    real: bool,
+) -> Res<Option<T<'h>>> {
+    let (Some(a), Some(b), Some(r)) = (f64_float(re), f64_float(if real { 0.0 } else { im }), f64_float(rad)) else { return Ok(None) };
+    let w = Mag::from_float_up(&r);
+    let z = CBall::new(Ball { mid: a, rad: w }, if real { Ball::exact(Float::zero()) } else { Ball { mid: b, rad: w } });
+    make_object(cx, stop, body, x, &z, real)
 }
 
 /// Does `body` have x inside something other than sums, products and integer powers?

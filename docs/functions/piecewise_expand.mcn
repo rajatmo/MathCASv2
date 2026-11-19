@@ -4,7 +4,7 @@
 # piecewise_expand
 
 #% text
-# `piecewise_expand(f)` writes nested piecewise functions, `if`, `max`, `min`, `clip`, `unit_step`, `boole` and `abs` in `f` as one `piecewise([[v1, c1], ...], d)`; `piecewise_expand(f, cond)` also cuts `floor`, `ceiling`, `round` and `prime_pi` of one variable where `cond` bounds it.
+# `piecewise_expand(f)` writes nested piecewise functions, `if`, `max`, `min`, `clip`, `unit_step`, `boole` and `abs` in `f` as one `piecewise([[v1, c1], ...], d)`; `piecewise_expand(f, cond)` also cuts `floor`, `ceiling`, `round` and `prime_pi` of one variable where `cond` bounds it, and `floor` of several variables (`quotient(k, m)`, `mod(k, m)`) where `cond` bounds its argument.
 
 #% section
 # Details
@@ -74,6 +74,14 @@ piecewise_expand(prime_pi(x), 0 < x and x < 6)
 assuming(0 < x and x < 3, piecewise_expand(floor(x)))
 #% output
 #= piecewise([[1, 1 <= x and x < 2], [2, x >= 2]], 0)
+
+#% text
+# `mod` and `quotient` by a variable, where the assumptions bound the ratio (here k/m runs from 0 to 3):
+
+#% cell
+assuming(0 <= k and k <= 3*m, [piecewise_expand(mod(k, m)), piecewise_expand(quotient(k, m))])
+#% output
+#= [piecewise([[k, k/m < 1], [k - 3*m, k/m >= 3], [k - 2*m, 2 <= k/m and k/m < 3]], k - m), piecewise([[1, 1 <= k/m and k/m < 2], [2, 2 <= k/m and k/m < 3], [3, k/m >= 3]], 0)]
 
 #% text
 # Sums of step functions:

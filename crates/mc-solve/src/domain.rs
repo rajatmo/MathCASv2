@@ -460,7 +460,7 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
         REAL_BY_REDUCE.with(|f| f.set(false));
         let r = distribute_or(cx, r?);
         if let Some(rules) = condition_as_conditional_rules(cx, r, &vars)? {
-            return Ok(Some(rules));
+            return Ok(Some(join_cases(cx, rules, &vars)?));
         }
         // values that are not real where their conditions say: no answer rather than those
         return Ok(Some(failure_unsolved(h, "the real solutions for these parameters are not found")));
@@ -1285,7 +1285,7 @@ pub(crate) fn huge_integer_roots<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h
 }
 
 /// The terms (exponent, coefficient) of a polynomial in `x` with integer coefficients; `None` otherwise.
-fn sparse_terms<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: T<'h>) -> Res<Option<Vec<(u64, mc_arith::num::Int)>>> {
+pub(crate) fn sparse_terms<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: T<'h>) -> Res<Option<Vec<(u64, mc_arith::num::Int)>>> {
     let h = cx.heap();
     let e = cx.eval(h.call(h.sym("expand"), &[f]))?;
     let ar = mc_arith::Arith::new(h);
@@ -1706,14 +1706,19 @@ fn real_conditions<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: T<'h>, vars: &[T<'h>]) 
         let mut radicands = vec![];
         even_radicands(h, v, &mut radicands);
         let mut params = vec![];
-        for &u in &radicands {
+        for &(u, _) in &radicands {
             symbols(h, u, vars, &mut params);
         }
         if radicands.is_empty() || params.is_empty() || head_name(h, v).as_deref() == Some("conditional_expression") {
             out.push(r);
             continue;
         }
-        let conds: Vec<T<'h>> = radicands.iter().map(|&u| h.call(h.sym("greater"), &[u, h.int(0)])).collect();
+        // a square root of 0 is real (the double roots at the boundary, x == 2 in y^4 - x y^2 + 1 == 0); only a
+        // radicand under a negative power must be nonzero
+        let conds: Vec<T<'h>> = radicands
+            .iter()
+            .map(|&(u, strict)| h.call(h.sym(if strict { "greater" } else { "greater_equal" }), &[u, h.int(0)]))
+            .collect();
         let conj = if conds.len() == 1 { conds[0] } else { h.call(h.sym("and"), &conds) };
         let ps = if params.len() == 1 { params[0] } else { cx.list(&params) };
         let c = cx.eval(h.call(h.sym("reduce"), &[conj, ps, h.sym_term(h.sym("reals"))]))?;
@@ -1732,16 +1737,21 @@ fn real_conditions<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: T<'h>, vars: &[T<'h>]) 
     Ok(Some(cx.list(&out)))
 }
 
-/// The radicands u of the powers `u^(p/q)` with q even in `t`.
-fn even_radicands<'h>(h: &'h impl Store, t: T<'h>, out: &mut Vec<T<'h>>) {
+/// The radicands u of the powers `u^(p/q)` with q even in `t`, each with whether it must be nonzero (p < 0, or u
+/// also under a negative power elsewhere).
+fn even_radicands<'h>(h: &'h impl Store, t: T<'h>, out: &mut Vec<(T<'h>, bool)>) {
     let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {
             if let (View::Sym(sy), [b, e]) = (h.view(head), args) {
                 if h.sym_name(sy) == names::POW {
-                    if let View::Rational { den, .. } = h.view(*e) {
-                        if matches!(h.view(den), View::Int(d) if d % 2 == 0) && !out.contains(b) {
-                            out.push(*b);
+                    if let View::Rational { num, den } = h.view(*e) {
+                        if matches!(h.view(den), View::Int(d) if d % 2 == 0) {
+                            let strict = matches!(h.view(num), View::Int(p) if p < 0);
+                            match out.iter_mut().find(|(r, _)| r == b) {
+                                Some(entry) => entry.1 |= strict,
+                                None => out.push((*b, strict)),
+                            }
                         }
                     }
                 }
@@ -1857,6 +1867,182 @@ pub fn condition_as_conditional_rules<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: T<'h
         out.push(cx.list(&rules));
     }
     Ok(Some(cx.list(&out)))
+}
+
+/// The cases `[[x -> conditional_expression(v, c)], ...]` of one unknown with fewer pieces and the same solutions:
+/// a case at a point of the parameters (`p == 3`, a value `v`) goes into a case whose value is `v` at that point
+/// (`root(f(p), 1)` is -1 at p = 3, the double root counted once more by the next root), and cases with the same
+/// value are one case under the disjunction of their conditions (reduced in the parameters: `x < 3 or x >= 3` is
+/// no condition). The order is that of each joined case's first piece.
+fn join_cases<'h>(cx: &mut NativeCx<'_, '_, 'h>, rules: T<'h>, vars: &[T<'h>]) -> Res<T<'h>> {
+    let h = cx.heap();
+    if vars.len() != 1 {
+        return Ok(rules);
+    }
+    let Some(list) = cx.as_list(rules).map(|l| l.to_vec()) else { return Ok(rules) };
+    // (value, condition) of each case; `None` when a case has another form
+    let mut cases: Vec<(T<'h>, Option<T<'h>>)> = vec![];
+    for s in &list {
+        let Some(&[r]) = cx.as_list(*s) else { return Ok(rules) };
+        let View::App { args: &[_, v], .. } = h.view(r) else { return Ok(rules) };
+        match (head_name(h, v).as_deref(), h.view(v)) {
+            (Some("conditional_expression"), View::App { args: &[w, c], .. }) => cases.push((w, Some(c))),
+            _ => cases.push((v, None)),
+        }
+    }
+    let equal = h.sym_term(h.sym("equal"));
+    // the point of each condition that is a conjunction of `p == a`, a an exact number (a root object too)
+    let mut points: Vec<Option<Vec<(T<'h>, T<'h>)>>> = vec![];
+    for &(_, c) in &cases {
+        let mut pt = c.map(|_| vec![]);
+        if let Some(c) = c {
+            let mut cs = vec![];
+            conjuncts(h, c, &mut cs);
+            for e in cs {
+                let View::App { head, args: &[p, a] } = h.view(e) else {
+                    pt = None;
+                    break;
+                };
+                let numeric = head == equal && matches!(h.view(p), View::Sym(_)) && !vars.contains(&p) && !has_inexact(h, a) && {
+                    let t = cx.eval(h.call(h.sym("is_numeric"), &[a]))?;
+                    cx.is_true(t)
+                };
+                match (numeric, pt.as_mut()) {
+                    (true, Some(v)) => v.push((p, a)),
+                    _ => {
+                        pt = None;
+                        break;
+                    }
+                }
+            }
+        }
+        points.push(pt);
+    }
+    let mut target: Vec<Option<usize>> = vec![None; cases.len()];
+    for i in 0..cases.len() {
+        cx.tick(1)?;
+        let (vi, Some(ci)) = cases[i] else { continue };
+        let Some(pt) = points[i].clone() else { continue };
+        let subs: Vec<T<'h>> = pt.iter().map(|&(p, a)| h.call(h.sym(names::RULE), &[p, a])).collect();
+        let subs = cx.list(&subs);
+        for j in 0..cases.len() {
+            let (vj, cj) = cases[j];
+            if j == i || vj == vi || cj.is_some() && points[j].is_some() {
+                continue;
+            }
+            let mut ps = vec![];
+            symbols(h, vj, vars, &mut ps);
+            if !pt.iter().all(|(p, _)| ps.contains(p)) {
+                continue;
+            }
+            // two values of one point are never joined into the same case
+            if target.iter().enumerate().any(|(k, &t)| t == Some(j) && cases[k].1 == Some(ci)) {
+                continue;
+            }
+            let at = cx.eval(h.call(h.sym("rewrite"), &[vj, subs]))?;
+            let same = at == vi || {
+                let e = cx.eval(h.call(h.sym("equal"), &[at, vi]))?;
+                cx.is_true(e)
+            };
+            if same {
+                target[i] = Some(j);
+                break;
+            }
+        }
+    }
+    // the groups: each case joins its target, then cases of the same value join the first of that value
+    // (value, conditions, place: the first case of that value that is not a moved point)
+    let mut groups: Vec<(T<'h>, Vec<Option<T<'h>>>, usize)> = vec![];
+    for k in 0..cases.len() {
+        let at = target[k].unwrap_or(k);
+        let v = cases[at].0;
+        match groups.iter_mut().find(|(w, ..)| *w == v) {
+            Some(g) => {
+                g.1.push(cases[k].1);
+                g.2 = g.2.min(at);
+            }
+            None => groups.push((v, vec![cases[k].1], at)),
+        }
+    }
+    groups.sort_by_key(|g| g.2);
+    if groups.len() == cases.len() {
+        return Ok(rules);
+    }
+    let mut out = vec![];
+    for (v, cs, _) in groups {
+        let cond = if cs.iter().any(|c| c.is_none()) {
+            None
+        } else if cs.len() == 1 {
+            cs[0]
+        } else {
+            let cs: Vec<T<'h>> = cs.into_iter().flatten().collect();
+            let c = if cs.len() == 1 { cs[0] } else { h.call(h.sym("or"), &cs) };
+            // the root objects of the conditions as symbols while reduce joins the intervals (it takes rational
+            // coefficients only), then put back
+            let mut roots = vec![];
+            let mut stack = mc_api::walk::Walk::new(c);
+            while let Some(u) = stack.pop() {
+                if is_root_object(h, u) {
+                    if !roots.contains(&u) {
+                        roots.push(u);
+                    }
+                } else if let View::App { args, .. } = h.view(u) {
+                    stack.extend(args.iter().copied());
+                }
+            }
+            let marks: Vec<T<'h>> = (0..roots.len()).map(|k| h.sym_term(h.sym(&format!("solve_join_point_{k}")))).collect();
+            let fwd: Vec<T<'h>> = roots.iter().zip(&marks).map(|(&r, &s)| h.call(h.sym(names::RULE), &[r, s])).collect();
+            let back: Vec<T<'h>> = roots.iter().zip(&marks).map(|(&r, &s)| h.call(h.sym(names::RULE), &[s, r])).collect();
+            let hidden = if roots.is_empty() { c } else { cx.eval(h.call(h.sym("rewrite"), &[c, cx.list(&fwd)]))? };
+            let mut ps = vec![];
+            symbols(h, hidden, vars, &mut ps);
+            ps.retain(|p| !marks.contains(p));
+            let params = if ps.len() == 1 { ps[0] } else { cx.list(&ps) };
+            let r = cx.eval(h.call(h.sym("reduce"), &[hidden, params, h.sym_term(h.sym("reals"))]))?;
+            let r = if roots.is_empty() { r } else { cx.eval(h.call(h.sym("rewrite"), &[r, cx.list(&back)]))? };
+            // a bound written with the parameter on the left (`x >= 3`, as the other conditions)
+            let r = match (head_name(h, r).as_deref(), h.view(r)) {
+                (Some(op @ ("less" | "less_equal" | "greater" | "greater_equal")), View::App { args: &[a, b], .. })
+                    if !mentions(h, a, &ps) && mentions(h, b, &ps) =>
+                {
+                    let flip = match op {
+                        "less" => "greater",
+                        "less_equal" => "greater_equal",
+                        "greater" => "less",
+                        _ => "less_equal",
+                    };
+                    h.call(h.sym(flip), &[b, a])
+                }
+                _ => r,
+            };
+            let relational = cx.is_true(r)
+                || matches!(head_name(h, r).as_deref(), Some("less" | "less_equal" | "greater" | "greater_equal" | "unequal" | "equal" | "and" | "or"));
+            if cx.is_true(r) {
+                None
+            } else {
+                Some(if relational { r } else { c })
+            }
+        };
+        let value = match cond {
+            Some(c) => cx.eval(h.call(h.sym("conditional_expression"), &[v, c]))?,
+            None => v,
+        };
+        out.push(cx.list(&[h.call(h.sym(names::RULE), &[vars[0], value])]));
+    }
+    Ok(cx.list(&out))
+}
+
+/// Does `t` hold an inexact number?
+fn has_inexact<'h>(h: &'h impl Store, t: T<'h>) -> bool {
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        match h.view(u) {
+            View::Real(_) | View::Ball { .. } => return true,
+            View::App { args, .. } => stack.extend(args.iter().copied()),
+            _ => {}
+        }
+    }
+    false
 }
 
 /// Is `t` a root object `root(f, k)`?

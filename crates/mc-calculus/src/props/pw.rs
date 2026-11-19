@@ -25,7 +25,9 @@
 //!   `ceiling(u, a)`, `round(u, a)` are `a` times the step of `u/a`; `fractional_part(u)` is `u - integer_part(u)`;
 //!   `quotient(m, n)` and `mod(m, n)` for a nonzero number `n` are `floor(m/n)` and `m - n floor(m/n)` (the
 //!   definitions, Graham, Knuth and Patashnik, Concrete Mathematics, 3.1 and 3.4), so their jumps are found as
-//!   those of `floor`.
+//!   those of `floor`; for a variable `n` the same, and `floor(u)` of several variables is cut where u crosses
+//!   the integers between its least and greatest value in the region (`0 <= k <= 3 m`: `k/m` from 0 to 3), the
+//!   conditions written on u.
 use super::sets::{self, is_head};
 use crate::common::is_free;
 use crate::term::Build;
@@ -155,7 +157,7 @@ pub fn expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) 
         let pl = cx.list(&pieces);
         return Ok(Some(cx.eval(b.call("piecewise", &[pl, d]))?));
     }
-    let f = step_forms(cx, b, f, reg.is_some())?;
+    let f = step_forms(cx, b, f, reg)?;
     // the variables: symbols that are not numeric constants (pi)
     let mut vars = vec![];
     for x in variables(b, f) {
@@ -383,22 +385,33 @@ fn contains_piecewise_in<'h>(b: &Build<'h>, t: T<'h>, memo: &mut mc_api::walk::M
 /// `t` with the step functions that are written by others (module comment) rewritten into them: `floor(u, a)`,
 /// `ceiling(u, a)`, `round(u, a)`, `fractional_part(u)`, `quotient(m, n)` and `mod(m, n)` for a nonzero number
 /// `n`, and the products behind `unit_box`, `unit_triangle` and `unit_step` of several arguments.
-fn step_forms<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, bounded: bool) -> Res<T<'h>> {
+fn step_forms<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, reg: Option<T<'h>>) -> Res<T<'h>> {
+    let bounded = reg.is_some();
     let h = b.heap();
     let View::App { head, args } = h.view(t) else { return Ok(t) };
     cx.tick(1)?;
     let mut out = Vec::with_capacity(args.len());
     for &a in args {
-        out.push(step_forms(cx, b, a, bounded)?);
+        out.push(step_forms(cx, b, a, reg)?);
     }
     let name = b.sym_of(head).map(|s| h.sym_name(s).to_string()).unwrap_or_default();
     // the forms in floor and integer_part help only where the region cuts them into steps
     let nonzero_number = |n: T<'h>| bounded && n != b.zero() && b.ar.num(n).is_some_and(|v| v.as_real().is_some());
+    // a divisor that is a variable: the steps of floor(m/n) where the region bounds m/n
+    let symbolic = match (name.as_str(), out.as_slice(), reg) {
+        ("quotient" | "mod", &[m, n], Some(r)) if b.ar.num(n).is_none() && matches!(h.view(n), View::Sym(_)) => {
+            let u = cx.eval(b.div(m, n))?;
+            let vs = variables(b, u);
+            vs.len() > 1 && ratio_bounds(cx, b, u, r, &vs)?.is_some()
+        }
+        _ => false,
+    };
+    let symbolic = |_: T<'h>| symbolic;
     let r = match (name.as_str(), out.as_slice()) {
         ("floor" | "ceiling" | "round", &[u, a]) if nonzero_number(a) => b.mul(&[a, b.call(&name, &[b.div(u, a)])]),
         ("fractional_part", &[u]) if bounded => b.sub(u, b.call("integer_part", &[u])),
-        ("quotient", &[m, n]) if nonzero_number(n) => b.call("floor", &[b.div(m, n)]),
-        ("mod", &[m, n]) if nonzero_number(n) => b.sub(m, b.mul(&[n, b.call("floor", &[b.div(m, n)])])),
+        ("quotient", &[m, n]) if nonzero_number(n) || symbolic(n) => b.call("floor", &[b.div(m, n)]),
+        ("mod", &[m, n]) if nonzero_number(n) || symbolic(n) => b.sub(m, b.mul(&[n, b.call("floor", &[b.div(m, n)])])),
         ("unit_box" | "unit_triangle" | "unit_step", us) if us.len() > 1 => {
             let fs: Vec<T<'h>> = us.iter().map(|&u| b.call(&name, &[u])).collect();
             b.mul(&fs)
@@ -1034,6 +1047,9 @@ fn steps<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, reg: Option
     let atom = Ok(Some(vec![(t, cx.bool(true))]));
     let Some(reg) = reg else { return atom };
     let vs: Vec<T<'h>> = vars.iter().copied().filter(|&x| !is_free(b, u, x)).collect();
+    if vs.len() > 1 && name == "floor" {
+        return steps_of_bounded(cx, b, u, reg, &vs);
+    }
     let [x] = vs.as_slice() else { return Ok(None) };
     let x = *x;
     // the interval of the region's conditions on x alone
@@ -1138,6 +1154,58 @@ fn steps<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, reg: Option
         out.push((val, c));
     }
     Ok(Some(out))
+}
+
+/// `floor(u)` of several variables (`quotient(k, m)` is `floor(k/m)`) where the region bounds u: with lo and hi
+/// the least and greatest values of u there (`min_value`, `max_value`), the pieces `j <= u < j + 1` for the
+/// integers j from floor(lo) to floor(hi), written as conditions on u itself, the bounds the region implies left
+/// out (the first piece `u < floor(lo) + 1`, the last `u >= floor(hi)`); a last piece at hi only when the region
+/// reaches it. `None` when the bounds are not numbers or span more than 200 integers.
+fn steps_of_bounded<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, reg: T<'h>, vs: &[T<'h>]) -> Res<Option<Vec<Case<'h>>>> {
+    let Some((a, c)) = ratio_bounds(cx, b, u, reg, vs)? else { return Ok(None) };
+    if a == c {
+        return Ok(Some(vec![(b.int(a), cx.bool(true))]));
+    }
+    let mut out = vec![];
+    for j in a..=c {
+        // (as the pieces of one variable: `1 <= u and u < 2`, `u >= 3`)
+        let mut cs = vec![];
+        if j > a {
+            cs.push(if j < c { b.call("less_equal", &[b.int(j), u]) } else { b.call("greater_equal", &[u, b.int(j)]) });
+        }
+        if j < c {
+            cs.push(b.call("less", &[u, b.int(j + 1)]));
+        }
+        let cond = match cs.as_slice() {
+            [one] => *one,
+            _ => b.call("and", &cs),
+        };
+        // the last piece only when the region reaches floor(hi) (not refuted)
+        if j == c && !satisfiable(cx, b, b.call("greater_equal", &[u, b.int(j)]), Some(reg), vs)? {
+            continue;
+        }
+        out.push((b.int(j), cond));
+    }
+    Ok(Some(out))
+}
+
+/// floor of the least and of the greatest value of u in the region (`min_value`, `max_value`); `None` when they are
+/// not numbers or more than 200 apart.
+fn ratio_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, reg: T<'h>, vs: &[T<'h>]) -> Res<Option<(i64, i64)>> {
+    let h = b.heap();
+    let l = cx.list(vs);
+    let mut ends = [0f64; 2];
+    for (i, f) in ["min_value", "max_value"].into_iter().enumerate() {
+        let v = cx.eval(b.call(f, &[cx.list(&[u, reg]), l]))?;
+        let v = cx.eval(b.call("n", &[v]))?;
+        ends[i] = match h.view(v) {
+            View::Real(y) if y.is_finite() => y,
+            View::Int(k) => k as f64,
+            _ => return Ok(None),
+        };
+    }
+    let (a, c) = (ends[0].floor() as i64, ends[1].floor() as i64);
+    Ok((c - a <= 200).then_some((a, c)))
 }
 
 trait MaxOr<'h> {

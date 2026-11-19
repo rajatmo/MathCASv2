@@ -35,6 +35,22 @@ fn rational_forms() {
 }
 
 #[test]
+fn reciprocal_of_a_sum_that_is_zero() {
+    // (e + 1)^2 - (e^2 + 2 e + 1) is 0 (expanded term by term): its reciprocal is a division by zero, as 1/0 is
+    check(&[
+        ("simplify(1/((e + 1)^2 - (e^2 + 2*e + 1)))", "failure(division_by_zero)"),
+        ("full_simplify(1/((e + 1)^2 - (e^2 + 2*e + 1)))", "failure(division_by_zero)"),
+        ("simplify(x/((x + 1)^2 - x^2 - 2*x - 1))", "failure(division_by_zero)"),
+        ("simplify(x^2/((a - b)^3 - a^3 + 3*a^2*b - 3*a*b^2 + b^3)^2)", "failure(division_by_zero)"),
+        // a denominator that is not identically 0 stays
+        ("simplify(1/(x^2 - 1))", "(-1 + x^2)^-1"),
+        ("simplify(1/((e + 1)^2 - e^2 - 2*e))", "1"),
+        // a base whose expansion would be large is not expanded
+        ("simplify(1/((a + b + c + d + f + g)^30 + 1))", "(1 + (a + b + c + d + f + g)^30)^-1"),
+    ]);
+}
+
+#[test]
 fn trigonometric_and_exponential_forms() {
     check(&[
         ("simplify(sin(x)^2 + cos(x)^2)", "1"),

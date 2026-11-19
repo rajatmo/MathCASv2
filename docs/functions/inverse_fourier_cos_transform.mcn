@@ -24,7 +24,7 @@
 #% cell
 inverse_fourier_cos_transform(exp(-w), w, t)
 #% output
-#= 2^(1/2)*(pi^-1)^(1/2)/(1 + t^2)
+#= 2^(1/2)/(pi^(1/2)*(1 + t^2))
 
 #% cell
 inverse_fourier_cos_transform(1/(1 + w^2), w, t)

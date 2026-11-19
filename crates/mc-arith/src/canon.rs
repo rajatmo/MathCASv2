@@ -7,7 +7,8 @@
 //! `3x`, `x * x^2` is `x^3`), identities are removed, a single argument is unwrapped and the arguments are sorted
 //! by the canonical order. `pow` combines only where the result holds for all complex values (B.9):
 //! `(x^a)^n = x^(a n)` for an integer n, or for a real number a in (-1, 1]; `(x y)^n = x^n y^n` for an integer n;
-//! `(c x)^a = c^a x^a` for a positive real number c. Exact numeric powers stay exact (radicals in canonical form,
+//! `(c x)^a = c^a x^a` for a positive real number c; `(b^a)^k = b^(a k)` for real a and k and a numeric constant b
+//! when `a arg(b)` is certainly in `(-pi, pi]` (`crate::consts`: `sqrt(pi^2) = pi`). Exact numeric powers stay exact (radicals in canonical form,
 //! `crate::radical`).
 use crate::num::{Int, Rat, StopScope};
 use crate::number::{Cmp3, Num, NumError, Real};
@@ -688,7 +689,7 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
             Shape::Pow(b, a) => {
                 if one {
                     p.work.push((b, a));
-                } else if self.int_exp(k).is_some() || self.in_unit_range(a) {
+                } else if self.int_exp(k).is_some() || self.in_unit_range(a) || self.constant_power_of_power(b, a, k) {
                     let e = self.mul(&[a, k]);
                     p.work.push((b, e));
                 } else {
@@ -698,6 +699,13 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
             _ => p.group(t, k),
         }
         Ok(())
+    }
+
+    /// `(b^a)^k = b^(a k)` for real numbers a and k and a numeric constant b whose rectangle certifies
+    /// `a arg(b)` in `(-pi, pi]` (`sqrt(pi^2) = pi`, `sqrt((pi + 2 i)^2) = pi + 2 i`; [`crate::consts`]).
+    fn constant_power_of_power(&self, b: T<'h>, a: T<'h>, k: T<'h>) -> bool {
+        let (Some(ar), Some(_)) = (real_of(self.st, a), real_of(self.st, k)) else { return false };
+        crate::consts::power_of_power_holds(self.st, &self.n, b, &ar)
     }
 
     /// Is the term a real number in (-1, 1]?

@@ -50,8 +50,11 @@ fn agrees(e: &mut CoreEngine, integrand: &str, subs: &str, s: &str) {
 fn trigonometric_over_quadratic() {
     timed("cos, sin over r^2 + b^2", 120, || {
         let mut e = CoreEngine::new();
-        // cosh(1) bessel_k(0, s) holds for s > 1 only: the value carries its range
-        same(&mut e, "vv = hankel_transform(cos(r) / (1 + r^2), r, s)", "conditional_expression(bessel_k(0, s)*cosh(1), s > 1)");
+        // cosh(1) bessel_k(0, s) holds for s >= 1 only: the value carries its range
+        same(&mut e, "vv = hankel_transform(cos(r) / (1 + r^2), r, s)", "conditional_expression(bessel_k(0, s)*cosh(1), s >= 1)");
+        // the boundary s = 1: the integral converges there; its value by Levin-accelerated quadrature over the
+        // periods [k pi, (k + 1) pi] (mpmath, 25 digits)
+        holds(&mut e, "abs(n(rewrite(vv, s -> 1), 30) - 0.6496746574332036134755159) < 10^-22");
         holds(&mut e, "vv = vv[1]; true");
         for s in ["2", "5/2"] {
             agrees(&mut e, "cos(r)/(1 + r^2)*bessel_j(0, s*r)*r", "[]", s);
@@ -60,8 +63,10 @@ fn trigonometric_over_quadratic() {
         same(&mut e, "hankel_transform(cos(r) / (1 + r^2), r, 3)", "bessel_k(0, 3)*cosh(1)");
         // outside the range: no closed form, unevaluated
         assert!(ev(&mut e, "hankel_transform(cos(r) / (1 + r^2), r, 1/2)").starts_with("hankel_transform("));
-        // the sine: (pi/2) exp(-b) bessel_i(0, b s) for s < 1
-        same(&mut e, "vv = hankel_transform(sin(r) / (b^2 + r^2), r, s)", "conditional_expression(pi/2*exp(-(b^2)^(1/2))*bessel_i(0, (b^2)^(1/2)*s), s < 1)");
+        // the sine: (pi/2) exp(-b) bessel_i(0, b s) for s <= 1
+        same(&mut e, "vv = hankel_transform(sin(r) / (b^2 + r^2), r, s)", "conditional_expression(pi/2*exp(-(b^2)^(1/2))*bessel_i(0, (b^2)^(1/2)*s), s <= 1)");
+        // the boundary s = 1 at b = 2, by the same quadrature: 0.4846037398529616293142801
+        holds(&mut e, "abs(n(rewrite(vv, [b -> 2, s -> 1]), 30) - 0.4846037398529616293142801) < 10^-22");
         holds(&mut e, "vv = vv[1]; true");
         // r/(r^2 + b^2) = integrate(exp(-b u) sin(r u), [u, 0, inf]) and the transforms of cos(c r)/r give the
         // integral as (1/2) integrate(exp(-b (1 + v))/sqrt(s^2 - v^2), [v, -s, s]) for s < 1 (the oscillatory
@@ -70,7 +75,9 @@ fn trigonometric_over_quadratic() {
             holds(&mut e, &format!("abs(n(rewrite(vv, [b -> 3/2, s -> {s}]), 20) - n_integrate(exp(-3/2*(1 + v))/(2*sqrt({s}^2 - v^2)), [v, -{s}, {s}])) < 10^-9"));
         }
         assert!(ev(&mut e, "inverse_hankel_transform(sin(s) / (b^2 + s^2), s, r, assumptions: r > 2)").starts_with("inverse_hankel_transform("));
-        same(&mut e, "inverse_hankel_transform(cos(s) / (1 + s^2), s, r)", "conditional_expression(bessel_k(0, r)*cosh(1), r > 1)");
+        same(&mut e, "inverse_hankel_transform(cos(s) / (1 + s^2), s, r)", "conditional_expression(bessel_k(0, r)*cosh(1), r >= 1)");
+        holds(&mut e, "abs(n(rewrite(inverse_hankel_transform(cos(s) / (1 + s^2), s, r), r -> 1), 30) - 0.6496746574332036134755159) < 10^-22");
+        holds(&mut e, "abs(n(rewrite(inverse_hankel_transform(sin(s) / (4 + s^2), s, r), r -> 1), 30) - 0.4846037398529616293142801) < 10^-22");
     });
 }
 

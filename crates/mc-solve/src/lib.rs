@@ -25,6 +25,7 @@ mod cx;
 mod domain;
 mod front;
 mod interval;
+mod lacunary;
 mod linear;
 mod modular;
 mod natives;

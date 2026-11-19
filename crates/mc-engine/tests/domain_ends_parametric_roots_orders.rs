@@ -88,12 +88,14 @@ fn real_roots_of_polynomials_with_parameters() {
     let r = ev("reduce(y^3 - x*y == 2, y, reals)");
     assert!(r.contains("x == 3 and (y == -1 or y == 2)"), "{r}");
     let s = ev("solve(y^3 - x*y == 2, y, reals)");
-    assert!(!s.contains("im") && s.contains("conditional_expression(2, x == 3)"), "{s}");
+    // one case per root object; at x = 3 root 1 is -1 and root 3 is 2
+    assert!(!s.contains("im") && s.contains("x >= 3"), "{s}");
+    assert_eq!(ev("rewrite(solve(y^3 - x*y == 2, y, reals), x -> 3)"), "[[y -> -1], [y -> undefined], [y -> 2]]");
     // the real cube root, not the principal x^(1/3) and its rotations
     assert_eq!(ev("solve(y^3 == x, y, reals)"), "[[y -> root(&(x - &1^3), 1)]]");
     assert!(!ev("solve(y^4 == x, y, reals)").contains("im"));
     // the largest root for x > 3 at x = 4: y = 2.2143... (y^3 - 4 y - 2 = 0)
-    let v = ev_all(&["s = solve(y^3 - x*y == 2, y, reals)", "n(rewrite(rewrite(y, s[6]), x -> 4))"]);
+    let v = ev_all(&["s = solve(y^3 - x*y == 2, y, reals)", "n(rewrite(rewrite(y, s[3]), x -> 4))"]);
     assert!(v[1].starts_with("2.214319743377"), "{}", v[1]);
 }
 

@@ -13,7 +13,10 @@
 # Named elementary functions map to their inverses (`sin` to `asin`, `exp` to `log`, ...). For a function of one argument the equation f(y) == x is solved and the first solution, its arbitrary constants set to 0, becomes a function of x.
 
 #% item
-# Otherwise `inverse_function(f)` stays as it is.
+# `inverse_function(f, k, n)` is the inverse of a function of n arguments in its k-th argument: applied to n arguments, it gives the y with f(.., y, ..) equal to the k-th of them.
+
+#% item
+# An inverse without a closed form, applied to real numbers, gives the real solution of the equation when it is the only real one (as solve over the reals finds it, a root object; functions such as `beta(y, 4)` are expanded first when that helps). Otherwise `inverse_function(f)` stays as it is.
 
 #% section
 # Examples
@@ -40,6 +43,25 @@ inverse_function(t => tan(exp(t)))(x)
 inverse_function(t => (a*t + b)/(c*t + d))(x)
 #% output
 #= (-b + d*x)/(a - c*x)
+
+#% subsection
+# Scope
+
+#% text
+# The equation sin(y) - y == 2 has no closed-form solution; its one real solution:
+
+#% cell
+inverse_function(&(sin(&1) - &1))(2)
+#% output
+#= root([&(2 + &1 - sin(&1)), -2.554195952837043])
+
+#% text
+# The inverse in the first of two arguments: the real x with beta(x, 4) - x + 4 == 3:
+
+#% cell
+g = inverse_function((x, y) => beta(x, y) - x + y, 1, 2); n(g(3, 4), 20)
+#% output
+#= 1.176590107882798171135355
 
 #% section
 # See also

@@ -760,8 +760,67 @@ fn nl_mc(f, g, x, y, asm, gc) = {
       }
     }
     if ok then (if num then r else simplify(r, assumptions: asm and fold((p, q) => p and q, map(v => v > 0, ys))))
-    else if length(ts) == 1 and not num then (if asm === true then calc_mconv_mb(f, g, ts[1], ys[1], gc) else assuming(asm, calc_mconv_mb(f, g, ts[1], ys[1], gc)))
+    else if length(ts) == 1 and not num then {
+      let pw = if some([unit_box, unit_triangle, piecewise], hd => not free_of([f, g], hd)) then nl_mc_pieces(f, g, ts[1], ys[1]) else null
+      if not (pw === null) then pw
+      else if asm === true then calc_mconv_mb(f, g, ts[1], ys[1], gc) else assuming(asm, calc_mconv_mb(f, g, ts[1], ys[1], gc))
+    }
+    else if not num then nl_mc_separable(f, g, ts, ys, asm, gc)
     else null
+  }
+}
+
+# the factors of e, a unit_box or unit_triangle of several arguments split into its factors of one argument each
+fn nl_mc_factors(e) = {
+  let fs = if not is_atom(e) and head(e) === mul then apply(list, e) else [e]
+  flatten(map(q => if not is_atom(q) and (head(q) === unit_box or head(q) === unit_triangle) and length(q) > 1 then map(a => apply(head(q), [a]), apply(list, q)) else [q], fs), 1)
+}
+
+# several variables, f and g products of factors of one variable each: the product of the Mellin convolutions in
+# each variable, or null when a factor holds two variables or one of them stays unevaluated
+fn nl_mc_separable(f, g, ts, ys, asm, gc) = {
+  let ff = nl_mc_factors(f)
+  let gf = nl_mc_factors(g)
+  let one_var = q => length(select(ts, v => not free_of(q, v))) <= 1
+  if not every(join(ff, gf), one_var) then null else {
+    let of_var = (fs, v) => product(select(fs, q => not free_of(q, v)))
+    let rs = map(i => apply(mellin_convolve, join(join([of_var(ff, ts[i]), of_var(gf, ts[i]), ts[i], ys[i]], if asm === true then [] else [assumptions -> asm]), if gc then [generate_conditions -> true] else [])), range(length(ts)))
+    if some(rs, r => not free_of(r, mellin_convolve)) then null else product(rs)
+  }
+}
+
+# one variable, f and g piecewise polynomials of bounded support (unit_box, unit_triangle, piecewise with rational
+# bounds; the parts at x <= 0 do not count): the Mellin convolution of two bounded functions of bounded support is
+# continuous in y > 0, and between consecutive products of the bounds of the pieces it is the sum of the integrals
+# of p(x) q(y/x)/x over the overlaps [max(a, y/d), min(b, y/c)] of the pieces p on [a, b] and q on [c, d], each
+# elementary. Each piece holds at its upper break; null when f or g is not of that kind
+fn nl_mc_pieces(f, g, x, y) = {
+  let pf = cv_pieces(if head(f) === piecewise then f else piecewise_expand(f), x)
+  let pg = cv_pieces(if head(g) === piecewise then g else piecewise_expand(g), x)
+  if pf === null or pg === null then null else {
+    let qf = select(map(p => [p[1], max(p[2], 0), p[3]], pf), p => p[3] > p[2])
+    let qg = select(map(p => [p[1], max(p[2], 0), p[3]], pg), p => p[3] > p[2])
+    var breaks = []
+    for p in qf { for q in qg { breaks = join(breaks, [p[2]*q[2], p[2]*q[3], p[3]*q[2], p[3]*q[3]]) } }
+    let bs = sort(unique(breaks))
+    let cases = map(k => {
+      let lo = bs[k]
+      let hi = bs[k + 1]
+      let ym = (lo + hi)/2
+      var tot = 0
+      for p in qf { for q in qg {
+        let a = max(p[2], ym/q[3])
+        let b = if q[2] == 0 then p[3] else min(p[3], ym/q[2])
+        if b > a then {
+          let la = if p[2] >= ym/q[3] then p[2] else y/q[3]
+          let ub = if q[2] == 0 or p[3] <= ym/q[2] then p[3] else y/q[2]
+          tot = tot + integrate(p[1]*rewrite(q[1], x -> y/x)/x, [x, la, ub], assumptions: lo < y and y < hi)
+        }
+      } }
+      [simplify(tot, assumptions: lo < y and y < hi), lo < y and y <= hi]
+    }, range(length(bs) - 1))
+    let kept = select(cases, c => not (c[1] === 0))
+    if some(cases, c => not free_of(c[1], integrate)) then null else piecewise(kept, 0)
   }
 }
 

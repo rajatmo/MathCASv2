@@ -2067,6 +2067,23 @@ rule inverse_function(f_) := {
   let v = rewrite(if head(v0) === conditional_expression then v0[1] else v0, c(k_) :> 0)
   apply(`fn`, [[`&1`], rewrite(v, calc_inv_x -> `&1`)])
 } when not is_symbol(f) and is_list(solve(f(calc_inv_y) == calc_inv_x, calc_inv_y)) and length(solve(f(calc_inv_y) == calc_inv_x, calc_inv_y)) > 0
+# the value at a real number of an inverse without a closed form: the real solution y of f(y) == c when it is the
+# only one (solve over the reals lists every real solution; the equation with its functions expanded, as beta(y, 4)
+# into a rational function, when solve does not take it as it is); null when there is none or more than one
+fn calc_inv_real1(e, y) = {
+  let s = check(solve(e, y, reals), null)
+  if is_list(s) and length(s) == 1 and length(s[1]) == 1 and not (head(rewrite(y, s[1])) === conditional_expression) then rewrite(y, s[1]) else null
+}
+fn calc_inv_real(e, y) = {
+  let v = calc_inv_real1(e, y)
+  if v === null and not (function_expand(e) === e) then calc_inv_real1(function_expand(e), y) else v
+}
+fn calc_inv_at(c) = is_numeric(c) and calc_real(c)
+rule inverse_function(f_)(c_) := calc_inv_real(f(calc_inv_y) == c, calc_inv_y) when not is_symbol(f) and calc_inv_at(c) and not (calc_inv_real(f(calc_inv_y) == c, calc_inv_y) === null)
+# inverse_function(f, k, m): the inverse in the k-th of m arguments, at real numbers: the real y with
+# f(c1, .., y, .., cm) == ck when it is the only one
+fn calc_inv_args(cs, k, y) = map(j => if j == k then y else cs[j], range(1, length(cs)))
+rule inverse_function(f_, k_, m_)(cs__) := calc_inv_real(apply(f, calc_inv_args(cs, k, calc_inv_y)) == cs[k], calc_inv_y) when is_integer(k) and is_integer(m) and length(cs) == m and 1 <= k and k <= m and every(cs, calc_inv_at) and not (calc_inv_real(apply(f, calc_inv_args(cs, k, calc_inv_y)) == cs[k], calc_inv_y) === null)
 
 # --- Hankel and Hilbert transforms ---
 
@@ -2125,9 +2142,9 @@ fn calc_hankel_term(f, r, s, nu) = {
 #   a)/(s^2 - a^2)^(3/2) for sin (the derivatives in a of the transforms of sin(a r)/r and cos(a r)/r);
 # - with 1/(r^2 + b^2): F(a) = integrate(r bessel_j(0, s r) cos(a r)/(r^2 + b^2)) satisfies F'' - b^2 F = -(the
 #   transform of cos(a r)) = 0 for 0 < a < s, F is even and F(0) = bessel_k(0, b s) (the rule for (r^2 + a^2)^-p below), so F =
-#   cosh(a b) bessel_k(0, b s) for s > a; the sine integral is (pi/2) exp(-a b) bessel_i(0, b s) for s < a
-#   (Gradshteyn and Ryzhik 6.737). The other ranges are incomplete Bessel integrals without a closed form, so the
-#   value carries its range as conditional_expression (b = (b^2)^(1/2), the root with re > 0).
+#   cosh(a b) bessel_k(0, b s) for s >= a; the sine integral is (pi/2) exp(-a b) bessel_i(0, b s) for s <= a
+#   (Gradshteyn and Ryzhik 6.737; both integrals converge at s = a and are continuous there). The other ranges
+#   are incomplete Bessel integrals without a closed form, so the value carries its range as conditional_expression (b = (b^2)^(1/2), the root with re > 0).
 # A symbolic a is taken positive, the generic answer as for exp(-a r).
 fn calc_hk_trig(f, r, s) = {
   let fs = calc_factors(f)
@@ -2147,8 +2164,8 @@ fn calc_hk_trig(f, r, s) = {
       let b2 = expand(rest[1][1] - r^2)
       let be = b2^(1/2)
       if b2 === 0 or (is_number(b2) and not (is_real(b2) and b2 > 0)) then null
-      else if head(t) === cos then conditional_expression(c*cosh(a*be)*bessel_k(0, be*s), s > a)
-      else conditional_expression(sg*c*pi/2*exp(-a*be)*bessel_i(0, be*s), s < a)
+      else if head(t) === cos then conditional_expression(c*cosh(a*be)*bessel_k(0, be*s), s >= a)
+      else conditional_expression(sg*c*pi/2*exp(-a*be)*bessel_i(0, be*s), s <= a)
     } else null
   }
 }
@@ -3118,8 +3135,21 @@ fn calc_stirling(f) = rewrite(f, [
   factorial(m_) :> calc_stirling_f(m),
   gamma(m_) :> calc_stirling_f(m)/m])
 fn calc_stirling_f(m) = sqrt(2*pi)*m^(m + 1/2)*exp(-m)
+# Binet: fibonacci(m) = (phi^m - (-1/phi)^m)/sqrt(5) and lucas_l(m) = phi^m + (-1/phi)^m, so phi^m/sqrt(5) and
+# phi^m are their leading terms as m grows. Used only where the sequence enters as a factor (a product, quotient or
+# power of factors), so that no cancellation between leading terms can hide the smaller ones.
+fn calc_binet_factor(t, x) =
+  if free_of(t, x) then true
+  else if (head(t) === fibonacci or head(t) === lucas_l) and length(t) == 1 then true
+  else if head(t) === mul then every(apply(list, t), u => calc_binet_factor(u, x))
+  else if head(t) === pow then free_of(t[2], fibonacci) and free_of(t[2], lucas_l) and calc_binet_factor(t[1], x)
+  else free_of(t, fibonacci) and free_of(t, lucas_l)
+fn calc_binet(f, x) =
+  if free_of(f, fibonacci) and free_of(f, lucas_l) or not calc_binet_factor(f, x) then f
+  else rewrite(f, [fibonacci(m_) :> (if free_of(m, x) then fibonacci(m) else golden_ratio^m/sqrt(5)),
+                   lucas_l(m_) :> (if free_of(m, x) then lucas_l(m) else golden_ratio^m)])
 fn discrete_asymptotic(f, spec; series_term_goal = 1) when is_match(spec, _ -> _) and spec[2] === inf = {
-  let f1 = calc_st_roots(f)
+  let f1 = calc_binet(calc_st_roots(f), spec[1])
   let r = calc_st_value(f1, spec[1], series_term_goal, "terms", 0)
   if not (r === null) then r else {
     let v = asymptotic(calc_stirling(f1), spec)

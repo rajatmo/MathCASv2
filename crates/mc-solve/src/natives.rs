@@ -109,6 +109,20 @@ impl SolveNative {
                     return Ok(Reply::Done(r));
                 }
             }
+            // and the real roots (complex ones under max_roots) of a lacunary polynomial: no dense polynomial either
+            if matches!(self.f, SolveFn::Solve | SolveFn::Reduce) {
+                let (plain, max_roots) = if self.f == SolveFn::Solve {
+                    match crate::front::split(h, self.name, args) {
+                        Ok((a, o)) => (a, o.settings.max_roots),
+                        Err(_) => return Ok(Reply::Decline),
+                    }
+                } else {
+                    (args.to_vec(), None)
+                };
+                if let Some(r) = crate::lacunary::huge_roots(cx, &self.stop, self.f == SolveFn::Reduce, &plain, max_roots)? {
+                    return Ok(Reply::Done(r));
+                }
+            }
             return Ok(Reply::Decline);
         }
         // the options and the settings they give, in force for this call and the calls it makes (decision 11C.1)

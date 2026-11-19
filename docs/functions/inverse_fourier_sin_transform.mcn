@@ -29,7 +29,7 @@ inverse_fourier_sin_transform(w/(w^2 + 1), w, t)
 #% cell
 inverse_fourier_sin_transform(exp(-w), w, t)
 #% output
-#= t*2^(1/2)*(pi^-1)^(1/2)/(1 + t^2)
+#= t*2^(1/2)/(pi^(1/2)*(1 + t^2))
 
 #% subsection
 # Properties and relations

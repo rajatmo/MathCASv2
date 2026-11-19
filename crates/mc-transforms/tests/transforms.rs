@@ -99,11 +99,11 @@ fn fourier() {
         ("inverse_fourier_transform(1/(a + im*w), w, t, assumptions: a > 0)", "heaviside_theta(-t)*2^(1/2)*exp(a*t)*pi^(1/2)"),
         ("inverse_fourier_transform(1/w, w, t)", "complex(0, -1/2)*2^(1/2)*pi^(1/2)*sign(t)"),
         ("fourier_transform(dirac_delta(t), t, w, fourier_parameters: [1, -1])", "1"),
-        ("fourier_sin_transform(exp(-t), t, w)", "w*2^(1/2)/(1 + w^2)*(pi^-1)^(1/2)"),
+        ("fourier_sin_transform(exp(-t), t, w)", "w*2^(1/2)*pi^(-1/2)/(1 + w^2)"),
         ("fourier_cos_transform(1/(1 + t^2), t, w)", "(1/2)*2^(1/2)*exp(-w)*pi^(1/2)"),
         ("fourier_cos_transform(1/sqrt(t), t, w)", "w^(-1/2)"),
         ("fourier_sin_transform(exp(-t), t, w, fourier_parameters: [1, 2*pi])", "4*w*2^(1/2)*pi^(3/2)/(1 + 4*pi^2*w^2)"),
-        ("inverse_fourier_cos_transform(exp(-w), w, t)", "2^(1/2)/(1 + t^2)*(pi^-1)^(1/2)"),
+        ("inverse_fourier_cos_transform(exp(-w), w, t)", "2^(1/2)*pi^(-1/2)/(1 + t^2)"),
         ("fourier_transform(g(t), t, w)", "fourier_transform(g(t), t, w)"),
     ]);
 }

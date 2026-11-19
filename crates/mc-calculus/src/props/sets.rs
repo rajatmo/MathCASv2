@@ -415,6 +415,23 @@ fn walk<'h>(
     };
     if s == b.hd.pow {
         let [base, ex] = args else { return Ok(false) };
+        // c^u over the reals with c (a number or a parameter) proved negative: real only at integer u
+        // (exp(u log|c|) e^(i pi u)), a set without interior: singular and discontinuous everywhere
+        if !complex && !dv(*base) && dv(*ex) {
+            let c = cx.eval(*base)?;
+            let negative = match b.ar.compare(c, zero) {
+                Some(cmp) => cmp == mc_arith::Cmp3::Less,
+                None if b.ar.num(c).is_some() => false,
+                None => {
+                    let r = cx.eval_assuming(facts, b.call("simplify", &[rel("less", c, zero)]))?;
+                    cx.is_true(r)
+                }
+            };
+            if negative {
+                push(h.sym_term(h.sym("true")), Kind::Branch);
+                return Ok(true);
+            }
+        }
         if !depends(*base) {
             // c^u: entire for a numeric nonzero c (e included)
             let c = cx.eval(*base)?;

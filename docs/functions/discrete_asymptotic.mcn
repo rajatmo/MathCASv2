@@ -12,6 +12,9 @@
 #% item
 # Factorials, gamma functions and binomials are first written by Stirling's formula `k! ~ sqrt(2 pi) k^(k + 1/2) exp(-k)`; the leading term is then that of `asymptotic`.
 
+#% item
+# Where `fibonacci(k)` or `lucas_l(k)` enters as a factor, Binet's formula gives its leading term: `golden_ratio^k/sqrt(5)` and `golden_ratio^k`. A sum in which these leading terms could cancel is left to `asymptotic`.
+
 #% section
 # Examples
 
@@ -37,6 +40,11 @@ discrete_asymptotic((3*k^3 + 5)/(4*k^2 + 11), k -> inf)
 discrete_asymptotic((k^2 + 3*k)*2^k, k -> inf)
 #% output
 #= 2^k*k^2
+
+#% cell
+discrete_asymptotic(fibonacci(k), k -> inf)
+#% output
+#= (1/5)*5^(1/2)*golden_ratio^k
 
 #% section
 # See also
