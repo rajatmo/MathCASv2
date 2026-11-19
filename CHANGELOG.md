@@ -6,6 +6,30 @@
 the start page, function lists with a wider name column and more space between rows, a function's area and
 topic above its name, example inputs on tinted cards as in the notebook, and "See also" names as chips.
 
+**Faster.** The kernel keeps freed small blocks of memory for reuse: loops of library calls (`together`,
+`factor`, `integrate`, numerical special functions) take half to two thirds of their old time. `graphics` and
+`graphics3d` check their content without drawing the scene. A result is no longer computed again because an
+earlier cell of the notebook was evaluated in between.
+
+**Corrected answers.** `n_dsolve` for the heat equation and other partial differential equations in t and x
+uses fourth-order differences (error against the exact solution down from 5e-5 to 2e-8);
+`reduce(sin(x + e^x - 1) == 1/2, x)` gives each branch its own integer parameter (solutions were lost);
+`max_value` of a sum with a discontinuous part; `elliptic_pi(n, m)` beyond m = 1 for every n.
+
+**Changed.** `tan`, `cot`, `sec`, `csc`, `coth`, `csch` at an exact pole and `acsch(0)` give
+`failure(pole, ...)`, as `gamma(0)` does (they used to stay unevaluated); `ball()` is `ball([0, 0, 0])` and
+`annulus()` is `annulus([0, 0], [1/2, 1])`; `simplify` writes the constant side of an equation last; series
+at a branch cut use the constant of the side they are taken on.
+
+**New.** `cylindrical_decomposition` of boundaries, closures, interiors and components; optimizers with
+quantified constraints and integer optima over unbounded sets; `asymptotic_solve` for two equations at a
+singular point; `asymptotic_sum` and `asymptotic_product` by Euler-Maclaurin; `find_sequence_function` with
+polynomial recurrences; bilateral Laplace transforms of steps; region primitives inside `graphics`;
+`vector_plot3d`; `petersen_graph(n, k)`; `function_expand` of Hankel, spherical Bessel and Kelvin functions
+of half-integer order; antiderivatives of theta derivatives, `jacobi_zn` and `jacobi_epsilon`; tight
+enclosures of `legendre_p`, `legendre_q`, `zernike_r`, `weber_e` and the Coulomb H functions on intervals;
+memory checks before `dot`, `kronecker_product`, `outer` and long strings are built.
+
 ## 0.17.0 (2026-11-18)
 
 **Notebook.** A space that multiplies is shown as a space, as in written mathematics (`m c^2`, `2 pi r`); the

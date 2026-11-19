@@ -153,7 +153,7 @@ number_decompose	core	Language	number_decompose(x, [u1, ..., un]): x written gre
 integer_string	core	Language	integer_string(n), integer_string(n, b), integer_string(n, b, len): the digits of |n| in base b as a string
 indexed	core	Language	indexed(x, i), indexed(x, [i1, i2, ...]): the part of the list x at the index (path); unevaluated for a symbol x
 integer_name	core	Language	integer_name(n), integer_name(n, words): the English name of the integer n
-find_sequence_function	core	Language	find_sequence_function(xs, n): a closed form in n (polynomial, rational, factorial, Fibonacci or geometric factor) that gives the terms xs
+find_sequence_function	core	Language	find_sequence_function(xs, n): a closed form in n (polynomial, rational, factorial, Fibonacci or geometric factor; pairs at equal spacing; alternate zeros; the solution of a guessed recurrence with polynomial coefficients) that gives the terms xs
 linear_optimization	core	Language	linear_optimization(f, cons, vars): the point [x -> ..] minimizing the linear f under the constraints
 linear_fractional_optimization	core	Language	linear_fractional_optimization(f, cons, vars): the point minimizing a ratio of linear functions under the constraints
 convex_optimization	core	Language	convex_optimization(f, cons, vars): the point minimizing the convex f under the constraints
@@ -994,13 +994,13 @@ list_vector_plot3d	visualisation	Plots	list_vector_plot3d(a): arrows of a 3D arr
 list_stream_plot3d	visualisation	Plots	list_stream_plot3d(a): streamlines of a field in space given as data
 graph	visualisation	Plots	graph(edges) or graph(vertices, edges): a graph (network); edges a -> b (directed), undirected_edge(a, b), two_way_rule(a, b); shown as its picture (options graph_layout, vertex_labels)
 graph_plot	visualisation	Plots	graph_plot(g): a picture of a graph (a graph term, a list of edges, or an adjacency matrix), laid out by springs (option graph_layout: spring, circular, layered)
-layered_graph_plot	visualisation	Plots	layered_graph_plot(g): a graph drawn in layers following its edges' direction (sources at the top)
-tree_plot	visualisation	Plots	tree_plot(edges): a tree drawn in layers from its root
+layered_graph_plot	visualisation	Plots	layered_graph_plot(g): a graph drawn in layers following its edges' direction (sources at the top); layered_graph_plot(g, side) the first layer at top, bottom, left or right
+tree_plot	visualisation	Plots	tree_plot(edges): a tree drawn in layers from its root; tree_plot(edges, side) the root at top, bottom, left or right
 complete_graph	visualisation	Plots	complete_graph(n): the graph of n vertices with every pair joined
 cycle_graph	visualisation	Plots	cycle_graph(n): the cycle of n vertices
 path_graph	visualisation	Plots	path_graph([v1, v2, ...]): the path through the vertices in order
 star_graph	visualisation	Plots	star_graph(n): vertex 1 joined to vertices 2, ..., n
-petersen_graph	visualisation	Plots	petersen_graph(): the Petersen graph (10 vertices, 15 edges: a 5-cycle, a pentagram and the spokes between them)
+petersen_graph	visualisation	Plots	petersen_graph(): the Petersen graph (10 vertices, 15 edges: a 5-cycle, a pentagram and the spokes between them); petersen_graph(n, k) the generalized Petersen graph (outer n-cycle, spokes, inner edges n + i ~ n + (i + k mod n))
 kary_tree	visualisation	Plots	kary_tree(n) or kary_tree(n, k): the complete k-ary tree of n vertices (k = 2 by default)
 grid_graph	visualisation	Plots	grid_graph([m, n]): the m x n grid of vertices joined to their neighbours
 vertex_list	visualisation	Plots	vertex_list(g): the vertices of a graph
