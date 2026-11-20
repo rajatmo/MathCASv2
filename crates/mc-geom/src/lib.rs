@@ -23,6 +23,7 @@ pub mod contour;
 pub mod coords;
 pub mod csg;
 pub mod curves;
+pub mod degenerate;
 pub mod derived;
 pub mod ex;
 pub mod flat;
@@ -47,7 +48,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("tetrahedron", "tetrahedron([p1, p2, p3, p4]): the solid tetrahedron with these corners; tetrahedron(): the regular one with edge 1, centred at the origin"),
     ("empty_region", "empty_region(n): the empty region of n dimensions (the result of an empty intersection)"),
     ("region_member", "region_member(reg, p): whether the point p lies in the region (true or false; a condition for a symbolic point); region_member(reg, [p1, p2, ...]) for several"),
-    ("region_measure", "region_measure(reg): the measure of the region in its own dimension: length of a curve, area of a surface, volume of a solid (0 for points)"),
+    ("region_measure", "region_measure(reg): the measure of the region in its own dimension: length of a curve, area of a surface, volume of a solid, the number of points of a finite set; a degenerate primitive (a triangle with collinear corners, a disk of radius 0) is measured in the dimension it actually has"),
     ("area", "area(reg): the area of a two-dimensional region"),
     ("volume", "volume(reg): the volume of a three-dimensional region"),
     ("arc_length", "arc_length(reg): the length of a one-dimensional region"),

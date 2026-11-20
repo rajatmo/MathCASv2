@@ -1193,10 +1193,27 @@ fn find_instance<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, vars: &[T<'h>],
         for &t in &tries {
             let fixed: Vec<T<'h>> = free.iter().map(|&x| c.rule(x, t)).collect();
             let mut out = vec![];
+            let mut excluded = false;
             for &x in vars {
                 let v = c.ev("rewrite", &[x, c.list(&rules)])?;
-                let v = c.ev("rewrite", &[v, c.list(&fixed)])?;
+                let mut v = c.ev("rewrite", &[v, c.list(&fixed)])?;
+                // a value solve keeps under a condition on the unknowns left free (x y z != 0 with z free): at the
+                // chosen values the condition is on numbers, decided at 30 digits (ball arithmetic); a value whose
+                // condition fails is no instance
+                if let View::App { head, args: &[w, k] } = h.view(v) {
+                    if head == h.sym_term(h.sym("conditional_expression")) {
+                        let truth = c.ev("n", &[k, b.int(30)])?;
+                        if c.cx.is_true(truth) {
+                            v = w;
+                        } else if c.cx.is_false(truth) {
+                            excluded = true;
+                        }
+                    }
+                }
                 out.push(c.rule(x, v));
+            }
+            if excluded {
+                continue;
             }
             let point = c.list(&out);
             // at the point's 30-digit values (products of nested radicals are slow to expand exactly); a value that

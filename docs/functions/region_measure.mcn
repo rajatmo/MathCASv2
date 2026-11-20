@@ -4,13 +4,16 @@
 # region_measure
 
 #% text
-# `region_measure(reg)` is the measure of the region in its own dimension: the length of a curve, the area of a surface, the volume of a solid; 0 for points.
+# `region_measure(reg)` is the measure of the region in its own dimension: the length of a curve, the area of a surface, the volume of a solid; for finitely many points, their number (the counting measure).
 
 #% section
 # Details
 
 #% item
 # Exact coordinates give exact results; symbolic ones give formulas.
+
+#% item
+# A degenerate primitive is the set it actually is: a triangle with equal or collinear corners is the segment between its outermost corners, a tetrahedron with coplanar corners the convex polygon they span, a polygon whose corners lie on one line a segment, a line with equal ends, or a disk, ball, circle or sphere of radius 0, a point. Its measure is the one of the dimension it has: `area` and `volume` of a lower-dimensional region are 0.
 
 #% section
 # Examples
@@ -36,6 +39,14 @@ region_measure(line([[0, 0], [1, 1], [1, 0]]))
 
 #% subsection
 # Scope
+
+#% text
+# A triangle with two equal corners is a segment, a disk of radius 0 a point:
+
+#% cell
+[region_measure(triangle([[0, 0], [1, 1], [1, 1]])), area(triangle([[0, 0], [1, 1], [1, 1]])), region_measure(disk([1, 2], 0))]
+#% output
+#= [2^(1/2), 0, 1]
 
 #% text
 # An ellipse's area:

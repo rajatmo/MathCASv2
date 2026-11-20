@@ -4,16 +4,16 @@
 # find_repeat
 
 #% text
-# `find_repeat(xs)` gives the shortest block that the list xs repeats, a partial last copy allowed.
+# `find_repeat(xs)` gives the shortest block b such that the list xs is b repeated with a partial last copy allowed: xs is b, b, ..., b followed by a beginning of b, so that xs[i] = xs[i + p] for every i, p the length of b.
 
 #% text
-# `find_repeat(xs, k)` requires at least k copies. Strings give a string; an array repeats along every level; a list k = [k1, k2, ...] names the levels and their copy counts, and `same_test: f` replaces === for the elements.
+# `find_repeat(xs, k)` gives the shortest such block that fits at least k times (length(xs) >= k p; k may be a fraction). Strings give a string; an array repeats along every level; a list k = [k1, k2, ...] names the levels and their copy counts, and `same_test: f` replaces === for the elements.
 
 #% section
 # Details
 
 #% item
-# Without k the block must fit at least one and a half times; with none, the value is the empty list.
+# Without k one copy is enough, so every list has a block: a list with no shorter period is its own block. With k, the value is the empty list (the empty string) when no block fits k times.
 
 #% item
 # Given an association, the repeat is found in its values and the result keeps the keys of the block.
@@ -28,6 +28,14 @@
 find_repeat([1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3])
 #% output
 #= [1, 2, 3, 4]
+
+#% text
+# One copy and a partial one; a list with no shorter period is its own block:
+
+#% cell
+[find_repeat([1, 2, 3, 4, 1, 2, 5, 4, 1, 2, 3]), find_repeat([1, 2, 3])]
+#% output
+#= [[1, 2, 3, 4, 1, 2, 5, 4], [1, 2, 3]]
 
 #% cell
 find_repeat([1, 2, 1, 2, 1, 2, 1, 2], 5)

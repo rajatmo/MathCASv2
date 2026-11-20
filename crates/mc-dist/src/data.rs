@@ -374,16 +374,13 @@ fn nice_width(w: f64) -> Real {
     Real::int(k).mul(&p)
 }
 
-/// Edges a + i w from the multiple of w at or below lo up past hi.
-fn grid(lo: f64, hi: f64, w: &Real, start: Option<&Real>) -> Option<Vec<Real>> {
+/// Edges i w from the multiple of w at or below lo up past hi.
+fn grid(lo: f64, hi: f64, w: &Real) -> Option<Vec<Real>> {
     let wf = w.to_f64();
     if wf.is_nan() || wf <= 0.0 {
         return None;
     }
-    let first = match start {
-        Some(a) => a.clone(),
-        None => w.mul(&Real::int((lo / wf).floor() as i64)),
-    };
+    let first = w.mul(&Real::int((lo / wf).floor() as i64));
     let count = ((hi - first.to_f64()) / wf).floor() as i64 + 2;
     if count < 2 || count as usize > MAX_BINS + 1 {
         return None;
@@ -445,7 +442,7 @@ pub fn histogram<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: &str, args: &[T<'h>]) -> 
             // Sturges' count, rounded to a nice width
             let k = (vals.len() as f64).log2().ceil() + 1.0;
             let w = if hi > lo { nice_width((hi - lo) / k) } else { Real::int(1) };
-            grid(lo, hi, &w, None).map(|edges| Bins { edges, last_closed: false })
+            grid(lo, hi, &w).map(|edges| Bins { edges, last_closed: false })
         }
         Some(s) => match (h.view(s), cx.as_list(s)) {
             (View::Int(k), _) if k >= 1 && (k as usize) <= MAX_BINS => {
@@ -474,12 +471,22 @@ pub fn histogram<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: &str, args: &[T<'h>]) -> 
                         _ => return fail("the edges must be at least two increasing real numbers"),
                     }
                 }
-                None => real(w).and_then(|w| grid(lo, hi, &w, None)).map(|edges| Bins { edges, last_closed: false }),
+                None => real(w).and_then(|w| grid(lo, hi, &w)).map(|edges| Bins { edges, last_closed: false }),
             },
             (_, Some(&[a, z, w])) => match (real(a), real(z), real(w)) {
-                (Some(a), Some(z), Some(w)) if a.to_f64() < z.to_f64() => {
-                    grid(a.to_f64(), z.to_f64() - w.to_f64() * 1e-12, &w, Some(&a))
-                        .map(|edges| Bins { edges, last_closed: false })
+                (Some(a), Some(z), Some(w)) if a.to_f64() < z.to_f64() && w.to_f64() > 0.0 => {
+                    // the bins [a + k w, a + (k + 1) w) that lie within [a, z]: floor((z - a)/w) of them, a quotient
+                    // within a relative 10^-12 of an integer taken as that integer (as bin_counts and histogram read
+                    // [a, b, w]); none when w is larger than z - a
+                    let q = (z.to_f64() - a.to_f64()) / w.to_f64();
+                    let r = q.round();
+                    let snapped = (q - r).abs() <= 1e-12 * q.abs().max(1.0) && r >= 1.0;
+                    let k = if snapped { r } else { q.floor() };
+                    (k <= MAX_BINS as f64).then(|| {
+                        // a snapped last edge is z itself
+                        let edges = (0..=k as i64).map(|i| if snapped && i == k as i64 { z.clone() } else { a.add(&w.mul(&Real::int(i))) }).collect();
+                        Bins { edges, last_closed: false }
+                    })
                 }
                 _ => return fail("the bin specification [a, b, w] needs reals a < b and w > 0"),
             },

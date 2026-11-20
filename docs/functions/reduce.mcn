@@ -16,6 +16,9 @@
 # `cond` is built from polynomial or rational equations and inequalities with `and`, `or`, `not` and the quantifiers `exists` and `for_all`.
 
 #% item
+# Without a domain the quantities in order relations are real and the others complex: equations with `!=` in one variable keep their complex roots (`x^4 == 1 and x != 1` gives -1, -i and i), and order relations on parameters alone (`x^4 == 1 and y > 0` in x) are kept beside the complex solutions in the variables.
+
+#% item
 # Over the reals, several variables are handled by cylindrical algebraic decomposition (see `cylindrical_decomposition`); `abs`, `max` and `min` are split into cases there. In one variable the condition is polynomial or rational, possibly with `exp`, `log`, `sin`, `cos` or `tan` of the variable itself (see Possible issues).
 
 #% item

@@ -1,11 +1,16 @@
 //! `solve(eqs, xs, domain)` and equations combined with conditions (decision 3B.20).
 //!
 //! The conjuncts of `eqs` (an `and` or a list) are split into equations and conditions (inequalities, `!=`,
-//! `element(...)`). The equations are solved as by `solve(eqs, xs)`, then each solution is kept when its values are
-//! in the domain (`reals`, `integers`, `rationals`, `complexes`, decided by `element`) and the conditions hold at it;
-//! a condition or membership that is not decided keeps the solution only over the reals and complexes (a solution
-//! with parameters). Over the integers, when the equations cannot be solved (or there are none) and the conditions
-//! bound every unknown, the box is searched (at most [`MAX_BOX`] points).
+//! `element(...)`, conditions on parameters). The equations are solved as by `solve(eqs, xs)`, then each solution is
+//! kept when its values are in the domain (`reals`, `integers`, `rationals`, `complexes`, decided by `element`) and
+//! the conditions hold at it. No condition is dropped: one that is false at a solution removes it, one that is not
+//! decided there (a condition on parameters, a membership of a value that is not decided) stays with the solution as
+//! `conditional_expression(value, condition)`, and when the equations are not solved the call fails with the
+//! reason. Membership of a root object (an exact algebraic number of degree at least 2) is decided exactly: it is
+//! real when its index is at most the number of real roots (isolated exactly), and never an integer, a rational or a
+//! prime. Only the facts of an enclosing `assuming` that are not decided leave a solution as it is. Over the
+//! integers, when the equations cannot be solved (or there are none) and the conditions bound every unknown, the box
+//! is searched (at most [`MAX_BOX`] points).
 use mc_api::{names, Store, View, T};
 use mc_eval::{NativeCx, Res};
 
@@ -141,6 +146,8 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
         })
         .collect();
     let (equations, mut conds): (Vec<T<'h>>, Vec<T<'h>>) = parts.into_iter().partition(|&p| head_name(h, p).as_deref() == Some("equal"));
+    // the conditions given with the equations (the facts of the context come after them)
+    let given = conds.len();
     // inside assuming: the facts about the unknowns are conditions too
     let facts = if no_facts { vec![] } else { cx.assumptions().to_vec() };
     for f in facts {
@@ -174,10 +181,12 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
     let strict = dom == "integers" || dom == "rationals";
     // the inner calls solve over the reals: real branches of the inverse functions (decision 11C.9)
     // an order relation on an unknown (0 < x) makes it real as well: the complex branches (acoth(c) + i pi c(1))
-    // would ignore the condition
+    // would ignore the condition; one on its modulus or parts only (abs(z) < 3, im_part(z) > 0) does not
     let ordered = conds.iter().any(|&c| {
-        matches!(head_name(h, c).as_deref(), Some("less" | "greater" | "less_equal" | "greater_equal")) && mentions(h, c, &vars)
+        matches!(head_name(h, c).as_deref(), Some("less" | "greater" | "less_equal" | "greater_equal")) && mentions_outside_parts(h, c, &vars)
+            || real_membership(h, c, &vars)
     });
+    let real_mode = dom != "complexes" || ordered;
     let real = crate::front::Settings { reals: Some(dom != "complexes" || ordered), ..Default::default() };
     let _real = crate::front::Scope::enter(&real);
     let mut sols: Option<Vec<T<'h>>> = None;
@@ -227,15 +236,22 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
     }
     // families with a generated parameter, one unknown bounded to a finite real interval: the members in it
     if let ([x], Some(ss)) = (vars.as_slice(), sols.as_ref()) {
-        if let (Some(a), Some(b)) = real_bounds(cx, *x, &conds)? {
+        if let (Some(a), Some(b)) = real_bounds(cx, *x, &conds, real_mode)? {
             let ss = ss.clone();
-            sols = Some(expand_families(cx, ss, a, b, false, &conds)?);
+            sols = Some(expand_families(cx, ss, a, b, None, &conds)?);
         } else {
             // a finite strip of the real part (0 <= re(x) < pi): the members whose real part lies in it
             let rex = h.call(h.sym("re"), &[*x]);
-            if let (Some(a), Some(b)) = real_bounds(cx, rex, &conds)? {
+            if let (Some(a), Some(b)) = real_bounds(cx, rex, &conds, false)? {
                 let ss = sols.clone().unwrap_or_default();
-                sols = Some(expand_families(cx, ss, a, b, true, &conds)?);
+                sols = Some(expand_families(cx, ss, a, b, Some("re"), &conds)?);
+            } else if !real_mode {
+                // a disk (abs(z) < r): the members whose modulus is at most r
+                let absx = h.call(h.sym("abs"), &[*x]);
+                if let (_, Some(b)) = real_bounds(cx, absx, &conds, false)? {
+                    let ss = sols.clone().unwrap_or_default();
+                    sols = Some(expand_families(cx, ss, 0.0, b, Some("abs"), &conds)?);
+                }
             }
         }
     }
@@ -246,7 +262,7 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
         if let View::App { args: &[l, r], .. } = h.view(*eq) {
             let f = cx.eval(h.call(h.sym(names::ADD), &[l, h.call(h.sym(names::MUL), &[h.int(-1), r])]))?;
             if transcendental(h, f, *x) {
-                if let (Some(a), Some(b)) = real_bounds(cx, *x, &conds)? {
+                if let (Some(a), Some(b)) = real_bounds(cx, *x, &conds, real_mode)? {
                     let found = crate::interval::roots(cx, f, *x, a, b)?;
                     let mut all = sols.take().unwrap_or_default();
                     let mut known = vec![];
@@ -315,13 +331,18 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
                 return Ok(Some(r));
             }
         }
-        // the plain solve's answer (a failure says why)
+        // the plain solve's answer (a failure says why); with conditions given, the solutions could not be checked
+        // against them: a failure that says so, never the solutions of the equations alone
         if equations.is_empty() {
             return Ok(None);
         }
         let eq_list = cx.list(&equations);
         let var_list = cx.list(&vars);
-        return Ok(Some(cx.eval(h.call(h.sym("solve"), &[eq_list, var_list, no_facts_option(h)]))?));
+        let r = cx.eval(h.call(h.sym("solve"), &[eq_list, var_list, no_facts_option(h)]))?;
+        if given > 0 && head_name(h, r).as_deref() != Some(names::FAILURE) {
+            return Ok(Some(failure_unsolved(h, "the solutions of the equations are not found in a form the conditions can be applied to")));
+        }
+        return Ok(Some(r));
     };
     let mut kept = vec![];
     let mut complex_values = false;
@@ -360,19 +381,40 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
                     }
                 }
                 let e = cx.eval(h.call(h.sym("element"), &[v, h.sym_term(h.sym(&dom))]))?;
-                if cx.is_false(e) {
+                let truth = if cx.is_true(e) {
+                    Some(true)
+                } else if cx.is_false(e) {
+                    Some(false)
+                } else {
+                    membership(cx, e)?
+                };
+                if truth == Some(false) {
                     continue 'sol;
                 }
-                if strict && !cx.is_true(e) {
-                    if !with_params(v) {
-                        continue 'sol;
-                    }
+                // a membership not decided stays with the solution (over the reals, values with parameters get
+                // the conditions on their radicands below instead)
+                if truth.is_none() && (strict || !with_params(v)) {
                     pending.push(e);
                 }
             }
         }
-        for &c in &conds {
-            let v = cx.eval(h.call(h.sym("rewrite"), &[c, s]))?;
+        // the values without the conditions they carry (a member of a family under element(c(1), integers)): the
+        // conditions are tested at the values, and a condition kept joins the carried one
+        let plain: Vec<T<'h>> = cx
+            .as_list(s)
+            .unwrap_or(&[])
+            .iter()
+            .map(|&r| match h.view(r) {
+                View::App { head, args: &[x, v] } => match h.view(v) {
+                    View::App { args: &[w, _], .. } if head_name(h, v).as_deref() == Some(mc_decide::CONDITIONAL) => h.app(head, &[x, w]),
+                    _ => r,
+                },
+                _ => r,
+            })
+            .collect();
+        let plain = cx.list(&plain);
+        for (ci, &c) in conds.iter().enumerate() {
+            let v = cx.eval(h.call(h.sym("rewrite"), &[c, plain]))?;
             // a condition undefined at the solution (abs(1/0) < 7 at x = 1) does not hold there
             if ["complex_infinity", "indeterminate", names::FAILURE].iter().any(|n| mentions(h, v, &[h.sym_term(h.sym(n))])) {
                 continue 'sol;
@@ -384,6 +426,22 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
             } else {
                 None
             };
+            if truth.is_none() {
+                // the membership of a root object, decided exactly
+                truth = membership(cx, v)?;
+            }
+            if truth.is_none() {
+                // a condition on numbers: decided by ball arithmetic at 30 digits, which answers only when the
+                // enclosures settle it (a difference whose ball holds 0 stays undecided)
+                let nv = cx.eval(h.call(h.sym("n"), &[v, h.int(30)]))?;
+                truth = if cx.is_true(nv) {
+                    Some(true)
+                } else if cx.is_false(nv) {
+                    Some(false)
+                } else {
+                    None
+                };
+            }
             if truth.is_none() && nonreal_order(cx, v)? {
                 // an order relation between numbers that are not real (im > 0 at x = im) does not hold: the
                 // relation makes the unknown real
@@ -407,11 +465,15 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
             if truth == Some(false) {
                 continue 'sol;
             }
-            if strict && truth != Some(true) {
-                if !with_params(v) {
+            if truth.is_none() {
+                if ci < given || strict && with_params(v) {
+                    // a condition given with the equations that is not decided at the solution (a condition on
+                    // the parameters, or one on numbers no method decides) is kept with it, never dropped
+                    pending.push(v);
+                } else if strict {
+                    // a fact of the context about numbers, not decided: not an integer or rational solution
                     continue 'sol;
                 }
-                pending.push(v);
             }
         }
         if radical && spurious(cx, &equations, &vars, s)? {
@@ -441,7 +503,13 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
                 .unwrap_or(&[])
                 .iter()
                 .map(|&r| match h.view(r) {
-                    View::App { head, args: &[x, v] } => h.app(head, &[x, h.call(h.sym(mc_decide::CONDITIONAL), &[v, c])]),
+                    View::App { head, args: &[x, v] } => match h.view(v) {
+                        // a carried condition joined with the kept ones
+                        View::App { args: &[w, e], .. } if head_name(h, v).as_deref() == Some(mc_decide::CONDITIONAL) => {
+                            h.app(head, &[x, h.call(h.sym(mc_decide::CONDITIONAL), &[w, h.call(h.sym("and"), &[c, e])])])
+                        }
+                        _ => h.app(head, &[x, h.call(h.sym(mc_decide::CONDITIONAL), &[v, c])]),
+                    },
                     _ => r,
                 })
                 .collect();
@@ -479,10 +547,14 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
 
 /// The solutions `[x -> conditional_expression(v(c(1)), element(c(1), integers))]` replaced by their members
 /// `[x -> v(k)]` with machine values in [a, b] (at most 1000 of them; a family whose values are not real, or with
-/// more parameters, stays as it is). With `re` the real parts of the members are bounded instead (the members may
-/// be complex).
-fn expand_families<'h>(cx: &mut NativeCx<'_, '_, 'h>, sols: Vec<T<'h>>, a: f64, b: f64, re: bool, conds: &[T<'h>]) -> Res<Vec<T<'h>>> {
+/// more parameters, stays as it is). With `part` (`re`, `abs`) the real parts or the moduli of the members are
+/// bounded instead (the members may be complex).
+fn expand_families<'h>(cx: &mut NativeCx<'_, '_, 'h>, sols: Vec<T<'h>>, a: f64, b: f64, part: Option<&str>, conds: &[T<'h>]) -> Res<Vec<T<'h>>> {
     let h = cx.heap();
+    let of = |e: T<'h>| match part {
+        Some(p) => h.call(h.sym(p), &[e]),
+        None => e,
+    };
     let gen = h.sym_term(h.sym(crate::front::current().gen.as_deref().unwrap_or("c")));
     let mut out = vec![];
     for s in sols {
@@ -506,7 +578,7 @@ fn expand_families<'h>(cx: &mut NativeCx<'_, '_, 'h>, sols: Vec<T<'h>>, a: f64, 
                     cx.tick(1)?;
                     let rs = cx.list(&[h.call(h.sym(names::RULE), &[c1, h.int(k1)]), h.call(h.sym(names::RULE), &[c2, h.int(k2)])]);
                     let e = cx.eval(h.call(h.sym("rewrite"), &[w, rs]))?;
-                    let n = cx.eval(h.call(h.sym("n"), &[if re { h.call(h.sym("re"), &[e]) } else { e }]))?;
+                    let n = cx.eval(h.call(h.sym("n"), &[of(e)]))?;
                     let f = match h.view(n) {
                         View::Real(f) => f,
                         View::Int(i) => i as f64,
@@ -523,7 +595,7 @@ fn expand_families<'h>(cx: &mut NativeCx<'_, '_, 'h>, sols: Vec<T<'h>>, a: f64, 
         let at = |cx: &mut NativeCx<'_, '_, 'h>, k: i64| -> Res<(T<'h>, Option<f64>)> {
             let r = h.call(h.sym(names::RULE), &[c1, h.int(k)]);
             let e = cx.eval(h.call(h.sym("rewrite"), &[w, r]))?;
-            let n = cx.eval(h.call(h.sym("n"), &[if re { h.call(h.sym("re"), &[e]) } else { e }]))?;
+            let n = cx.eval(h.call(h.sym("n"), &[of(e)]))?;
             Ok((e, match h.view(n) {
                 View::Real(f) => Some(f),
                 View::Int(i) => Some(i as f64),
@@ -712,7 +784,7 @@ fn linear_bound<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, c: T<'h>) -> Res<Op
 
 /// The real bounds `(lo, hi)` of `x` the conditions `x < v`, `v <= x`, `2 x - pi <= 0`, `not(x < 1)`, ... give
 /// (numeric values).
-fn real_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, conds: &[T<'h>]) -> Res<(Option<f64>, Option<f64>)> {
+fn real_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, conds: &[T<'h>], real: bool) -> Res<(Option<f64>, Option<f64>)> {
     let h = cx.heap();
     let (mut lo, mut hi) = (None::<f64>, None::<f64>);
     for &c in conds {
@@ -727,9 +799,31 @@ fn real_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, conds: &[T<'h>]) -> 
             },
             _ => None,
         };
-        let found = match simple {
-            Some(s) => Some(s),
-            None => linear_bound(cx, x, c)?,
+        // abs(x) < v (v > abs(x)) for a real x: -v < x < v, the lower bound here and the upper one below (for a
+        // complex x it bounds the modulus, not the real part)
+        let abs_x = h.call(h.sym("abs"), &[x]);
+        let abs_bound = if !real { None } else { match h.view(c) {
+            View::App { args: &[l, r], .. } => match (name.as_str(), l == abs_x, r == abs_x) {
+                ("less" | "less_equal", true, false) => Some(r),
+                ("greater" | "greater_equal", false, true) => Some(l),
+                _ => None,
+            },
+            _ => None,
+        } };
+        if let Some(v) = abs_bound {
+            let nv = cx.eval(h.call(h.sym("n"), &[v]))?;
+            if let Some(f) = match h.view(nv) {
+                View::Real(f) if f.is_finite() => Some(f),
+                View::Int(k) => Some(k as f64),
+                _ => None,
+            } {
+                lo = Some(lo.map_or(-f, |b: f64| b.max(-f)));
+            }
+        }
+        let found = match (simple, abs_bound) {
+            (Some(s), _) => Some(s),
+            (None, Some(v)) => Some((true, v)),
+            (None, None) => linear_bound(cx, x, c)?,
         };
         let Some((upper, v)) = found else { continue };
         let nv = cx.eval(h.call(h.sym("n"), &[v]))?;
@@ -999,13 +1093,14 @@ pub fn reduce<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T
             return Ok(Some(t));
         }
     }
-    // one variable over the rationals or the complexes: equations only, through solve with the domain; without a
-    // domain, equations alone are over the complexes too (the default: x^2 + 1 == 0
-    // has the roots -i and i, not none)
+    // one variable over the rationals or the complexes: equations (with `!=`, which is no order relation) only,
+    // through solve with the domain; without a domain, equations alone are over the complexes too (the default:
+    // x^2 + 1 == 0 has the roots -i and i, not none, and x^4 == 1 and x != 1 keeps -i and i)
     let equations_only = || {
         let mut parts = vec![];
         conjuncts(h, cond, &mut parts);
-        !parts.is_empty() && parts.iter().all(|&p| head_name(h, p).as_deref() == Some("equal"))
+        parts.iter().any(|&p| head_name(h, p).as_deref() == Some("equal"))
+            && parts.iter().all(|&p| matches!(head_name(h, p).as_deref(), Some("equal" | "unequal")))
     };
     if !several && (matches!(dom_name.as_deref(), Some("rationals" | "complexes")) || dom.is_none() && equations_only()) {
         if !equations_only() {
@@ -2048,6 +2143,128 @@ fn has_inexact<'h>(h: &'h impl Store, t: T<'h>) -> bool {
 /// Is `t` a root object `root(f, k)`?
 fn is_root_object<'h>(h: &'h impl Store, t: T<'h>) -> bool {
     head_name(h, t).as_deref() == Some("root")
+}
+
+/// Is `c` the membership `element(x, d)` of an unknown in a domain of real numbers (`reals`, `integers`,
+/// `rationals`, `primes`, the signed ones)? It makes the unknown real, as an order relation does.
+fn real_membership<'h>(h: &'h impl Store, c: T<'h>, vars: &[T<'h>]) -> bool {
+    let View::App { args: &[x, d], .. } = h.view(c) else { return false };
+    if head_name(h, c).as_deref() != Some("element") || !mentions(h, x, vars) {
+        return false;
+    }
+    matches!(h.view(d), View::Sym(s) if { let n = h.sym_name(s); n != "complexes" && n != "algebraics" && n != "booleans" })
+}
+
+/// Whether an exact root object `v = root(f, k)` is real: with rational coefficients the root object stays only for
+/// an irreducible f of degree at least 2 (decision 3B.4), whose real roots come first; `n` tells the real ones by
+/// exact real root isolation (decision 3B.8), and a non-real root of an irreducible polynomial has a nonzero
+/// imaginary part. `None` when v is not such a root object.
+fn root_is_real<'h>(cx: &mut NativeCx<'_, '_, 'h>, v: T<'h>) -> Res<Option<bool>> {
+    let h = cx.heap();
+    if !is_root_object(h, v) {
+        return Ok(None);
+    }
+    let nv = cx.eval(h.call(h.sym("n"), &[v]))?;
+    Ok(match h.view(nv) {
+        View::Real(_) | View::Int(_) | View::Rational { .. } | View::Ball { .. } => Some(true),
+        View::App { .. } if head_name(h, nv).as_deref() != Some("root") => {
+            let im = cx.eval(h.call(h.sym("im_part"), &[nv]))?;
+            match h.view(im) {
+                View::Real(x) if x != 0.0 => Some(false),
+                View::Ball { .. } => Some(false),
+                _ => None,
+            }
+        }
+        _ => None,
+    })
+}
+
+/// Conditions on exact root objects decided exactly (see [`root_is_real`]): `element(v, d)` (real by its index;
+/// irrational, so no integer, rational or prime; algebraic and complex; in a signed domain of reals by its sign,
+/// compared exactly by the engine); `v == q` and `v != q` against a rational q (never equal: v is irrational) or
+/// another root object (equal exactly when the canonical forms are the same); an order relation of a non-real root
+/// object (false, as for other non-real numbers). `None` for anything else.
+fn membership<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: T<'h>) -> Res<Option<bool>> {
+    let h = cx.heap();
+    let View::App { args: &[a, b], .. } = h.view(c) else { return Ok(None) };
+    let rational = |t: T<'h>| matches!(h.view(t), View::Int(_) | View::BigInt { .. } | View::Rational { .. });
+    match head_name(h, c).as_deref() {
+        Some("element") => {
+            let View::Sym(ds) = h.view(b) else { return Ok(None) };
+            let dom = h.sym_name(ds).to_string();
+            let Some(real) = root_is_real(cx, a)? else {
+                // a closed numeric value whose value at 30 digits is a real number (not a complex one with a small
+                // imaginary part): real; the numeric evaluation keeps a real result only for real arguments of
+                // real branches (exp(product_log(-1, -1/10)))
+                if dom != "reals" && dom != "complexes" {
+                    return Ok(None);
+                }
+                let numeric = cx.eval(h.call(h.sym("is_numeric"), &[a]))?;
+                if !cx.is_true(numeric) {
+                    return Ok(None);
+                }
+                let nv = cx.eval(h.call(h.sym("n"), &[a, h.int(30)]))?;
+                return Ok(match h.view(nv) {
+                    View::Real(x) if x.is_finite() => Some(true),
+                    View::Int(_) | View::Rational { .. } | View::Ball { .. } => Some(true),
+                    _ => None,
+                });
+            };
+            let sign = |cx: &mut NativeCx<'_, '_, 'h>, rel: &str| -> Res<Option<bool>> {
+                let t = cx.eval(h.call(h.sym(rel), &[a, h.int(0)]))?;
+                Ok(if cx.is_true(t) { Some(true) } else if cx.is_false(t) { Some(false) } else { None })
+            };
+            Ok(match dom.as_str() {
+                "complexes" | "algebraics" => Some(true),
+                "reals" => Some(real),
+                "primes" => Some(false),
+                d if d.ends_with("integers") || d.ends_with("rationals") => Some(false),
+                _ if !real => Some(false),
+                "positive_reals" => sign(cx, "greater")?,
+                "negative_reals" => sign(cx, "less")?,
+                "non_negative_reals" | "nonnegative_reals" => sign(cx, "greater_equal")?,
+                "non_positive_reals" | "nonpositive_reals" => sign(cx, "less_equal")?,
+                _ => None,
+            })
+        }
+        Some(rel @ ("equal" | "unequal")) => {
+            let same = if is_root_object(h, a) && is_root_object(h, b) {
+                Some(a == b)
+            } else if is_root_object(h, a) && rational(b) || is_root_object(h, b) && rational(a) {
+                Some(false)
+            } else {
+                None
+            };
+            Ok(same.map(|e| e == (rel == "equal")))
+        }
+        Some("less" | "greater" | "less_equal" | "greater_equal") => {
+            for t in [a, b] {
+                if root_is_real(cx, t)? == Some(false) {
+                    return Ok(Some(false));
+                }
+            }
+            Ok(None)
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Does `t` mention one of `vars` other than inside `abs`, `re`, `im_part` or `arg` (real functions of a complex
+/// number)?
+fn mentions_outside_parts<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        if vars.contains(&u) {
+            return true;
+        }
+        if matches!(head_name(h, u).as_deref(), Some("abs" | "re" | "im_part" | "arg")) {
+            continue;
+        }
+        if let View::App { args, .. } = h.view(u) {
+            stack.extend(args.iter().copied());
+        }
+    }
+    false
 }
 
 /// Does `t` mention one of `vars`?

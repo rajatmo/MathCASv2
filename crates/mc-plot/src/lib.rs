@@ -111,7 +111,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("data_range", "option of list_density_plot: data_range: [[x0, x1], [y0, y1]], the coordinates of the matrix's first and last columns and rows"),
     (
         "bins",
-        "option of histogram: bins: n (about n bins of a round width), [w] (width w), [lo, hi, w] (from lo to hi), automatic",
+        "option of histogram: bins: n (about n bins of a round width), [w] (width w), [lo, hi, w] (the bins [lo + k w, lo + (k + 1) w) within [lo, hi]), automatic",
     ),
     ("normalized", "option of histogram: normalized: true scales the bars so that their area is 1 (a probability density)"),
     ("labels", "option of bar_chart: labels: [\"a\", \"b\", ...], the labels under the bars or groups"),

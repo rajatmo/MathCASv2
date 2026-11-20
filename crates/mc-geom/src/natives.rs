@@ -49,18 +49,18 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     reg("region_centroid", region_centroid);
     reg("region_bounds", region_bounds);
     reg("region_dimension", |cx, a| {
-        let Some(r) = one_region(cx, a) else { return Ok(Reply::Decline) };
+        let Some(r) = one_region(cx, a)? else { return Ok(Reply::Decline) };
         Ok(match props::dimension(cx, &r)? {
             Some(d) => Reply::Done(cx.heap().int(d as i64)),
             None => Reply::Decline,
         })
     });
     reg("region_embedding_dimension", |cx, a| {
-        let Some(r) = one_region(cx, a) else { return Ok(Reply::Decline) };
+        let Some(r) = one_region(cx, a)? else { return Ok(Reply::Decline) };
         Ok(Reply::Done(cx.heap().int(r.embedding() as i64)))
     });
     reg("is_bounded_region", |cx, a| {
-        let Some(r) = one_region(cx, a) else {
+        let Some(r) = one_region(cx, a)? else {
             // a set operation left unevaluated: a union is bounded when every part is, a difference when its first
             // region is
             if let [t] = a {
@@ -190,10 +190,18 @@ fn bounded_set_operation<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Opt
     }
 }
 
-fn one_region<'h>(cx: &NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Option<Region<'h>> {
+/// The region of a term as the set it actually is (a degenerate primitive as the lower-dimensional region it is).
+fn read_actual<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Region<'h>>> {
+    match read(cx, t) {
+        Some(r) => Ok(Some(crate::degenerate::actual(cx, r)?)),
+        None => Ok(None),
+    }
+}
+
+fn one_region<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<Region<'h>>> {
     match a {
-        [r] => read(cx, *r),
-        _ => None,
+        [r] => read_actual(cx, *r),
+        _ => Ok(None),
     }
 }
 
@@ -223,7 +231,7 @@ fn region_member<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h
             return Ok(Reply::Done(cx.eval(t)?));
         }
     }
-    let Some(reg) = read(cx, *r) else { return Ok(Reply::Decline) };
+    let Some(reg) = read_actual(cx, *r)? else { return Ok(Reply::Decline) };
     // several points
     if !is_vector(cx, *p) {
         let Some(ps) = cx.as_list(*p) else { return Ok(Reply::Decline) };
@@ -377,7 +385,7 @@ fn measure_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], want: Option<usize
             }
         }
     }
-    let Some(r) = one_region(cx, a) else { return Ok(Reply::Decline) };
+    let Some(r) = one_region(cx, a)? else { return Ok(Reply::Decline) };
     if let Some(d) = want {
         // area of a curve is 0, length of a solid infinite: no convention is fixed; decline
         match props::dimension(cx, &r)? {
@@ -574,7 +582,7 @@ fn region_centroid<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<
             }
         }
     }
-    let Some(r) = one_region(cx, a) else { return Ok(Reply::Decline) };
+    let Some(r) = one_region(cx, a)? else { return Ok(Reply::Decline) };
     let numeric = inexact(h, a[0]);
     match props::centroid(cx, &r)? {
         Some(c) => {
@@ -640,7 +648,7 @@ fn region_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h
         }
     }
     let Some(r) = (match a {
-        [r] | [r, _] => read(cx, *r),
+        [r] | [r, _] => read_actual(cx, *r)?,
         _ => None,
     }) else {
         return Ok(Reply::Decline);
@@ -668,7 +676,7 @@ fn distance<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], q: Query) -> Res<Rep
             return distance(cx, &[ball, *p], q);
         }
     }
-    let Some(reg) = read(cx, *r) else { return Ok(Reply::Decline) };
+    let Some(reg) = read_actual(cx, *r)? else { return Ok(Reply::Decline) };
     let numeric = inexact(h, *r) || inexact(h, *p);
     let one = |cx: &mut NativeCx<'_, '_, 'h>, p: T<'h>| -> Res<Option<T<'h>>> {
         let Some(c) = cx.as_list(p).map(|l| l.to_vec()) else { return Ok(None) };
@@ -1449,7 +1457,7 @@ fn region_integrate<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply
         Some(l) => l.to_vec(),
         None => vec![vars],
     };
-    let Some(r) = read(cx, rt) else { return Ok(Reply::Decline) };
+    let Some(r) = read_actual(cx, rt)? else { return Ok(Reply::Decline) };
     // one symbol for a point of a region of several dimensions (`element(x, ball(3))`): an integrand free of it is a
     // constant, whose integral is the constant times the measure
     if let [x] = vars[..] {

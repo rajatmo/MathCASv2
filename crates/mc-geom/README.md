@@ -7,6 +7,8 @@ bounds, membership, distance and nearest point, Boolean operations on plane poly
 ## Modules
 - `region`: reads region terms into `Region`; `shapes` adds polyhedra and other primitives; `mesh` is `mesh_region`.
 - `props`: dimension, measure, centroid and bounds as exact terms where the coordinates allow it.
+- `degenerate`: a degenerate primitive read as the lower-dimensional set it is (a triangle with equal or collinear
+  corners as a segment, coplanar tetrahedron corners as a polygon, a disk of radius 0 as a point) before any of these.
 - `metric`, `flat`: membership, distance, nearest points and signed distance; tori, flats and cones.
 - `clip`: union, intersection and difference of plane polygons through the arrangement of their edges.
 - `csg`: Boolean operations on mesh regions (intervals on the line, the arrangement in the plane, BSP trees in space),

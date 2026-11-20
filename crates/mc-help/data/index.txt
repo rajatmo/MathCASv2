@@ -948,7 +948,7 @@ color_function	visualisation	Plots	option of density_plot, contour_plot, list_de
 plot_points	visualisation	Plots	option of density_plot and contour_plot: plot_points: n, the function sampled on an n x n grid (default 100 and 80)
 contours	visualisation	Plots	option of contour_plot: contours: n (n levels evenly between the least and the greatest value, default 10) or a list of levels
 data_range	visualisation	Plots	option of list_density_plot: data_range: [[x0, x1], [y0, y1]], the coordinates of the matrix's first and last columns and rows
-bins	visualisation	Plots	option of histogram: bins: n (about n bins of a round width), [w] (width w), [lo, hi, w] (from lo to hi), automatic
+bins	visualisation	Plots	option of histogram: bins: n (about n bins of a round width), [w] (width w), [lo, hi, w] (the bins [lo + k w, lo + (k + 1) w) within [lo, hi]), automatic
 labels	visualisation	Plots	option of bar_chart: labels: ["a", "b", ...], the labels under the bars or groups
 plot3d	visualisation	Plots	plot3d(f, [x, a, b], [y, c, d]): the surface z = f(x, y) in perspective, lit, with mesh lines and axes; plot3d([f1, f2, ...], ...) several (options mesh, plot_points, color_function, plot_style, plot_range, view_point, box_ratios)
 parametric_plot3d	visualisation	Plots	parametric_plot3d([fx, fy, fz], [u, a, b], [v, c, d]): a parametric surface; parametric_plot3d([fx, fy, fz], [u, a, b]): a space curve
@@ -1203,7 +1203,7 @@ discrete_ratio	symbolic	Sums and recurrences	discrete_ratio(f, k), discrete_rati
 generating_function	symbolic	Sums and recurrences	generating_function(f, n, z): the sum of f z^n over n >= 0 in closed form; generating_function(f, [n, m], [x, y]) for several variables
 sum_convergence	symbolic	Sums and recurrences	sum_convergence(f, n), sum_convergence(f, [n, a, inf]): true when the sum of f converges, false when it diverges, or a condition on the parameters
 recurrence_table	symbolic	Sums and recurrences	recurrence_table(eqs, a, [n, nmin, nmax]): the values a(nmin), ..., a(nmax) of the sequence defined by a recurrence and its initial values; [n, nmax] starts at 1, [n, nmin, nmax, step] steps
-find_repeat	symbolic	Sums and recurrences	find_repeat(xs), (xs, k): the shortest block the list, string or matrix xs repeats at least twice (k times)
+find_repeat	symbolic	Sums and recurrences	find_repeat(xs), (xs, k): the shortest block b such that the list, string or matrix xs is b repeated with a partial last copy (b fitting at least once, or k times)
 find_transient_repeat	symbolic	Sums and recurrences	find_transient_repeat(xs, k): [transient, block], the shortest transient after which xs repeats a block at least k times
 truncate_sum	symbolic	Sums and recurrences	truncate_sum(e, k): every sum(f, [i, a, b]) in e cut to its first k terms
 expand	symbolic	Polynomials	expand(e): multiply out sums, products and positive integer powers
@@ -1841,7 +1841,7 @@ simplex	higher	Regions	simplex([p1, ..., pk]): the convex hull of k affinely ind
 tetrahedron	higher	Regions	tetrahedron([p1, p2, p3, p4]): the solid tetrahedron with these corners; tetrahedron(): the regular one with edge 1, centred at the origin
 empty_region	higher	Regions	empty_region(n): the empty region of n dimensions (the result of an empty intersection)
 region_member	higher	Regions	region_member(reg, p): whether the point p lies in the region (true or false; a condition for a symbolic point); region_member(reg, [p1, p2, ...]) for several
-region_measure	higher	Regions	region_measure(reg): the measure of the region in its own dimension: length of a curve, area of a surface, volume of a solid (0 for points)
+region_measure	higher	Regions	region_measure(reg): the measure of the region in its own dimension: length of a curve, area of a surface, volume of a solid, the number of points of a finite set; a degenerate primitive (a triangle with collinear corners, a disk of radius 0) is measured in the dimension it actually has
 area	higher	Regions	area(reg): the area of a two-dimensional region
 volume	higher	Regions	volume(reg): the volume of a three-dimensional region
 arc_length	higher	Regions	arc_length(reg): the length of a one-dimensional region

@@ -790,6 +790,8 @@ rule beta(inf, 0) := complex_infinity
 rule beta(0, inf) := complex_infinity
 rule product_log(complex_infinity) := inf
 rule product_log(k_, 0) := -inf when is_integer(k) and not (k == 0)
+# the branch point -1/e, where the branches 0 and -1 meet: W_(-1)(-1/e) = -1 as W_0(-1/e) (DLMF 4.13)
+rule product_log(k_, z_) := -1 when k === -1 and z === -1/e
 # the trigonometric and exponential integrals have no limit at complex infinity (the directions disagree)
 rule sin_integral(complex_infinity) := indeterminate
 rule sinh_integral(complex_infinity) := indeterminate

@@ -214,9 +214,24 @@ fn correlation(m) when is_matrix(m) = { let c = transpose(m); let k = length(c);
 fn correlation(a, b) when is_matrix(a) and is_matrix(b) = { let c = transpose(a); let d = transpose(b); table(correlation(c[i], d[j]), i, length(c), j, length(d)) }
 
 # bin_counts(xs, w): the counts of the real numbers of xs in the bins [k w, (k + 1) w) from the lowest to the
-# highest occupied; bin_counts(xs, [a, b, dx]): in the bins [a, a + dx), ... up to b; bin_counts(xs, [[e1, e2,
-# ...]]): in [e1, e2), [e2, e3), ...
+# highest occupied; bin_counts(xs, [a, b, dx]): in the bins [a + k dx, a + (k + 1) dx) that lie within [a, b]
+# (nl_range_edges); bin_counts(xs, [[e1, e2, ...]]): in [e1, e2), [e2, e3), ...
 # quantities: data and bin specification in the unit of the first datum, counted as magnitudes
+# the edges a + k dx, k = 0, ..., K, of the bins [a + k dx, a + (k + 1) dx) of the specification [a, b, dx] (dx > 0)
+# that lie within [a, b]: K = floor((b - a)/dx), so a step that does not divide b - a leaves the part of [a, b] above
+# the last edge out of every bin, and a step larger than b - a gives no bin. For machine numbers a quotient within a
+# relative 10^-12 of an integer is that integer, and the last edge is then b itself ([0, 0.3, 0.1] has the three bins
+# [0, 0.1), [0.1, 0.2), [0.2, 0.3) although 0.3/0.1 < 3 and 3*0.1 > 0.3 in machine arithmetic). bin_counts,
+# bin_lists and their grids, histogram and histogram_list read [a, b, dx] so.
+fn nl_range_edges(s) = {
+  let q = (s[2] - s[1])/s[3]
+  let r = round(q)
+  let snapped = is_inexact(q) and abs(q - r) <= 10^-12*max(1, abs(q)) and r >= 1
+  let k = if snapped then r else max(floor(q), 0)
+  let e = map(i => s[1] + i*s[3], range(0, k))
+  if snapped then append(most(e), s[2]) else e
+}
+fn nl_range_spec(s) = is_list(s) and length(s) == 3 and is_real(n(s[1])) and is_real(n(s[2])) and is_real(n(s[3])) and n(s[3]) > 0
 fn bin_counts(xs, spec) when is_list(xs) and length(xs) > 0 and head(xs[1]) === quantity = {
   let u = quantity_unit(xs[1])
   let mag = q => if head(q) === quantity then quantity_magnitude(q, u) else q
@@ -233,11 +248,7 @@ fn bin_counts(xs, w) when is_list(xs) and is_number(w) and w > 0 = {
     out
   }
 }
-fn bin_counts(xs, spec) when is_list(xs) and is_list(spec) and length(spec) == 3 and is_real(n(spec[3])) = {
-  let a = spec[1]
-  let k = ceiling((spec[2] - a)/spec[3])
-  bin_counts(xs, [map(i => a + i*spec[3], range(0, k))])
-}
+fn bin_counts(xs, spec) when is_list(xs) and nl_range_spec(spec) = bin_counts(xs, [nl_range_edges(spec)])
 # bin_counts(xs, [a, b]): unit-width bins from a to b
 fn bin_counts(xs, spec) when is_list(xs) and is_list(spec) and length(spec) == 2 and is_real(n(spec[1])) and is_real(n(spec[2])) = bin_counts(xs, [spec[1], spec[2], 1])
 fn bin_counts(xs, spec) when is_list(xs) and is_list(spec) and length(spec) == 1 and is_list(spec[1]) = {
@@ -262,7 +273,7 @@ fn nl_bin_edges(vs, w) when is_number(w) and w > 0 = if length(vs) == 0 then [] 
   let hi = floor(max(vs)/w)
   map(k => k*w, range(lo, hi + 1))
 }
-fn nl_bin_edges(vs, s) when is_list(s) and length(s) == 3 and is_real(n(s[3])) = map(i => s[1] + i*s[3], range(0, ceiling((s[2] - s[1])/s[3])))
+fn nl_bin_edges(vs, s) when nl_range_spec(s) = nl_range_edges(s)
 fn nl_bin_edges(vs, s) when is_list(s) and length(s) == 2 and is_real(n(s[1])) and is_real(n(s[2])) = nl_bin_edges(vs, [s[1], s[2], 1])
 fn nl_bin_edges(vs, s) when is_list(s) and length(s) == 1 and is_list(s[1]) = s[1]
 # the bin of v among the edges e: its position, 0 outside them
@@ -574,11 +585,9 @@ fn bin_lists(xs, w) when is_list(xs) and is_number(w) and w > 0 = {
     map(k => select(vs, v => floor(v/w) == k), range(lo, hi))
   }
 }
-fn bin_lists(xs, spec) when is_list(xs) and is_list(spec) and length(spec) == 3 and is_real(n(spec[3])) = {
-  let a = spec[1]
-  let k = ceiling((spec[2] - a)/spec[3])
-  bin_lists(xs, [map(i => a + i*spec[3], range(0, k))])
-}
+fn bin_lists(xs, spec) when is_list(xs) and nl_range_spec(spec) = bin_lists(xs, [nl_range_edges(spec)])
+# bin_lists(xs, [a, b]): unit-width bins from a to b, as for bin_counts
+fn bin_lists(xs, spec) when is_list(xs) and is_list(spec) and length(spec) == 2 and is_real(n(spec[1])) and is_real(n(spec[2])) = bin_lists(xs, [spec[1], spec[2], 1])
 fn bin_lists(xs, spec) when is_list(xs) and is_list(spec) and length(spec) == 1 and is_list(spec[1]) = {
   let e = spec[1]
   let vs = select(xs, x => is_real(n(x)))
@@ -594,10 +603,8 @@ fn nl_bin_index(xs, w) when is_number(w) and w > 0 = {
     map(k => select(ix, i => floor(xs[i]/w) == k), range(min(ks), max(ks)))
   }
 }
-fn nl_bin_index(xs, spec) when is_list(spec) and length(spec) == 3 and is_real(n(spec[3])) = {
-  let k = ceiling((spec[2] - spec[1])/spec[3])
-  nl_bin_index(xs, [map(i => spec[1] + i*spec[3], range(0, k))])
-}
+fn nl_bin_index(xs, spec) when nl_range_spec(spec) = nl_bin_index(xs, [nl_range_edges(spec)])
+fn nl_bin_index(xs, spec) when is_list(spec) and length(spec) == 2 and is_real(n(spec[1])) and is_real(n(spec[2])) = nl_bin_index(xs, [spec[1], spec[2], 1])
 fn nl_bin_index(xs, spec) when is_list(spec) and length(spec) == 1 and is_list(spec[1]) = {
   let e = spec[1]
   let ix = select(range(length(xs)), i => is_real(n(xs[i])))

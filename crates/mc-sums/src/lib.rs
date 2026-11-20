@@ -61,7 +61,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("sum_convergence", "sum_convergence(f, n), sum_convergence(f, [n, a, inf]): true when the sum of f converges, false when it diverges, or a condition on the parameters"),
     ("recurrence_table", "recurrence_table(eqs, a, [n, nmin, nmax]): the values a(nmin), ..., a(nmax) of the sequence defined by a recurrence and its initial values; [n, nmax] starts at 1, [n, nmin, nmax, step] steps"),
     // written in MathCAS (lib/calculus.mc)
-    ("find_repeat", "find_repeat(xs), (xs, k): the shortest block the list, string or matrix xs repeats at least twice (k times)"),
+    ("find_repeat", "find_repeat(xs), (xs, k): the shortest block b such that the list, string or matrix xs is b repeated with a partial last copy (b fitting at least once, or k times)"),
     ("find_transient_repeat", "find_transient_repeat(xs, k): [transient, block], the shortest transient after which xs repeats a block at least k times"),
     ("truncate_sum", "truncate_sum(e, k): every sum(f, [i, a, b]) in e cut to its first k terms"),
 ];

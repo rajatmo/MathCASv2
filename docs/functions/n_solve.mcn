@@ -16,6 +16,9 @@
 # An equation is written with `==`; an expression without `==` is taken as equal to zero.
 
 #% item
+# Conditions conjoined to the equations (`element(x, reals)`, order relations, `!=`, conditions on parameters) are applied as `solve` applies them: never dropped, a condition that is not decided kept with the solution.
+
+#% item
 # For a polynomial in one unknown, every root is given, complex ones included, each as often as its multiplicity.
 
 #% item

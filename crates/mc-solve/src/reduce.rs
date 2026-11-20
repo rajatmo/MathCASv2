@@ -78,6 +78,14 @@ pub(crate) fn several<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>,
         return Ok(Some(h.call(h.sym("reduce"), &[c2, xs, reals])));
     }
     let quantified = fr.has_quantifier(cond);
+    // without a domain, the quantities in order relations are real and the others complex: order relations on the
+    // parameters alone (y > 0 with x^4 == 1 in x) make the parameters real, not the variables, so the formula in
+    // the variables is reduced over the complex numbers and the conditions on the parameters are kept beside it
+    if dom.is_none() && !quantified {
+        if let Some(t) = split_parameter_orders(h, cond, &vars) {
+            return Ok(Some(t));
+        }
+    }
     let real = match dom.as_deref() {
         Some("reals") => true,
         None => inequality(h, cond) && !crate::reduce_ri::has_parts(h, cond),
@@ -375,6 +383,38 @@ fn integer_points<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
 }
 
 /// Does the formula have an order relation (which makes its variables real)?
+/// `c_p and reduce(c_x, vars)` for a conjunction whose order relations (and real or imaginary parts) are all in
+/// conjuncts free of the variables, the others (`c_x`, at least one) having none; `None` otherwise.
+fn split_parameter_orders<'h>(h: &'h impl Store, cond: T<'h>, vars: &[T<'h>]) -> Option<T<'h>> {
+    let parts: Vec<T<'h>> = match h.view(cond) {
+        View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "and") => args.to_vec(),
+        _ => return None,
+    };
+    let mentions = |t: T<'h>| {
+        let mut w = mc_api::walk::Walk::new(t);
+        while let Some(u) = w.pop() {
+            if vars.contains(&u) {
+                return true;
+            }
+            if let View::App { head, args } = h.view(u) {
+                w.push(head);
+                w.extend(args.iter().copied());
+            }
+        }
+        false
+    };
+    let (with_x, without): (Vec<T<'h>>, Vec<T<'h>>) = parts.into_iter().partition(|&p| mentions(p));
+    let ordered = |t: T<'h>| inequality(h, t) || crate::reduce_ri::has_parts(h, t);
+    if with_x.is_empty() || without.is_empty() || !without.iter().any(|&p| ordered(p)) || with_x.iter().any(|&p| ordered(p)) {
+        return None;
+    }
+    let cx_part = if with_x.len() == 1 { with_x[0] } else { h.call(h.sym("and"), &with_x) };
+    let xs = if vars.len() == 1 { vars[0] } else { h.call(h.sym(names::LIST), vars) };
+    let mut all = without;
+    all.push(h.call(h.sym("reduce"), &[cx_part, xs]));
+    Some(h.call(h.sym("and"), &all))
+}
+
 fn inequality<'h>(h: &'h impl Store, t: T<'h>) -> bool {
     let mut stack = mc_api::walk::Walk::new(t);
     while let Some(u) = stack.pop() {

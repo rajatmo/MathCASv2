@@ -7,6 +7,12 @@
 # `region_dimension(reg)` is the region's own dimension: 0 for points, 1 for curves, 2 for surfaces, 3 for solids.
 
 #% section
+# Details
+
+#% item
+# A degenerate primitive is the set it actually is: a triangle with equal or collinear corners is the segment between its outermost corners, a tetrahedron with coplanar corners the convex polygon they span, a polygon whose corners lie on one line a segment, a line with equal ends, or a disk, ball, circle or sphere of radius 0, a point.
+
+#% section
 # Examples
 
 #% subsection
@@ -16,6 +22,14 @@
 [region_dimension(circle()), region_dimension(disk()), region_dimension(ball()), region_dimension(point([1, 2]))]
 #% output
 #= [1, 2, 3, 0]
+
+#% text
+# Degenerate primitives have the dimension of the set they are:
+
+#% cell
+[region_dimension(triangle([[0, 0], [1, 1], [2, 2]])), region_dimension(tetrahedron([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]])), region_dimension(ball([0, 0, 0], 0))]
+#% output
+#= [1, 2, 0]
 
 #% text
 # An equation takes one dimension away:

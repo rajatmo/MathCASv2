@@ -22,13 +22,16 @@
 # Bins include their left end and exclude their right end; their edges are multiples of the width.
 
 #% item
+# The specification `[a, b, dx]` (dx > 0) means the bins `[a + k dx, a + (k + 1) dx)` that lie within `[a, b]`: there are floor((b - a)/dx) of them, so a step that does not divide `b - a` leaves the part of `[a, b]` above the last edge out, a step larger than `b - a` gives no bins, and `b` itself is outside the last bin. For machine numbers a quotient within a relative 10^-12 of an integer counts as that integer, and the last edge is then `b`. `bin_lists`, `histogram` and `histogram_list` read the specification the same way.
+
+#% item
 # The automatic width is twice the spread of the middle half of the data over the cube root of the count, rounded up to 1, 2, 2.5 or 5 times a power of ten.
 
 #% item
 # Options:
 
 #% subitem
-# `bins: n` asks for about n bins of a round width; `bins: [w]` for width w; `bins: [lo, hi, w]` for bins of width w from lo to hi (values outside are left out).
+# `bins: n` asks for about n bins of a round width; `bins: [w]` for width w; `bins: [lo, hi, w]` for the bins [lo + k w, lo + (k + 1) w) of width w that lie within [lo, hi] (values outside them are left out).
 
 #% subitem
 # `normalized: true` scales the bars so that their total area is 1, for comparing with a probability density.

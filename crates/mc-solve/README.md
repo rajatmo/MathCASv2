@@ -20,6 +20,9 @@ Equation solving: `solve`, `roots`, `n_solve`, `eliminate`, `groebner_basis`, `r
 ## Design
 - Polynomial equations are solved by radicals up to degree four and by root objects beyond; solutions may carry
   symbolic parameters (generic solutions).
+- Conditions conjoined to the equations are applied to every solution and never dropped: false removes it, undecided
+  (a condition on parameters) stays with it as `conditional_expression`; root objects' memberships are decided
+  exactly, other conditions on numbers by ball arithmetic.
 - Beyond radicals, roots are root objects evaluated numerically by `n` (Aberth iteration, exact real roots, complex
   balls); `reduce` handles real polynomial and rational inequalities by exact real root isolation.
 - Exact real root isolation uses `mc-poly`; cylindrical decomposition `mc-cad`; number fields `mc-algebra`; signs of

@@ -165,7 +165,26 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, gen: T<'h>, al
         let Some(row) = rules.iter().map(|&r| rule_value(h, r)).collect::<Option<Vec<_>>>() else { return Ok(t) };
         rows.push(row);
     }
-    let is_family = |v: T<'h>| matches!(h.view(v), View::App { head, .. } if head == cond);
+    // a family: a conditional value whose condition is on the generated parameter (a value under a condition on
+    // the parameters of the equations is one solution)
+    let is_family = |v: T<'h>| match h.view(v) {
+        View::App { head, args: &[_, c] } if head == cond => {
+            let mut w = mc_api::walk::Walk::new(c);
+            let mut found = false;
+            while let Some(u) = w.pop() {
+                if u == gen {
+                    found = true;
+                    break;
+                }
+                if let View::App { head, args } = h.view(u) {
+                    w.push(head);
+                    w.extend(args.iter().copied());
+                }
+            }
+            found
+        }
+        _ => false,
+    };
     // families of one unknown: by their value at c = 0, then listed (unless all roots are asked for)
     if !rows.is_empty() && rows.iter().all(|r| r.len() == 1 && is_family(r[0].1)) {
         let x = rows[0][0].0;

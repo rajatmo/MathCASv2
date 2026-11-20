@@ -1657,11 +1657,12 @@ fn calc_repeat_list(xs, k, test) = {
   if length(ps) == 0 then null else take(xs, ps[1])
 }
 
-# find_repeat(xs), (xs, k), (xs, [k1, k2, ...]): the shortest block that the list, string or array xs repeats along
-# each of its first levels (all levels, 1.5 copies each, when no k is given; a list k1, k2, ... names the levels and the
-# copies), a partial last copy allowed; [] (the empty string) when some level has none. The period of level d is the
-# least p with extent >= k_d p such that every slice along d equals the slice p further on. The option same_test: f
-# replaces === for comparing the elements at the deepest named level.
+# find_repeat(xs), (xs, k), (xs, [k1, k2, ...]): the shortest block b such that xs is b repeated with a partial last
+# copy allowed, along each of its first levels (all levels when no k is given; a list k1, k2, ... names the levels
+# and the copies). The period of level d is the least p with extent >= k_d p such that every slice along d equals the
+# slice p further on: the block of length p then fits at least k_d times. Without k, k_d = 1, so every list has a
+# block (a list with no shorter period is its own block); with k, [] (the empty string) when some level has none.
+# The option same_test: f replaces === for comparing the elements at the deepest named level.
 fn calc_fr_slice(v, d, i) = if d == 1 then v[i] else map(r => calc_fr_slice(r, d - 1, i), v)
 fn calc_fr_eq(a, b, depth, test) =
   if depth == 0 then test(a, b)
@@ -1679,7 +1680,7 @@ fn calc_fr_block(v, ks, test) = {
 }
 fn calc_fr_rank(v) = if is_list(v) and length(v) > 0 then 1 + calc_fr_rank(v[1]) else 0
 fn calc_find_repeat(xs, k, test) = {
-  let ks = if is_list(k) then k else map(i => if k === automatic then 1.5 else k, range(max(1, calc_fr_rank(xs))))
+  let ks = if is_list(k) then k else map(i => if k === automatic then 1 else k, range(max(1, calc_fr_rank(xs))))
   if length(xs) == 0 then [] else calc_fr_block(xs, ks, if test === automatic then ((a, b) => a === b) else test)
 }
 fn find_repeat(xs; same_test = automatic) = find_repeat(xs, automatic, same_test: same_test)

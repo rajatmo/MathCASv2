@@ -12,11 +12,22 @@
 #% item
 # Polygons use the signed-area formulas; curves are weighted by length.
 
+#% item
+# A degenerate primitive is the set it actually is: a triangle with equal or collinear corners is the segment between its outermost corners, a tetrahedron with coplanar corners the convex polygon they span, a polygon whose corners lie on one line a segment, a line with equal ends, or a disk, ball, circle or sphere of radius 0, a point. The centroid is the mean over that set: the midpoint of the segment, the centroid of the polygon.
+
 #% section
 # Examples
 
 #% subsection
 # Basic examples
+
+#% text
+# A triangle with two equal corners is the segment between the other two:
+
+#% cell
+region_centroid(triangle([[0, 0], [1, 1], [1, 1]]))
+#% output
+#= [1/2, 1/2]
 
 #% text
 # A rectangle:

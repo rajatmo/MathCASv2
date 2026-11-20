@@ -13,6 +13,9 @@
 # Details
 
 #% item
+# The values are those of `solve`: conditions conjoined to the equations are applied to them in the same way.
+
+#% item
 # It takes the same equations, domains and options as `solve`, and gives the values of `solve`'s rules in the order of the unknowns.
 
 #% item

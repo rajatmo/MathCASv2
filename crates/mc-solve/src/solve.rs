@@ -72,6 +72,14 @@ pub(crate) fn read_equations<'h>(env: &Env<'h>, t: T<'h>) -> Result<Option<Vec<T
             ) {
                 return Err("solve takes equations (use reduce for inequalities)");
             }
+            // a condition that is no equation is never read as `condition == 0`: conditions are applied by the
+            // solutions' check (crate::domain), which needs the unknowns as symbols
+            if matches!(
+                name.as_str(),
+                "element" | "not_element" | "xor" | "implies" | "equivalent" | "nand" | "nor" | "exists" | "for_all"
+            ) {
+                return Err("the conditions besides the equations need unknowns that are symbols");
+            }
         }
         // a bare expression e means e == 0
         out.push(u);

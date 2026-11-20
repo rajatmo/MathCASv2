@@ -40,6 +40,9 @@
 # Every solution is checked by substitution into the equations, exactly or numerically; a candidate that fails the check is dropped.
 
 #% item
+# Conditions conjoined to the equations (`and` or a list: memberships such as `element(x, reals)`, `element(x, primes)` or `element(x, positive_reals)`, order relations, `!=`, conditions on parameters) are applied to every solution, never dropped: a solution at which a condition is false is left out, and one at which a condition is not decided keeps it, as `conditional_expression(value, condition)`. A condition on a root object is decided exactly (its realness by exact real root isolation; it is irrational). Membership of an unknown in a domain of real numbers, or an order relation on it, makes the unknown real (real branches of the inverse functions). When the equations are not solved, the call fails rather than give solutions the conditions were not applied to; conditions need unknowns that are symbols.
+
+#% item
 # Solutions are listed in canonical order; `max_roots: k` keeps the first k.
 
 #% item
@@ -85,6 +88,19 @@ solve([x + y == 3, x - y == 1], [x, y])
 solve(exp(x) == 2, x)
 #% output
 #= [[x -> conditional_expression(log(2) + 2im*pi*c(1), element(c(1), integers))]]
+
+#% text
+# Conditions with the equations: the real root of a cubic, and a condition on a parameter kept with each solution:
+
+#% cell
+solve(x^3 + x + 1 == 0 and element(x, reals), x)
+#% output
+#= [[x -> root(&(1 + &1 + &1^3), 1)]]
+
+#% cell
+solve(x^2 == 4 and y > 0, x)
+#% output
+#= [[x -> conditional_expression(-2, y > 0)], [x -> conditional_expression(2, y > 0)]]
 
 #% subsection
 # Scope
@@ -445,7 +461,7 @@ solve(x*exp(x) == -1, x, reals)
 #% cell
 solve(x*exp(x) == -1/e, x, reals)
 #% output
-#= [[x -> -1], [x -> product_log(-1, -1/e)]]
+#= [[x -> -1], [x -> -1]]
 
 #% text
 # Over the complexes `x exp(x) == -1` has a solution for every branch of `product_log`, but only the principal branch is returned unless `max_roots:` asks for more:

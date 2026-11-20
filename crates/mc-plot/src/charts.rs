@@ -124,13 +124,29 @@ pub(crate) fn round_up(w: f64) -> f64 {
     [1.0, 2.0, 2.5, 5.0, 10.0].iter().map(|m| m * p).find(|v| *v >= w * (1.0 - 1e-12)).unwrap_or(10.0 * p)
 }
 
+/// The number of bins `[lo + k w, lo + (k + 1) w)` of the specification `[lo, hi, w]` that lie within `[lo, hi]`:
+/// floor((hi - lo)/w), a quotient within a relative 10^-12 of an integer taken as that integer (as `bin_counts` reads
+/// the same specification); 0 when w is larger than the range.
+pub(crate) fn range_bins(lo: f64, hi: f64, w: f64) -> usize {
+    range_bins_top(lo, hi, w).0
+}
+
+/// [`range_bins`] with the upper edge of the last bin: hi itself when the quotient was taken as an integer.
+fn range_bins_top(lo: f64, hi: f64, w: f64) -> (usize, f64) {
+    let q = (hi - lo) / w;
+    let r = q.round();
+    let snapped = (q - r).abs() <= 1e-12 * q.abs().max(1.0) && r >= 1.0;
+    let k = if snapped { r } else { q.floor() }.clamp(0.0, (MAX_BINS + 1) as f64);
+    (k as usize, if snapped { hi } else { lo + k * w })
+}
+
 /// The bin edges for `data` (sorted, not empty): the first and the width.
 fn bin_edges(sorted: &[f64], bins: Bins) -> Option<(f64, f64, usize)> {
     let (min, max) = (sorted[0], sorted[sorted.len() - 1]);
     let n = sorted.len() as f64;
     let span = max - min;
     let w = match bins {
-        Bins::Range(lo, hi, w) => return Some((lo, w, ((hi - lo) / w).ceil().max(1.0) as usize)).filter(|b| b.2 <= MAX_BINS),
+        Bins::Range(lo, hi, w) => return Some((lo, w, range_bins(lo, hi, w))).filter(|b| b.2 <= MAX_BINS),
         Bins::Width(w) => w,
         Bins::Count(k) if span > 0.0 => round_up(span / k as f64),
         Bins::Count(_) => 1.0,
@@ -237,16 +253,26 @@ impl Native for Histogram {
         let mut extra = Extra::default();
         let mut top = 0.0f64;
         let mut swatches = vec![];
+        // the edges lo + k w, the last one hi itself when it was snapped to it (as bin_counts takes them)
+        let last_edge = match look.bins {
+            Bins::Range(l, hi, w) => range_bins_top(l, hi, w).1,
+            _ => lo + w * count as f64,
+        };
+        let edge = |k: f64| if k as usize == count { last_edge } else { lo + k * w };
         for (k, s) in sets.iter().enumerate() {
             cx.tick(1)?;
             let mut counts = vec![0usize; count];
             for &v in s {
-                let b = ((v - lo) / w).floor();
-                if b >= 0.0 && (b as usize) < count {
+                // the bins are closed on the left and open on the right, as bin_counts counts; the index from the
+                // quotient corrected by a comparison with the edges themselves
+                let mut b = ((v - lo) / w).floor();
+                if b >= 0.0 && v < edge(b) {
+                    b -= 1.0;
+                } else if b + 1.0 <= count as f64 && v >= edge(b + 1.0) {
+                    b += 1.0;
+                }
+                if b >= 0.0 && (b as usize) < count && v >= edge(b) && v < edge(b + 1.0) {
                     counts[b as usize] += 1;
-                } else if v == lo + w * count as f64 && count > 0 {
-                    // the upper end of an explicit range belongs to the last bin
-                    counts[count - 1] += 1;
                 }
             }
             let n = s.len().max(1) as f64;
@@ -277,7 +303,7 @@ impl Native for Histogram {
                 points: bars.iter().map(|&(a, b, v)| (0.5 * (a + b), v)).collect(),
             });
         }
-        extra.bounds = Some([(lo, lo + w * count as f64), (0.0, if top > 0.0 { top } else { 1.0 })]);
+        extra.bounds = Some([(lo, lo + w * count.max(1) as f64), (0.0, if top > 0.0 { top } else { 1.0 })]);
         look.legend_swatches = swatches;
         finish(cx, &[], &look, extra)
     }
@@ -427,6 +453,10 @@ mod tests {
         let (lo, w, n) = bin_edges(&data, Bins::Width(2.5)).unwrap();
         assert_eq!((lo, w, n), (0.0, 2.5, 4));
         assert_eq!(bin_edges(&data, Bins::Range(-5.0, 5.0, 1.0)), Some((-5.0, 1.0, 10)));
+        // a step that does not divide the range: only the bins within it; a step beyond it: none
+        assert_eq!(bin_edges(&data, Bins::Range(0.0, 10.0, 3.0)), Some((0.0, 3.0, 3)));
+        assert_eq!(bin_edges(&data, Bins::Range(0.0, 0.3, 0.1)), Some((0.0, 0.1, 3)));
+        assert_eq!(bin_edges(&data, Bins::Range(0.0, 1.0, 5.0)), Some((0.0, 5.0, 0)));
         let (lo, w, n) = bin_edges(&data, Bins::Auto).unwrap();
         assert!(lo <= 0.0 && lo + w * n as f64 > 9.9 && (4..=30).contains(&n), "{lo} {w} {n}");
         assert_eq!(bin_edges(&[3.0, 3.0], Bins::Auto), Some((3.0, 1.0, 1)));

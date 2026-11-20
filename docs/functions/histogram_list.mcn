@@ -5,7 +5,7 @@
 
 #% text
 # `histogram_list(xs)` gives `[edges, counts]` for the data `xs` in automatically chosen bins `[e_i, e_{i+1})`.
-# `histogram_list(xs, n)` uses about `n` bins; `[w]` bins of width `w`; `[a, b, w]` bins of width `w` from `a` to `b`; `[[e1, e2, ...]]` the given edges.
+# `histogram_list(xs, n)` uses about `n` bins; `[w]` bins of width `w`; `[a, b, w]` the bins `[a + k w, a + (k + 1) w)` of width `w` that lie within `[a, b]` (floor((b - a)/w) of them, as for `bin_counts`); `[[e1, e2, ...]]` the given edges.
 
 #% section
 # Examples

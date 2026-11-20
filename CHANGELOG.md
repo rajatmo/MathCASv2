@@ -1,5 +1,23 @@
 # Changelog
 
+## Not released yet
+
+**Wrong answers corrected.**
+- `solve` applies every condition given with its equations. `solve(x^3 + x + 1 == 0 and element(x, reals), x)`
+  returned the two complex roots as well; a condition that cannot be decided now stays with its solution as a
+  `conditional_expression`, and a call whose equations are not solved fails instead of answering without its
+  conditions. `reduce` keeps complex roots under `!=` and under conditions on parameters, and `n_solve` and
+  `find_instance` follow the same rule.
+- A degenerate region is the set it actually is: a triangle with two equal corners is a segment, with its
+  centroid at the middle and its length as measure; the same for collinear and coplanar corners, lines with
+  equal ends and radius 0. The measure of a point set is its number of points.
+- `[lo, hi, step]` bins are those that lie within `[lo, hi]`: `bin_counts(data, [0, 10, 3])` has three bins,
+  not four. `bin_lists`, `histogram` and `histogram_list` follow the same rule, and all use half-open bins.
+- `find_repeat` gives the shortest block whose repetition, with a partial last copy, is the list; it returned
+  `[]` when the list held fewer than one and a half copies.
+
+**README.** The paragraph on built-in checks says what they are: numerical checks at a few points, not proofs.
+
 ## 0.18.0 (2026-11-19)
 
 **Android.** A finger turns a 3D picture and two fingers zoom it; the page scrolls only beside the picture. A

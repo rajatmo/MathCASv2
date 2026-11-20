@@ -4,7 +4,7 @@
 # bin_lists
 
 #% text
-# `bin_lists(xs, w)` gives the lists of the real numbers of `xs` in the bins `[k w, (k + 1) w)` from the lowest to the highest occupied; `bin_lists(xs, [a, b, dx])` uses the bins `[a, a + dx)`, ... up to `b`; `bin_lists(xs, [[e1, e2, ...]])` the bins `[e1, e2)`, `[e2, e3)`, ....
+# `bin_lists(xs, w)` gives the lists of the real numbers of `xs` in the bins `[k w, (k + 1) w)` from the lowest to the highest occupied; `bin_lists(xs, [a, b, dx])` uses the bins `[a, a + dx)`, ... that lie within `[a, b]` (`[a, b]` alone: steps of 1); `bin_lists(xs, [[e1, e2, ...]])` the bins `[e1, e2)`, `[e2, e3)`, ....
 
 #% section
 # Details
@@ -13,7 +13,7 @@
 # Elements that have no real numerical value are left out.
 
 #% item
-# The bins are those of `bin_counts`.
+# The bins are those of `bin_counts`. The specification `[a, b, dx]` (dx > 0) means the bins `[a + k dx, a + (k + 1) dx)` that lie within `[a, b]`: there are floor((b - a)/dx) of them, so a step that does not divide `b - a` leaves the part of `[a, b]` above the last edge out, a step larger than `b - a` gives no bins, and `b` itself is outside the last bin. For machine numbers a quotient within a relative 10^-12 of an integer counts as that integer, and the last edge is then `b`. `bin_lists`, `histogram` and `histogram_list` read the specification the same way.
 
 #% section
 # Examples
