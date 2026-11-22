@@ -139,6 +139,9 @@ impl<'h> C<'_, '_, '_, '_, 'h> {
     }
     /// Is `t` a number (`is_numeric`)?
     fn is_number(&mut self, t: T<'h>) -> Res<bool> {
+        if matches!(self.b.heap().view(t), View::Int(_) | View::Rational { .. } | View::Real(_)) {
+            return Ok(true);
+        }
         let r = self.ev("is_numeric", &[t])?;
         Ok(self.cx.is_true(r))
     }
@@ -828,6 +831,10 @@ fn minimize_n<'h>(
     let grad_g = c.ev("d", &[g, c.list(vars)])?;
     let Some(grad_g) = c.cx.as_list(grad_g).map(|v| v.to_vec()).filter(|v| v.len() == n) else { return Ok(None) };
     let mut best: Best<'h> = None;
+    // a face left open: no answer, after the other faces (`Some(reason)` for a failure, `None` for the
+    // cylindrical decomposition); the remaining faces and the far points are still gone through, which keeps the
+    // work of a parametric problem (`(x - a)^2 + (y - b)^2` before a plot samples it) as it was
+    let mut open: Option<Option<&'static str>> = None;
     for cons in &branches {
         let eqs: Vec<usize> = (0..cons.len()).filter(|&i| cons[i].1 == Rel::Eq).collect();
         let ineqs: Vec<usize> = (0..cons.len()).filter(|&i| cons[i].1 != Rel::Eq).collect();
@@ -893,15 +900,15 @@ fn minimize_n<'h>(
             // a small exact algebraic problem without a candidate yet: the cylindrical decomposition after this
             // native proves it (and gives its own sample point)
             let exact = |e: T<'h>| algebraic(b, e, vars) && !has_machine(h, e);
-            let region = cond.is_some_and(|k| find_call_of(h, k, h.sym("element")).is_some());
-            if !judged && best.is_none() && n <= 3 && !region && exact(g) && cons.iter().all(|&(e, _)| exact(e)) {
-                return Ok(None);
+            let region = || cond.is_some_and(|k| find_call_of(h, k, h.sym("element")).is_some());
+            if !judged && best.is_none() && n <= 3 && !region() && exact(g) && cons.iter().all(|&(e, _)| exact(e)) {
+                open.get_or_insert(None);
+                continue;
             }
             // the critical values instead of the points: finitely many, each attained at a feasible critical
             // point or proved not to be
             if !judged && !critical_values(c, g, vars, cons, &system, &unknowns, &mut best)? {
-                *unproved = Some("the critical points on a face of the constraints are not found");
-                return Ok(None);
+                open.get_or_insert(Some("the critical points on a face of the constraints are not found"));
             }
         }
     }
@@ -927,6 +934,10 @@ fn minimize_n<'h>(
                 far = Some((vals[0], vals[1]));
             }
         }
+    }
+    if let Some(why) = open {
+        *unproved = why;
+        return Ok(None);
     }
     if let Some((f3, f6)) = far {
         let below = best.as_ref().is_none_or(|bst| f6 < bst.0 - 1e-9 * (1.0 + bst.0.abs()));
@@ -2261,5 +2272,6 @@ mod steps {
         Ok(best.map(|(_, v, p, _)| (v, vec![p])))
     }
 }
+
 
 

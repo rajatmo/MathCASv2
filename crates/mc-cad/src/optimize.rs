@@ -68,8 +68,12 @@ impl Native for Optimize {
         if let Some(r) = quantifier_free_constraints(cx, &self.stop, t, args)? {
             return Ok(Reply::Again(r));
         }
+        // a failure of the critical-point methods (a face not solved) is the answer only when the methods below
+        // have none either
+        let mut failed = None;
         match self.inner.call(cx, t, args)? {
             Reply::Decline => {}
+            Reply::Done(r) if Front::new(cx.heap()).head(r).is_some_and(|(n, _)| n == names::FAILURE) => failed = Some(r),
             Reply::Done(r) => return Ok(Reply::Done(reduced_value(cx, self.goal, args, r)?)),
             r => return Ok(r),
         }
@@ -82,7 +86,7 @@ impl Native for Optimize {
         // regions as constraints, objectives with cases, variables the objective does not hold
         Ok(match crate::recast::recast(cx, self.goal, args)? {
             Some(r) => Reply::Done(reduced_value(cx, self.goal, args, r)?),
-            None => Reply::Decline,
+            None => failed.map_or(Reply::Decline, Reply::Done),
         })
     }
 }
