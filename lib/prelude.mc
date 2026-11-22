@@ -1179,6 +1179,18 @@ fn integer_partitions(m, k, ps, cnt) when is_rational(m) and m >= 0 and (is_inte
   let sel = select(all_p, ok)
   if cnt === all then sel else if cnt >= 0 then take(sel, min(cnt, length(sel))) else take(sel, max(cnt, -length(sel)))
 }
+# parts that are not all positive with a finite number of parts (integer_partitions(5, 10, [1, -1])): every multiset of
+# at most k (or kmin to kmax) allowed parts with the sum n, each written and listed with the parts in increasing order
+fn integer_partitions(m, k, ps, cnt) when is_integer(m) and is_list(ps) and length(ps) > 0 and every(ps, is_integer) and some(ps, p => p <= 0) and (is_integer(k) or (is_list(k) and every(k, is_integer))) = {
+  let avail = sort(unique(ps))
+  let kmin = if is_integer(k) then 0 else if length(k) == 1 then k[1] else k[1]
+  let kmax = if is_integer(k) then k else if length(k) == 1 then k[1] else k[2]
+  let step = if is_list(k) and length(k) == 3 then k[3] else 1
+  let sel = select(ip_gen_any(m, avail, kmax), p => length(p) >= kmin and mod(length(p) - kmin, step) == 0)
+  if cnt === all then sel else if cnt >= 0 then take(sel, min(cnt, length(sel))) else take(sel, max(cnt, -length(sel)))
+}
+fn ip_gen_any(rest_sum, avail, kmax) = if length(avail) == 0 then (if rest_sum == 0 then [[]] else [])
+  else flatten(map(j => map(p => join(constant_array(avail[1], j), p), ip_gen_any(rest_sum - j*avail[1], rest(avail), kmax - j)), range(kmax, 0, -1)), 1)
 fn ip_gen(rest_sum, avail, kmax) = if rest_sum == 0 then [[]] else if kmax == 0 or length(avail) == 0 then [] else
   flatten(map(i => if avail[i] > rest_sum then [] else map(p => join([avail[i]], p), ip_gen(rest_sum - avail[i], drop(avail, i - 1), kmax - 1)), range(length(avail))), 1)
 

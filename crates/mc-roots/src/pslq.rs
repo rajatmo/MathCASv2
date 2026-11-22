@@ -11,7 +11,9 @@
 //! `root_approximant(x, n)` runs the search on [1, x, ..., x^d] for d = 1, ..., n (n = 8 by default) and accepts the
 //! first relation whose cost (digits of its largest coefficient times d + 1) is below the digits of x: the
 //! polynomial is then far less likely to be a coincidence of the precision. The algebraic number is the root of
-//! that polynomial nearest x, as `solve` writes it (radicals up to degree 2, `root(...)` beyond).
+//! that polynomial nearest x, as `solve` writes it (radicals up to degree 2, `root(...)` beyond). A complex x
+//! needs a relation of the real parts and of the imaginary parts of its powers at once: it is searched on
+//! Re(x^k) + w Im(x^k) for fixed weights w unrelated to the input and accepted only when both parts satisfy it.
 // index loops over several parallel arrays read more plainly than zipped iterators here
 #![allow(clippy::needless_range_loop)]
 use mc_arith::num::{Float, Nat};
@@ -430,27 +432,72 @@ impl Native for RootApproximant {
             return Ok(Reply::Done(x));
         }
         let Some((v, p)) = input(cx, &ar, x)? else { return Ok(bad_argument(h, NAME, h.int(1))) };
-        let Some(xf) = float_of(&v, p + 32) else { return Ok(bad_argument(h, NAME, h.int(1))) };
+        // a complex number z = a + b i: the relation must hold for the real and the imaginary parts of the powers;
+        // it is searched on Re(z^k) + w Im(z^k) with w = sqrt(2) - 1 (irrational, so a relation of both parts is
+        // one of the combination) and accepted only when it holds for both parts separately
+        let (xf, yf) = match &v {
+            Num::Complex(a, b) => {
+                let (Some(a), Some(b)) = (float_of(&Num::Real(a.clone()), p + 32), float_of(&Num::Real(b.clone()), p + 32)) else {
+                    return Ok(bad_argument(h, NAME, h.int(1)));
+                };
+                (a, Some(b))
+            }
+            _ => match float_of(&v, p + 32) {
+                Some(a) => (a, None),
+                None => return Ok(bad_argument(h, NAME, h.int(1))),
+            },
+        };
         let digits = p as f64 * std::f64::consts::LOG10_2;
         let ar_p = P(p + 32);
+        // weights for the combination of the parts: dyadic numbers with no relation to the input (a weight in the
+        // input's own field, sqrt(2) - 1 for sqrt(2) + i, makes small spurious relations); the next weight is tried
+        // when a relation of the combination fails for one of the parts
+        let weights: Vec<Float> = [0.736_402_859_137_f64, 0.412_986_370_751, 0.291_847_625_309]
+            .iter()
+            .filter_map(|&v| mc_arith::num::float::f64_to_dyadic(v).map(|(neg, man, exp)| Float::new(neg, man, exp)))
+            .collect();
         let mut chosen: Option<Vec<i128>> = None;
         let mut ticks = 0u64;
         for d in 1..=n {
-            let mut pows = vec![Float::from_i64(1)];
+            // the powers (real and imaginary parts)
+            let mut re = vec![Float::from_i64(1)];
+            let mut im = vec![Float::zero()];
             for k in 1..=d {
-                let last = pows[k - 1].clone();
-                pows.push(ar_p.mul(&last, &xf));
+                let (a, b) = (re[k - 1].clone(), im[k - 1].clone());
+                match &yf {
+                    None => {
+                        re.push(ar_p.mul(&a, &xf));
+                        im.push(Float::zero());
+                    }
+                    Some(y) => {
+                        re.push(ar_p.sub(&ar_p.mul(&a, &xf), &ar_p.mul(&b, y)));
+                        im.push(ar_p.add(&ar_p.mul(&a, y), &ar_p.mul(&b, &xf)));
+                    }
+                }
             }
             // the last degree asked for explicitly: the relation at full precision, however large
             let nb = if given && d == n { p as f64 } else { 0.5 * p as f64 + 4.0 };
-            let found = pslq(&pows, p, nb, MAX_ITER, &mut || {
-                ticks += 1;
-                true
-            });
-            let Some(Relation::Found(c)) = found else { continue };
-            if c[d] == 0 || !holds(&c, &pows, p) {
-                continue;
+            let tries: Vec<Option<&Float>> = match &yf {
+                None => vec![None],
+                Some(_) => weights.iter().map(Some).collect(),
+            };
+            let mut rel = None;
+            for w in tries {
+                let pows: Vec<Float> = match w {
+                    None => re.clone(),
+                    Some(w) => re.iter().zip(&im).map(|(a, b)| ar_p.add(a, &ar_p.mul(w, b))).collect(),
+                };
+                let found = pslq(&pows, p, nb, MAX_ITER, &mut || {
+                    ticks += 1;
+                    true
+                });
+                let Some(Relation::Found(c)) = found else { break };
+                if c[d] != 0 && holds(&c, &re, p) && (yf.is_none() || holds(&c, &im, p)) {
+                    rel = Some(c);
+                    break;
+                }
             }
+            let Some(c) = rel else { continue };
             let big = c.iter().map(|v| (v.unsigned_abs() as f64).max(1.0)).fold(1.0f64, f64::max);
             let cost = big.log10() * (d as f64 + 1.0);
             if cost < 0.9 * digits + 2.0 * (1.0 - digits / 10.0).max(0.0) {
@@ -483,14 +530,19 @@ impl Native for RootApproximant {
         let eq = h.call(h.sym("equal"), &[poly, h.int(0)]);
         let sols = cx.eval(h.call(h.sym("solve"), &[eq, var]))?;
         let Some(list) = cx.as_list(sols) else { return Ok(Reply::Done(sols)) };
-        let target = v.as_real().map(|r| r.to_f64()).unwrap_or(f64::NAN);
+        // the root nearest x (by complex distance)
+        let parts = |n: &Num| match n {
+            Num::Real(r) => Some((r.to_f64(), 0.0)),
+            Num::Complex(a, b) => Some((a.to_f64(), b.to_f64())),
+        };
+        let target = parts(&v).unwrap_or((f64::NAN, f64::NAN));
         let mut best: Option<(f64, T<'h>)> = None;
         for &s in list {
             let Some(&[r]) = cx.as_list(s) else { continue };
             let View::App { args: &[_, val], .. } = h.view(r) else { continue };
             let nv = cx.eval(h.call(h.sym("n"), &[val]))?;
-            let Some(Num::Real(rv)) = ar.num(nv) else { continue };
-            let dist = (rv.to_f64() - target).abs();
+            let Some((a, b)) = ar.num(nv).as_ref().and_then(parts) else { continue };
+            let dist = (a - target.0).hypot(b - target.1);
             if best.as_ref().is_none_or(|b| dist < b.0) {
                 best = Some((dist, val));
             }

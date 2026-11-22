@@ -158,6 +158,16 @@ impl mc_eval::Native for SumWrap {
                 }
                 return Ok(Reply::Again(call));
             }
+            // regularization: "Abel": the limit as r ↑ 1 of the sum of f(i) r^i (Abel summation; for a convergent
+            // series the same value, by Abel's theorem)
+            if !self.product && opts.len() == 1 {
+                if let Some(v) = option(h, &opts, "regularization") {
+                    return match h.view(v) {
+                        View::Str("Abel") => Ok(abel_sum(cx, &plain)?.map_or(Reply::Decline, Reply::Done)),
+                        _ => Ok(Reply::Done(h.call(h.sym("failure"), &[h.sym_term(h.sym("bad_option")), h.sym_term(h.sym("regularization")), v]))),
+                    };
+                }
+            }
             return self.inner.call(cx, t, args);
         }
         // the outermost sum or product of an evaluation: the value and its condition (nested calls, made by the
@@ -188,6 +198,48 @@ impl mc_eval::Native for SumWrap {
     fn curried(&self) -> bool {
         self.inner.curried()
     }
+}
+
+/// The Abel sum of `sum(f, [i, inf])` or `sum(f, [i, lo, inf])`: lim_{r ↑ 1} Σ f(i) r^i, when the power series
+/// sums in closed form and the one-sided limit is a finite value; `None` otherwise.
+fn abel_sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, plain_args: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let &[f, spec] = plain_args else { return Ok(None) };
+    let Some(it) = cx.as_list(spec) else { return Ok(None) };
+    let inf = h.sym_term(h.sym("inf"));
+    let i = match *it {
+        [i, hi] | [i, _, hi] if hi == inf => i,
+        _ => return Ok(None),
+    };
+    if !matches!(h.view(i), View::Sym(_)) {
+        return Ok(None);
+    }
+    let r = h.sym_term(h.sym("abel$r"));
+    let g = h.call(h.sym("mul"), &[f, h.call(h.sym("pow"), &[r, i])]);
+    let s = plain(|| cx.eval(h.call(h.sym("sum"), &[g, spec])))?;
+    let bad = ["sum", "failure", "indeterminate", "complex_infinity", "undefined", "limit", "inf"];
+    let holds = |t: T<'h>| {
+        let mut stack = mc_api::walk::Walk::new(t);
+        while let Some(u) = stack.pop() {
+            match h.view(u) {
+                View::Sym(s) if bad.contains(&h.sym_name(s).as_str()) => return true,
+                View::App { head, args } => {
+                    stack.push(head);
+                    stack.extend_from_slice(args);
+                }
+                _ => {}
+            }
+        }
+        false
+    };
+    if holds(s) {
+        return Ok(None);
+    }
+    let rule = h.call(h.sym("rule"), &[r, h.int(1)]);
+    let dir = h.call(h.sym("rule"), &[h.sym_term(h.sym("direction")), h.sym_term(h.sym("from_below"))]);
+    let dir = h.call(h.sym("options"), &[dir]);
+    let v = cx.eval(h.call(h.sym("limit"), &[s, rule, dir]))?;
+    Ok(if holds(v) || contains_head(h, v, r) { None } else { Some(v) })
 }
 
 thread_local! {
@@ -515,6 +567,20 @@ impl mc_eval::Native for RSolveWrap {
         if let [eqs, target, n] = plain.as_slice() {
             if let Some(v) = rsolve::r_solve(&mut sx, *eqs, *target, *n, self.value, gen, &mut m)? {
                 return Ok(Reply::Done(v));
+            }
+            if !self.value && opts.is_empty() {
+                // a list of one sequence: the answer for that sequence (the same rules)
+                if let Some(&[a]) = sx.as_list(*target) {
+                    if matches!(h.view(a), View::Sym(_)) {
+                        let r = sx.ev("r_solve", &[*eqs, a, *n])?;
+                        if !sx.contains_any(r, &["r_solve"]) {
+                            return Ok(Reply::Done(r));
+                        }
+                    }
+                }
+                if let Some(v) = rsolve::constrained(&mut sx, *eqs, *target, *n)? {
+                    return Ok(Reply::Done(v));
+                }
             }
         }
         if !opts.is_empty() {

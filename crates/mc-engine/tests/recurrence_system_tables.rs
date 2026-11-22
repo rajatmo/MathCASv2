@@ -20,7 +20,8 @@ fn systems_of_recurrences() {
     // 2, 4, 12, 16, 40, 144, 224, 640)
     let r = ev(&mut e, "recurrence_table([u(n + 1) == 2*v(n), v(n + 1) == (n + 1)*w(n), w(n + 1) == u(n), u(0) == 1, v(0) == 1, w(0) == 1], u, [n, 0, 9, 3], dependent_variables: [u, v, w])");
     assert_eq!(r, "[1, 4, 40, 640]");
-    // an equation with two occurrences at the highest shift is not run
+    // two occurrences at the highest shift, one sequence fixed by a constraint: y = 1 for every n, so
+    // x(n + 1) = x(n) - 1 from x(0) = 1 (checked by substituting each row into both equations)
     let r = ev(&mut e, "recurrence_table([x(n + 1) + y(n + 1) == x(n), y(n) == 1, x(0) == 1], [x, y], [n, 0, 2])");
-    assert!(r.starts_with("recurrence_table("), "{r}");
+    assert_eq!(r, "[[1, 1], [0, 1], [-1, 1]]");
 }

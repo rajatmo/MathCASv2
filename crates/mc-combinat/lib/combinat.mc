@@ -281,6 +281,107 @@ rule number_digit(x_, k_, b_) := {
   let lowest = if is_inexact(x) and x != 0 then real_digits(abs(x), b, 1)[2] - ceiling(precision(x)*n(log(10)/log(b))) else null
   if lowest !== null and k < lowest then indeterminate else mod(floor(ax/b^k), b)
 } when is_integer(k) and is_integer(b) and b > 1 and is_numeric(x)
+rule number_digit(x_, k_, b_) := {
+  let ax = abs(x)
+  let e = rd_phi(ax, 1)[2]
+  if k >= e then 0 else rd_phi(ax, e - k)[1][e - k]
+} when is_integer(k) and b === golden_ratio and is_numeric(x) and not is_inexact(x) and is_real(x) and x != 0 and rd_phi(abs(x), 1) !== null
+
+# to_radicals of sines, cosines and tangents of rational multiples of pi: cos(r pi) brought to 0 <= r <= 1/2 by
+# symmetry, then the value the evaluator knows in radicals, or for an even denominator the half-angle formula
+# cos(a) = sqrt((1 + cos(2 a))/2) (a in [0, pi/2], so the root is nonnegative) down to such a value; otherwise
+# with roots of unity, cos(r pi) = ((-1)^r + (-1)^(-r))/2 and tan(r pi) = -i (w - 1)/(w + 1) with w = (-1)^(2 r)
+fn trad_cosn(r) = {
+  let s = mod(r, 2)
+  if s > 1 then trad_cosn(2 - s)
+  else if s > 1/2 then {
+    let c = trad_cosn(1 - s)
+    if c === null then null else -c
+  }
+  else {
+    let c = cos(s*pi)
+    if free_of(c, cos) and free_of(c, sin) then c
+    else if mod(denominator(s), 2) == 0 then {
+      let c2 = trad_cosn(2*s)
+      if c2 === null then null else sqrt((1 + c2)/2)
+    }
+    else null
+  }
+}
+fn trad_cos(r) = {
+  let c = trad_cosn(r)
+  if c === null then ((-1)^r + (-1)^(-r))/2 else c
+}
+fn trad_sin(r) = {
+  let c = trad_cosn(1/2 - r)
+  if c === null then ((-1)^r - (-1)^(-r))/(2*im) else c
+}
+fn trad_tan(r) = {
+  let s = trad_cosn(1/2 - r)
+  let c = trad_cosn(r)
+  if s === null or c === null then -im*((-1)^(2*r) - 1)/((-1)^(2*r) + 1) else s/c
+}
+fn trad_f(f, u) = {
+  let r = u/pi
+  if not is_rational(r) then f(u)
+  else if f === sin then trad_sin(r) else if f === cos then trad_cos(r) else if f === tan then trad_tan(r)
+  else if f === cot then 1/trad_tan(r) else if f === sec then 1/trad_cos(r) else if f === csc then 1/trad_sin(r)
+  else f(u)
+}
+fn trad_trig(e) = rewrite(e, [sin(u_) :> trad_f(sin, u), cos(u_) :> trad_f(cos, u), tan(u_) :> trad_f(tan, u),
+  cot(u_) :> trad_f(cot, u), sec(u_) :> trad_f(sec, u), csc(u_) :> trad_f(csc, u)])
+
+# the digits in base golden_ratio (real_digits(x, golden_ratio, n)): the greedy expansion, each step taking the
+# largest power phi^k not above what is left, so the digits are 0 and 1 with no two ones adjacent (Renyi, Acta
+# Math. Acad. Sci. Hungar. 8 (1957)). phi^k = F(k - 1) + F(k) phi for every integer k (Fibonacci numbers extended
+# to negative indices), so what is left is x - a - b phi with rationals a and b; its sign is exact for a rational
+# x (c + d sqrt(5) with rationals c, d: the sign of the larger of c^2 and 5 d^2) and otherwise read from values
+# with ten guard digits at 40, 160 and 640 digits (null when none of them decides)
+fn rd_phi_q(c, d) = if c^2 > 5*d^2 then sign(c) else if c^2 < 5*d^2 then sign(d) else 0
+fn rd_phi_n(v) = {
+  var s = null
+  for p in [40, 160, 640] {
+    if s === null then {
+      let w = n(v, p)
+      if abs(w) > 10^(10 - p) then s = sign(w)
+    }
+  }
+  s
+}
+fn rd_phi_sign(x, a, b) = if is_rational(x) then rd_phi_q(x - a - b/2, -b/2) else rd_phi_n(x - a - b*golden_ratio)
+fn rd_phi(x, len) = {
+  var e = floor(n(log(x)/log(golden_ratio))) + 1
+  var ok = true
+  # phi^(e - 1) <= x < phi^e
+  var up = rd_phi_sign(x, fibonacci(e - 1), fibonacci(e))
+  while ok and up !== null and up >= 0 {
+    e = e + 1
+    up = rd_phi_sign(x, fibonacci(e - 1), fibonacci(e))
+  }
+  var down = rd_phi_sign(x, fibonacci(e - 2), fibonacci(e - 1))
+  while ok and down !== null and down < 0 {
+    e = e - 1
+    down = rd_phi_sign(x, fibonacci(e - 2), fibonacci(e - 1))
+  }
+  if up === null or down === null then ok = false
+  var a = 0
+  var b = 0
+  var ds = []
+  for k in range(e - 1, e - len, -1) {
+    if ok then {
+      let a1 = a + fibonacci(k - 1)
+      let b1 = b + fibonacci(k)
+      let s = rd_phi_sign(x, a1, b1)
+      if s === null then ok = false
+      else if s >= 0 then {
+        a = a1
+        b = b1
+        ds = append(ds, 1)
+      } else ds = append(ds, 0)
+    }
+  }
+  if ok then [ds, e] else null
+}
 
 # number_expand(x), (x, b), (x, b, len): the digits of x in base b times their place values, 157 as [100, 50, 7]; a
 # fraction stays in the last term (the units place), len terms keep the lower digits in the last one; complex
@@ -753,17 +854,25 @@ fn ex_all_num(e) = if is_atom(e) then e else {
   else if head(e) === add or head(e) === mul or head(e) === pow then expand(apply(head(e), ps))
   else apply(head(e), ps)
 }
+# a compound head is expanded as well (((1 + a) (1 + b))(x) is (1 + a + b + a b)(x))
 fn ex_all(e) = if is_atom(e) then e else {
   let ps = map(ex_all, ex_parts(e))
   if head(e) === pow and is_integer(ps[2]) and ps[2] < 0 then expand(ps[1]^(-ps[2]))^(-1)
   else if head(e) === add or head(e) === mul or head(e) === pow then ex_den_terms(expand(apply(head(e), ps)))
-  else apply(head(e), ps)
+  else apply(ex_all(head(e)), ps)
+}
+# expand_all(e, patt): only the parts that hold patt expanded, by expand(., patt) (a part free of patt is a leaf)
+fn ex_all_p(e, p) = if is_atom(e) or free_of(e, p) then e else {
+  let ps = map(t => ex_all_p(t, p), ex_parts(e))
+  if head(e) === add or head(e) === mul or head(e) === pow then expand(apply(head(e), ps), p)
+  else apply(ex_all_p(head(e), p), ps)
 }
 # expand_numerator(e): the numerators of all fractions in e expanded; expand_denominator(e): the denominators;
 # expand_all(e): everything expanded, inside function arguments too, numerators and denominators
 rule expand_numerator(e_) := ex_numer(e)
 rule expand_denominator(e_) := ex_denom(e)
 rule expand_all(e_) := ex_all(e)
+rule expand_all(e_, p_) := ex_all_p(e, p) when is_atom(p) or head(p) !== options
 
 # expand(e, patt): e expanded with every part free of patt kept as it is: in the tree of sums, products and powers
 # a subterm free of patt is a leaf, replaced by an opaque kernel ex_leaf(i) for the expansion and put back after
@@ -1198,17 +1307,30 @@ fn horner1(cs, x) = {
     }
   }
 }
-fn horner_vars(p, vs) = if length(vs) == 0 then p else {
-  let x = vs[1]
-  let cs = coefficient_list(expand(p), x)
-  horner1(map(c => horner_vars(c, rest(vs)), cs), x)
+# fractional powers of a variable x (x^(1/3) + x + x^(3/2)): with L the least common denominator of the exponents
+# the polynomial is one in s = x^(1/L), nested in s and written back
+fn horner_lcd(p, x) = apply(lcm, map(t => denominator(calc_xexp(t, x)), calc_terms(expand(p))))
+fn horner_var(p, x, inner) = {
+  let l = horner_lcd(p, x)
+  if l === 1 then horner1(map(inner, coefficient_list(expand(p), x)), x)
+  else {
+    let s = calc_total(map(t => t/x^calc_xexp(t, x)*horner_s^(l*calc_xexp(t, x)), calc_terms(expand(p))))
+    rewrite(horner1(map(inner, coefficient_list(s, horner_s)), horner_s), horner_s -> x^(1/l))
+  }
 }
-rule horner_form(p_) := horner_form(p, variables(p, kernels: true)) when not is_list(p)
-rule horner_form(p_, v_) := {
+fn horner_vars(p, vs) = if length(vs) == 0 then p else horner_var(p, vs[1], c => horner_vars(c, rest(vs)))
+# the variables of a quotient: those of its numerator and denominator (a symbol in the denominator is one)
+fn horner_auto_vars(p) = {
   let t = together(p)
-  let vs = rx_vars(v)
+  union(variables(numerator(t), kernels: true), variables(denominator(t), kernels: true))
+}
+rule horner_form(p_) := horner_form(p, horner_auto_vars(p)) when not is_list(p)
+rule horner_form(p_, v_) := horner_form(p, v, v) when not is_list(p)
+# horner_form(p, vn, vd): the numerator nested in the variables vn, the denominator in vd
+rule horner_form(p_, vn_, vd_) := {
+  let t = together(p)
   # a numerical denominator stays in the coefficients
-  if is_number(denominator(t)) then horner_vars(p, vs) else horner_vars(numerator(t), vs)/horner_vars(denominator(t), vs)
+  if is_number(denominator(t)) then horner_vars(p, rx_vars(vn)) else horner_vars(numerator(t), rx_vars(vn))/horner_vars(denominator(t), rx_vars(vd))
 } when not is_list(p)
 
 # coefficient_rules(p, [x, y, ...]): the rules {exponents} -> coefficient of the monomials of the polynomial p, in
@@ -1354,6 +1476,33 @@ fn mr_digits(n, bs) = {
 fn mr_ok(n, r) = is_number(n) and is_integer(n) and n >= 0 and not is_atom(r) and head(r) === mixed_radix and length(r) == 1 and is_list(r[1]) and every(r[1], b => b === inf or (is_integer(b) and b > 1 or b === 1))
 rule integer_digits(n_, r_) := mr_digits(n, r[1]) when mr_ok(n, r)
 rule integer_length(n_, r_) := length(mr_digits(n, r[1])) when mr_ok(n, r)
+# integer_string(n, "TraditionalChineseFinancial"), 0 <= n < 10^16: the financial numerals (code points of the
+# digits 0 to 9 below), with the units ten, hundred, thousand in each group of four digits and the group units
+# ten thousand, 10^8, 10^12 after a group that is not zero; a run of zeros before a nonzero digit is written as
+# one zero, zeros at the end are not written (1950650 is 195 ten-thousands, zero, 650)
+fn cnf_digit(d) = [38646, 22777, 36019, 21443, 32902, 20237, 38520, 26578, 25420, 29590][d + 1]
+fn cnf_chars(m) = if m == 0 then [38646] else {
+  let ds = integer_digits(m, 10)
+  let n = length(ds)
+  var out = []
+  var zero = false
+  for i in range(n) {
+    let p = n - i + 1
+    let u = mod(p - 1, 4)
+    let g = quotient(p - 1, 4)
+    if ds[i] == 0 then zero = true
+    else {
+      if zero then out = append(out, 38646)
+      zero = false
+      out = append(out, cnf_digit(ds[i]))
+      if u > 0 then out = append(out, [25342, 20336, 20191][u])
+    }
+    if u == 0 and g > 0 and mod(quotient(m, 10^(4*g)), 10000) != 0 then out = append(out, [33836, 20740, 20806][g])
+  }
+  out
+}
+rule integer_string(n_, s_) := from_characters(cnf_chars(n)) when is_integer(n) and n >= 0 and n < 10^16 and s === "TraditionalChineseFinancial"
+
 # integer_string(n, mixed_radix(bs)), (n, mixed_radix(bs), len): the digits as characters 0-9, a-z (radices up to
 # 36), the last len of them (padded with 0)
 fn mr_char(d) = if d < 10 then 48 + d else 87 + d

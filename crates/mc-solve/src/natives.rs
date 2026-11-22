@@ -157,6 +157,9 @@ impl SolveNative {
             }
         }
         let _settings = crate::front::Scope::enter(&opts.settings);
+        if let (SolveFn::Roots, Some(using)) = (self.f, opts.using) {
+            return roots_using(cx, self.name, &self.stop, args, using);
+        }
         if let Some(p) = opts.modulus {
             let env = Env::new(h, self.stop.clone(), self.name);
             let _scope = StopScope::enter(Some(&self.stop));
@@ -284,6 +287,58 @@ impl SolveNative {
         }
         finish_reply(&env, r, abort)
     }
+}
+
+/// `roots(eq, x, using: cases)`: `cases` is `a == v` (several joined by `and`) or a disjunction of such; for each
+/// case the values are put into `eq`, its roots taken, and the case's equations kept beside them:
+/// `(x == r1 or x == r2) and a == v or ...`. A case whose equation has no root drops out.
+fn roots_using<'h>(cx: &mut NativeCx<'_, '_, 'h>, name: &'static str, stop: &Arc<AtomicBool>, args: &[T<'h>], using: T<'h>) -> Res<Reply<'h>> {
+    let h: &'h Heap = cx.heap();
+    let env = Env::new(h, stop.clone(), name);
+    let bad = || Ok(Reply::Done(env.arg_failure_term("using takes equations a == v of other unknowns, or a disjunction of them")));
+    let cases: Vec<T<'h>> = match env.args_of(using, "or") {
+        Some(cs) => cs.to_vec(),
+        None => vec![using],
+    };
+    let Some((&eq, rest)) = args.split_first() else { return bad() };
+    let xs: Vec<T<'h>> = match rest.first().map(|&x| env.as_list(x).map(<[T<'h>]>::to_vec).unwrap_or_else(|| vec![x])) {
+        Some(v) => v,
+        None => return bad(),
+    };
+    let mut pieces = vec![];
+    for case in cases {
+        let parts: Vec<T<'h>> = match env.args_of(case, "and") {
+            Some(ps) => ps.to_vec(),
+            None => vec![case],
+        };
+        let mut rules = vec![];
+        for p in parts {
+            match env.args_of(p, "equal") {
+                // the left side an unknown other than the ones solved for
+                Some(&[a, v]) if matches!(h.view(a), View::Sym(_)) && !xs.contains(&a) => rules.push(h.call(h.sym(names::RULE), &[a, v])),
+                _ => return bad(),
+            }
+        }
+        let rules = env.list(&rules);
+        let e2 = cx.eval(h.call(h.sym("rewrite"), &[eq, rules]))?;
+        let mut a = vec![e2];
+        a.extend_from_slice(rest);
+        let r = cx.eval(h.call(h.sym("roots"), &a))?;
+        if cx.is_false(r) {
+            continue;
+        }
+        // a failure of the case's roots is the answer
+        if env.head_name(r).is_some_and(|(n, _)| n == names::FAILURE) {
+            return Ok(Reply::Done(r));
+        }
+        pieces.push(h.call(h.sym("and"), &[r, case]));
+    }
+    let out = match pieces.as_slice() {
+        [] => env.sym(names::FALSE),
+        [one] => *one,
+        _ => h.call(h.sym("or"), &pieces),
+    };
+    Ok(Reply::Done(cx.eval(out)?))
 }
 
 /// The reply for what a function gave: an interrupt is the evaluator's abort, memory exhaustion `failure(limit,

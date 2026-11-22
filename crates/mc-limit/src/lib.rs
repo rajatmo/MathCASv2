@@ -1121,6 +1121,65 @@ fn along<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, spec: T<'h>
     })
 }
 
+/// `g` at `x → ∞` with the prime counting function and the n-th prime replaced by their asymptotic equivalents
+/// (the prime number theorem: π(x) ~ x/log x, and p_n ~ n log n), or `None` when `g` has neither or has one
+/// that is not a factor of a product. Only factors are replaced: a factor P ~ Q gives g P = (g Q)(P/Q) with
+/// P/Q → 1, so the limit and the leading term of g P are those of g Q; a sum (π(x) - li(x)) is left alone,
+/// since there the lower order terms decide. `prime` is replaced only when `integers` holds, a sequence or the
+/// asymptotic form of one.
+fn prime_equivalents<'h>(b: &Build<'h>, g: T<'h>, x: T<'h>, integers: bool) -> Option<T<'h>> {
+    let h = b.heap();
+    let pi = h.sym("prime_pi");
+    let p = h.sym("prime");
+    let has = |t: T<'h>| {
+        let mut w = mc_api::walk::Walk::new(t);
+        while let Some(u) = w.pop() {
+            if let View::App { head, args } = h.view(u) {
+                if matches!(h.view(head), View::Sym(s) if s == pi || s == p) {
+                    return true;
+                }
+                w.extend_from_slice(args);
+            }
+        }
+        false
+    };
+    if !has(g) {
+        return None;
+    }
+    // one factor: prime_pi(x), prime(x), or a power of one with an exponent free of x
+    let factor = |f: T<'h>| -> Option<T<'h>> {
+        if !has(f) {
+            return Some(f);
+        }
+        let (base, k) = match h.view(f) {
+            View::App { head, args: &[base, k] } if b.sym_of(head) == Some(b.hd.pow) && is_free(b, k, x) && !has(k) => (base, Some(k)),
+            _ => (f, None),
+        };
+        let q = match args_of(b, base, pi) {
+            Some(&[u]) if u == x => b.div(x, b.call("log", &[x])),
+            _ => match args_of(b, base, p) {
+                Some(&[u]) if u == x && integers => b.mul(&[x, b.call("log", &[x])]),
+                _ => return None,
+            },
+        };
+        Some(match k {
+            Some(k) => b.pow(q, k),
+            None => q,
+        })
+    };
+    let out = match args_of(b, g, b.hd.mul) {
+        Some(fs) => {
+            let mut v = Vec::with_capacity(fs.len());
+            for &f in fs {
+                v.push(factor(f)?);
+            }
+            b.mul(&v)
+        }
+        None => factor(g)?,
+    };
+    Some(out)
+}
+
 /// `t` with the parts of a real variable `s` taken out of `re`, `im_part` and `conjugate`: a term c s^k of a sum
 /// inside them (c a number, k a natural number) leaves as re(c) s^k, im_part(c) s^k or conjugate(c) s^k, since
 /// these functions are additive and real-linear (`re(x + s) = re(x) + s` for a real s). `arg(u)` with re(u) > 0 at
@@ -1409,6 +1468,11 @@ impl Native for LimitFn {
             REASON.with(|r| r.set(None));
             for &(x, a) in points.iter().rev() {
                 let opts = Options::default();
+                if a == h.sym_term(h.sym("inf")) && matches!(kind, Kind::Limit | Kind::Discrete | Kind::Asymptotic) {
+                    if let Some(q) = prime_equivalents(&b, g, x, kind != Kind::Limit) {
+                        g = cx.eval(q)?;
+                    }
+                }
                 let r = match kind {
                     Kind::Limit | Kind::Discrete => {
                         let o = if kind == Kind::Limit {

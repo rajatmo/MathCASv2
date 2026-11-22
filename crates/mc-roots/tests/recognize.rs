@@ -20,3 +20,18 @@ fn algebraic_numbers() {
     assert_eq!(s.run("simplify(root_approximant(n(sqrt(2) + sqrt(3)), 4) - sqrt(2) - sqrt(3))"), "0");
     assert!(s.run("root_approximant(3.1415926)").starts_with("root(&("));
 }
+
+#[test]
+fn complex_algebraic_numbers() {
+    let mut s = Sys::new();
+    // sqrt(2) + i is a root of x^4 - 2 x^2 + 9 (x - i = sqrt(2): x^2 - 2 i x - 3 = 0, times its conjugate); the
+    // answer is that root: its value agrees with sqrt(2) + i to 30 digits
+    s.run("a = root_approximant(n(sqrt(2) + im), 4)");
+    assert_eq!(s.run("expand(minimal_polynomial(a, x) - (x^4 - 2 x^2 + 9))"), "0");
+    assert_eq!(s.run("abs(n(a, 30) - n(sqrt(2) + im, 30)) < 10^-25"), "true");
+    // a Gaussian rational and a quadratic irrational of degree 2 over Q
+    assert_eq!(s.run("root_approximant(n(3/4 - 2 im)) - (3/4 - 2 im)"), "0");
+    assert_eq!(s.run("simplify(root_approximant(n((1 + im sqrt(3))/2)) - (1 + im sqrt(3))/2)"), "0");
+    // no relation of small height: not found (e + i pi)
+    assert!(s.run("root_approximant(n(e + im pi))").starts_with("failure(not_found"));
+}

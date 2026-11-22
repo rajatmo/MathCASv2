@@ -33,7 +33,9 @@ fn inverse_without_closed_form_at_a_real_number() {
     // several real solutions (sin(y) y == 1/2), a symbol, or a wrong number of arguments: unevaluated
     assert_eq!(ev("inverse_function(&(sin(&1)*&1))(1/2)"), "inverse_function(&(sin(&1)*&1))(1/2)");
     assert_eq!(ev("inverse_function(&(sin(&1) - &1))(z)"), "inverse_function(&(sin(&1) - &1))(z)");
-    assert_eq!(ev("inverse_function((x, y) => x + y, 1, 2)(3)"), "inverse_function((x, y) => x + y, 1, 2)(3)");
+    // (an inverse with a closed form is that function of two arguments: one argument is a failure of the call)
+    assert_eq!(ev("inverse_function((x, y) => x + y, 1, 2)"), "&(&1 - &2)");
+    assert!(ev("inverse_function((x, y) => x + y, 1, 2)(3)").starts_with("failure("));
     // a closed-form inverse is unchanged
     assert_eq!(ev("inverse_function(&(2*&1 + 3))(5)"), "1");
 }

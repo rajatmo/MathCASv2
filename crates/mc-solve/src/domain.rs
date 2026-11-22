@@ -187,7 +187,8 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
             || real_membership(h, c, &vars)
     });
     let real_mode = dom != "complexes" || ordered;
-    let real = crate::front::Settings { reals: Some(dom != "complexes" || ordered), ..Default::default() };
+    // the solutions are filtered by the conditions: every branch of product_log is a candidate
+    let real = crate::front::Settings { reals: Some(real_mode), all_branches: Some(true), ..Default::default() };
     let _real = crate::front::Scope::enter(&real);
     let mut sols: Option<Vec<T<'h>>> = None;
     // fewer equations than unknowns with conditions p != q: the Rabinowitsch variable z with (p - q) z == 1 removes
@@ -329,6 +330,18 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
         if dom == "reals" {
             if let Some(r) = split_abs(cx, eqs, xs)? {
                 return Ok(Some(r));
+            }
+        }
+        // over the complexes, one equation in exponentials of the unknown in a strip of its real part: the roots
+        // of the equation in y = e^x in the annulus, as families
+        if let ([x], [eq], "complexes") = (vars.as_slice(), equations.as_slice(), dom.as_str()) {
+            if let View::App { args: &[l, r], .. } = h.view(*eq) {
+                let f = cx.eval(h.call(h.sym(names::ADD), &[l, h.call(h.sym(names::MUL), &[h.int(-1), r])]))?;
+                let complex = crate::front::Settings { reals: Some(false), ..Default::default() };
+                let _complex = crate::front::Scope::enter(&complex);
+                if let Some(r) = crate::strip::solve(cx, f, *x, &conds)? {
+                    return Ok(Some(r));
+                }
             }
         }
         // the plain solve's answer (a failure says why); with conditions given, the solutions could not be checked
@@ -1102,6 +1115,23 @@ pub fn reduce<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T
         parts.iter().any(|&p| head_name(h, p).as_deref() == Some("equal"))
             && parts.iter().all(|&p| matches!(head_name(h, p).as_deref(), Some("equal" | "unequal")))
     };
+    // one equation in exponentials of the unknown in a strip of its real part: its families (exact: every member
+    // lies in the strip)
+    if !several && matches!(dom_name.as_deref(), None | Some("complexes")) && matches!(h.view(xs), View::Sym(_)) {
+        let mut parts = vec![];
+        conjuncts(h, cond, &mut parts);
+        let (eqs, conds): (Vec<T<'h>>, Vec<T<'h>>) = parts.into_iter().partition(|&p| head_name(h, p).as_deref() == Some("equal"));
+        if let [eq] = eqs.as_slice() {
+            if let (View::App { args: &[l, r], .. }, false) = (h.view(*eq), conds.is_empty()) {
+                let f = cx.eval(h.call(h.sym(names::ADD), &[l, h.call(h.sym(names::MUL), &[h.int(-1), r])]))?;
+                let complex = crate::front::Settings { reals: Some(false), ..Default::default() };
+                let _complex = crate::front::Scope::enter(&complex);
+                if let Some(sols) = crate::strip::solve(cx, f, xs, &conds)? {
+                    return Ok(Some(rules_as_condition(cx, sols).unwrap_or(sols)));
+                }
+            }
+        }
+    }
     if !several && (matches!(dom_name.as_deref(), Some("rationals" | "complexes")) || dom.is_none() && equations_only()) {
         if !equations_only() {
             return Ok(None);

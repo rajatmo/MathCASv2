@@ -7,7 +7,9 @@
 //! integer parameters of periodic solutions, `c` by default), `max_roots` (at most that many solutions),
 //! `verify_solutions` (accepted; every solution is checked by substitution in any case), `inverse_functions`
 //! (`false`: no inversion of functions of the unknowns), `modulus` (solutions modulo an integer), `method` and
-//! `working_precision` (accepted), and for `roots` also `multiplicity` and `equated_to`. The settings apply to the
+//! `working_precision` (accepted), and for `roots` also `multiplicity`, `equated_to` and `using` (equations
+//! `a == v`, or a disjunction of them, for other unknowns: each case substituted, its roots taken and the case's
+//! equation kept beside them). The settings apply to the
 //! call and to the calls of the solving functions it makes (they are kept for the dynamic extent of the call, so
 //! that the domain and condition layer, which calls `solve` again, solves with the same settings; decision 11C.1).
 use crate::cx::Cfg;
@@ -26,6 +28,9 @@ pub(crate) struct Settings {
     pub inverse_functions: Option<bool>,
     /// solving over the reals (set by the domain layer for its inner calls)
     pub reals: Option<bool>,
+    /// every branch of `product_log` as a family, where the plain call gives the principal one (set where the
+    /// answer must be complete: conditions to filter the solutions, `reduce`)
+    pub all_branches: Option<bool>,
 }
 
 impl Settings {
@@ -39,6 +44,7 @@ impl Settings {
             max_roots: inner.max_roots.or(self.max_roots),
             inverse_functions: inner.inverse_functions.or(self.inverse_functions),
             reals: inner.reals.or(self.reals),
+            all_branches: inner.all_branches.or(self.all_branches),
         }
     }
 
@@ -106,6 +112,8 @@ pub(crate) struct Options<'h> {
     pub no_facts: bool,
     /// `max_roots: inf`: every solution, families kept as families
     pub all_roots: bool,
+    /// `roots`: equations `a == v` (a disjunction of them) for other unknowns, used before the roots are taken
+    pub using: Option<T<'h>>,
 }
 
 /// The option names each function accepts besides `assumptions`.
@@ -115,7 +123,7 @@ fn accepts(f: &str, key: &str) -> bool {
         "solve" | "solve_values" => {
             common || matches!(key, "cubics" | "quartics" | "inverse_functions" | "modulus" | "mode" | "backsubstitution")
         }
-        "roots" => matches!(key, "cubics" | "quartics" | "modulus" | "multiplicity" | "equated_to" | "method"),
+        "roots" => matches!(key, "cubics" | "quartics" | "modulus" | "multiplicity" | "equated_to" | "method" | "using"),
         "reduce" => matches!(key, "cubics" | "quartics"),
         "n_solve" | "n_solve_values" => common || matches!(key, "digits" | "precision_goal" | "accuracy_goal"),
         _ => false,
@@ -184,6 +192,7 @@ pub(crate) fn split<'a, 'h>(h: &'h Heap, f: &str, args: &'a [T<'h>]) -> Result<(
                 _ => return Err("multiplicity must be a positive integer".into()),
             },
             "equated_to" => opts.equated_to = Some(v),
+            "using" => opts.using = Some(v),
             "digits" | "working_precision" => match h.view(v) {
                 View::Int(d @ 1..=100_000) => opts.digits = Some(d as u64),
                 View::Sym(s) if h.sym_name(s) == "machine_precision" => {}

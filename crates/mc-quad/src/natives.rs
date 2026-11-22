@@ -313,6 +313,60 @@ impl NIntegrate {
                 return Ok(Reply::Done(r));
             }
         }
+        // over a region, `element([x, y], reg)`: the exact integral over the region (the region integrator: the
+        // measure for a constant, nested integrals over the region's description otherwise), then its value
+        if let [spec] = specs {
+            let element = match h.view(*spec) {
+                View::App { head, args: &[pts, reg] } if head == h.sym_term(h.sym("element")) => Some((pts, reg)),
+                _ => None,
+            };
+            if let Some((pts, reg)) = element {
+                let mut exact = cx.eval(h.call(h.sym("region_integrate"), &[*f, *spec]))?;
+                // a constant integrand: the constant times the measure of the region in its own dimension
+                let terms: Vec<T<'h>> = cx.as_list(pts).map_or_else(|| vec![pts], |v| v.to_vec());
+                let vars: Vec<Sym> = terms.iter().filter_map(|&t| if let View::Sym(s) = h.view(t) { Some(s) } else { None }).collect();
+                let is_call = |t: T<'h>, name: &str| matches!(h.view(t), View::App { head, .. } if head == h.sym_term(h.sym(name)));
+                let mut held = is_call(exact, "region_integrate");
+                let embed = cx.eval(h.call(h.sym("region_embedding_dimension"), &[reg]))?;
+                let fits = matches!(h.view(embed), View::Int(d) if d == terms.len() as i64);
+                if held && fits && vars.len() == terms.len() && !mentions(cx, *f, &vars)? {
+                    let m = cx.eval(h.call(h.sym("region_measure"), &[reg]))?;
+                    // a measure left unevaluated is not given a value by `n`: the numeric measure of a solid is a
+                    // rough estimate, a check on an exact value and not an answer
+                    if !is_call(m, "region_measure") {
+                        exact = cx.eval(h.call(h.sym(names::MUL), &[*f, m]))?;
+                        held = false;
+                    }
+                }
+                if !held {
+                    let v = cx.eval(h.call(h.sym("n"), &[exact]))?;
+                    let num = |t: T<'h>| matches!(h.view(t), View::Real(_) | View::Int(_) | View::Ball { .. });
+                    let cplx = matches!(h.view(v), View::App { head, args: &[a, b] }
+                        if head == h.sym_term(h.sym("complex")) && num(a) && num(b));
+                    if num(v) || cplx {
+                        return Ok(Reply::Done(v));
+                    }
+                }
+                // an implicit region in the integration variables: the integrand times the indicator of its
+                // condition over the whole space (the adaptive rules with error control, as for `boole` integrands)
+                if let View::App { head, args: &[cond, rvars] } = h.view(reg) {
+                    let rvars: Vec<T<'h>> = cx.as_list(rvars).map_or_else(Vec::new, |v| v.to_vec());
+                    if head == h.sym_term(h.sym("implicit_region")) && rvars.len() == terms.len() && vars.len() == terms.len() {
+                        let rules: Vec<T<'h>> = rvars.iter().zip(&terms).map(|(&a, &b)| h.call(h.sym(names::RULE), &[a, b])).collect();
+                        let rules = cx.list(&rules);
+                        let cond = cx.eval(h.call(h.sym("rewrite"), &[cond, rules]))?;
+                        let ind = h.call(h.sym("boole"), &[cond]);
+                        let mut call = vec![h.call(h.sym(names::MUL), &[*f, ind])];
+                        for &t in &terms {
+                            let ninf = h.call(h.sym(names::MUL), &[h.int(-1), h.sym_term(h.sym("inf"))]);
+                            call.push(cx.list(&[t, ninf, h.sym_term(h.sym("inf"))]));
+                        }
+                        call.extend((args.len() < all.len()).then(|| all[all.len() - 1]));
+                        return Ok(Reply::Done(cx.eval(h.call(h.sym(NAME), &call))?));
+                    }
+                }
+            }
+        }
         if specs.len() > MAX_DIMS || cx.as_list(*f).is_some() {
             return Ok(bad_argument(h, h.int(if cx.as_list(*f).is_some() { 1 } else { MAX_DIMS as i64 + 2 })));
         }

@@ -217,16 +217,19 @@ impl<'a, 'h> Expander<'a, 'h> {
         (b.mul(&[b.rat(1, 2), self.named("log", &[r])]), self.named("arg", &[self.join((a, c))]))
     }
 
-    /// `t` as `a + b i`, evaluated; lists element by element.
+    /// `t` as `a + b i`, evaluated; lists element by element, equations side by side (and the operands of `and`,
+    /// `or`, `not`), the relation evaluated again: `exp(i z) == cos(z) + i sin(z)` becomes true.
     pub fn expand(&mut self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<T<'h>> {
         let b = self.b;
         if let Some((s, items)) = b.call_of(t) {
-            if s == b.hd.list {
+            let relation = matches!(b.heap().sym_name(s).as_str(), "equal" | "unequal" | "and" | "or" | "not");
+            if s == b.hd.list || relation {
                 let mut out = Vec::with_capacity(items.len());
                 for &x in items {
                     out.push(self.expand(cx, x)?);
                 }
-                return Ok(b.call(s, &out));
+                let r = b.call(s, &out);
+                return if relation { cx.eval(r) } else { Ok(r) };
             }
         }
         let p = self.parts(cx, t)?;

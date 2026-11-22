@@ -209,6 +209,20 @@ fn rule<'h>(b: &B<'h>, node: T<'h>, reciprocals: bool) -> Option<T<'h>> {
         ("beta", [a, c]) => b.div(b.mul(&[g(*a), g(*c)]), g(b.add(&[*a, *c]))),
         ("pochhammer", [a, n]) => b.div(g(b.add(&[*a, *n])), g(*a)),
         ("harmonic_number", [x]) => b.add(&[h.sym_term(h.sym("euler_gamma")), b.call_named("digamma", &[b.add(&[*x, one])])]),
+        // the sum of k^m x^k for k = 1..n (r = -m, 0 <= m <= 8, x a number other than 1): the geometric sum
+        // x (1 - x^n)/(1 - x) with (x d/dx) applied m times, at the value x
+        ("harmonic_number", [n, r, x]) => {
+            let View::Int(k) = h.view(*r) else { return None };
+            if !(-8..=0).contains(&k) || b.ar.num(*x).is_none() || *x == one || b.ar.num(*n).is_some() {
+                return None;
+            }
+            let t = h.sym_term(h.sym("harmonic_number·x"));
+            let mut s = b.div(b.mul(&[t, b.sub(one, b.pow(t, *n))]), b.sub(one, t));
+            for _ in 0..-k {
+                s = b.mul(&[t, b.call_named("d", &[s, t])]);
+            }
+            b.call_named("rewrite", &[s, h.call(h.sym(mc_api::names::RULE), &[t, *x])])
+        }
         // H(r, m) = binomial(m + r - 1, r - 1) (H(m + r - 1) - H(r - 1)) (Conway and Guy, The Book of Numbers, 1996,
         // p. 258), continued by gamma and digamma
         ("hyper_harmonic_number", [r, m]) => {

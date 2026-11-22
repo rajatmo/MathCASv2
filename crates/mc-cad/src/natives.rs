@@ -246,6 +246,13 @@ impl Native for CadNative {
                                 }
                             }
                         }
+                        // the same sentences by instances of their quantifiers (a proof in one direction each)
+                        for (q, b) in [("for_all", true), ("exists", false)] {
+                            let s = h.call(h.sym(q), &[xs, c]);
+                            if crate::relax::decide(cx, &self.stop, s)? == Some(b) {
+                                return Ok(Reply::Done(cx.bool(b)));
+                            }
+                        }
                         return Ok(Reply::Decline);
                     }
                     Some(s) => {
@@ -498,12 +505,26 @@ fn resolve<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: &[T<
             None => Reply::Done(unresolved(cx, f)),
         });
     }
+    // points in regions: the regions' membership conditions
+    let f = match crate::recast::regions(cx, &fr, f)? {
+        Some(g) => g,
+        None => f,
+    };
     Ok(match solve_formula(cx, stop, f, &[], Style::Resolve)? {
         Some(t) => Reply::Done(t),
         // a sentence with a non-polynomial equation: a proved sign change is a witness
         None => match crate::witness::exists_by_sign_change(cx, f)? {
             Some(true) => Reply::Done(cx.bool(true)),
-            _ => Reply::Done(unresolved(cx, f)),
+            _ => {
+                // a sentence with functions that are not polynomial: polynomial relaxations of their values
+                let mut free = vec![];
+                free_variables(&fr, f, &mut vec![], &mut free);
+                let decided = if free.is_empty() { crate::relax::decide(cx, stop, f)? } else { None };
+                match decided {
+                    Some(b) => Reply::Done(cx.bool(b)),
+                    None => Reply::Done(unresolved(cx, f)),
+                }
+            }
         },
     })
 }

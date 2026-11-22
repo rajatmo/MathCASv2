@@ -138,6 +138,35 @@ fn gaussian_gcd(mut a: (i128, i128), mut b: (i128, i128)) -> (i128, i128) {
 }
 
 fn is_coprime<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    // gaussian_integers: true (the only option): the numbers taken in Z[i]; false: in Z
+    if let Some((&o, nums)) = a.split_last() {
+        if let Some(rules) = fx.call_of(o, "options") {
+            let key = fx.h.sym_term(fx.h.sym("gaussian_integers"));
+            let value = match rules {
+                [r] => match fx.h.view(*r) {
+                    mc_api::View::App { args: &[k, v], .. } if k == key => v,
+                    _ => return Ok(None),
+                },
+                _ => return Ok(None),
+            };
+            if value == fx.bool(false) {
+                return is_coprime(fx, nums);
+            }
+            if value != fx.bool(true) || nums.len() < 2 || nums.iter().any(|&t| int(fx, t).is_none() && gaussian_small(fx, t).is_none()) {
+                return Ok(None);
+            }
+            let Some(zs) = nums.iter().map(|&t| gaussian_small(fx, t)).collect::<Option<Vec<(i128, i128)>>>() else { return Ok(None) };
+            for i in 0..zs.len() {
+                for j in i + 1..zs.len() {
+                    let g = gaussian_gcd(zs[i], zs[j]);
+                    if g.0 * g.0 + g.1 * g.1 != 1 {
+                        return Ok(Some(fx.bool(false)));
+                    }
+                }
+            }
+            return Ok(Some(fx.bool(true)));
+        }
+    }
     if a.len() < 2 {
         return Ok(None);
     }
@@ -839,7 +868,9 @@ fn quotient_remainder<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 
 fn catalan_number<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let n = a[0];
-    if let Some(k) = small(fx, n, 100_000) {
+    // an integer: binomial(2 n, n)/(n + 1) exactly (binomial meters its own work); the gamma form below is for
+    // other numbers only (for a large integer it left a product of unevaluated parts)
+    if let Some(k) = small(fx, n, 50_000_000) {
         if k < 0 {
             return Ok(Some(fx.int(if k == -1 { -1 } else { 0 })));
         }
@@ -1306,6 +1337,26 @@ fn real_digits<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         return Ok(Some(fx.call("real_digits_at", a)));
     }
     let x = a[0];
+    // base golden_ratio: the greedy expansion of an exact real (lib combinat.mc, rd_phi)
+    if let [_, base, len] = a {
+        let phi_base = matches!(fx.h.view(*base), mc_api::View::Sym(s) if fx.h.sym_name(s) == "golden_ratio");
+        let exact_real = match fx.num(x) {
+            Some(Num::Real(r)) => matches!(r, Real::Exact(_)),
+            Some(Num::Complex(..)) => false,
+            None => {
+                let yes = fx.bool(true);
+                ev(fx, "is_numeric", &[x])? == yes && ev(fx, "is_real", &[x])? == yes
+            }
+        };
+        if phi_base && exact_real && fx.int_of(*len).is_some_and(|n| (1..=10_000).contains(&n)) {
+            let ax = ev(fx, "abs", &[x])?;
+            if fx.is_int(ax, 0) {
+                return Ok(None);
+            }
+            let r = ev(fx, "rd_phi", &[ax, *len])?;
+            return Ok(fx.as_list(r).is_some().then_some(r));
+        }
+    }
     let b = match a.get(1) {
         Some(&t) => match fx.int_of(t).filter(|v| *v >= 2 && *v <= 1 << 30) {
             Some(v) => v as u64,

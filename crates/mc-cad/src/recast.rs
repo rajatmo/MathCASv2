@@ -192,8 +192,9 @@ fn has_cases<'h>(fr: &Front<'h>, t: T<'h>) -> bool {
 }
 
 /// The constraints with every `element(points, region)` of a region replaced by its membership condition, and
-/// `element(_, reals)` dropped; `None` when there is no region or a region gives no condition.
-fn regions<'h>(cx: &mut NativeCx<'_, '_, 'h>, fr: &Front<'h>, c: T<'h>) -> Res<Option<T<'h>>> {
+/// `element(_, reals)` dropped (also inside `not`, `implies` and quantifiers); `None` when there is no region or a
+/// region gives no condition.
+pub(crate) fn regions<'h>(cx: &mut NativeCx<'_, '_, 'h>, fr: &Front<'h>, c: T<'h>) -> Res<Option<T<'h>>> {
     let h = cx.heap();
     let Some((name, args)) = fr.head(c) else { return Ok(None) };
     match (name.as_str(), args) {
@@ -204,7 +205,7 @@ fn regions<'h>(cx: &mut NativeCx<'_, '_, 'h>, fr: &Front<'h>, c: T<'h>) -> Res<O
             }
             Ok(Some(drop_reals(cx, fr, m)?))
         }
-        ("and" | "or", _) => {
+        ("and" | "or" | "not" | "implies" | "exists" | "for_all", _) => {
             let mut any = false;
             let mut new = vec![];
             for &a in args {

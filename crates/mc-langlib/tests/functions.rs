@@ -241,3 +241,14 @@ fn threaded_operands_of_listable_calls() {
 fn table_iterator_lists() {
     run(&[("table(k, [k, 1.5, 4])", "[1.5, 2.5, 3.5]"), ("table(k, [k, 2, 7, 2])", "[2, 4, 6]"), ("table(i + j, [i, 1, 2], [j, 1, 2])", "[[2, 3], [3, 4]]"), ("table(k, [k, 1/2, 3])", "[1/2, 3/2, 5/2]"), ("table(k, k, [1,2])", "[1, 2]")]);
 }
+
+#[test]
+fn logical_expand_xor_of_three() {
+    // the expansion agrees with xor at each of the 8 assignments, and it is a sum of products (no xor left)
+    run(&[
+        ("e = logical_expand(xor(p, q, r)); free_of(e, xor)", "true"),
+        ("e = logical_expand(xor(p, q, r)); flatten(table(rewrite(e, [p -> a, q -> b, r -> c]) === xor(a, b, c), a, [true, false], b, [true, false], c, [true, false]))", "[true, true, true, true, true, true, true, true]"),
+        ("e1 = implies(xor(a, b, c), (a or b) and c); e2 = logical_expand(e1); flatten(table(rewrite(e1, [a -> u, b -> v, c -> w]) === rewrite(e2, [a -> u, b -> v, c -> w]), u, [true, false], v, [true, false], w, [true, false]))", "[true, true, true, true, true, true, true, true]"),
+        ("e = logical_expand(xor(p, q, r, s)); flatten(table(rewrite(e, [p -> a, q -> b, r -> c, s -> d]) === xor(a, b, c, d), a, [true, false], b, [true, false], c, [true, false], d, [true, false]))", "[true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true]"),
+    ]);
+}

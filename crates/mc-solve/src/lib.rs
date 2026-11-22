@@ -43,6 +43,7 @@ mod reduce_ri;
 mod reduce_steps;
 mod rootobj;
 mod solve;
+mod strip;
 mod system;
 mod tails;
 mod transwrap;

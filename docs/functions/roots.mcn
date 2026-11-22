@@ -60,6 +60,14 @@ n(roots(x^5 - x + 1 == 0, x))
 #% output
 #= x == -1.1673039782614187 or x == -0.18123244446987535 - 1.0839541013177107im or x == -0.18123244446987535 + 1.0839541013177107im or x == 0.7648844336005847 - 0.3524715460317262im or x == 0.7648844336005847 + 0.3524715460317262im
 
+#% text
+# `using:` gives values of other unknowns (an equation `a == v`, or a disjunction of them, such as the output of `roots`): each case is put into the equation, its roots taken and the case kept beside them:
+
+#% cell
+roots(x^2 - a * x + 2 == 0, x, using: a == 3 or a == 7)
+#% output
+#= (x == 1 or x == 2) and a == 3 or (x == (1/2)*(7 - 41^(1/2)) or x == (1/2)*(7 + 41^(1/2))) and a == 7
+
 #% subsection
 # Properties and relations
 

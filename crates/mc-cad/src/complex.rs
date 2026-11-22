@@ -24,6 +24,10 @@ const MAX_DISJUNCTS: usize = 64;
 /// applies.
 pub fn resolve<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, f: T<'h>) -> Res<Option<T<'h>>> {
     let h = cx.heap();
+    let f = {
+        let fr = Front::new(h);
+        real_sides(&fr, f)
+    };
     let r = metered(cx, stop, |m| -> WorkResult<Option<T<'h>>> {
         let fr = Front::new(h);
         let Ok(parsed) = fr.problem(f, &[], m)? else { return Ok(None) };
@@ -38,12 +42,24 @@ pub fn resolve<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, f: T<'
         }
         if !p.atoms.iter().all(|a| matches!(a.rel, Rel::Eq | Rel::Ne) && a.den.is_constant()) {
             // a sentence with order relations: over the real and imaginary parts (decision CAD.20)
-            if p.nfree == 0 {
-                if let Some(q) = realify(&p, m)? {
-                    if let Ok(o) = crate::cad::decompose(&q, &crate::cad::Limits::default(), &mut |_, _| {}, m)? {
-                        if let Some(t) = o.truth {
-                            return Ok(Some(bool_term(t)));
+            if let Some(q) = realify(&p, m)? {
+                if let Ok(o) = crate::cad::decompose(&q, &crate::cad::Limits::default(), &mut |_, _| {}, m)? {
+                    if let Some(t) = o.truth {
+                        return Ok(Some(bool_term(t)));
+                    }
+                    if p.nfree > 0 {
+                        // free variables: a condition on their real and imaginary parts
+                        let mut parts = vec![];
+                        for &v in &parsed.vars {
+                            parts.push(h.call(h.sym("re"), &[v]));
+                            parts.push(h.call(h.sym("im_part"), &[v]));
                         }
+                        let w = Writer::new(h, &parts, m)?;
+                        let t = match w.sign_formula(&o, m)? {
+                            Some(t) => t,
+                            None => w.cylindrical(&o, m)?,
+                        };
+                        return Ok(Some(t));
                     }
                 }
             }
@@ -64,7 +80,56 @@ pub fn resolve<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, f: T<'
         let any = found.last() == Some(&true);
         Ok(Some(bool_term(any != neg)))
     })?;
-    Ok(r.flatten())
+    let Some(t) = r.flatten() else { return Ok(None) };
+    let t = cx.eval(t)?;
+    Ok(Some(real_conditions(cx, t)))
+}
+
+/// Each order relation `a < b` with the statement that both sides are real: an order relation holds only between
+/// real values, and the reading over the real and imaginary parts ([`realify`]) makes `a - b` real, not `a` and
+/// `b` (`x^2 < y` with `y = i` and `x^2 = i - 1`). `a` is real exactly when `a < 0 or a >= 0` holds in that
+/// reading.
+fn real_sides<'h>(fr: &Front<'h>, t: T<'h>) -> T<'h> {
+    let h = fr.ar.store();
+    let mc_api::View::App { head, args } = h.view(t) else { return t };
+    let name = fr.sym_name(head);
+    if matches!(name.as_deref(), Some("less" | "less_equal" | "greater" | "greater_equal")) {
+        let mut parts = vec![t];
+        for &a in args {
+            if fr.ar.num(a).is_some() {
+                continue;
+            }
+            let zero = h.int(0);
+            parts.push(h.call(h.sym("or"), &[h.call(h.sym("less"), &[a, zero]), h.call(h.sym("greater_equal"), &[a, zero])]));
+        }
+        return if parts.len() == 1 { t } else { h.call(h.sym("and"), &parts) };
+    }
+    let new: Vec<T<'h>> = args.iter().map(|&a| real_sides(fr, a)).collect();
+    h.app(head, &new)
+}
+
+/// `im_part(v) == 0` written `element(v, reals)`.
+fn real_conditions<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> T<'h> {
+    let h = cx.heap();
+    let fr = Front::new(h);
+    let Some((name, args)) = fr.head(t) else { return t };
+    if name == "equal" {
+        if let [l, r] = args {
+            if matches!(h.view(*r), mc_api::View::Int(0)) {
+                if let Some((n2, [v])) = fr.head(*l) {
+                    if n2 == "im_part" {
+                        return h.call(h.sym("element"), &[*v, h.sym_term(h.sym("reals"))]);
+                    }
+                }
+            }
+        }
+        return t;
+    }
+    if !matches!(name.as_str(), "and" | "or" | "not") {
+        return t;
+    }
+    let new: Vec<T<'h>> = args.iter().map(|&a| real_conditions(cx, a)).collect();
+    h.call(h.sym(&name), &new)
 }
 
 /// A sentence over the complex numbers as one over the reals: each variable `x_k = a_k + i b_k` (both bound by

@@ -159,6 +159,20 @@ pub(crate) fn solve_eqs<'h>(
     if work.is_empty() {
         return Ok(Ok(vec![vec![]]));
     }
+    // an equation free of the unknowns: no solution unless it is zero (for generic values of its parameters, as
+    // for polynomial equations below), whatever the other equations are
+    let mut kept = Vec::with_capacity(work.len());
+    for e in work {
+        if env.contains_any(e, xs) {
+            kept.push(e);
+        } else if !env.is_zero(e, m)? {
+            return Ok(Ok(vec![]));
+        }
+    }
+    let work = kept;
+    if work.is_empty() {
+        return Ok(Ok(vec![vec![]]));
+    }
     let ring = env.ring(&work, xs, m)?;
     let bad: Vec<T<'h>> =
         ring.kernels.iter().copied().filter(|k| !xs.contains(k) && env.contains_any(*k, xs)).collect();
@@ -182,6 +196,13 @@ pub(crate) fn solve_eqs<'h>(
         }
     }
     let vars: Vec<usize> = xs.iter().map(|&x| ring.var(x).expect("the unknowns are in the ring")).collect();
+    // one unknown: leading coefficients that are zero numbers in other kernels (2 log(2) - log(4)) dropped, so
+    // that no root divides by them
+    if let [v] = vars[..] {
+        for p in nums.iter_mut() {
+            *p = drop_zero_leading(env, std::mem::replace(p, Poly::zero(ring.nvars())), &ring, v, m)?;
+        }
+    }
     if nums.is_empty() {
         return Ok(Ok(vec![vec![]]));
     }
@@ -276,6 +297,10 @@ fn nonpolynomial<'h>(
                 if let Some(sols) = positive_logs(env, eqs[0], xs, m, depth)? {
                     return Ok(Ok(sols));
                 }
+            } else if env.cfg.periodic {
+                if let Some(sols) = exponential_products(env, eqs[0], xs, m, depth)? {
+                    return Ok(Ok(sols));
+                }
             }
             // a product of factors in different functions of the unknown (`sin(x) cos(x) == 0`): one by one
             if bad.len() <= 4 {
@@ -324,6 +349,11 @@ fn nonpolynomial<'h>(
                         }
                     }
                 }
+            }
+            // an exponential of a function of 1/x (`x == e^(1/x)`): x = 1/t gives an equation in t of the forms
+            // above (`1 == t e^t`); x = 1/t for each solution t != 0, every one checked in the given equation
+            if let Some(sols) = reciprocal(env, eqs, xs, k, m, depth)? {
+                return Ok(Ok(sols));
             }
             return Ok(Err("the unknown occurs both inside and outside a function"));
         }
@@ -377,6 +407,84 @@ fn nonpolynomial<'h>(
         return Ok(Ok(out));
     }
     Ok(Err("the equations are not polynomial in the unknowns, and no method applies"))
+}
+
+/// `p` without its leading terms in the variable `v` whose coefficients are zero ([`Env::is_zero`]: exactly, or for
+/// closed numeric terms by complex balls at 1024 bits); a coefficient with symbols is nonzero (generic).
+fn drop_zero_leading<'h>(env: &Env<'h>, mut p: Poly, ring: &mc_poly::convert::Ring<'h>, v: usize, m: &mut Meter) -> WorkResult<Poly> {
+    let c = env.conv();
+    loop {
+        let Some(d) = p.degree(v).filter(|&d| d > 0) else { return Ok(p) };
+        let lc = p.coeffs_in(v).into_iter().find(|(e, _)| *e == d).map(|(_, q)| q).expect("a leading coefficient");
+        if lc.is_constant() {
+            return Ok(p);
+        }
+        let t = c.int_poly_term(&lc, ring, m)?;
+        if !env.is_zero(t, m)? {
+            return Ok(p);
+        }
+        let terms: Vec<mc_poly::poly::Term> = p.terms().filter(|(e, _)| e[v] != d).map(|(e, z)| (e.to_vec(), z.clone())).collect();
+        p = Poly::from_terms(ring.nvars(), terms);
+    }
+}
+
+/// One equation in one unknown x whose kernel `k = B^g` has x only in denominators of g (`e^(1/x)`, `2^(1 + 3/x)`):
+/// the solutions t of the equation with x = 1/t (where g is a polynomial in t), each giving x = 1/t (t = 0 is no
+/// value of x); every solution is checked in the given equation. `None` when the kernel has another form or the
+/// equation in t is not solved.
+fn reciprocal<'h>(env: &Env<'h>, eqs: &[T<'h>], xs: &[T<'h>], k: T<'h>, m: &mut Meter, depth: usize) -> WorkResult<Option<Vec<Solution<'h>>>> {
+    let h = env.h();
+    let x = xs[0];
+    let View::App { head, args: &[b, g] } = h.view(k) else { return Ok(None) };
+    if head != env.hd.pow || env.contains_any(b, &[x]) {
+        return Ok(None);
+    }
+    // g has x in a denominator, and g(1/t) none
+    let in_x = env.ring(&[g], &[x], m)?;
+    let vx = in_x.var(x).expect("x");
+    if in_x.kernels.iter().enumerate().any(|(i, &kk)| i != vx && env.contains_any(kk, &[x])) {
+        return Ok(None);
+    }
+    let Ok(fx) = ratfun::read(&env.rconv(), g, &in_x, m)? else { return Ok(None) };
+    if fx.den.degree(vx).unwrap_or(0) == 0 {
+        return Ok(None);
+    }
+    let t = env.sym(&format!("solve`v{depth}"));
+    let inv_t = env.ar.pow(t, env.int(-1));
+    let gt = env.subst(g, &[(x, inv_t)], m)?;
+    let in_t = env.ring(&[gt], &[t], m)?;
+    let vt = in_t.var(t).expect("t");
+    let Ok(ft) = ratfun::read(&env.rconv(), gt, &in_t, m)? else { return Ok(None) };
+    if ft.den.degree(vt).unwrap_or(0) > 0 {
+        return Ok(None);
+    }
+    let et = env.subst(eqs[0], &[(x, inv_t)], m)?;
+    let et = env.together(et, m)?;
+    if env.contains_any(et, &[x]) {
+        return Ok(None);
+    }
+    let Ok(ts) = solve_eqs(env, &[et], &[t], m, depth + 1)? else { return Ok(None) };
+    let mut out: Vec<Solution<'h>> = vec![];
+    for s in ts {
+        let Some(&(_, v)) = s.first() else { return Ok(None) };
+        let (w, cond) = match env.args_of(v, "conditional_expression") {
+            Some(&[w, c]) => (w, Some(c)),
+            _ => (v, None),
+        };
+        if env.ar.num(w).is_some_and(|n| n.is_zero()) {
+            continue;
+        }
+        let value = env.ar.pow(w, env.int(-1));
+        let value = match cond {
+            Some(c) => with_condition(env, value, c),
+            None => value,
+        };
+        let sol: Solution<'h> = vec![(x, value)];
+        if !out.contains(&sol) && !refuted(env, eqs, xs, &sol, m)? {
+            out.push(sol);
+        }
+    }
+    Ok(Some(out))
 }
 
 /// An equation `e == 0` (`y` standing for the kernel `k` of the unknown `x`) whose numerator is a product of
@@ -516,6 +624,88 @@ fn positive_logs<'h>(env: &Env<'h>, e: T<'h>, xs: &[T<'h>], m: &mut Meter, depth
         }
     }
     Ok(Some(out))
+}
+
+/// Over the complexes: `e == 0` with `e = c1 m1 + c2 m2`, numbers c_i (c2 != 0) and products m_i of powers `b^w`
+/// with positive constant bases b (any exponents). With `b^w = e^(w log b)` (the definition for b > 0), the
+/// equation is `e^(L) == C` with `L = log m1 - log m2 = sum w log b` and `C = -c2/c1`, so `L == log(C) + 2 pi i k` for
+/// an integer k (exp has period 2 pi i and is onto the nonzero numbers); each solution is checked in the given
+/// equation. `None` for another form.
+fn exponential_products<'h>(env: &Env<'h>, e: T<'h>, xs: &[T<'h>], m: &mut Meter, depth: usize) -> WorkResult<Option<Vec<Solution<'h>>>> {
+    let h = env.h();
+    let terms: Vec<T<'h>> = match h.view(e) {
+        View::App { head, args } if head == env.hd.add => args.to_vec(),
+        _ => return Ok(None),
+    };
+    let [t1, t2] = terms.as_slice() else { return Ok(None) };
+    let mut logs = vec![];
+    let mut coefs = vec![];
+    for &t in [*t1, *t2].iter() {
+        let (c, rest) = split_number(env, t);
+        if env.ar.num(c).is_none_or(|n| n.is_zero()) {
+            return Ok(None);
+        }
+        let Some(l) = log_of_powers(env, rest, xs, m)? else { return Ok(None) };
+        logs.push(l);
+        coefs.push(c);
+    }
+    let big_l = env.ar.sub(logs[0], logs[1]);
+    if !env.contains_any(big_l, xs) {
+        return Ok(None);
+    }
+    let target = env.ar.neg(env.ar.div(coefs[1], coefs[0]));
+    let k = next_parameter(env, e);
+    let log_target = match env.ar.num(target).and_then(|n| n.as_rat().cloned()) {
+        Some(q) if q.cmp_value(&mc_arith::num::Rat::from_i64(0)).is_gt() => rational_log(env, &q),
+        _ => env.call("log", &[target]),
+    };
+    let rhs = env.ar.add(&[log_target, env.ar.mul(&[env.int(2), env.sym("pi"), env.ar.number(&mc_arith::Num::i()), k])]);
+    let leq = env.together(env.ar.sub(big_l, rhs), m)?;
+    let sols = match solve_eqs(env, &[leq], xs, m, depth + 1)? {
+        Ok(s) => s,
+        Err(_) => return Ok(None),
+    };
+    let cond = env.call("element", &[k, env.sym("integers")]);
+    let mut out = vec![];
+    for s in sols {
+        let s: Solution<'h> = s.into_iter().map(|(x, v)| (x, if env.contains_any(v, &[k]) { with_condition(env, v, cond) } else { v })).collect();
+        if !out.contains(&s) && !refuted(env, &[e], xs, &s, m)? {
+            out.push(s);
+        }
+    }
+    Ok(Some(out))
+}
+
+/// `log(t)` as `sum w log(b)` for a product `t` of powers `b^w` of positive constant bases (`e` included) with
+/// exponents holding the unknowns, and positive rational factors; `None` otherwise.
+fn log_of_powers<'h>(env: &Env<'h>, t: T<'h>, xs: &[T<'h>], m: &mut Meter) -> WorkResult<Option<T<'h>>> {
+    let h = env.h();
+    m.step(1)?;
+    if !env.contains_any(t, xs) {
+        return Ok(env.ar.num(t).and_then(|n| n.as_rat().cloned()).filter(|q| q.cmp_value(&mc_arith::num::Rat::from_i64(0)).is_gt()).map(|q| rational_log(env, &q)));
+    }
+    match h.view(t) {
+        View::App { head, args } if head == env.hd.mul => {
+            let mut parts = vec![];
+            for &a in args {
+                let Some(l) = log_of_powers(env, a, xs, m)? else { return Ok(None) };
+                parts.push(l);
+            }
+            Ok(Some(env.ar.add(&parts)))
+        }
+        View::App { head, args: &[b, w] } if head == env.hd.pow && !env.contains_any(b, xs) => {
+            let lb = if env.is_sym(b, "e") {
+                env.int(1)
+            } else {
+                match env.ar.num(b).and_then(|n| n.as_rat().cloned()) {
+                    Some(q) if q.cmp_value(&mc_arith::num::Rat::from_i64(0)).is_gt() && q != mc_arith::num::Rat::from_i64(1) => rational_log(env, &q),
+                    _ => return Ok(None),
+                }
+            };
+            Ok(Some(env.ar.mul(&[w, lb])))
+        }
+        _ => Ok(None),
+    }
 }
 
 /// `t` as (number, rest): the numeric factor of a product.
@@ -908,6 +1098,17 @@ fn invert<'h>(env: &Env<'h>, k: T<'h>, v: T<'h>, x: T<'h>, m: &mut Meter) -> Wor
         }
     }
     let Some((name, args)) = env.head_name(k) else { return Ok(None) };
+    if let (Some(pq), &[u, mm]) = (name.strip_prefix("jacobi_"), args) {
+        if env.contains_any(mm, &[x]) {
+            return Ok(None);
+        }
+        return Ok(jacobi_branches(env, pq, u, mm, v, c).map(|(u0, fams)| {
+            if !periodic {
+                return vec![one(u, u0)];
+            }
+            fams.into_iter().map(|(value, cond)| Branch { inner: u, value, cond: Some(cond), keep: None }).collect()
+        }));
+    }
     let &[u] = args else { return Ok(None) };
     let f = |g: &str| env.call(g, &[v]);
     let neg = |t: T<'h>| env.ar.neg(t);
@@ -1042,6 +1243,48 @@ fn invert<'h>(env: &Env<'h>, k: T<'h>, v: T<'h>, x: T<'h>, m: &mut Meter) -> Wor
         }
         _ => return Ok(None),
     }))
+}
+
+/// The solutions u of `jacobi_pq(u, m) == v` over the complexes: the principal value `u0 = inverse_jacobi_pq(v, m)`
+/// and the two families `u0 + L` and `c - u0 + L`, with the period lattice `L = w1 c(j) + w2 c(j + 1)` of pq and the
+/// point c with `pq(c - u) = pq(u)` (DLMF 22.4.3 and 22.4(iii); K = elliptic_k(m), K' = elliptic_k(1 - m)): every
+/// Jacobi function is elliptic of order two, so in a period cell the value v is taken exactly at u0 and c - u0
+/// (DLMF 22.2: two poles per cell). `None` for a name that is no Jacobi function, or over the reals (the real
+/// solutions are a subset the families do not show).
+fn jacobi_branches<'h>(env: &Env<'h>, pq: &str, _u: T<'h>, m: T<'h>, v: T<'h>, c1: T<'h>) -> Option<(T<'h>, Vec<(T<'h>, T<'h>)>)> {
+    if env.cfg.reals {
+        return None;
+    }
+    let kk = env.call("elliptic_k", &[m]);
+    let kp = env.call("elliptic_k", &[env.ar.sub(env.int(1), m)]);
+    let i = env.ar.number(&mc_arith::Num::i());
+    let two_k = env.ar.mul(&[env.int(2), kk]);
+    let four_k = env.ar.mul(&[env.int(4), kk]);
+    let two_ikp = env.ar.mul(&[env.int(2), i, kp]);
+    let four_ikp = env.ar.mul(&[env.int(4), i, kp]);
+    let two_k_two_ikp = env.ar.add(&[two_k, two_ikp]);
+    let zero = env.int(0);
+    // (w1, w2, c)
+    let (w1, w2, c) = match pq {
+        "sn" | "ns" => (four_k, two_ikp, two_k),
+        "cd" | "dc" => (four_k, two_ikp, zero),
+        "cn" | "nc" => (four_k, two_k_two_ikp, zero),
+        "sd" | "ds" => (four_k, two_k_two_ikp, two_k),
+        "dn" | "nd" => (two_k, four_ikp, zero),
+        "sc" | "cs" => (two_k, four_ikp, two_ikp),
+        _ => return None,
+    };
+    let h = env.h();
+    let View::App { args: &[idx], .. } = h.view(c1) else { return None };
+    let View::Int(j) = h.view(idx) else { return None };
+    let c2 = h.app(env.gen, &[env.int(j + 1)]);
+    let u0 = env.call(&format!("inverse_jacobi_{pq}"), &[v, m]);
+    let lattice = env.ar.add(&[env.ar.mul(&[w1, c1]), env.ar.mul(&[w2, c2])]);
+    let ints = |p: T<'h>| env.call("element", &[p, env.sym("integers")]);
+    let cond = env.call("and", &[ints(c1), ints(c2)]);
+    let first = env.ar.add(&[u0, lattice]);
+    let second = env.ar.add(&[c, env.ar.neg(u0), lattice]);
+    Some((u0, vec![(first, cond), (second, cond)]))
 }
 
 /// Is `v` in the range of the principal inverse function `name`? `Some(None)` when it is, `None` when it is not,

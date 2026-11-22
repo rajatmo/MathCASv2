@@ -374,6 +374,8 @@ fn contains_piecewise_in<'h>(b: &Build<'h>, t: T<'h>, memo: &mut mc_api::walk::M
                             | "real_sign"
                             | "unit_box"
                             | "unit_triangle"
+                            | "kronecker_delta"
+                            | "discrete_delta"
                     )
                 }) || args.iter().any(|&a| contains_piecewise_in(b, a, memo))
             }
@@ -672,6 +674,36 @@ fn cases_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, reg: Opt
                 (b.zero(), cx.eval(b.call("equal", &[u, b.zero()]))?),
                 (b.one(), cx.eval(b.call("greater", &[u, b.zero()]))?),
             ])
+        }
+        // kronecker_delta(a, b, ...): 1 where the arguments are equal; discrete_delta(a, ...): 1 where all are 0
+        "kronecker_delta" | "discrete_delta" if !args.is_empty() => {
+            let mut eqs = vec![];
+            for (i, &a) in args.iter().enumerate() {
+                if name == "kronecker_delta" {
+                    if i > 0 {
+                        eqs.push(b.call("equal", &[b.sub(args[0], a), b.zero()]));
+                    }
+                } else {
+                    eqs.push(b.call("equal", &[a, b.zero()]));
+                }
+            }
+            if eqs.is_empty() {
+                return Ok(Some(vec![(b.one(), path)]));
+            }
+            let c = if eqs.len() == 1 { cx.eval(eqs[0])? } else { cx.eval(b.call("and", &eqs))? };
+            let n = negate(cx, b, c)?;
+            Some(vec![(b.one(), c), (b.zero(), n)])
+        }
+        // arg of a real polynomial (the region makes it real): pi where it is negative, 0 elsewhere
+        "arg" if args.len() == 1 && sets::poly_degree(b, args[0], vars).is_some() && reg.is_some() && {
+            let r = reg.unwrap_or(t);
+            let e = b.call("element", &[args[0], h.sym_term(h.sym("reals"))]);
+            let ok = cx.eval(b.call("refine", &[e, r]))?;
+            cx.is_true(ok)
+        } =>
+        {
+            let u = args[0];
+            Some(vec![(h.sym_term(h.sym("pi")), cx.eval(b.call("less", &[u, b.zero()]))?), (b.zero(), cx.eval(b.call("greater_equal", &[u, b.zero()]))?)])
         }
         "unit_box" if args.len() == 1 && sets::poly_degree(b, args[0], vars).is_some() => {
             let u = args[0];

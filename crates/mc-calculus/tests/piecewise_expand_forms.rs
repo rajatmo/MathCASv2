@@ -110,3 +110,26 @@ fn stated_forms() {
         assert_eq!(s.run(&format!("({a}) === ({want})")), "true", "{a} gave {got}");
     }
 }
+
+/// Deltas and the argument of a real function as cases; each answer equals the input at the sample points
+/// (pairs of integers and halves for the deltas, both sides of 0 and 0 itself for `arg`).
+#[test]
+fn deltas_and_real_argument() {
+    let mut s = Sys::new();
+    let k = s.run("piecewise_expand(kronecker_delta(x, y))");
+    let d = s.run("piecewise_expand(discrete_delta(x, y))");
+    for p in ["-1", "-1/2", "0", "1/2", "1"] {
+        for q in ["-1", "-1/2", "0", "1/2", "1"] {
+            let r = format!("[x -> {p}, y -> {q}]");
+            assert_eq!(s.run(&format!("rewrite({k}, {r}) - kronecker_delta({p}, {q})")), "0", "{k} at {r}");
+            assert_eq!(s.run(&format!("rewrite({d}, {r}) - discrete_delta({p}, {q})")), "0", "{d} at {r}");
+        }
+    }
+    let a = s.run("assuming(element(x, reals), piecewise_expand(arg(x)))");
+    for p in ["-3", "-1/7", "0", "1/7", "3"] {
+        assert_eq!(s.run(&format!("rewrite({a}, x -> {p}) - arg({p})")), "0", "{a} at {p}");
+    }
+    assert_eq!(s.run("piecewise_expand(arg(x - 1), x > 2)"), "0");
+    // without the real assumption arg stays (x may be complex)
+    assert_eq!(s.run("piecewise_expand(arg(x))"), "arg(x)");
+}

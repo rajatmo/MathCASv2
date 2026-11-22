@@ -663,6 +663,11 @@ impl Native for Rewrite {
             [e, r, o] => (e, r, Some(o)),
             _ => return Ok(Reply::Decline),
         };
+        // an association applies as the list of its rules
+        let rules = match h.view(rules) {
+            View::App { head, args: items } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "assoc") => cx.list(items),
+            _ => rules,
+        };
         // a list of rule lists (`solve`'s solutions): one result per list
         if let Some(sets) = cx.as_list(rules).filter(|rs| !rs.is_empty() && rs.iter().all(|&r| cx.as_list(r).is_some())) {
             let head = h.sym_term(h.sym("rewrite"));

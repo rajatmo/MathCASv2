@@ -109,6 +109,32 @@ impl Native for AlgNative {
             }
             return Ok(Reply::Done(v));
         }
+        // the constant golden_ratio is the algebraic number (1 + sqrt(5))/2
+        if matches!(f, AlgFn::MinimalPolynomial | AlgFn::RootReduce | AlgFn::AlgebraicNumberNorm | AlgFn::AlgebraicNumberTrace | AlgFn::ToNumberField) {
+            let h = cx.heap();
+            let golden = h.sym_term(h.sym("golden_ratio"));
+            let holds = |t: T<'h>| {
+                let mut w = mc_api::walk::Walk::new(t);
+                while let Some(u) = w.pop() {
+                    if u == golden {
+                        return true;
+                    }
+                    if let View::App { head, args } = h.view(u) {
+                        w.push(head);
+                        w.extend_from_slice(args);
+                    }
+                }
+                false
+            };
+            if args.iter().any(|&a| holds(a)) {
+                let five = h.int(5);
+                let sum = h.call(h.sym(names::ADD), &[h.int(1), h.call(h.sym("sqrt"), &[five])]);
+                let value = h.call(h.sym(names::MUL), &[sum, h.call(h.sym(names::POW), &[h.int(2), h.int(-1)])]);
+                let rule = h.call(h.sym(names::RULE), &[golden, value]);
+                let new: Vec<T<'h>> = args.iter().map(|&a| h.call(h.sym("rewrite"), &[a, rule])).collect();
+                return Ok(Reply::Again(h.call(h.sym(self.name), &new)));
+            }
+        }
         run(cx, &self.stop, self.name, |env, m| match f {
             AlgFn::MinimalPolynomial => minimal_polynomial(env, args, m),
             AlgFn::ToNumberField => to_number_field(env, args, m),
@@ -210,6 +236,52 @@ fn field_coefficients<'h>(
 
 /// `add`, `mul` and `pow` of algebraic numbers `algebraic_number(theta, coefficients)` of one field: the result in
 /// the same field (the sum, product or integer power computed over the field of the generator).
+/// `re`, `im_part`, `conjugate`, `abs` and `sign` of an `algebraic_number` whose value is real (its value at 30
+/// digits a real number, as for a real generator): the number itself, 0, the number, plus or minus the number, and
+/// the sign of the value; every other call goes to the wrapped native.
+pub(crate) struct RealAlgebraicParts {
+    pub inner: Box<dyn Native>,
+    pub name: &'static str,
+}
+
+impl Native for RealAlgebraicParts {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h: &'h Heap = cx.heap();
+        let an = h.sym_term(h.sym("algebraic_number"));
+        let &[a] = args else { return self.inner.call(cx, t, args) };
+        if !matches!(h.view(a), View::App { head, args: &[_, _] } if head == an) {
+            return self.inner.call(cx, t, args);
+        }
+        let v = cx.eval(h.call(h.sym("n"), &[a, h.int(30)]))?;
+        let Some(Num::Real(r)) = mc_arith::Arith::new(h).num(v) else { return self.inner.call(cx, t, args) };
+        let name = self.name;
+        let sign = if r.is_negative() {
+            -1
+        } else if r.is_zero() {
+            return self.inner.call(cx, t, args);
+        } else {
+            1
+        };
+        Ok(Reply::Done(match name {
+            "re" | "conjugate" => a,
+            "im_part" => h.int(0),
+            "sign" => h.int(sign),
+            "abs" if sign > 0 => a,
+            "abs" => return Ok(Reply::Again(h.call(h.sym(names::MUL), &[h.int(-1), a]))),
+            _ => return self.inner.call(cx, t, args),
+        }))
+    }
+    fn trace(&mut self, visit: &mut dyn FnMut(&mut Raw)) {
+        self.inner.trace(visit);
+    }
+    fn reads_term(&self) -> bool {
+        self.inner.reads_term()
+    }
+    fn curried(&self) -> bool {
+        self.inner.curried()
+    }
+}
+
 pub(crate) struct AlgebraicArithmetic {
     pub inner: Box<dyn Native>,
     pub stop: Arc<AtomicBool>,
@@ -329,6 +401,26 @@ fn rat_term<'h>(env: &Env<'h>, c: &Rat) -> T<'h> {
 fn to_radicals<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h: &'h Heap = cx.heap();
     let &[e] = args else { return Ok(Reply::Decline) };
+    // trigonometric functions of rational multiples of pi: by half angles or roots of unity (lib combinat.mc)
+    let trig: Vec<T<'h>> = ["sin", "cos", "tan", "cot", "sec", "csc"].iter().map(|n| h.sym_term(h.sym(n))).collect();
+    let mut stack = mc_api::walk::Walk::new(e);
+    let mut has_trig = false;
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if trig.contains(&head) {
+                has_trig = true;
+                break;
+            }
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    if has_trig {
+        let r = cx.eval(h.call(h.sym("trad_trig"), &[e]))?;
+        if r != e {
+            return Ok(Reply::Again(h.call(h.sym("to_radicals"), &[r])));
+        }
+    }
     // the root sums of e (subterms), found without evaluation
     let env = Env::new(h, stop.clone(), "to_radicals");
     let mut found: Vec<(T<'h>, T<'h>, T<'h>, T<'h>)> = vec![];
@@ -1040,6 +1132,15 @@ fn norm_or_trace<'h>(env: &Env<'h>, args: &[T<'h>], norm: bool, m: &mut Meter) -
             _ => return Ok(env.arg_failure("expected one algebraic number")),
         },
         _ => return Ok(env.arg_failure("expected one algebraic number")),
+    };
+    // extension: automatic: the field the number is written in (the generator of an algebraic_number), else Q(a)
+    let h = env.h();
+    let ext = match ext {
+        Some(e) if matches!(h.view(e), mc_api::View::Sym(s) if h.sym_name(s) == "automatic") => match h.view(a) {
+            mc_api::View::App { head, args: &[g, _] } if head == h.sym_term(h.sym("algebraic_number")) => Some(g),
+            _ => None,
+        },
+        e => e,
     };
     let mut memo = Memo::default();
     let Some(x) = to_alg(env, a, &mut memo, m)? else { return Ok(Out::Decline) };

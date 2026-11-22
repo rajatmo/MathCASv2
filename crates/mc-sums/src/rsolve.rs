@@ -323,7 +323,7 @@ pub fn table_system<'h>(sx: &mut Sx<'_, '_, '_, 'h>, eqs: T<'h>, target: T<'h>, 
         }
         let top = reads.iter().map(|r| r.1).max().unwrap_or(0);
         let leads: Vec<usize> = (0..reads.len()).filter(|&i| reads[i].1 == top).collect();
-        let [li] = leads.as_slice() else { return Ok(None) };
+        let [li] = leads.as_slice() else { return table_joint(sx, eqs, target, &seqs, &wanted, n, &s) };
         let (lead, lead_shift, ly) = reads.remove(*li);
         let d = sx.sub(l, r)?;
         let d = replace(sx, d, &pairs);
@@ -396,6 +396,235 @@ pub fn table_system<'h>(sx: &mut Sx<'_, '_, '_, 'h>, eqs: T<'h>, target: T<'h>, 
     for k in (lo..=hi).step_by(st as usize) {
         let mut row = vec![];
         for &w in &wanted {
+            row.push(*some!(known.get(&(w, k))));
+        }
+        rows.push(if sx.as_list(target).is_some() { sx.list(&row) } else { row[0] });
+    }
+    Ok(Some(sx.list(&rows)))
+}
+
+/// `r_solve(eqs, [a, b, ...], n)` for a system with a constraint, an equation in which every sequence occurs at n
+/// itself (`y(n) + 2 z(n) == 1`): the constraint is solved for one sequence f, f(n + k) = v(n + k) is put into the
+/// other equations (the initial values of f leave), the smaller system is solved, and f follows from v. The answer
+/// is kept only when every equation of the system, the initial values among them, holds for it identically after
+/// substitution. `None` otherwise.
+pub fn constrained<'h>(sx: &mut Sx<'_, '_, '_, 'h>, eqs: T<'h>, target: T<'h>, n: T<'h>) -> Res<Option<T<'h>>> {
+    let h = sx.h();
+    let Some(seqs) = sx.as_list(target).map(|s| s.to_vec()) else { return Ok(None) };
+    if seqs.len() < 2 || seqs.iter().any(|&s| !matches!(h.view(s), View::Sym(_))) || !matches!(h.view(n), View::Sym(_)) {
+        return Ok(None);
+    }
+    let mut all = vec![];
+    flatten(sx, eqs, &mut all);
+    for (ci, &c) in all.iter().enumerate() {
+        let occ: Vec<(T<'h>, T<'h>, T<'h>)> =
+            seqs.iter().flat_map(|&f| occurrences(sx, c, f).into_iter().map(move |(arg, term)| (f, arg, term))).collect();
+        if occ.len() < 2 || occ.iter().any(|o| o.1 != n) {
+            continue;
+        }
+        let View::App { head, args: &[l, r] } = h.view(c) else { continue };
+        if head != sx.sym("equal") {
+            continue;
+        }
+        for &(f, _, term) in &occ {
+            let u = sx.sym("rsolve$c");
+            let d = sx.sub(l, r)?;
+            let d = replace(sx, d, &[(term, u)]);
+            let sol = sx.ev("solve", &[sx.call("equal", &[d, sx.int(0)]), u])?;
+            let Some(&[one]) = sx.as_list(sol) else { continue };
+            let Some(&[rule]) = sx.as_list(one) else { continue };
+            let View::App { args: &[_, v], .. } = h.view(rule) else { continue };
+            if !occurrences(sx, v, f).is_empty() || !sx.free(v, u) {
+                continue;
+            }
+            // the other equations with f(arg) = v(arg); f's initial values dropped
+            let mut rest = vec![];
+            for (ei, &e) in all.iter().enumerate() {
+                if ei == ci {
+                    continue;
+                }
+                let fo = occurrences(sx, e, f);
+                if fo.is_empty() {
+                    rest.push(e);
+                    continue;
+                }
+                if fo.iter().all(|o| sx.free(o.0, n)) && seqs.iter().filter(|&&g| g != f).all(|&g| occurrences(sx, e, g).is_empty()) {
+                    continue;
+                }
+                let mut pairs = vec![];
+                for (arg, t) in fo {
+                    pairs.push((t, sx.subst(v, n, arg)?));
+                }
+                rest.push(replace(sx, e, &pairs));
+            }
+            let others: Vec<T<'h>> = seqs.iter().copied().filter(|&g| g != f).collect();
+            let call = sx.call("r_solve", &[sx.list(&rest), sx.list(&others), n]);
+            let r = sx.eval(call)?;
+            let Some(&[s1]) = sx.as_list(r) else { return Ok(None) };
+            let Some(rules) = sx.as_list(s1).map(|x| x.to_vec()) else { return Ok(None) };
+            let fv = sx.ev("rewrite", &[v, sx.list(&rules)])?;
+            let fv = sx.ev("simplify", &[fv])?;
+            if others.iter().any(|&g| !occurrences(sx, fv, g).is_empty()) {
+                return Ok(None);
+            }
+            let ffn = sx.call("fn", &[sx.list(&[n]), fv]);
+            let mut full = rules.clone();
+            full.push(sx.rule(f, ffn));
+            // the check: every equation true after substitution
+            let back = sx.ev("rewrite", &[sx.list(&all), sx.list(&full)])?;
+            let back = sx.ev("simplify", &[back])?;
+            let ok = sx.as_list(back).is_some_and(|xs| xs.iter().all(|&x| sx.is_true(x)));
+            if !ok {
+                return Ok(None);
+            }
+            let mut ordered = vec![];
+            for &g in &seqs {
+                let found = full.iter().copied().find(|&r| matches!(h.view(r), View::App { args: &[a, _], .. } if a == g));
+                ordered.push(some!(found));
+            }
+            return Ok(Some(sx.list(&[sx.list(&ordered)])));
+        }
+    }
+    Ok(None)
+}
+
+/// A system in which some equation has several occurrences of highest shift (`y(n + 1) + z(n + 1) == ...`, or a
+/// constraint `y(n) + 2 z(n) == 1` that holds at every n): the values at each index k are found together, from
+/// every equation instantiated so that its highest shift lands on k, the values below k already known, by
+/// `solve` for the unknown values at k. `None` unless each step has exactly one solution.
+/// An occurrence of a sequence in a recurrence: the sequence, its shift and the placeholder standing for it.
+type Occurrence<'h> = (T<'h>, i64, T<'h>);
+
+#[allow(clippy::too_many_arguments)]
+fn table_joint<'h>(
+    sx: &mut Sx<'_, '_, '_, 'h>,
+    eqs: T<'h>,
+    target: T<'h>,
+    seqs: &[T<'h>],
+    wanted: &[T<'h>],
+    n: T<'h>,
+    s: &[T<'h>],
+) -> Res<Option<T<'h>>> {
+    let h = sx.h();
+    let mut all = vec![];
+    flatten(sx, eqs, &mut all);
+    let mut known: rustc_hash::FxHashMap<(T<'h>, i64), T<'h>> = Default::default();
+    // each recurrence: its difference with the occurrences replaced by placeholders, its highest shift, and the
+    // occurrences (sequence, shift, placeholder)
+    let mut recs: Vec<(T<'h>, i64, Vec<Occurrence<'h>>)> = vec![];
+    for (ei, e) in all.into_iter().enumerate() {
+        let View::App { head, args: &[l, r] } = h.view(e) else { return Ok(None) };
+        if head != sx.sym("equal") {
+            return Ok(None);
+        }
+        let mut occ: Vec<(T<'h>, T<'h>, T<'h>)> = vec![];
+        for &f in seqs {
+            for (arg, term) in occurrences(sx, e, f) {
+                occ.push((f, arg, term));
+            }
+        }
+        if occ.is_empty() {
+            return Ok(None);
+        }
+        if occ.iter().all(|o| sx.free(o.1, n)) {
+            let (k, v) = match (h.view(l), h.view(r)) {
+                (View::App { head: hl, args: &[k] }, _) if seqs.contains(&hl) => ((hl, k), r),
+                (_, View::App { head: hr, args: &[k] }) if seqs.contains(&hr) => ((hr, k), l),
+                _ => return Ok(None),
+            };
+            if seqs.iter().any(|&f| !occurrences(sx, v, f).is_empty()) {
+                return Ok(None);
+            }
+            known.insert((k.0, some!(sx.as_int(k.1))), v);
+            continue;
+        }
+        let mut reads = vec![];
+        let mut pairs = vec![];
+        for (i, &(f, arg, term)) in occ.iter().enumerate() {
+            let d = sx.sub(arg, n)?;
+            let d = sx.ev("expand", &[d])?;
+            let shift = some!(sx.as_int(d));
+            let y = sx.sym(&format!("rsolve$j{ei}_{i}"));
+            reads.push((f, shift, y));
+            pairs.push((term, y));
+        }
+        let top = reads.iter().map(|r| r.1).max().unwrap_or(0);
+        let d = sx.sub(l, r)?;
+        let d = replace(sx, d, &pairs);
+        recs.push((d, top, reads));
+    }
+    if recs.is_empty() || known.is_empty() {
+        return Ok(None);
+    }
+    let first = known.keys().map(|k| k.1).min().unwrap_or(1);
+    let (lo, hi, st) = match s {
+        [_, b] => (first, some!(sx.as_int(*b)), 1),
+        [_, a0, b] => (some!(sx.as_int(*a0)), some!(sx.as_int(*b)), 1),
+        [_, a0, b, c] => (some!(sx.as_int(*a0)), some!(sx.as_int(*b)), some!(sx.as_int(*c))),
+        _ => return Ok(None),
+    };
+    if st < 1 || hi < lo || lo < first || hi - first > MAX_STEPS {
+        return Ok(None);
+    }
+    let unknown_syms: Vec<T<'h>> = (0..seqs.len()).map(|i| sx.sym(&format!("rsolve$u{i}"))).collect();
+    for k in first..=hi {
+        let missing: Vec<usize> = (0..seqs.len()).filter(|&i| !known.contains_key(&(seqs[i], k))).collect();
+        if missing.is_empty() {
+            continue;
+        }
+        let mut inst = vec![];
+        for (d, top, reads) in &recs {
+            sx.cx.tick(1)?;
+            let nv = k - top;
+            let mut rules = vec![sx.rule(n, sx.int(nv))];
+            let mut ok = true;
+            for &(f, sh, y) in reads {
+                let at = nv + sh;
+                match known.get(&(f, at)) {
+                    Some(&v) => rules.push(sx.rule(y, v)),
+                    None if at == k => {
+                        let i = some!(seqs.iter().position(|&g| g == f));
+                        rules.push(sx.rule(y, unknown_syms[i]));
+                    }
+                    None => {
+                        ok = false;
+                        break;
+                    }
+                }
+            }
+            if ok {
+                let v = sx.subst_all(*d, &rules)?;
+                inst.push(sx.call("equal", &[v, sx.int(0)]));
+            }
+        }
+        if inst.is_empty() {
+            return Ok(None);
+        }
+        let vars: Vec<T<'h>> = missing.iter().map(|&i| unknown_syms[i]).collect();
+        let sol = sx.ev("solve", &[sx.list(&inst), sx.list(&vars)])?;
+        let sols = some!(sx.as_list(sol)).to_vec();
+        let [one] = sols.as_slice() else { return Ok(None) };
+        let rules = some!(sx.as_list(*one)).to_vec();
+        for &i in &missing {
+            let mut val = None;
+            for &r in &rules {
+                if let View::App { args: &[lhs, rhs], .. } = h.view(r) {
+                    if lhs == unknown_syms[i] {
+                        val = Some(rhs);
+                    }
+                }
+            }
+            let v = some!(val);
+            if sx.bad(v) || sx.cost(v) > 100_000 || unknown_syms.iter().any(|&u| !sx.free(v, u)) {
+                return Ok(None);
+            }
+            known.insert((seqs[i], k), v);
+        }
+    }
+    let mut rows = vec![];
+    for k in (lo..=hi).step_by(st as usize) {
+        let mut row = vec![];
+        for &w in wanted {
             row.push(*some!(known.get(&(w, k))));
         }
         rows.push(if sx.as_list(target).is_some() { sx.list(&row) } else { row[0] });

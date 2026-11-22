@@ -44,7 +44,7 @@ pub use field::{Alg, Elem, NumberField};
 
 use mc_core::{Heap, Store};
 use mc_eval::{Attributes, Kernel};
-use natives::{AlgFn, AlgNative, AlgebraicArithmetic, ExtOp, ExtensionOption, NormalRootSum};
+use natives::{AlgFn, AlgNative, AlgebraicArithmetic, ExtOp, ExtensionOption, NormalRootSum, RealAlgebraicParts};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -111,6 +111,10 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     for name in ["add", "mul", "pow"] {
         let st = stop.clone();
         k.wrap_native(h.sym(name), move |inner| Box::new(AlgebraicArithmetic { inner, stop: st }));
+    }
+    // re, im_part, conjugate, abs and sign of a real algebraic_number
+    for name in ["re", "im_part", "conjugate", "abs", "sign"] {
+        k.wrap_native(h.sym(name), move |inner| Box::new(RealAlgebraicParts { inner, name }));
     }
     // normal expands sums over roots into sums over root objects (decision F1.12)
     let st = stop.clone();

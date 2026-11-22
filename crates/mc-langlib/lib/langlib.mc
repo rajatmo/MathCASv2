@@ -482,7 +482,11 @@ fn logical_terms(e, neg) =
     else if h === nor then logical_terms(apply(`or`, args), not neg)
     else if h === equivalent and length(args) >= 2 then logical_terms(apply(`or`, [apply(`and`, args), apply(`and`, map(x => not x, args))]), neg)
     else if h === xor and length(args) == 2 then logical_terms(apply(`or`, [args[1] and not args[2], not args[1] and args[2]]), neg)
-    else if h === xor and length(args) > 2 then logical_terms(apply(xor, [args[1], apply(xor, rest(args))]), neg)
+    # xor of more arguments: the first against the xor of the rest (xor is flat, so the pair is built by hand)
+    else if h === xor and length(args) > 2 then {
+      let r = apply(xor, rest(args))
+      logical_terms(apply(`or`, [args[1] and not r, not args[1] and r]), neg)
+    }
     # element(x | y, d) is element(x, d) and element(y, d); not_element(x | y, d) is either one outside d
     else if h === element and length(args) == 2 and head(args[1]) === alternatives then
       logical_terms(apply(`and`, map(u => element(u, args[2]), apply(list, args[1]))), neg)

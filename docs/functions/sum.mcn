@@ -31,6 +31,9 @@
 # `sum(f, k)` is the indefinite sum: a function `S` with `S(k + 1) - S(k) = f(k)`.
 
 #% item
+# `regularization: "Abel"` gives the Abel sum of an infinite series: the limit as r approaches 1 from below of the sum of `f(k) r^k`. For a convergent series this is its sum; a series without an Abel sum stays as it is.
+
+#% item
 # With an inexact summand or bound the sum is numeric, as `n_sum`.
 
 #% item
@@ -88,6 +91,14 @@ sum(x^k, [k, 0, n])
 sum((1/2)^k, [k, 0, inf])
 #% output
 #= 2
+
+#% text
+# The Abel sum of a divergent series, the limit of the sum of (-1)^k r^k as r approaches 1:
+
+#% cell
+sum((-1)^k, [k, 0, inf], regularization: "Abel")
+#% output
+#= 1/2
 
 #% text
 # Exact terms stay exact:

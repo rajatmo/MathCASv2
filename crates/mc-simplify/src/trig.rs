@@ -458,6 +458,80 @@ pub fn trig_reduce<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Re
     Ok(t)
 }
 
+/// `trig_reduce` of a sum holding `tan`, `cot`, `sec`, `csc` or their hyperbolic forms: the sum over one
+/// denominator in sines and cosines, the numerator reduced by [`trig_reduce`] and multiplied out with the reciprocal
+/// functions of the denominator (`tan(x) + tan(y) = sin(x + y) sec(x) sec(y)`, since `sin(x) cos(y) + cos(x) sin(y)`
+/// reduces to `sin(x + y)`). `None` when `t` is no such sum or its common denominator is not a product of powers
+/// of sines and cosines (then the plain reduction applies).
+pub fn trig_reduce_quotient<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let hd = &b.hd;
+    if b.terms(t).len() < 2 {
+        return Ok(None);
+    }
+    let (coth, sech, csch) = (h.sym("coth"), h.sym("sech"), h.sym("csch"));
+    let of = [hd.tan, hd.cot, hd.sec, hd.csc, hd.tanh, coth, sech, csch];
+    let mut found = false;
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        if which(b, u, &of).is_some() {
+            found = true;
+            break;
+        }
+        if let View::App { head, args } = h.view(u) {
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    if !found {
+        return Ok(None);
+    }
+    let sc = rewrite(cx, b, t, &mut |_, b, node| {
+        let Some((s, u)) = which(b, node, &of) else { return Ok(None) };
+        let f = |g: Sym| b.call(g, &[u]);
+        Ok(Some(if s == coth {
+            b.div(f(hd.cosh), f(hd.sinh))
+        } else if s == sech {
+            b.powi(f(hd.cosh), -1)
+        } else if s == csch {
+            b.powi(f(hd.sinh), -1)
+        } else {
+            sin_cos_form(b, s, u)
+        }))
+    })?;
+    let sc = cx.eval(sc)?;
+    let q = apply(cx, b, "together", sc)?;
+    let num = cx.eval(b.call_named("numerator", &[q]))?;
+    let den = cx.eval(b.call_named("denominator", &[q]))?;
+    // the denominator: a number times powers of sin, cos, sinh, cosh, each written as its reciprocal function
+    let mut out = Vec::new();
+    for f in b.factors(den) {
+        if b.is_number(f) {
+            out.push(b.powi(f, -1));
+            continue;
+        }
+        let (base, k) = b.int_power(f);
+        let Some((s, u)) = which(b, base, &[hd.sin, hd.cos, hd.sinh, hd.cosh]) else { return Ok(None) };
+        if k < 1 {
+            return Ok(None);
+        }
+        let r = if s == hd.sin {
+            hd.csc
+        } else if s == hd.cos {
+            hd.sec
+        } else if s == hd.sinh {
+            csch
+        } else {
+            sech
+        };
+        out.push(b.powi(b.call(r, &[u]), k));
+    }
+    let red = trig_reduce(cx, b, num)?;
+    out.push(red);
+    let r = cx.eval(b.mul(&out))?;
+    Ok(Some(apply(cx, b, "expand", r)?))
+}
+
 /// `trig_reduce(t, modulus: p)`: the reduction with each rational coefficient taken modulo the
 /// integer p >= 2 (n/d as n d^-1 mod p; a coefficient whose denominator p divides stays), like terms combined and
 /// reduced again, the common integer factor of the coefficients written outside (`4*(cos(48*x) + cos(50*x))`).

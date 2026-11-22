@@ -159,6 +159,21 @@ pub(crate) fn solve<'h>(env: &Env<'h>, e: T<'h>, y: T<'h>, k: T<'h>, x: T<'h>, m
     // x = W_j(z)/gamma for n = 1 and x = D e^(-W_j(z)/n) for n > 1 (x^n = D^n e^(-W) = D^n W/z = W/gamma and
     // x e^(c1 L x^n) = D e^(-W/n + W/n) = D, so each member is a solution and distinct branches give distinct x;
     // Corless et al. 1996, section 2), the branches in the order 0, 1, -1, 2, -2, ...
+    // where the answer must be complete (conditions filter it, reduce): every branch as a family with a parameter of
+    // its own, by the same formulas
+    if mm == 1 && !env.cfg.reals && env.cfg.periodic && crate::front::current().all_branches == Some(true) {
+        let z = env.ar.mul(&[gamma, env.ar.pow(d, env.int(n as i64))]);
+        let cp = crate::solve::next_parameter(env, e);
+        let w = env.call("product_log", &[cp, z]);
+        let v = if n == 1 {
+            env.ar.div(w, gamma)
+        } else {
+            env.ar.mul(&[d, env.ar.pow(env.sym("e"), env.ar.neg(env.ar.div(w, env.int(n as i64))))])
+        };
+        let cond = env.call("element", &[cp, env.sym("integers")]);
+        out.push(vec![(x, env.call("conditional_expression", &[v, cond]))]);
+        return Ok(Some(out));
+    }
     if mm == 1 && !env.cfg.reals {
         if let Some(k) = crate::front::current().max_roots.filter(|&k| k > 1) {
             let z = env.ar.mul(&[gamma, env.ar.pow(d, env.int(n as i64))]);

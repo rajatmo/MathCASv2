@@ -48,6 +48,14 @@ root_approximant(sqrt(2 + sqrt(3)))
 #% output
 #= (1/2)*(2^(1/2) + 6^(1/2))
 
+#% text
+# A complex number gives the root of a polynomial with integer coefficients whose real and imaginary parts both vanish there:
+
+#% cell
+minimal_polynomial(root_approximant(n(sqrt(2) + im), 4), x)
+#% output
+#= 9 - 2*x^2 + x^4
+
 #% section
 # See also
 

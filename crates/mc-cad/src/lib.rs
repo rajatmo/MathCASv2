@@ -14,6 +14,8 @@
 //!   values;
 //! - [`complex`]: complex quantifier elimination (several equations and `!=` per variable) and closed sentences
 //!   by Groebner bases, inequalities over the real and imaginary parts;
+//! - [`relax`]: real sentences with functions that are not polynomial, through polynomial relaxations of their
+//!   values (a proof of `false` or `true` in one direction);
 //! - [`optimize`]: `minimize`, `maximize` and the others through the decomposition (item 11D, first part);
 //! - [`integers`]: `reduce`, `find_instance` and `resolve` over the integers (Pell families, bounded problems);
 //! - the natives `resolve`, `exists`, `for_all`, `cylindrical_decomposition`, the several-variable path of
@@ -50,6 +52,7 @@ pub mod poly;
 pub mod project;
 pub mod reals;
 mod recast;
+pub mod relax;
 pub mod sos;
 pub mod topology;
 pub mod vs;

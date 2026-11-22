@@ -639,6 +639,15 @@ fn quotient<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>,
     if !f.info(cx, m)?.is_real() {
         return Ok(None);
     }
+    // a real quotient that cancels to a polynomial: quotient(a, m) = floor(a/m) (quotient(a^2 - b^2, a - b) is
+    // floor(a + b) wherever a != b)
+    if !b.is_number(m) && f.info(cx, a)?.is_real() {
+        let c = apply(cx, b, "cancel", b.div(a, m))?;
+        let den = cx.eval(b.call_named("denominator", &[c]))?;
+        if den == b.int(1) {
+            return Ok(Some(b.call_named("floor", &[c])));
+        }
+    }
     let terms = b.terms(apply(cx, b, "expand", a)?);
     let (mut out, mut rest) = (vec![], vec![]);
     for &t in &terms {

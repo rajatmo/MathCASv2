@@ -1201,8 +1201,12 @@ fn calc_coeff_mod(p, m) = calc_total(map(t => {
   # the zero polynomial is its own reduction (t/c would divide by zero)
   if c === 0 then 0 else r*(t/c)
 }, calc_terms(expand(p))))
-fn polynomial_mod(p, m; modulus = 0) = {
-  if is_list(m) then fold((a, b) => polynomial_mod(a, b, modulus: modulus), p, m)
+# coefficient_domain: integers: a polynomial modulus divides only where the quotient has integer coefficients (x^2
+# modulo 2 x - 1 stays x^2)
+fn polynomial_mod(p, m; modulus = 0, coefficient_domain = rationals) = {
+  if not (coefficient_domain === rationals or coefficient_domain === integers) then failure(argument, polynomial_mod, "the coefficient domain is rationals or integers")
+  else if is_list(m) then fold((a, b) => polynomial_mod(a, b, modulus: modulus, coefficient_domain: coefficient_domain), p, m)
+  else if coefficient_domain === integers and not is_integer(m) and length(variables(m)) > 0 then polynomial_reduce(p, [m], reverse(union(variables(p), variables(m))), coefficient_domain: integers)[2]
   else if is_integer(m) then calc_coeff_mod(p, m)
   # modulus: a prime: the remainder in F_prime[x] of the polynomial in one variable
   else if is_integer(modulus) and modulus > 1 then {
@@ -1519,9 +1523,18 @@ fn calc_zero_at(e) =
   else if abs(n(e)) > 10^-8 then false
   else if is_failure(n(e, 40)) then true
   else abs(n(e, 40)) < 10^-30
-fn is_possible_zero(e; assumptions = automatic) = {
-  let s = if assumptions === automatic then simplify(e) else simplify(e, assumptions)
-  if s === 0 then true else {
+# method: exact_algebraics decides an explicit algebraic number exactly: root_reduce gives a rational number or
+# an irrational root object (never 0); other expressions are tested as without the option
+fn calc_algebraic_zero(e) = if not is_numeric(e) then null else {
+  let r = root_reduce(e)
+  if is_rational(r) then r === 0 else if not is_atom(r) and head(r) === root then false else null
+}
+fn is_possible_zero(e; assumptions = automatic, method = automatic) = {
+  let s = if not (method === automatic or method === exact_algebraics) then failure(argument, is_possible_zero, "the method is automatic or exact_algebraics")
+    else if method === exact_algebraics and calc_algebraic_zero(e) !== null then calc_algebraic_zero(e)
+    else if assumptions === automatic then simplify(e) else simplify(e, assumptions)
+  if is_failure(s) or s === true or s === false then s
+  else if s === 0 then true else {
     let vs = calc_syms(s)
     let pts = [3/7 + 2*im/11, 5/13 - 7*im/17, -2/3 + 3*im/19]
     if length(vs) == 0 then calc_zero_at(s)
@@ -2061,6 +2074,19 @@ fn calc_inverse_table() = [sin -> asin, cos -> acos, tan -> atan, cot -> acot, s
 rule inverse_function(inverse_function(f_)) := f
 # the derivative of the inverse of a named function: 1/f'(f^-1(x))
 rule derivative(1)(inverse_function(f_))(x_) := 1/derivative(1)(f)(inverse_function(f)(x)) when is_symbol(f)
+# the inverse of a function given on a domain, &(conditional_expression(g(&1), cond(&1))): the solutions of
+# g(y) == x and cond(y), each with its condition on y made a condition on x by reduce over the reals; the inverse
+# when exactly one of them has a condition that is not false (and no generated parameter)
+fn calc_inv_branch(v) = if head(v) === conditional_expression then [v[1], reduce(v[2], calc_inv_x, reals)] else [v, true]
+fn calc_inv_cond(f) = {
+  let g = f(calc_inv_y)
+  let sols = check(solve(g[1] == calc_inv_x and g[2], calc_inv_y), null)
+  let bs = if is_list(sols) then select(map(s => calc_inv_branch(rewrite(calc_inv_y, s[1])), sols), b => not (b[2] === false)) else []
+  if length(bs) == 1 and free_of(bs, c) and free_of(bs, calc_inv_y) and free_of(bs, failure) and free_of(bs, reduce) then
+    apply(`fn`, [[`&1`], rewrite(if bs[1][2] === true then bs[1][1] else conditional_expression(bs[1][1], bs[1][2]), calc_inv_x -> `&1`)])
+  else null
+}
+rule inverse_function(f_) := calc_inv_cond(f) when not is_symbol(f) and head(f(calc_inv_y)) === conditional_expression and not (calc_inv_cond(f) === null)
 rule inverse_function(f_) := rewrite(f, calc_inverse_table()) when is_symbol(f) and some(calc_inverse_table(), r => r[1] === f)
 rule inverse_function(f_) := {
   let sols = solve(f(calc_inv_y) == calc_inv_x, calc_inv_y)
@@ -2084,6 +2110,17 @@ rule inverse_function(f_)(c_) := calc_inv_real(f(calc_inv_y) == c, calc_inv_y) w
 # inverse_function(f, k, m): the inverse in the k-th of m arguments, at real numbers: the real y with
 # f(c1, .., y, .., cm) == ck when it is the only one
 fn calc_inv_args(cs, k, y) = map(j => if j == k then y else cs[j], range(1, length(cs)))
+# inverse_function(f, k, m) itself, as a function of m arguments, when solve gives exactly one solution y of
+# f(a_1, .., y, .., a_m) == a_k (y in the k-th place) without generated parameters; its condition is kept
+fn calc_inv_slots(m) = take([`&1`, `&2`, `&3`, `&4`], m)
+fn calc_inv_multi(f, k, m) = {
+  let ps = map(j => calc_inv_p(j), range(1, m))
+  let sols = check(solve(apply(f, calc_inv_args(ps, k, calc_inv_y)) == calc_inv_p(k), calc_inv_y), null)
+  if is_list(sols) and length(sols) == 1 and length(sols[1]) == 1 and free_of(sols, c) and free_of(rewrite(calc_inv_y, sols[1]), calc_inv_y) then
+    apply(`fn`, [calc_inv_slots(m), rewrite(rewrite(calc_inv_y, sols[1]), map(j => calc_inv_p(j) -> calc_inv_slots(m)[j], range(1, m)))])
+  else null
+}
+rule inverse_function(f_, k_, m_) := calc_inv_multi(f, k, m) when is_integer(k) and is_integer(m) and 1 <= k and k <= m and m >= 2 and m <= 4 and not is_symbol(f) and not (calc_inv_multi(f, k, m) === null)
 rule inverse_function(f_, k_, m_)(cs__) := calc_inv_real(apply(f, calc_inv_args(cs, k, calc_inv_y)) == cs[k], calc_inv_y) when is_integer(k) and is_integer(m) and length(cs) == m and 1 <= k and k <= m and every(cs, calc_inv_at) and not (calc_inv_real(apply(f, calc_inv_args(cs, k, calc_inv_y)) == cs[k], calc_inv_y) === null)
 
 # --- Hankel and Hilbert transforms ---

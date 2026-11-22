@@ -249,6 +249,45 @@ impl Native for SimplifyNative {
         // and ignored (decision A.8)
         let (args, opts) = split_options(h, args);
         let assumed = opts.assumed;
+        // power_expand(e, [x1, ...]), power_expand(e, x): only the powers and logarithms whose argument holds one of
+        // the variables are expanded (sqrt(a b) + sqrt(c d) with [a, b] is sqrt(a) sqrt(b) + sqrt(c d))
+        if let (Fun::PowerExpand, [e, vs]) = (self.f, args) {
+            let b = B::new(h, &self.stop);
+            let vars: Vec<T<'h>> = match b.call_of(*vs) {
+                Some((s, xs)) if s == b.hd.list => xs.to_vec(),
+                _ => vec![*vs],
+            };
+            if vars.is_empty() || vars.iter().any(|&v| !matches!(h.view(v), View::Sym(_))) {
+                return Ok(Reply::Decline);
+            }
+            let holds = |t: T<'h>| {
+                let mut w = mc_api::walk::Walk::new(t);
+                while let Some(u) = w.pop() {
+                    if vars.contains(&u) {
+                        return true;
+                    }
+                    if let View::App { head, args } = h.view(u) {
+                        w.push(head);
+                        w.extend_from_slice(args);
+                    }
+                }
+                false
+            };
+            let mut rest = vec![];
+            if !opts.passed.is_empty() {
+                rest.push(h.call(h.sym("options"), &opts.passed));
+            }
+            let r = term::rewrite(cx, &b, *e, &mut |cx, b, node| {
+                let Some((s, xs)) = b.call_of(node) else { return Ok(None) };
+                if (s == b.hd.pow || s == b.hd.log) && xs.first().is_some_and(|&x| holds(x)) {
+                    let mut call_args = vec![node];
+                    call_args.extend_from_slice(&rest);
+                    return Ok(Some(cx.eval(b.call_named("power_expand", &call_args))?));
+                }
+                Ok(None)
+            })?;
+            return Ok(Reply::Done(cx.eval(r)?));
+        }
         // refine(e, facts), simplify(e, facts): the function with the context extended by the facts (decision A.5)
         let extra: Vec<T<'h>> = match (self.f.takes_facts(), args) {
             (true, [_, facts]) => assumed.into_iter().chain([*facts]).collect(),
@@ -319,6 +358,7 @@ impl Native for SimplifyNative {
                     Some(p) => hide(cx, &b, *e, p)?,
                     None => (*e, vec![]),
                 };
+                let hidden = mod_sign(cx, &b, hidden)?;
                 let mut c = cost::Cost::with(h, measure);
                 let mut r = simplify::simplify(cx, &b, f.as_mut(), &mut c, &cfg, hidden)?;
                 // among forms of equal measure the written one: a polynomial sum's rational content outside
@@ -349,8 +389,23 @@ impl Native for SimplifyNative {
             Fun::TrigReduce => match opts.modulus {
                 // the written form: the rational content of each sum outside
                 None => {
-                    let r = trig::trig_reduce(cx, &b, *e)?;
-                    term::content_form(cx, &b, r)?
+                    // a list element by element
+                    let items = match b.call_of(*e) {
+                        Some((s, xs)) if s == b.hd.list => xs.to_vec(),
+                        _ => vec![*e],
+                    };
+                    let mut out = Vec::with_capacity(items.len());
+                    for &x in &items {
+                        let r = match trig::trig_reduce_quotient(cx, &b, x)? {
+                            Some(r) => r,
+                            None => trig::trig_reduce(cx, &b, x)?,
+                        };
+                        out.push(term::content_form(cx, &b, r)?);
+                    }
+                    match b.call_of(*e) {
+                        Some((s, _)) if s == b.hd.list => b.call(s, &out),
+                        _ => out[0],
+                    }
                 }
                 // a modulus that is no integer >= 2 leaves the expression as it is
                 Some(p) => trig::trig_reduce_mod(cx, &b, *e, p)?.unwrap_or(*e),
@@ -468,6 +523,28 @@ fn hide_walk<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, pats: &[T<'
             }
         }
         _ => Ok(t),
+    }
+}
+
+/// `mod(a, m)` with a symbolic modulus written with a negative numerical factor (`mod(a, -b)`) as `-mod(-a, -m)`:
+/// both are `a - m q` with the same quotient q of `a/m`, so `mod(a, -b) + mod(-a, b)` is 0.
+fn mod_sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
+    let h = b.heap();
+    let modsym = h.sym("mod");
+    let negative = |m: T<'h>| {
+        if b.is_number(m) {
+            return false;
+        }
+        b.factors(m).iter().any(|&f| matches!(b.ar.num(f), Some(mc_arith::Num::Real(r)) if r.is_negative()))
+    };
+    let r = term::rewrite(cx, b, t, &mut |_, b, node| match b.call_of(node) {
+        Some((s, &[a, m])) if s == modsym && negative(m) => Ok(Some(b.neg(b.call(s, &[b.neg(a), b.neg(m)])))),
+        _ => Ok(None),
+    })?;
+    if r == t {
+        Ok(t)
+    } else {
+        cx.eval(r)
     }
 }
 

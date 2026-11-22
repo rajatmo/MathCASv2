@@ -98,15 +98,15 @@ fn function_form_of_sets_that_are_everything_or_nothing() {
     );
     // the function form inside a formula stands for its set
     assert_eq!(ev(r#"cylindrical_decomposition(cylindrical_decomposition(x^2 + y^2 <= 1, [x, y], "Function") and x > 1, [x, y])"#), "false");
-    // heavy sentences stop at the bound on their work
-    for src in [
-        r#"cylindrical_decomposition(exists([z, t], cylindrical_decomposition(t*x*y <= 1 + t^3 and z <= t*z^2 - y*z + 2*t*x, [x, y, z, t], "Function")), [x, y], "Function")"#,
-        r#"cylindrical_decomposition(exists(z, for_all(t, cylindrical_decomposition(t*x*y <= 1 + t^3 and z <= t*z^2 - y*z + 2*t*x, [x, y, z, t], "Function"))), [x, y], "Function")"#,
-    ] {
-        let (r, t) = timed(src);
-        assert!(r.starts_with("cylindrical_decomposition("), "{src}: {r}");
-        assert!(t < Duration::from_secs(30), "{src}: {t:?}");
-    }
+    // a heavy sentence decided by an instance (t = 0, z = 0 hold for every x and y)
+    let (r, t) = timed(r#"cylindrical_decomposition(exists([z, t], cylindrical_decomposition(t*x*y <= 1 + t^3 and z <= t*z^2 - y*z + 2*t*x, [x, y, z, t], "Function")), [x, y], "Function")"#);
+    assert_eq!(r, "true");
+    assert!(t < Duration::from_secs(30), "{t:?}");
+    // a heavy sentence stops at the bound on its work
+    let src = r#"cylindrical_decomposition(exists(z, for_all(t, cylindrical_decomposition(t*x*y <= 1 + t^3 and z <= t*z^2 - y*z + 2*t*x, [x, y, z, t], "Function"))), [x, y], "Function")"#;
+    let (r, t) = timed(src);
+    assert!(r.starts_with("cylindrical_decomposition("), "{src}: {r}");
+    assert!(t < Duration::from_secs(30), "{src}: {t:?}");
 }
 
 #[test]
