@@ -88,6 +88,9 @@ pub fn at_infinity<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, f: Special, args: &[T<
         (S::LogIntegral, Some(0)) => b.inf(),
         (S::SinIntegral, Some(0)) => ar.mul(&[ar.rational(h.int(1), h.int(2)), h.sym_term(h.sym("pi"))]),
         (S::SinIntegral, Some(2)) => ar.mul(&[ar.rational(h.int(-1), h.int(2)), h.sym_term(h.sym("pi"))]),
+        // Si(i y) = i Shi(y) (DLMF 6.2.15, 6.2.16 with sin(i t) = i sinh t) and Shi(y) -> +-inf as y -> +-inf
+        (S::SinIntegral, Some(1)) => ar.mul(&[b.i(1), b.inf()]),
+        (S::SinIntegral, Some(-1)) => ar.mul(&[b.i(-1), b.inf()]),
         (S::CosIntegral, Some(0)) => b.int(0),
         (S::CosIntegral, Some(2)) => b.i_pi(1, 1),
         (S::CosIntegral, Some(1 | -1)) => b.inf(),

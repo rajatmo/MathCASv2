@@ -103,12 +103,33 @@ pub fn limit_with<'h>(
     if is_free(b, f, x) {
         return Ok(Outcome::Value(f));
     }
+    if let Some(v) = inverse_jacobi_parameter(cx, b, f, x, a)? {
+        return Ok(Outcome::Value(v));
+    }
     // a directed infinity off the real line (`im*inf`, `-im*inf`): x = c y with y -> inf along the ray
     if let Some(c) = complex_direction(b, a) {
         let g = crate::bounds::subst(cx, b, f, x, b.mul(&[c, x]))?;
         if g != f && !mc_calculus::common::is_failure(b, g) {
             let inf = b.heap().sym_term(b.heap().sym("inf"));
-            return limit_with(cx, b, g, x, inf, Direction::TwoSided, opts);
+            let o = limit_with(cx, b, g, x, inf, Direction::TwoSided, opts)?;
+            if !matches!(o, Outcome::Unknown) {
+                return Ok(o);
+            }
+            // the modulus tends to 0 (|g| for y > 0, by complex_expand and simplify under y > 0): then g tends to 0,
+            // whatever its phase does (a power (1 - im y)^-s with s > 0, which the walk leaves)
+            let h = b.heap();
+            let m = apply(cx, b, "complex_expand", &[h.call(h.sym("abs"), &[g])])?;
+            let pos = h.call(h.sym("greater"), &[x, b.zero()]);
+            let opt = h.call(h.sym("options"), &[h.call(h.sym("rule"), &[h.sym_term(h.sym("assumptions")), pos])]);
+            let m = apply(cx, b, "simplify", &[m, opt])?;
+            if !mc_calculus::common::is_failure(b, m) && !is_free(b, m, x) {
+                if let Outcome::Value(v) = limit_with(cx, b, m, x, inf, Direction::TwoSided, opts)? {
+                    if v == b.zero() {
+                        return Ok(Outcome::Value(v));
+                    }
+                }
+            }
+            return Ok(o);
         }
     }
     let run = Run { deadline: Allowance::new(cx, opts.budget), budget: opts.budget, check: opts.check };
@@ -161,6 +182,33 @@ pub fn limit_with<'h>(
         Some(v) => Outcome::Value(v),
         None => o,
     })
+}
+
+/// An inverse Jacobi function `arcpq(v, m)` with `v` free of the variable, as its parameter `m` (the variable itself)
+/// tends to 0 or to `inf`.
+/// - m -> inf: 0. Every value lies in a period cell of the lattice of pq(. | m), whose periods 4K(m), 2iK(1 - m) are
+///   O(m^(-1/2) log m) (K(m) = m^(-1/2)(K(1/m) -+ i K(1 - 1/m)), DLMF 19.7.3, 19.12.1), so the value tends to 0.
+/// - m -> 0: the value at m = 0, the inverse circular function, for the ten functions whose circular limit is not
+///   constant (dn and nd tend to 1 as m -> 0, so their inverses have no limit there): the inverse is analytic in m where
+///   pq'(u) is not 0, and its values at m = +-1e-5 lie within O(m) of the circular ones at points on and off the cuts.
+fn inverse_jacobi_parameter<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, a: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let View::App { head, args: &[v, m] } = h.view(f) else { return Ok(None) };
+    let Some(s) = b.sym_of(head) else { return Ok(None) };
+    let name = h.sym_name(s);
+    let Some(pq) = name.strip_prefix("inverse_jacobi_") else { return Ok(None) };
+    const ALL: [&str; 12] = ["sn", "cn", "dn", "cd", "sd", "nd", "dc", "nc", "sc", "ns", "ds", "cs"];
+    if !ALL.contains(&pq) || m != x || !is_free(b, v, x) {
+        return Ok(None);
+    }
+    if a == h.sym_term(h.sym("inf")) {
+        return Ok(Some(b.zero()));
+    }
+    if a == b.zero() && pq != "dn" && pq != "nd" {
+        let at = cx.eval(h.app(head, &[v, b.zero()]))?;
+        return Ok((at != h.app(head, &[v, b.zero()])).then_some(at));
+    }
+    Ok(None)
 }
 
 /// `complex_infinity` for `0F1(c; x)`, `1F1(a; b; x)` and their regularized forms as `x -> inf` with parameters

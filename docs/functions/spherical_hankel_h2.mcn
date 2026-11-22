@@ -13,6 +13,9 @@
 # The definition is DLMF 10.47.6. For integer `n` it is `exp(-im*z)` times a polynomial in `1/z`; it describes incoming spherical waves.
 
 #% item
+# For an order that is not an integer the factor is `sqrt(pi/2)*z^(-1/2)` with the principal power: on the cut `z < 0` the value is the limit from above (`sqrt(pi/(2*z))` would take the other sign there), and series at `z = 0` follow the same branch.
+
+#% item
 # Machine numbers give numerical values; symbolic arguments stay unevaluated.
 
 #% section

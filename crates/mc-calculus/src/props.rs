@@ -396,6 +396,24 @@ fn negative_constant<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: T<'h>)
     Ok(v == h.sym_term(h.sym("true")))
 }
 
+/// Does the evaluated constant `t` contain an infinity or `indeterminate` (an evaluated constant keeps one only when
+/// its value is infinite or undefined: `arctan(infinity)` is already `pi/2`)?
+fn infinite_constant<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        match h.view(u) {
+            View::App { args, .. } => stack.extend(args.iter().copied()),
+            _ => {
+                if b.sym_of(u).is_some_and(|s| matches!(h.sym_name(s).as_str(), "infinity" | "complex_infinity" | "indeterminate" | "inf")) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 /// [`conditions`]; with `analytic`, the conditions of analyticity (a fractional power's base positive, not only
 /// nonnegative).
 fn conditions_of<'h>(
@@ -409,6 +427,11 @@ fn conditions_of<'h>(
     let h = b.heap();
     let mut out: Vec<T<'h>> = vec![];
     let depends = |u: T<'h>| vars.iter().any(|&x| !is_free(b, u, x));
+    // a constant that is still infinite or indeterminate after evaluation (`complex_infinity`, `-infinity`,
+    // `hypergeometric_2f1(1, 1, 0, z)` at symbolic z) has no value anywhere
+    if !depends(t) && infinite_constant(b, t) {
+        return Ok(Some(vec![h.sym_term(h.sym("false"))]));
+    }
     let rel = |name: &str, l: T<'h>, r: T<'h>| h.call(h.sym(name), &[l, r]);
     // the subterms in postorder (inner conditions first)
     let mut order: Vec<T<'h>> = vec![];
@@ -2203,7 +2226,16 @@ fn sign_multi<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, or
     }
     let h = b.heap();
     // a domain not known: only a grid of samples can show a change of sign
-    let Some(cs) = conditions(cx, b, c.f, &c.vars, false)? else { return grid_witness(cx, b, c, 0) };
+    let Some(cs) = conditions(cx, b, c.f, &c.vars, false)? else {
+        // a condition given: a sign the table records for a region that contains it (the region of a recorded sign
+        // is one where the function is real: `weierstrass_half_period_w1` on g2 > 0, g3 > 0)
+        if c.cond.is_some() {
+            if let Some(k) = joint_table_sign(cx, b, c, &[])? {
+                return Ok(Some(k));
+            }
+        }
+        return grid_witness(cx, b, c, 0);
+    };
     if let Some(k) = joint_table_sign(cx, b, c, &cs)? {
         return Ok(Some(k));
     }
@@ -2236,9 +2268,24 @@ fn joint_table_sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'
         return Ok(None);
     }
     let View::App { args, .. } = h.view(c.f) else { return Ok(None) };
-    // each argument a variable (each at most once) or free of the variables
+    // each argument a variable (each at most once), a list of them (the invariants `[g2, g3]` of the Weierstrass
+    // lattice functions) or free of the variables
     let mut seen = vec![];
+    let mut list_arg = None;
+    let mut flat: Vec<T<'h>> = vec![];
     for &a in args {
+        match cx.as_list(a) {
+            Some(items) if c.vars.iter().any(|&v| !is_free(b, a, v)) => {
+                if list_arg.is_some() {
+                    return Ok(None);
+                }
+                list_arg = Some(a);
+                flat.extend(items.iter().copied());
+            }
+            _ => flat.push(a),
+        }
+    }
+    for a in flat {
         if c.vars.contains(&a) {
             if seen.contains(&a) {
                 return Ok(None);
@@ -2260,7 +2307,7 @@ fn joint_table_sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'
         }
     }
     let Some(hit) = table::lookup(cx, b, c.f, &c.vars, &pf)? else { return Ok(None) };
-    if !c.vars.contains(&hit.arg) {
+    if !c.vars.contains(&hit.arg) && list_arg != Some(hit.arg) {
         return Ok(None);
     }
     let s = match hit.shape(cx, b, 0)? {

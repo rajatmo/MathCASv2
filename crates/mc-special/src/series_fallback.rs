@@ -21,14 +21,18 @@ struct SeriesSpecial {
 impl Native for SeriesSpecial {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         // a Kelvin ber or bei at 0: the derivative table of the native grows exponentially with the order (each
-        // derivative is two terms of the neighbouring orders), so the closed series of the helper answers first
+        // derivative is two terms of the neighbouring orders), so the closed series of the helper answers first; the
+        // same for the spherical Hankel functions, whose derivatives at a point are functions of other orders
+        // without closed values there
         if let [e, x, x0, n, rest @ ..] = args {
             let h = cx.heap();
-            if let (View::Sym(_), View::Int(_), View::Int(0), View::App { head, args: ea }) =
-                (h.view(*x), h.view(*n), h.view(*x0), h.view(*e))
-            {
-                let first = ea.len() == 1 && ["kelvin_ber", "kelvin_bei"].iter().any(|s| head == h.sym_term(h.sym(s)));
-                if first && ea[0] == *x {
+            if let (View::Sym(_), View::Int(_), View::App { head, args: ea }) = (h.view(*x), h.view(*n), h.view(*e)) {
+                let kelvin = matches!(h.view(*x0), View::Int(0))
+                    && ea.len() == 1
+                    && ea[0] == *x
+                    && ["kelvin_ber", "kelvin_bei"].iter().any(|s| head == h.sym_term(h.sym(s)));
+                let first = kelvin || mentions_head(h, *e, &FIRST);
+                if first {
                     let mut call = vec![*e, *x, *x0, *n];
                     call.extend_from_slice(rest);
                     let v = cx.eval(h.call(h.sym(HELPER), &call))?;
@@ -90,6 +94,25 @@ impl Native for SeriesSpecial {
             Reply::Decline
         })
     }
+}
+
+/// Heads whose expansions the helper gives before the native's Taylor table is tried.
+const FIRST: [&str; 2] = ["spherical_hankel_h1", "spherical_hankel_h2"];
+
+/// Does `t` contain a call whose head is one of `names`?
+fn mentions_head<'h>(h: &'h mc_core::Heap, t: T<'h>, names: &[&str]) -> bool {
+    let heads: Vec<T<'h>> = names.iter().map(|s| h.sym_term(h.sym(s))).collect();
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if heads.contains(&head) {
+                return true;
+            }
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    false
 }
 
 /// Does `t` mention the symbol `derivative`?

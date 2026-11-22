@@ -2173,7 +2173,11 @@ fn jacobi_ratio<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], p: char, q: char) 
         return Ok(None);
     }
     if fx.is_int(den, 0) {
-        return Ok(None);
+        // an exact zero of q against an exact value of p that is not 0: a pole (cs, ds, ns at u = 0 for every m, where
+        // sn = 0 and cn = dn = 1, DLMF 22.5.1), as at the shifted zeros 2K, 2iK'
+        let exact_nonzero =
+            fx.num(num).is_some_and(|n| !matches!(n.kind(), mc_arith::Kind::Machine | mc_arith::Kind::Ball)) && !fx.is_int(num, 0);
+        return Ok(exact_nonzero.then(|| fx.sym("complex_infinity")));
     }
     Ok(Some(fx.div(num, den)))
 }

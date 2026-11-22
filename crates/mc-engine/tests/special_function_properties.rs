@@ -203,9 +203,13 @@ fn non_real_arguments_and_partial_singular_sets() {
     // its samples take both signs, and values of both signs are a proof that no sign holds (samples never prove one)
     assert_eq!(ev("function_sign(re(klein_invariant_j(x + im)), x)"), "indeterminate");
     assert_eq!(ev("[n(klein_invariant_j(im), 30) > 0, n(re(klein_invariant_j(1/2 + im)), 30) < 0]"), "[true, true]");
-    // the pole of p at 0 decides analyticity; the other lattice points are not listed, so no singular set
+    // the pole of p at 0 decides analyticity; the real lattice points are listed by their two lattice coordinates for
+    // symbolic invariants, while numeric invariants give no set (their numbers keep the injectivity and other routes)
     assert_eq!(ev("function_analytic(weierstrass_p(x, [g1, g2]), x, assumptions: element([g1, g2], reals))"), "false");
+    let s = ev("function_singularities(weierstrass_p(x, [g1, g2]), x)");
+    assert!(s.contains("im_part(weierstrass_half_period_w1([g1, g2]))") && s.contains("im_part(weierstrass_half_period_w3([g1, g2]))"), "{s}");
     assert_eq!(ev("function_singularities(weierstrass_p(x, [1, 2]), x)"), "function_singularities(weierstrass_p(x, [1, 2]), x)");
+    assert_eq!(ev("function_injective(weierstrass_p(x, [1, 2]), x)"), "false");
     assert_eq!(ev("function_analytic(weierstrass_sigma(x, [1, 2]), x)"), "true");
     // p(x) ~ 1/x^2 near 0
     assert!(real("weierstrass_p(0.001, [1, 2])").unwrap() > 9.9e5);

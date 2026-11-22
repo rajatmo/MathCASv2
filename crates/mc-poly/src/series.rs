@@ -1774,13 +1774,17 @@ fn strip_order_in<'h>(env: &Env<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'
 fn strip_order_node<'h>(env: &Env<'h>, t: T<'h>, memo: &mut mc_api::walk::Memo<T<'h>, T<'h>>) -> T<'h> {
     let h = env.h();
     let is_o = |a: T<'h>| matches!(h.view(a), View::App { head, .. } if head == env.sym(ORDER));
+    // an order term, or a multiple c O(...) of one (a constant times an expansion at infinity)
+    let is_o_term = |a: T<'h>| {
+        is_o(a) || matches!(h.view(a), View::App { head, args } if head == env.hd.mul && args.iter().any(|&f| is_o(f)))
+    };
     let View::App { head, args } = h.view(t) else { return t };
     if head != env.hd.add && head != env.hd.mul {
         return t;
     }
     let mut out: Vec<T<'h>> = Vec::with_capacity(args.len());
     for &a in args {
-        if head == env.hd.add && is_o(a) {
+        if head == env.hd.add && is_o_term(a) {
             continue;
         }
         out.push(strip_order_in(env, a, memo));

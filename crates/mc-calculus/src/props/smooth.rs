@@ -27,6 +27,10 @@ pub fn set_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, mo
     if s.dom == Dom::Integers {
         return Ok(None);
     }
+    // a constant without a value (`complex_infinity`): singular everywhere
+    if no_value(b, s) {
+        return Ok(Some(h.sym_term(h.sym("true"))));
+    }
     let Some(atoms) = sets::atoms(cx, b, &s.comps, &s.vars, s.complex(), mode, &walk_facts(s))? else { return Ok(None) };
     let ts: Vec<T<'h>> = atoms.iter().map(|a| a.t).collect();
     let d = sets::disjunction(cx, b, &ts, &s.vars, s.complex())?;
@@ -46,10 +50,18 @@ pub fn set_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, mo
     Ok(Some(both))
 }
 
+/// Is a component a constant that is infinite or indeterminate (no value at any point)?
+fn no_value<'h>(b: &Build<'h>, s: &Spec<'h>) -> bool {
+    s.comps.iter().any(|&c| s.vars.iter().all(|&x| crate::common::is_free(b, c, x)) && super::infinite_constant(b, c))
+}
+
 /// `function_continuous` (Disc), `function_analytic` (Sing) and, with `meromorphic`, `function_meromorphic`.
 pub fn free_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, mode: Mode, meromorphic: bool) -> Res<Option<T<'h>>> {
     if s.dom == Dom::Integers || s.speed && !spec::params(b, &s.comps, &s.vars).is_empty() {
         return Ok(None);
+    }
+    if no_value(b, s) {
+        return Ok(Some(b.heap().sym_term(b.heap().sym("false"))));
     }
     // `a g(x)` with a parameter factor `a`: the properties of `g`, which hold for `a == 0` (the zero function) too
     let (comps, factors) = split_factors(cx, b, s)?;

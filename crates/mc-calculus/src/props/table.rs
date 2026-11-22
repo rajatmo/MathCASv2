@@ -1016,6 +1016,23 @@ pub static TABLE: &[Entry] = &[
     },
     // the Mittag-Leffler function: entire for a > 0 (DLMF 10.46.3), 1/(1 - z) at a = 0, E_a(z) = 1 - E_(-a)(1/z) for
     // a < 0
+    // Appell F1(a; a, b2; a + b2; x, y) in y (x not 1, a and b2 not 0, -1, -2, ...): (1 - y)^(-a) 2F1(a, a; a + b2; w),
+    // w = (x - y)/(1 - y) (DLMF 16.16.1); as y -> 1, w -> inf and 2F1(a, a; c; w) has the term
+    // Gamma(c)/(Gamma(a) Gamma(c - a)) (-w)^(-a) log(-w) (DLMF 15.8.8), so F1 grows like (y - x)^(-a) log(1/(1 - y)):
+    // a logarithmic singular point at y = 1, one of the singular points only (F1(1; 1, 1; 2; 4, y) = (log(1 - y) -
+    // log(-3))/(4 - y) near 0; its values at 0.999, 0.999999 checked against the series continuation at 30 digits)
+    Entry {
+        name: "appell_f1",
+        arity: 6,
+        var: 5,
+        when: "$b == $a and $d == $a + $c and $f != 1 and not(element($a, integers) and $a <= 0) and not(element($c, integers) and $c <= 0)",
+        sr: Some(&[("$u == 1", BR)]),
+        sc: Some(&[("$u == 1", BR)]),
+        partial: true,
+        cpartial: true,
+        refs: "DLMF 16.16.1, 15.8.8",
+        ..E
+    },
     Entry { name: "mittag_leffler_e", arity: 2, var: 1, joint: true, sr: Some(&[("$a == 0 and $u == 1", PO), ("$a < 0 and $u == 0", BR)]), refs: "DLMF 10.46.3", ..E },
     // the alternating harmonic numbers in their two-argument form
     Entry { name: "alternating_harmonic_number", arity: 2, when: "$a == 1", real: "element($u, integers)", complex: AHN_COMPLEX, sr: Some(&[("true", BR)]), sc: Some(AHN_POLES), refs: "DLMF 4.6.1, 5.15", ..E },
@@ -1494,7 +1511,12 @@ pub fn lookup<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, vars: 
     if let Some(hit) = q_hypergeometric(cx, b, &name, args, vars)? {
         return Ok(Some(hit));
     }
-    if let Some(hit) = weierstrass_lattice(cx, b, &name, args, vars)? {
+    if let Some(mut hit) = weierstrass_lattice(cx, b, &name, args, vars)? {
+        hit.pf = facts.to_vec();
+        return Ok(Some(hit));
+    }
+    if let Some(mut hit) = weierstrass_real_poles(cx, b, &name, args)? {
+        hit.pf = facts.to_vec();
         return Ok(Some(hit));
     }
     if let Some(hit) = inverse_weierstrass(cx, b, &name, args, vars)? {
@@ -1582,31 +1604,138 @@ fn q_hypergeometric<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str
 ///   `eta3 = (eta1 w3 - i pi/2)/w1` and `eta2 = -eta1 - eta3` grow without bound: discontinuities of `w2, w3, eta2, eta3`.
 ///
 /// Elsewhere the three roots are simple and distinct, so they and the integrals are analytic in the invariants. The line
-/// `g2 = 0` (`g3 = 0`) is a singular atom when the invariant depends on the variables. `e1`, `e2`, `w1`, `eta1` are
-/// not covered: they are analytic at the discriminant (a simple root), and `e2` has no jump on `g3 = 0`.
+/// `g2 = 0` (`g3 = 0`) is a singular atom when the invariant depends on the variables.
+///
+/// `e1`, `w1`, `eta1` are analytic at the discriminant: `e1` is the simple root there (`2c` beside the double root `-c`
+/// for `g3 > 0`, DLMF 23.6.(iii) with `c = (g2/12)^(1/2)`; the turned frame `e_k(g2, -g3) = -e_k(g2, g3)` for `g3 < 0`,
+/// DLMF 23.10.18), and `w1 = int from e1 to inf dt/(4 (t - e1) (t^2 + e1 t + e2 e3))^(1/2)` depends on `e2, e3` only
+/// through their symmetric functions, which are analytic in the invariants; `eta1 = zeta(w1)` likewise. `e2` is one of
+/// the two meeting roots (a square-root branch, continuous) and the middle root `0` on `g3 = 0` for `g2 > 0`, the real
+/// root `0` for `g2 < 0`: no jump there. Checked on our values: by homogeneity (`e_k(l^4 g2, l^6 g3) = l^2 e_k`, `w_k`
+/// times `1/l`, `eta_k` times `l`, DLMF 23.10.17, and the labelling depends on `tau = w3/w1` only) every orbit of
+/// `(g2, g3) != 0` crosses one of the lines `g3 = +-1` or `g2 = +-1`; along them (steps 1/256 over `[-8, 8]` and
+/// `[-3, 3]`) the values jump exactly at `g2 = 0` (e1, e2, e3, w1, eta1) and `g3 = 0` (e1, e3, w1, eta1), nowhere else;
+/// the difference quotients of `e1, w1, eta1` at `[3 +- s, +-1]` agree to `s = 1e-8` on both sides of the discriminant,
+/// those of `e2` grow like `s^(-1/2)`.
+///
+/// The half-period `w1` is positive on `g2 > 0, g3 > 0`: real and positive at every sample of the orbits (`[t, 1]`,
+/// `0 < t <= 200`, `[1, t]`, `0 < t <= 3`, steps 1/512; homogeneity covers the quadrant), continuous there (no jump
+/// line inside) and never 0 (a half-period of a lattice). It is real exactly on `g2 >= 0, g3 >= 0` off the origin
+/// (the lemniscatic and equianharmonic closed forms on the edges); off it the samples are not real (`[t, 1]`, `t < 0`;
+/// `[t, -1]` purely imaginary, `w1(g2, -g3) = -i w1(g2, g3)`; `[-1, t]`).
 fn weierstrass_lattice<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, args: &[T<'h>], vars: &[T<'h>]) -> Res<Option<Hit<'h>>> {
     let h = b.heap();
-    let root = match name {
-        "weierstrass_half_period_w2" | "weierstrass_half_period_w3" | "weierstrass_eta2" | "weierstrass_eta3" => false,
-        "weierstrass_e3" => true,
+    if matches!(name, "weierstrass_invariant_g2" | "weierstrass_invariant_g3") {
+        return lattice_invariants(cx, b, args, vars);
+    }
+    // (jump at g2 = 0, jump at g3 = 0, the kind at the discriminant)
+    let (j2, j3, disc) = match name {
+        "weierstrass_half_period_w2" | "weierstrass_half_period_w3" | "weierstrass_eta2" | "weierstrass_eta3" => (true, true, Some(Kind::Branch)),
+        "weierstrass_e3" => (true, true, Some(Kind::Kink)),
+        "weierstrass_e2" => (true, false, Some(Kind::Kink)),
+        "weierstrass_e1" | "weierstrass_half_period_w1" | "weierstrass_eta1" => (true, true, None),
         _ => return Ok(None),
     };
     let &[inv] = args else { return Ok(None) };
     let Some(g) = cx.as_list(inv).map(<[T<'h>]>::to_vec) else { return Ok(None) };
     let &[g2, g3] = g.as_slice() else { return Ok(None) };
     let mut sr: Vec<(String, Kind)> = vec![];
-    if depends(b, g2, vars) {
+    // a jump line of an invariant that is a parameter belongs to the set too (the sets are joint in the parameters, as
+    // `function_singularities(sign(y) x, x)` is `y == 0`): w1([1, 1e-8]) = 1.854075, w1([1, -1e-8]) = -1.854075 i
+    let symbolic = |g: T<'h>| depends(b, g, vars) || b.ar.num(g).is_none();
+    if j2 && symbolic(g2) {
         sr.push(("first($u) == 0".into(), Kind::Jump));
     }
-    if depends(b, g3, vars) {
+    if j3 && symbolic(g3) {
         sr.push(("last($u) == 0".into(), Kind::Jump));
     }
-    sr.push(("first($u)^3 - 27*last($u)^2 == 0".into(), if root { Kind::Kink } else { Kind::Branch }));
+    if let Some(k) = disc {
+        sr.push(("first($u)^3 - 27*last($u)^2 == 0".into(), k));
+    }
     let rules = vec![h.call(h.sym(names::RULE), &[placeholder(b, "u"), inv])];
     let mut f = Facts::of(&E);
     f.sr = Some(sr);
-    f.singular_only = root;
+    if name == "weierstrass_half_period_w1" {
+        f.signs = vec![("first($u) > 0 and last($u) > 0".into(), 1)];
+    }
     Ok(Some(Hit { facts: f, rules, arg: inv, pf: vec![] }))
+}
+
+/// The invariants `g2 = 60 sum' w^-4`, `g3 = 140 sum' w^-6` of the half-periods `[w1, w3]`, the sums over the lattice
+/// points `w = 2 m w1 + 2 n w3 != 0` (DLMF 23.2.5-23.2.6 with 23.3.5-23.3.6). They converge, locally uniformly, and are
+/// analytic in `(w1, w3)` exactly where the lattice is not degenerate, `im_part(w3/w1) != 0`; where `w3/w1` is real the
+/// points `2 m w1 + 2 n w3` come arbitrarily close to 0 (a zero period for rational `w3/w1`, Dirichlet's approximation
+/// otherwise), the sum has no value, and every neighbourhood holds such points. At `w1 = 0` (with `w3` not real) the
+/// terms `m = +-1, +-2, ...` alone give `2 zeta(4)/(16 w1^4)` (`2 zeta(6)/(64 w1^6)`): a pole, a singular point the
+/// quotient `w3/w1` does not state. Checked: `g2([0.001, 1 + i]) = 8.1e12`. The singular set is `w1 == 0 or
+/// im_part(w3/w1) == 0`, all of it discontinuities.
+fn lattice_invariants<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>], vars: &[T<'h>]) -> Res<Option<Hit<'h>>> {
+    let h = b.heap();
+    let &[w] = args else { return Ok(None) };
+    let Some(&[w1, w3]) = cx.as_list(w) else { return Ok(None) };
+    if !depends(b, w1, vars) && !depends(b, w3, vars) {
+        return Ok(None);
+    }
+    let mut f = Facts::of(&E);
+    f.sr = Some(vec![("first($u) == 0".into(), Kind::Pole), ("im_part(last($u)/first($u)) == 0".into(), Kind::Branch)]);
+    let rules = vec![h.call(h.sym(names::RULE), &[placeholder(b, "u"), w])];
+    Ok(Some(Hit { facts: f, rules, arg: w, pf: vec![] }))
+}
+
+/// The real points of the lattice of real invariants `[g2, g3]`: the poles of `weierstrass_p`, `weierstrass_p_prime`
+/// and `weierstrass_zeta` on the real line (DLMF 23.2.4-23.2.5: poles of order 2, 3, 1 at the lattice points `2 m w1 +
+/// 2 n w3` and nowhere else; real on the real line for real invariants, `f(conj z) = conj f(z)`).
+///
+/// - Discriminant `g2^3 - 27 g3^2 != 0`: a real `x` is `2 m w1 + 2 n w3` for the real numbers `m = x im(w3)/D`, `n = -x
+///   im(w1)/D`, `D = 2 (re(w1) im(w3) - im(w1) re(w3))` (Cramer's rule; `D != 0` as `w3/w1` is not real), so `x` is a
+///   pole when both are integers: `sin(pi m) == 0 and sin(pi n) == 0`. One of the two alone is not enough: for `g3 < 0`
+///   and three real roots our `w1` is imaginary and `w3` real (`[4, -1]`: `-1.2257 i`, `1.4967`), so `m = 0` at every
+///   `x` and the poles are `x = 2 k w3`.
+/// - Discriminant 0 (DLMF 23.6.(iii)-(iv) with `c = (g2/12)^(1/2)`): `g3 > 0` gives `p = -c + 3c/sin^2((3c)^(1/2) u)`,
+///   poles at `2 k w1`, `w1 = pi/(2 (3c)^(1/2))`; `g3 < 0` gives `p(u; g2, g3) = -p(i u; g2, -g3) = c + 3c/sinh^2((3c)^(1/2)
+///   u)` (DLMF 23.10.18), the pole 0 only; `g2 = g3 = 0` gives `1/u^2`.
+///
+/// Checked on our values for the invariants `[4, 1]`, `[4, -1]`, `[-2, 1]`, `[-2, -1]`, `[1, 0]`, `[-1, 0]`, `[0, 1]`,
+/// `[0, -1]`, `[3, 1]`, `[3, -1]`, `[0, 0]` over `[-10, 10]`: the values grow like `1/d^2` (`p`) towards every predicted
+/// point and stay finite at the others.
+fn weierstrass_real_poles<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, name: &str, args: &[T<'h>]) -> Res<Option<Hit<'h>>> {
+    let h = b.heap();
+    if !matches!(name, "weierstrass_p" | "weierstrass_p_prime" | "weierstrass_zeta") {
+        return Ok(None);
+    }
+    let &[x, inv] = args else { return Ok(None) };
+    let Some(&[g2, g3]) = cx.as_list(inv) else { return Ok(None) };
+    if cx.as_list(x).is_some() {
+        return Ok(None);
+    }
+    // numeric invariants: the lattice of the evaluated half-periods (the general route) states the poles as numbers;
+    // these sets are for symbolic invariants
+    if b.ar.num(g2).is_some() && b.ar.num(g3).is_some() {
+        return Ok(None);
+    }
+    // invariants that are not real numbers: not these sets
+    for g in [g2, g3] {
+        let im = cx.eval(b.call("im_part", &[g]))?;
+        if b.ar.num(im).is_some() && b.ar.compare(im, b.zero()) != Some(mc_arith::Cmp3::Equal) {
+            return Ok(None);
+        }
+    }
+    let Some(e) = TABLE.iter().find(|e| e.name == name) else { return Ok(None) };
+    let mut f = Facts::of(e);
+    let w1 = "weierstrass_half_period_w1($a)";
+    let w3 = "weierstrass_half_period_w3($a)";
+    let d = format!("(2*(re({w1})*im_part({w3}) - im_part({w1})*re({w3})))");
+    let dsc = "first($a)^3 - 27*last($a)^2";
+    let (sm, sn, sk) = (format!("sin(pi*$u*im_part({w3})/{d})"), format!("sin(pi*$u*im_part({w1})/{d})"), format!("sin(pi*$u/(2*{w1}))"));
+    let lattice = format!("{dsc} != 0 and {sm} == 0 and {sn} == 0");
+    let degenerate = format!("{dsc} == 0 and last($a) > 0 and {sk} == 0");
+    f.real = format!("$u != 0 and ({dsc} == 0 or {sm} != 0 or {sn} != 0) and ({dsc} != 0 or last($a) <= 0 or {sk} != 0)");
+    // the pole at 0 (a lattice point of every lattice, the only real one of a degenerate lattice with g3 <= 0) stated on
+    // its own: it meets the line whatever the invariants
+    f.sr = Some(vec![("$u == 0".into(), Kind::Pole), (lattice, Kind::Pole), (degenerate, Kind::Pole)]);
+    f.partial = false;
+    let rule = |k: &str, v: T<'h>| h.call(h.sym(names::RULE), &[placeholder(b, k), v]);
+    Ok(Some(Hit { facts: f, rules: vec![rule("u", x), rule("a", inv)], arg: x, pf: vec![] }))
 }
 
 /// `inverse_weierstrass_p(x, [g2, g3])` on the real line for rational invariants with `g2^3 - 27 g3^2 < 0`: the

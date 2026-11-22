@@ -69,17 +69,17 @@ fn weierstrass_lattice_singular_sets() {
             assert_eq!(ev(&mut e, &format!("{p}(weierstrass_{f}([x, y]), [x, y])")), all, "{p} {f}");
         }
     }
+    // in x with the parameter y: the jump across y = 0 (checked by values below) belongs to the set too
     for f in ["half_period_w2", "half_period_w3"] {
         for p in ["function_singularities", "function_discontinuities"] {
-            assert_eq!(ev(&mut e, &format!("{p}(weierstrass_{f}([x, y]), x)")), "x == 0 or -27*y^2 + x^3 == 0", "{p} {f}");
+            assert_eq!(ev(&mut e, &format!("{p}(weierstrass_{f}([x, y]), x)")), all, "{p} {f}");
         }
     }
-    // the roots e3 are continuous at the discriminant (so it is no discontinuity, and the call stays), the others are
-    // analytic there or not covered
-    for src in ["function_discontinuities(weierstrass_e3([x, y]), [x, y])", "function_singularities(weierstrass_e1([x, y]), [x, y])", "function_singularities(weierstrass_e2([x, y]), [x, y])"] {
-        let r = ev(&mut e, src);
-        assert!(r.starts_with("function_"), "{src}: {r}");
-    }
+    // the root e3 is continuous at the discriminant (no discontinuity there), e1 analytic there, e2 a square-root branch
+    // without a jump on y = 0
+    assert_eq!(ev(&mut e, "function_discontinuities(weierstrass_e3([x, y]), [x, y])"), "x == 0 or y == 0");
+    assert_eq!(ev(&mut e, "function_singularities(weierstrass_e1([x, y]), [x, y])"), "x == 0 or y == 0");
+    assert_eq!(ev(&mut e, "function_singularities(weierstrass_e2([x, y]), [x, y])"), "x == 0 or -27*y^2 + x^3 == 0");
     // the jumps across x = 0 and y = 0 (values at 15 digits)
     for f in ["weierstrass_e3", "weierstrass_eta2", "weierstrass_eta3", "weierstrass_half_period_w2", "weierstrass_half_period_w3"] {
         holds(&mut e, &format!("abs({f}([0.001, 1.0]) - {f}([-0.001, 1.0])) > 0.2"));

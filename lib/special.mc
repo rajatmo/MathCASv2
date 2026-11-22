@@ -28,7 +28,9 @@ fn ds_heads() = [sin_integral, sinh_integral, cos_integral, cosh_integral, exp_i
   hypergeometric_pfq_regularized, anger_j, weber_e, zeta, factorial2, barnes_g, log_barnes_g, hyperfactorial, elliptic_theta_prime,
   hypergeometric_u, airy_ai, airy_bi, airy_ai_prime, airy_bi_prime, airy_ai_zero, airy_bi_zero, riemann_siegel_z,
   bessel_j_zero, bessel_y_zero, erf, erfc, erfi, dawson_f, fresnel_c, fresnel_s, gamma_regularized, hankel_h1, hankel_h2,
-  spherical_hankel_h1, spherical_hankel_h2, lerch_phi, fibonacci, lucas_l, lommel_s1, lommel_s2, lommel_t1, lommel_t2]
+  spherical_hankel_h1, spherical_hankel_h2, spherical_bessel_j, spherical_bessel_y, pochhammer, beta, subfactorial, hypergeometric_1f1, hypergeometric_1f1_regularized,
+  laguerre_l, hermite_h, hypergeometric_0f1, hypergeometric_0f1_regularized, hypergeometric_2f1, hypergeometric_2f1_regularized,
+  beta_regularized, lerch_phi, fibonacci, lucas_l, lommel_s1, lommel_s2, lommel_t1, lommel_t2]
 fn ds_known(t) = not is_atom(t) and some(ds_heads(), f => f === head(t))
 
 rule ds_series(e_, x_, x0_, k_, opts___) := ds_series_at(e, x, x0, k)
@@ -40,10 +42,32 @@ fn ds_series_at(e, x, x0, k) = {
   else if some(good, r => not is_atom(r[2]) and head(r[2]) === ds_pieces) then {
     let c = together(e/good[1][1])
     if length(good) == 1 and free_of(c, x) then
-      c*ds_total(map(p => p[1]*series(p[2], x, x0, max(k, 1)), good[1][2][1]))
+      c*ds_total(map(p => p[1]*series(p[2], x, x0, ds_pord(p, k)), good[1][2][1]))
     else ds_none
-  } else ds_series_log(rewrite(e, map(r => r[1] -> r[2], good)), x, x0, k)
+  } else {
+    # ds_with(t, rules): an expansion t written with opaque constants, replaced by the rules after the series
+    let w = r => not is_atom(r[2]) and head(r[2]) === ds_with
+    let rules = fold((p, q) => join(p, q), [], map(r => if w(r) then r[2][2] else [], good))
+    let s = ds_series_log(rewrite(e, map(r => r[1] -> (if w(r) then r[2][1] else r[2]), good)), x, x0, k)
+    if length(rules) == 0 then s else rewrite(ds_compact(s, x), rules)
+  }
 }
+# a sum s with its terms free of order terms collected by the powers of x and each coefficient factored (the
+# expansions with opaque constants come out as long expanded sums)
+fn ds_compact(s, x) = {
+  let ts = if not is_atom(s) and head(s) === add then apply(list, s) else [s]
+  collect(ds_total(select(ts, t => free_of(t, O))), x, factor) + ds_total(select(ts, t => not free_of(t, O)))
+}
+
+# the order of the series of a piece: [p, s] at least 1 (a fractional leading power of s must not fall between the
+# orders); [p, s, c] with p carrying the power x^c (c real) of the piece at infinity and s a power series in 1/x: the
+# terms of s up to x^-(k + c), so that the order counts the powers of x of the whole piece; c = 0 for a symbolic power
+# (the order then counts the powers of s)
+fn ds_pord(p, k) = if length(p) >= 3 then max(0, floor(k + p[3])) else max(k, 1)
+# the shift of a power x^c: c when it is a real number, else 0
+fn ds_shift(c) = if is_numeric(c) and is_real(c) then c else 0
+# the pieces with a coefficient that is not 0
+fn ds_pnz(ps) = select(ps, p => not (p[2] === 0))
 
 # ds_series_log(e, x, x0, k): series(e, x, x0, k) with log(x) at infinity and log(-x) at 0 kept as coefficients (each
 # is constant to every power of x; the series kernels would write them as -log(x^-1) and log(x) + i pi)
@@ -67,7 +91,8 @@ fn ds_one(t, x, x0, k) = {
     if u0 === ds_none then ds_none
     else {
       let r = ds_at(t, is[1], u0, k)
-      if not is_atom(r) and head(r) === ds_at then ds_none else r
+      # an expansion built from others that have none is no expansion
+      if not free_of(r, ds_at) then ds_none else r
     }
   }
 }
@@ -418,6 +443,8 @@ rule ds_at(q_hypergeometric_pfq(as_, bs_, q_, z_), 3, 0, k_) := {
 
 # the theta constants: elliptic_theta(a, q) is elliptic_theta(a, 0, q)
 rule elliptic_theta(a_, q_) := elliptic_theta(a, 0, q) when is_integer(a) and a >= 1 and a <= 4
+# and elliptic_theta_prime(a, q) the derivative at u = 0
+rule elliptic_theta_prime(a_, q_) := elliptic_theta_prime(a, 0, q) when is_integer(a) and a >= 1 and a <= 4
 
 # the multinomial coefficient with a symbolic argument: (n1 + ... + nk)!/(n1! ... nk!); with one symbolic argument s and
 # integers m_i it is the polynomial (s + 1)_(sum m_i)/(prod m_i!)
@@ -715,6 +742,184 @@ rule ds_at(lommel_t1(mu_, nu_, u_), 3, inf, k_) := {
   ds_pieces(join(ds_lommel_inf(mu, nu, u, k, 1, -1), ds_pscale(ds_lommel_c(mu, nu), ds_at(bessel_i(nu, u), 2, inf, k)[1])))
 } when ds_lommel_ok(mu, nu) and ds_lommel_cok(mu, nu)
 
+# --- series: spherical Bessel functions ---
+# j_n(u) = sqrt(pi/(2u)) J_(n+1/2)(u), y_n(u) = sqrt(pi/(2u)) Y_(n+1/2)(u), h1/h2 the same with H1/H2 (DLMF 10.47.3-4),
+# so the expansions at infinity are Hankel's with the factor sqrt(pi/(2u)) in each piece; near 0 the same forms
+# with the Bessel series. The spherical Hankel functions of an integer order n >= 0 are elementary at every point,
+# h1_n(u) = e^(iu) sum_(j=0..n) i^(j - n - 1) a_j(n + 1/2) u^(-j - 1) and h2_n with -i (DLMF 10.49.1, 10.49.6): that
+# finite sum is the expansion at any finite point (a Laurent polynomial times an exponential at 0)
+fn ds_sph_scale(ps, u) = map(p => [p[1], sqrt(pi/2)*u^(-1/2)*p[2]], ps)
+rule ds_at(spherical_bessel_j(n_, u_), 2, inf, k_) := ds_pieces(ds_sph_scale(ds_at(bessel_j(n + 1/2, u), 2, inf, k)[1], u))
+rule ds_at(spherical_bessel_y(n_, u_), 2, inf, k_) := ds_pieces(ds_sph_scale(ds_at(bessel_y(n + 1/2, u), 2, inf, k)[1], u))
+fn ds_sph_h(n, u, s) = exp(s*im*u)*ds_sum(j => (s*im)^(j - n - 1)*ds_sph_a(n, j)*u^(-j - 1), 0, n)
+rule ds_at(spherical_hankel_h1(n_, u_), 2, u0_, k_) := ds_sph_h(n, u, 1) when is_integer(n) and n >= 0 and not (u0 === inf)
+rule ds_at(spherical_hankel_h2(n_, u_), 2, u0_, k_) := ds_sph_h(n, u, -1) when is_integer(n) and n >= 0 and not (u0 === inf)
+# Hankel functions of a numeric order that is not an integer near 0: J +- i Y with the series above
+rule ds_at(hankel_h1(nu_, u_), 2, 0, k_) := ds_at(bessel_j(nu, u), 2, 0, k) + im*ds_at(bessel_y(nu, u), 2, 0, k) when is_numeric(nu) and not is_integer(nu)
+rule ds_at(hankel_h2(nu_, u_), 2, 0, k_) := ds_at(bessel_j(nu, u), 2, 0, k) - im*ds_at(bessel_y(nu, u), 2, 0, k) when is_numeric(nu) and not is_integer(nu)
+rule ds_at(spherical_bessel_j(n_, u_), 2, 0, k_) := sqrt(pi/2)*u^(-1/2)*ds_at(bessel_j(n + 1/2, u), 2, 0, k) when is_numeric(n)
+rule ds_at(spherical_bessel_y(n_, u_), 2, 0, k_) := sqrt(pi/2)*u^(-1/2)*ds_at(bessel_y(n + 1/2, u), 2, 0, k) when is_numeric(n)
+rule ds_at(spherical_hankel_h1(n_, u_), 2, 0, k_) := sqrt(pi/2)*u^(-1/2)*ds_at(hankel_h1(n + 1/2, u), 2, 0, k) when is_numeric(n) and not is_integer(n)
+rule ds_at(spherical_hankel_h2(n_, u_), 2, 0, k_) := sqrt(pi/2)*u^(-1/2)*ds_at(hankel_h2(n + 1/2, u), 2, 0, k) when is_numeric(n) and not is_integer(n)
+
+# --- series: quotients of gamma functions ---
+# log Gamma(u + a) - log Gamma(u + b) at infinity from Stirling's series (DLMF 5.11.1) with log(u + a) written as
+# log(u) + log(1 + a/u), so that the terms u log u cancel before the series kernels see them:
+# (a - b) log u + (u + a - 1/2) log(1 + a/u) - (u + b - 1/2) log(1 + b/u) - a + b + St(u + a) - St(u + b)
+# (the classical expansion of Gamma(u + a)/Gamma(u + b), DLMF 5.11.13, comes out of its exponential). The Pochhammer
+# symbol (u)_a = Gamma(u + a)/Gamma(u), B(a, u) = Gamma(a) Gamma(u)/Gamma(u + a) (DLMF 5.2.5, 5.12.1); at a finite point
+# the quotients of gamma functions go to the series kernels as they are
+fn ds_lgdiff(u, a, b, k) = {
+  (a - b)*log(u) + (u + a - 1/2)*log(1 + a/u) - (u + b - 1/2)*log(1 + b/u) - a + b + ds_stirling(u + a, k + 2) - ds_stirling(u + b, k + 2)
+}
+rule ds_at(pochhammer(u_, a_), 1, inf, k_) := exp(ds_lgdiff(u, a, 0, k))
+rule ds_at(pochhammer(u_, a_), 1, u0_, k_) := gamma(u + a)/gamma(u) when not (u0 === inf)
+rule ds_at(beta(a_, u_), 2, inf, k_) := gamma(a)*exp(-ds_lgdiff(u, a, 0, k))
+rule ds_at(beta(u_, a_), 1, inf, k_) := gamma(a)*exp(-ds_lgdiff(u, a, 0, k))
+rule ds_at(beta(a_, u_), 2, u0_, k_) := gamma(a)*gamma(u)/gamma(a + u) when not (u0 === inf)
+rule ds_at(beta(u_, a_), 1, u0_, k_) := gamma(a)*gamma(u)/gamma(a + u) when not (u0 === inf)
+# the subfactorial !u = Gamma(u + 1, -1)/e = u!/e + (-1)^u e^-1 sum_(j>=0) 1/(j! (u + 1 + j)) (DLMF 8.2.3 and the series
+# of the lower incomplete gamma function, DLMF 8.7.1, at z = -1); at infinity sum_j 1/(j! (u + 1 + j)) =
+# e sum_(i>=0) (-1)^i Bell(i + 1) u^(-i - 1) (expanding 1/(u + 1 + j) in powers of (j + 1)/u, with sum_(m>=1) m^n/m! =
+# e Bell(n), Dobinski), each truncation exact to the next power for u > 0
+rule ds_at(subfactorial(u_), 1, inf, k_) := {
+  ds_pieces([[exp(u*(log(u) - 1)), exp(-1)*sqrt(2*pi)*u^(1/2)*exp(ds_stirling(u, k))],
+    [(-1)^u, ds_sum(i => (-1)^i*bell_b(i + 1)*u^(-i - 1), 0, k)]])
+}
+
+# --- series: hypergeometric functions at infinity ---
+# The pieces keep the power of u (or of -u) as a factor outside the series, with the shift that makes the order count
+# the powers of the whole piece (ds_pord); the number of terms of each sum covers the order plus the shift.
+fn ds_nterms(k, c) = k + max(0, ceiling(ds_shift(c)))
+# Kummer's function, DLMF 13.7.2 with the recessive part written (-u)^-a: that is e^(+-pi i a) u^-a in the half plane
+# Im u >< 0, the two signs of 13.7.2, so the expansion holds off the real axis on both sides; on the positive axis the
+# recessive part is beyond every power of the dominant one
+# M(a, b, u)/Gamma(b) ~ e^u u^(a - b)/Gamma(a) sum (1 - a)_s (b - a)_s/s! u^-s + (-u)^-a/Gamma(b - a) sum (a)_s (a - b + 1)_s/s! (-u)^-s
+fn ds_m_inf(a, b, u, k, g) = {
+  let n1 = ds_nterms(k, a - b)
+  let n2 = ds_nterms(k, -a)
+  ds_pieces(ds_pnz([
+    [exp(u)*u^(a - b), g*ds_rgamma(a)*ds_sum(s => pochhammer(1 - a, s)*pochhammer(b - a, s)/factorial(s)*u^(-s), 0, n1), ds_shift(a - b)],
+    [(-u)^(-a), g*ds_rgamma(b - a)*ds_sum(s => pochhammer(a, s)*pochhammer(a - b + 1, s)/factorial(s)*(-u)^(-s), 0, n2), ds_shift(-a)]]))
+}
+rule ds_at(hypergeometric_1f1(a_, b_, u_), 3, inf, k_) := ds_m_inf(a, b, u, k, gamma(b)) when not (is_integer(b) and b <= 0)
+rule ds_at(hypergeometric_1f1_regularized(a_, b_, u_), 3, inf, k_) := ds_m_inf(a, b, u, k, 1)
+# Laguerre functions of a degree that is not a nonnegative integer: L_nu^(al)(u) = binomial(nu + al, nu) M(-nu, al + 1, u)
+# (DLMF 18.11.2 and 13.6.19 continued in nu)
+rule ds_at(laguerre_l(nu_, u_), 2, inf, k_) := ds_m_inf(-nu, 1, u, k, 1) when not (is_integer(nu) and nu >= 0)
+rule ds_at(laguerre_l(nu_, al_, u_), 3, inf, k_) := {
+  ds_m_inf(-nu, al + 1, u, k, gamma(nu + al + 1)/gamma(nu + 1))
+} when not (is_integer(nu) and nu >= 0) and not (is_integer(al) and al <= -1)
+# Hermite functions: H_nu(u) = 2^nu U(-nu/2, 1/2, u^2) (DLMF 12.7.2 with 12.7.14), with U at infinity (DLMF 13.7.3):
+# H_nu(u) ~ (2u)^nu sum_s (-1)^s (-nu/2)_s ((1 - nu)/2)_s/s! u^-2s for u -> +inf (no exponential part, |ph u| < 3 pi/4)
+rule ds_at(hermite_h(nu_, u_), 2, inf, k_) := {
+  let t = ds_sum(s => (-1)^s*pochhammer(-nu/2, s)*pochhammer((1 - nu)/2, s)/factorial(s)*u^(-2*s), 0, ds_nterms(k, nu))
+  # a real numeric degree: the power goes to the series kernels, so that the answer is one series
+  if is_numeric(nu) and is_real(nu) then (2*u)^nu*t else ds_pieces([[(2*u)^nu, t]])
+} when not (is_integer(nu) and nu >= 0)
+# 0F1(; b; u) = Gamma(b) (-u)^((1 - b)/2) J_(b-1)(w), w = 2 (-u)^(1/2) (DLMF 10.16.9), with Hankel's expansion of J
+# (DLMF 10.17.3, |ph w| < pi, which holds for every u since |ph w| <= pi/2): w^(-2j) = (-4u)^-j, so
+# 0F1 ~ Gamma(b) pi^(-1/2) (-u)^(1/4 - b/2) (cos(om) sum_j a_2j(nu) (4u)^-j - sin(om) w^-1 sum_j a_(2j+1)(nu) (4u)^-j),
+# nu = b - 1, om = w - nu pi/2 - pi/4
+fn ds_0f1_inf(b, u, k, g) = {
+  let nu = b - 1
+  let w = 2*(-u)^(1/2)
+  let om = w - nu*pi/2 - pi/4
+  let c = 1/4 - b/2
+  ds_pieces([
+    [cos(om)*(-u)^c, g*pi^(-1/2)*ds_sum(j => ds_hankel_a(nu, 2*j)*(4*u)^(-j), 0, ds_nterms(k, c)), ds_shift(c)],
+    [sin(om)*(-u)^(c - 1/2), -g*pi^(-1/2)/2*ds_sum(j => ds_hankel_a(nu, 2*j + 1)*(4*u)^(-j), 0, ds_nterms(k, c)), ds_shift(c - 1/2)]])
+}
+rule ds_at(hypergeometric_0f1(b_, u_), 2, inf, k_) := ds_0f1_inf(b, u, k, gamma(b)) when not (is_integer(b) and b <= 0)
+rule ds_at(hypergeometric_0f1_regularized(b_, u_), 2, inf, k_) := ds_0f1_inf(b, u, k, 1)
+# Gauss's function at infinity, a - b not an integer (DLMF 15.8.2, |ph(-u)| < pi):
+# F(a, b; c; u)/Gamma(c) = Gamma(b - a)/(Gamma(b) Gamma(c - a)) (-u)^-a F(a, a - c + 1; a - b + 1; 1/u)
+#   + Gamma(a - b)/(Gamma(a) Gamma(c - b)) (-u)^-b F(b, b - c + 1; b - a + 1; 1/u)
+# (on the positive axis, the cut, (-u)^-a is the value from below); q multiplies both pieces (a power of u with
+# the real shift e)
+fn ds_2f1_inf(a, b, c, u, k, g, q, e) = {
+  let t = (aa, bb) => ds_sum(s => pochhammer(aa, s)*pochhammer(aa - c + 1, s)/(pochhammer(aa - bb + 1, s)*factorial(s))*u^(-s), 0, ds_nterms(k, e - aa))
+  ds_pieces(ds_pnz([
+    [q*(-u)^(-a), ds_csimp(g*gamma(b - a)*ds_rgamma(b)*ds_rgamma(c - a))*t(a, b), ds_shift(e - a)],
+    [q*(-u)^(-b), ds_csimp(g*gamma(a - b)*ds_rgamma(a)*ds_rgamma(c - b))*t(b, a), ds_shift(e - b)]]))
+}
+# a numeric constant made of gamma functions in its simplest form (quotients of gamma functions at arguments that
+# differ by integers are rational)
+fn ds_csimp(t) = if is_numeric(t) then simplify(t) else t
+rule ds_at(hypergeometric_2f1(a_, b_, c_, u_), 4, inf, k_) := {
+  ds_2f1_inf(a, b, c, u, k, gamma(c), 1, 0)
+} when not is_integer(a - b) and not (is_integer(c) and c <= 0)
+rule ds_at(hypergeometric_2f1_regularized(a_, b_, c_, u_), 4, inf, k_) := ds_2f1_inf(a, b, c, u, k, 1, 1, 0) when not is_integer(a - b)
+# the regularized incomplete beta function I_u(a, b) = u^a F(a, 1 - b; a + 1; u)/(a B(a, b)) (DLMF 8.17.7, 8.17.8)
+rule ds_at(beta_regularized(u_, a_, b_), 1, inf, k_) := {
+  ds_2f1_inf(a, 1 - b, a + 1, u, k, gamma(a + b)/gamma(b), u^a, ds_shift(a))
+} when not is_integer(a + b - 1) and not (is_integer(a) and a <= 0) and not (is_integer(b) and b <= 0) and not (is_integer(a + b) and a + b <= 0)
+
+# --- series: complete elliptic integrals and the nome at infinity ---
+# With w = 1/u: K(w) = pi/2 sum c_j w^j, c_j = ((1/2)_j/j!)^2, E(w) = pi/2 sum (-1/2)_j (1/2)_j/j!^2 w^j (DLMF 19.5.1-2);
+# near 1, K(1 - w) = sum c_j w^j (log(16 u)/2 - 2 h_j), h_j = sum_(i=1..j) 1/((2i - 1) 2i) (DLMF 19.12.1 with
+# k'^2 = w), and E(1 - w) = 1 + 1/2 sum_j e_j w^(j+1) (log(16 u)/2 - 2 h_j - 1/((2j + 1)(2j + 2))),
+# e_j = (1/2)_j (3/2)_j/((2)_j j!) (DLMF 19.12.2). The reciprocal-modulus transformation (DLMF 19.7.3) gives, with
+# s = -1 for Im u < 0 and on the cut u > 1 (its value is the limit from below) and s = 1 for Im u > 0 and u < 0 (where
+# K, E and q are analytic and the principal powers and logarithms of the pieces are the limits from above),
+# K(u) = u^(-1/2) (K(w) + s i K(1 - w)), E(u) = u^(1/2) (E(w) - s i E(1 - w) - (1 - w) K(w) + s i w K(1 - w));
+# the nome q(u) = exp(-pi K(1 - u)/K(u)) with K(1 - u) = u^(-1/2) K(1 - w) (DLMF 19.7.2, 19.5.5). s is
+# (log u - log(-u))/(i pi), an opaque constant during the series (ds_ell_s). Checked against the evaluator at two radii
+# in eight directions.
+fn ds_ell_h(j) = ds_sum(i => 1/((2*i - 1)*2*i), 1, j)
+fn ds_ell_l(u) = 2*log(2) + log(u)/2
+fn ds_ksmall(u, n) = pi/2*ds_sum(j => (pochhammer(1/2, j)/factorial(j))^2*u^(-j), 0, n)
+fn ds_esmall(u, n) = pi/2*ds_sum(j => pochhammer(-1/2, j)*pochhammer(1/2, j)/factorial(j)^2*u^(-j), 0, n)
+fn ds_knear1(u, n) = ds_knear1l(u, n, ds_ell_l(u))
+fn ds_knear1l(u, n, l) = ds_sum(j => (pochhammer(1/2, j)/factorial(j))^2*u^(-j)*(l - 2*ds_ell_h(j)), 0, n)
+fn ds_enear1(u, n) = {
+  1 + ds_sum(j => pochhammer(1/2, j)*pochhammer(3/2, j)/(pochhammer(2, j)*factorial(j))*u^(-j - 1)*(ds_ell_l(u) - 2*ds_ell_h(j) - 1/((2*j + 1)*(2*j + 2))), 0, n)/2
+}
+fn ds_ell_side(u) = (log(u) - log(-u))/(im*pi)
+rule ds_at(elliptic_k(u_), 1, inf, k_) := ds_with(u^(-1/2)*(ds_ksmall(u, k) + ds_ell_s*im*ds_knear1(u, k)), [ds_ell_s -> ds_ell_side(u)])
+rule ds_at(elliptic_e(u_), 1, inf, k_) := {
+  ds_with(u^(1/2)*(ds_esmall(u, k + 1) - ds_ell_s*im*ds_enear1(u, k + 1) - (1 - 1/u)*ds_ksmall(u, k + 1) + ds_ell_s*im*ds_knear1(u, k + 1)/u), [ds_ell_s -> ds_ell_side(u)])
+}
+# (the logarithm log(16 u)/2 is the opaque constant ds_ell_c during the series, so that the coefficients come out as
+# rational functions of it)
+rule ds_at(elliptic_nome_q(u_), 1, inf, k_) := {
+  ds_with(exp(-pi*ds_knear1l(u, k, ds_ell_c)/(ds_ksmall(u, k) + ds_ell_s*im*ds_knear1l(u, k, ds_ell_c))), [ds_ell_c -> ds_ell_l(u), ds_ell_s -> ds_ell_side(u)])
+}
+
+# --- series: exponential integrals at infinity, the dilogarithm at 1, the Lambert function at its branch point ---
+# Ei(u) ~ e^u sum_j j!/u^(j+1) + c(u), c(u) = (log u - log(-u) + log(-1/u) - log(1/u))/2, which is 0 on the whole real
+# axis (Ei is real there, -E1(-u) on the negative axis) and i pi sign(Im u) off it (Ei(u) = -E1(-u) +- i pi for
+# Im u >< 0, DLMF 6.2.2, 6.2.4, with the expansion of E1, DLMF 6.12.1): by the principal arguments, arg u - arg(-u) is
+# pi for Im u > 0 or u < 0 and -pi otherwise, arg(-1/u) - arg(1/u) is pi for Im u > 0 or u > 0 and -pi otherwise;
+# Shi(u) = (Ei(u) - Ei(-u) - log u + log(-u))/2 (Shi is odd and entire, Ei(u) = gamma + log u + sum u^j/(j j!), DLMF
+# 6.6.1-2), so Shi(u) ~ cosh(u) sum_(j even) j!/u^(j+1) + sinh(u) sum_(j odd) j!/u^(j+1) + d(u),
+# d(u) = (log(-1/u) - log(1/u) + log u - log(-u))/4: 0 on the positive axis (Shi is real there) and i pi/2 sign(Im u)
+fn ds_ei_s(u, k, r) = ds_sum(j => factorial(2*j + r)*u^(-2*j - r - 1), 0, floor(k/2) + 1)
+rule ds_at(exp_integral_ei(u_), 1, inf, k_) := {
+  ds_pieces([[(log(u) - log(-u) + log(-1/u) - log(1/u))/2, 1], [exp(u), ds_sum(j => factorial(j)*u^(-j - 1), 0, k)]])
+}
+rule ds_at(sinh_integral(u_), 1, inf, k_) := {
+  ds_pieces([[(log(-1/u) - log(1/u) + log(u) - log(-u))/4, 1], [cosh(u), ds_ei_s(u, k, 0)], [sinh(u), ds_ei_s(u, k, 1)]])
+}
+# Li_2(u) near u = 1 by Euler's reflection Li_2(u) = pi^2/6 - log(u) log(1 - u) - Li_2(1 - u) (DLMF 25.12.6); for u > 1
+# the value on the cut is the limit from below, where log(1 - u) = log(u - 1) + i pi
+rule ds_at(polylog(s_, u_), 2, 1, k_) := {
+  pi^2/6 - log(u)*(log(u - 1) + im*pi) - ds_sum(j => (1 - u)^j/j^2, 1, k)
+} when s === 2 and refine(u > 1) === true
+rule ds_at(polylog(s_, u_), 2, 1, k_) := {
+  pi^2/6 - log(u)*log(1 - u) - ds_sum(j => (1 - u)^j/j^2, 1, k)
+} when s === 2 and refine(u < 1) === true
+# W(u) at u = -1/e: W = -1 + sum c_j p^j, p = (2 (e u + 1))^(1/2) (DLMF 4.13.6), the coefficients by reversing
+# (w - 1) e^w + 1 = sum_(j>=2) (j - 1) w^j/j! = p^2/2 for w = W + 1: the principal branch (p > 0 for u > -1/e; the
+# principal square root continues it below -1/e with Im W > 0)
+fn ds_w_c() = [1, -1/3, 11/72, -43/540, 769/17280, -221/8505, 680863/43545600, -1963/204120, 226287557/37623398400,
+  -5776369/1515591000, 169709463197/69528040243200, -1118511313/709296588000, 667874164916771/650782456676352000,
+  -500525573/744761417400]
+rule ds_at(product_log(u_), 1, u0_, k_) := {
+  let p = (2*(e*u + 1))^(1/2)
+  -1 + ds_total(map(j => ds_w_c()[j]*p^j, range(1, min(14, 2*k))))
+} when u0 === -exp(-1) and k <= 9
+
 # --- symbolic identities and special values ---
 #
 # Rules on the special-function natives, tried only when the native declines (symbolic arguments, points where the
@@ -976,6 +1181,9 @@ rule elliptic_theta(1, z_, q_) := 0 when is_integer(z/pi)
 rule modular_lambda(1im) := 1/2
 rule elliptic_nome_q(1/2) := exp(-pi)
 rule inverse_elliptic_nome_q(q_) := 1/2 when q === exp(-pi)
+# q(m) = -q(m/(m - 1)) for m < 0 (K(m) = K(m/(m - 1))/sqrt(1 - m), DLMF 19.7.5): q(-1) = -q(1/2)
+rule elliptic_nome_q(-1) := -exp(-pi)
+rule inverse_elliptic_nome_q(q_) := -1 when q === -exp(-pi)
 
 # Weierstrass functions at the half periods and their (quasi-)periodicity (DLMF 23.2.10-20)
 rule weierstrass_p(weierstrass_half_period_w1(g_), g_) := weierstrass_e1(g)
