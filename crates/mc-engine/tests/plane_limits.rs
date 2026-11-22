@@ -27,8 +27,9 @@ fn continuous_functions_in_the_plane() {
 #[test]
 fn not_continuous_stays() {
     let mut e = CoreEngine::new();
-    // a pole stays; on a branch cut the two sides differ, so there is no limit; a value that is not real for max_limit
-    assert!(ev(&mut e, "limit(1/z, z -> 0, direction: complexes)").starts_with("limit("));
+    // a pole: |1/z| grows without bound from every direction (1/f = z is continuous with value 0), complex_infinity; on a
+    // branch cut the two sides differ, so there is no limit; a value that is not real for max_limit
+    assert_eq!(ev(&mut e, "limit(1/z, z -> 0, direction: complexes)"), "complex_infinity");
     assert!(ev(&mut e, "limit(sqrt(z), z -> -1, direction: complexes)").starts_with("failure(no_limit"));
     // beside the cut the function is continuous
     assert_eq!(ev(&mut e, "limit(abs(z), z -> -1, direction: complexes)"), "1");

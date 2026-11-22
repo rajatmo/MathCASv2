@@ -68,6 +68,33 @@ pub fn equal<'h>(sx: &mut Sx<'_, '_, '_, 'h>, a: T<'h>, b: T<'h>) -> Res<Option<
     Ok(None)
 }
 
+/// [`equal`] in machine numbers, relative tolerance 1e-9 (a check of a closed form of special functions whose
+/// high-precision values are slow).
+fn equal_machine<'h>(sx: &mut Sx<'_, '_, '_, 'h>, a: T<'h>, b: T<'h>) -> Res<Option<bool>> {
+    if sx.bad(a) || sx.bad(b) {
+        return Ok(None);
+    }
+    let d = sx.sub(a, b)?;
+    let dn = sx.ev("n", &[d])?;
+    let an = sx.ev("n", &[a])?;
+    if sx.bad(dn) || sx.bad(an) {
+        return Ok(None);
+    }
+    let scale = sx.ev("abs", &[an])?;
+    let scale = sx.ev("max", &[scale, sx.int(1)])?;
+    let tol = sx.mul(&[scale, sx.h().real(1e-9)])?;
+    let ad = sx.ev("abs", &[dn])?;
+    let small = sx.ev("less", &[ad, tol])?;
+    if sx.is_true(small) {
+        return Ok(Some(true));
+    }
+    let big = sx.ev("greater", &[ad, tol])?;
+    if sx.is_true(big) {
+        return Ok(Some(false));
+    }
+    Ok(None)
+}
+
 /// Does `closed` equal `sum(f, [k, lo, hi])` at the check points? `vars` are the symbols of the bounds (given
 /// integers `base, base + 1, ...`), the other symbols are parameters.
 pub fn check_sum<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, hi: T<'h>, closed: T<'h>) -> Res<bool> {
@@ -122,8 +149,24 @@ pub fn check_sum<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>,
         if !ok {
             continue;
         }
-        let cv = sx.subst_all(closed, &rules)?;
-        match equal(sx, acc, cv)? {
+        // digamma and zeta of algebraic arguments (the partial fractions of 1/(k^2 + 2)) are compared in machine numbers
+        // (at 30 digits each complex digamma took a quarter of a second, the check of one sum 7 s); the same four
+        // points as the exact check
+        let numeric = sx.contains_any(closed, &["digamma", "polygamma", "zeta"])
+            && !sx.contains_any(closed, &["floor", "ceiling", "mod", "quotient", "piecewise", "unit_step", "kronecker_delta", "sign", "boole"]);
+        let cv = if numeric {
+            let mut nrules = vec![];
+            for (i, &v) in bound_vars.iter().enumerate() {
+                let x = sx.h().real((trial + i as i64) as f64);
+                nrules.push(sx.rule(v, x));
+            }
+            nrules.extend_from_slice(&rules[bound_vars.len()..]);
+            sx.subst_all(closed, &nrules)?
+        } else {
+            sx.subst_all(closed, &rules)?
+        };
+        let verdict = if numeric { equal_machine(sx, acc, cv)? } else { equal(sx, acc, cv)? };
+        match verdict {
             Some(true) => agreed += 1,
             Some(false) => return Ok(false),
             None => {}

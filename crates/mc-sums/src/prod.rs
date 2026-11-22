@@ -61,6 +61,8 @@ pub fn roots<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, m: &mut Meter)
                     let b2 = sx.pow(b, sx.int(2))?;
                     let ac = sx.mul(&[sx.int(-4), a, c])?;
                     let disc = sx.add(&[b2, ac])?;
+                    // expanded: the discriminant of (j + i)^2 - (j + i) + 1 in j is -3 for every i
+                    let disc = sx.ev("expand", &[disc])?;
                     let sq = sx.ev("sqrt", &[disc])?;
                     let nb = sx.mul(&[sx.int(-1), b])?;
                     let a2 = sx.mul(&[sx.int(2), a])?;

@@ -331,6 +331,14 @@ rule continuous_wavelet_data(cs_, info_)(sel_) := {
   else if is_string(sel) then lookup(info, sel)
   else map(k => k -> lookup(cs, k), wv_select(cs, keys(cs), sel))
 } when is_assoc(cs) and is_assoc(info) and (not is_string(sel) or member(["Properties", "IndexMap", "Scales", "Length", "Octaves", "Voices", "Wavelet"], sel))
+# c(sel, form): the selected coefficients as rules [octave, voice] -> values ("Rules", the default), as the lists of
+# values alone ("Values") or as the indices alone ("Indices")
+rule continuous_wavelet_data(cs_, info_)(sel_, form_) := {
+  let ks = wv_select(cs, keys(cs), sel)
+  if form === "Values" then map(k => lookup(cs, k), ks)
+  else if form === "Indices" then ks
+  else map(k => k -> lookup(cs, k), ks)
+} when is_assoc(cs) and is_assoc(info) and not is_string(sel) and member(["Rules", "Values", "Indices"], form)
 
 # ---------------------------------------------------------------- plots
 

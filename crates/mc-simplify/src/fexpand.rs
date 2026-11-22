@@ -1081,11 +1081,12 @@ fn is_integer<'h>(b: &B<'h>, t: T<'h>) -> bool {
 }
 
 /// `heaviside_pi(u)` as `theta(u + 1/2) - theta(u - 1/2)` and `heaviside_lambda(u)` as the second difference
-/// `(u + 1) theta(u + 1) - 2 u theta(u) + (u - 1) theta(u - 1)`, expanded.
+/// `(u + 1) theta(u + 1) - 2 u theta(u) + (u - 1) theta(u - 1)`, expanded; `dirac_comb(u1, ..., uk)` as the
+/// product of the combs of one argument (its definition).
 fn heaviside_shapes<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
     let h = b.heap();
-    let (pi, lambda) = (h.sym("heaviside_pi"), h.sym("heaviside_lambda"));
-    if h.mask(t) & (h.mask(h.sym_term(pi)) | h.mask(h.sym_term(lambda))) == 0 {
+    let (pi, lambda, comb) = (h.sym("heaviside_pi"), h.sym("heaviside_lambda"), h.sym("dirac_comb"));
+    if h.mask(t) & (h.mask(h.sym_term(pi)) | h.mask(h.sym_term(lambda)) | h.mask(h.sym_term(comb))) == 0 {
         return Ok(t);
     }
     let theta = |u: T<'h>| b.call_named("heaviside_theta", &[u]);
@@ -1096,6 +1097,7 @@ fn heaviside_shapes<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> R
                 let (up, um) = (b.add(&[*u, b.int(1)]), b.sub(*u, b.int(1)));
                 Some(b.add(&[b.mul(&[up, theta(up)]), b.mul(&[b.int(-2), *u, theta(*u)]), b.mul(&[um, theta(um)])]))
             }
+            Some((s, us)) if s == comb && us.len() > 1 => Some(b.mul(&us.iter().map(|&u| b.call_named("dirac_comb", &[u])).collect::<Vec<_>>())),
             _ => None,
         })
     })?;

@@ -156,21 +156,35 @@ fn stirling<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>) -> Res<Option<T
     Ok((g != f).then_some(g))
 }
 
-/// The shift j when the powers of the summation index in the summand have the one base k + j.
+/// The shift j when the powers of the summation index in the summand have the one base k + j; when no power of the
+/// index gives one, the shift of the harmonic numbers of k + j (all of one j: harmonic_number(k + 1, 2)^2).
 fn shift_of<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>) -> Res<Option<i64>> {
     let h = sx.h();
     let factors: Vec<T<'h>> = match h.view(f) {
         View::App { head, args } if head == sx.sym(names::MUL) => args.to_vec(),
         _ => vec![f],
     };
+    let harmonic = ["harmonic_number", "multiple_harmonic_number", "alternating_harmonic_number"];
     let mut shift = None;
+    let mut hshift = None;
+    let mut hmixed = false;
     for u in factors {
         let base = match h.view(u) {
             View::App { head, args: &[b, e] } if head == sx.sym(names::POW) && sx.as_int(e).is_some() && !sx.free(b, k) => b,
             _ if u != k && sx.free(u, k) => continue,
             _ if u == k => k,
-            _ => continue,
+            _ => u,
         };
+        if let View::App { head, args } = h.view(base) {
+            if !args.is_empty() && harmonic.iter().any(|n| head == sx.sym(n)) {
+                let d = sx.sub(args[0], k)?;
+                match sx.as_int(d) {
+                    Some(j) if hshift.is_none_or(|s| s == j) => hshift = Some(j),
+                    _ => hmixed = true,
+                }
+                continue;
+            }
+        }
         let d = sx.sub(base, k)?;
         let Some(j) = sx.as_int(d) else { continue };
         if shift.is_some_and(|s| s != j) {
@@ -178,7 +192,7 @@ fn shift_of<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>) -> Res<Option<i
         }
         shift = Some(j);
     }
-    Ok(shift)
+    Ok(if shift.is_some() || hmixed { shift } else { hshift })
 }
 
 /// The word of an inner sum of `k - d` (d 0 or 1): the multiple harmonic number (or harmonic number) as letters

@@ -80,6 +80,25 @@ pub(crate) fn extreme<'h>(
     if is_free(b, f, x) {
         return Ok(Some(f));
     }
+    // c^u with a constant c > 0, c != 1: a continuous monotone function of u, so its upper limit is c to the upper
+    // limit of u when c > 1 and to the lower limit when c < 1 (with c^inf = inf, c^-inf = 0 for c > 1)
+    if let Some(&[c, u]) = args_of(b, f, b.hd.pow) {
+        if is_free(b, c, x) && !is_free(b, u, x) && sign(cx, b, c)? == Some(1) {
+            if let Some(s) = sign(cx, b, b.sub(c, b.int(1)))?.filter(|&s| s != 0) {
+                let inner = if s > 0 { upper } else { !upper };
+                if let Some(v) = extreme(cx, b, u, x, a, direction, budget, inner)? {
+                    let inf = b.heap().sym_term(b.heap().sym("inf"));
+                    return Ok(Some(if v == inf {
+                        if s > 0 { inf } else { b.zero() }
+                    } else if v == b.neg(inf) {
+                        if s > 0 { b.zero() } else { inf }
+                    } else {
+                        cx.eval(b.pow(c, v))?
+                    }));
+                }
+            }
+        }
+    }
     let deadline = Allowance::new(cx, budget);
     let mut best: Option<Ext<'h>> = None;
     for (pt, side) in sides(b, a, direction) {

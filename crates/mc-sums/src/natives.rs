@@ -400,6 +400,39 @@ impl SumWrap {
         // from -inf: this crate's methods (the list library's geometric sum read f(-inf) and gave x^-inf forms)
         let from_neg_inf = matches!(cx.as_list(spec), Some(&[_, lo, _]) if matches!(h.view(lo),
             View::App { head, args: &[c, i] } if head == h.sym_term(h.sym("mul")) && c == h.int(-1) && i == h.sym_term(h.sym("inf"))));
+        // harmonic numbers of the index over a symbolic range: the nested sums of this crate first (the list library's
+        // closed-form tests on H(k) + k H(k) + 1/k ran past 3 s)
+        if !self.product {
+            if let Some(&[k, lo, hi]) = cx.as_list(spec) {
+                let symbolic = !matches!(h.view(hi), View::Int(_)) && hi != h.sym_term(h.sym("inf"));
+                let mut sx = Sx::new(cx, &self.stop);
+                if symbolic && matches!(h.view(k), View::Sym(_)) && sx.contains_any(f, &["harmonic_number", "multiple_harmonic_number"]) && !numsum::inexact(&sx, f) {
+                    let f = sx.eval(f)?;
+                    if let Some(v) = crate::sumfn::harmonic_parts(&mut sx, f, k, lo, hi)? {
+                        return Ok(Reply::Done(v));
+                    }
+                    // from 0 (a recurrence's particular solution): the term at 0 and the nested sums from 1 (here, not
+                    // by a library rule calling sum again: other methods shift a sum from 1 back to one from 0, and the
+                    // two called each other without end)
+                    if matches!(h.view(lo), View::Int(0)) {
+                        let zero = sx.int(0);
+                        let f0 = sx.subst(f, k, zero)?;
+                        let f0 = sx.eval(f0)?;
+                        let numeric = sx.ev("is_numeric", &[f0])?;
+                        if !sx.bad(f0) && sx.is_true(numeric) {
+                            let one = sx.int(1);
+                            if let Some(v) = crate::sumfn::harmonic_parts(&mut sx, f, k, one, hi)? {
+                                return Ok(Reply::Done(sx.add(&[f0, v])?));
+                            }
+                        }
+                    }
+                }
+                // a hyperharmonic number of the index: written out in harmonic numbers by the library rule
+                if symbolic && matches!(h.view(k), View::Sym(_)) && sx.contains_any(f, &["hyper_harmonic_number"]) && !sx.free(f, k) {
+                    return Ok(Reply::Decline);
+                }
+            }
+        }
         let r = if from_neg_inf && !self.product { Reply::Decline } else { self.inner.call(cx, t, args)? };
         if !matches!(r, Reply::Decline) {
             if self.product {
@@ -815,6 +848,26 @@ impl Native {
                     return Ok(Reply::Again(g));
                 }
                 if !matches!(h.view(n), View::Sym(_)) {
+                    return Ok(Reply::Decline);
+                }
+                // conjugate(f(n)): sum conjugate(f(n)) z^n = conjugate(sum f(n) conjugate(z)^n), term by term
+                if let Some(&[g]) = sx.args_of(f, "conjugate") {
+                    if opts.is_empty() && !sx.free(g, n) {
+                        let cz = sx.ev("conjugate", &[z])?;
+                        let inner = sx.ev("generating_function", &[g, n, cz])?;
+                        return Ok(Reply::Done(sx.ev("conjugate", &[inner])?));
+                    }
+                }
+                // a compound symbolic point (exp(im w)): the generating function in a fresh variable, then the point put
+                // in; only a closed form (free of generating_function) counts. A number keeps the direct path (the point
+                // put into a closed form could be one of its poles)
+                let numeric = sx.ev("is_numeric", &[z])?;
+                if !matches!(h.view(z), View::Sym(_)) && !sx.is_true(numeric) && sx.free(z, n) && opts.is_empty() {
+                    let w = sx.sym("gf$z");
+                    let g = sx.ev("generating_function", &[f, n, w])?;
+                    if sx.free(g, sx.sym("generating_function")) {
+                        return Ok(Reply::Done(sx.subst(g, w, z)?));
+                    }
                     return Ok(Reply::Decline);
                 }
                 let v = crate::gf::gf(&mut sx, f, n, z)?;

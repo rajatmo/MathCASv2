@@ -507,6 +507,20 @@ fn list_convolve(ker, xs, q) when is_list(ker) and is_list(xs) and is_integer(q)
   let m = length(xs)
   map(i => total(map(j => ker[j]*xs[mod(i - j + q - 1, m) + 1], range(length(ker)))), range(m))
 }
+# list_convolve(ker, list, [kl, kr]): the kernel entry kl aligned with the first entry of the list in the first
+# result and kr with the last in the last (negative positions count from the end of the kernel), the list taken
+# cyclically; list_convolve(ker, list, q or [kl, kr], p): the list padded with the value p instead
+fn ls_conv_pos(q, k) = if q < 0 then k + q + 1 else q
+fn ls_conv_ok(ker, xs, al) = is_list(ker) and is_list(xs) and length(xs) > 0 and length(ker) > 0 and not is_list(ker[1]) and not is_list(xs[1]) and (is_integer(al) and al != 0 and abs(al) <= length(ker) or is_list(al) and length(al) == 2 and every(al, q => is_integer(q) and q != 0 and abs(q) <= length(ker)))
+fn ls_conv_gen(ker, xs, al, at) = {
+  let k = length(ker)
+  let m = length(xs)
+  let kl = ls_conv_pos(if is_list(al) then al[1] else al, k)
+  let kr = ls_conv_pos(if is_list(al) then al[2] else al, k)
+  if 1 + kl > m + kr then [] else map(s => total(map(j => ker[j]*at(s - j), range(k))), range(1 + kl, m + kr))
+}
+fn list_convolve(ker, xs, al) when is_list(al) and ls_conv_ok(ker, xs, al) = ls_conv_gen(ker, xs, al, i => xs[mod(i - 1, length(xs)) + 1])
+fn list_convolve(ker, xs, al, p) when not is_list(p) and ls_conv_ok(ker, xs, al) = ls_conv_gen(ker, xs, al, i => if i >= 1 and i <= length(xs) then xs[i] else p)
 
 # cumulant(r, data): the r-th cumulant of the list data computed from its raw moments (kappa_r = m_r -
 # sum_k binomial(r - 1, k - 1) kappa_k m_(r - k)); cumulant(dist, r): the r-th derivative of log(moment generating

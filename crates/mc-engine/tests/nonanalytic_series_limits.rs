@@ -73,9 +73,11 @@ fn limits_along_complex_directions() {
     assert_eq!(ev("limit((conjugate(1 + h) - conjugate(1))/h, h -> 0, direction: -im)"), "-1");
     assert_eq!(ev("limit((conjugate(1 + h) - conjugate(1))/h, h -> 0, direction: exp(im*pi/4))"), "-1im");
     assert_eq!(ev("limit((exp(x) - 1)/x, x -> 0, direction: 1 + im)"), "1");
-    // every direction at once: the value where the function is continuous on the plane, else undecided
+    // every direction at once: the value where the function is continuous on the plane, complex_infinity at a pole
+    // (1/f continuous with value 0), else undecided
     assert_eq!(ev("limit(abs(x), x -> 0, direction: complexes)"), "0");
-    assert_eq!(ev("limit(1/x, x -> 0, direction: complexes)"), "limit(x^-1, x -> 0, direction: complexes)");
+    assert_eq!(ev("limit(1/x, x -> 0, direction: complexes)"), "complex_infinity");
+    assert!(ev("limit(sin(1/x), x -> 0, direction: complexes)").starts_with("limit("));
 }
 
 #[test]

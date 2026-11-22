@@ -545,6 +545,10 @@ pub fn numeric<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, h
 
 /// [`numeric`] with integer bounds (`hi = None`: infinity).
 fn numeric_int<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: i64, hi: Option<i64>, product: bool) -> Res<Option<T<'h>>> {
+    // 2^k (1/2)^k (the inner summand of n_sum((2/n)^k/k^2, [n, 2, inf], [k, 1, inf]) at n = 2) as 1^k: unmerged, the
+    // far terms are a product of a huge and a tiny power that the term tests read as no decay
+    // (not inside a monitored summand or a held inner n_sum, which must not be evaluated at a symbolic index)
+    let f = if sx.contains_any(f, &[crate::natives::WATCH, "n_sum", "n_product"]) { f } else { merge_powers(sx, f)? };
     // a summand that is not a number at the first index (a free symbol): n_sum cannot sum it
     {
         let t = sx.subst(f, k, sx.int(lo))?;

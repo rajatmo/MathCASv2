@@ -59,8 +59,9 @@ fn variable_coefficients() {
         check(&mut e, "y(n + 2) - (mod(n, 3) + 1)*y(n) == 0", 2, "(mod(m, 3) + 1)*v[m + 1]");
         // a leading coefficient
         check(&mut e, "(n + 1)*y(n + 2) - y(n + 1) + (n + 3)*y(n) == 0", 2, "(v[m + 2] - (m + 3)*v[m + 1])/(m + 1)");
-        // a_0(0) = 0: the standard set is not fundamental from 0, unevaluated
-        assert!(ev(&mut e, "casoratian(y(n + 2) - n*y(n) == 0, y, n)").starts_with("casoratian("));
+        // a_0(0) = 0: the standard set is not fundamental from 0, so it is taken at n = 1: C(1) = 1 and C(n + 1) = -n C(n)
+        // give C(n) = (-1)^(n - 1) (n - 1)!
+        assert_eq!(ev(&mut e, "casoratian(y(n + 2) - n*y(n) == 0, y, n)"), "-1*factorial(-1 + n)*(-1)^n");
         // the list form is unchanged
         holds(&mut e, "rewrite(casoratian([1, 2^n, 3^n], n), n -> 3) === 432");
     });

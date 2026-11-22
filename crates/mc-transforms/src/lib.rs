@@ -160,7 +160,11 @@ pub fn transform_any<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: K
         // otherwise it is not a condition on the transform)
         let mut cond = None;
         for (i, (&xi, &yi)) in xs.iter().zip(ys).enumerate() {
-            match transform_one(cx, tc, kind, g, xi, yi)? {
+            let one = match transform_one(cx, tc, kind, g, xi, yi)? {
+                None => later_variables_ranged(cx, tc, kind, g, xi, yi, &xs[i + 1..])?,
+                r => r,
+            };
+            match one {
                 Some(r) => {
                     let (v, c) = conditional(b, r);
                     if c.is_some_and(|c| xs[i + 1..].iter().any(|&x| !is_free(b, c, x))) {
@@ -176,9 +180,52 @@ pub fn transform_any<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: K
                 return Ok(None);
             }
         }
+        // the half-line transforms are functions of positive variables: the steps' powers of them combined there
+        // (1/(u^(3/2) (1 + v^2/u^2)^(1/2) (1/u)^(1/2)) is (u^2 + v^2)^(-1/2)), kept only when not larger
+        if matches!(kind, Kind::FourierSin | Kind::FourierCos | Kind::InverseFourierSin | Kind::InverseFourierCos) {
+            let facts: Vec<T<'h>> = ys.iter().map(|&v| h.call(h.sym("greater"), &[v, b.zero()])).collect();
+            let s = cx.eval_assuming(&facts, b.call("simplify", &[g]))?;
+            if !mc_calculus::common::is_failure(b, s) {
+                let (n0, n1) = (apply(cx, b, "leaf_count", &[g])?, apply(cx, b, "leaf_count", &[s])?);
+                if let (View::Int(a0), View::Int(a1)) = (h.view(n0), h.view(n1)) {
+                    if a1 <= a0 {
+                        g = s;
+                    }
+                }
+            }
+        }
         return Ok(Some(with_condition(cx, tc, g, cond)?));
     }
     transform_one(cx, tc, kind, f, x, y)
+}
+
+/// One step of a transform in several variables again, with the variables still to transform in their ranges: the
+/// later integrals run over `x > 0` (Laplace and Mellin; the inverse Laplace transform's variables taken on the
+/// real axis right of every singularity, whence the value continues analytically) or over the real line (Fourier,
+/// two-sided Laplace), so a factor such as `1 + y^2` is positive inside them. Only without options (the call is
+/// made again under the assumptions). `None` when that does not give the transform either.
+#[allow(clippy::too_many_arguments)]
+fn later_variables_ranged<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: Kind, g: T<'h>, x: T<'h>, y: T<'h>, later: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let b = tc.b;
+    let h = b.heap();
+    if later.is_empty() || tc.opts.fourier.is_some() || tc.opts.conditions {
+        return Ok(None);
+    }
+    let fact = |v: T<'h>| match kind {
+        Kind::Laplace | Kind::Mellin | Kind::InverseLaplace => Some(h.call(h.sym("greater"), &[v, b.zero()])),
+        Kind::Fourier | Kind::InverseFourier | Kind::BilateralLaplace => Some(h.call(h.sym("element"), &[v, h.sym_term(h.sym("reals"))])),
+        _ => None,
+    };
+    let mut facts = vec![];
+    for &v in later {
+        let Some(f) = fact(v) else { return Ok(None) };
+        facts.push(f);
+    }
+    let r = cx.eval_assuming(&facts, b.call(kind.name(), &[g, x, y]))?;
+    if mc_calculus::common::is_failure(b, r) || !is_free(b, r, h.sym_term(h.sym(kind.name()))) {
+        return Ok(None);
+    }
+    Ok(Some(r))
 }
 
 /// Is `f` a call `g(x)` of an undefined function `g` at the symbol `x` alone?
@@ -297,6 +344,9 @@ fn numeric_point<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: Kind,
     if !matches!(h.view(ny), View::Real(_)) && call_of(b, ny).map(|(n, _)| n) != Some("complex".into()) {
         return Ok(None);
     }
+    if kind == Kind::InverseLaplace {
+        return talbot_point(cx, b, f, x, ny);
+    }
     // the integrand must be numeric apart from x
     let inf = h.sym_term(h.sym("inf"));
     let (g, lo, factor) = match kind {
@@ -308,6 +358,12 @@ fn numeric_point<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: Kind,
         }
         Kind::FourierCos | Kind::InverseFourierCos if tc.opts.fourier.is_none() => {
             (b.mul(&[f, b.call("cos", &[b.mul(&[ny, x])])]), b.zero(), b.pow(b.div(b.int(2), b.sym(h.sym("pi"))), b.rat(1, 2)))
+        }
+        // the exponential transform on the whole line, kernel exp(i SGN w x)/sqrt(2 pi)
+        Kind::Fourier | Kind::InverseFourier if tc.opts.fourier.is_none() => {
+            let sgn = if kind == Kind::Fourier { b.one() } else { b.int(-1) };
+            let kern = b.call("exp", &[b.mul(&[sgn, b.sym(h.sym("im")), ny, x])]);
+            (b.mul(&[f, kern]), b.neg(inf), b.pow(b.mul(&[b.int(2), b.sym(h.sym("pi"))]), b.rat(-1, 2)))
         }
         _ => return Ok(None),
     };
@@ -323,6 +379,36 @@ fn numeric_point<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: Kind,
         return Ok(Some(cx.eval(b.mul(&[nf, r]))?));
     }
     Ok(None)
+}
+
+/// The inverse Laplace transform of `f` (in `s`) at a real number `t > 0` by the fixed Talbot contour (the library's
+/// `calc_talbot`) with 40 and with 60 nodes: the two contours cross the real axis at points 1.5 apart in scale, so a
+/// singularity of `F` that one of them leaves on the wrong side, or a loss of precision, shows as a disagreement;
+/// the value is taken only when the two agree to 1e-12 (relative to its size, at least 1).
+fn talbot_point<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, s: T<'h>, nt: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let View::Real(tv) = h.view(nt) else { return Ok(None) };
+    // the formula takes the real part of the nodes' terms: it needs F real on the real axis, which holds when F
+    // has no imaginary unit and no complex number in it
+    let real_coeffs = is_free(b, f, h.sym_term(h.sym("im"))) && is_free(b, f, h.sym_term(h.sym("complex")));
+    // (t > 0 and not NaN)
+    if tv.is_nan() || tv <= 0.0 || !only_symbol(b, f, s) || !real_coeffs {
+        return Ok(None);
+    }
+    let t = apply(cx, b, "rationalize", &[nt, b.zero()])?;
+    let mut vals = vec![];
+    for m in [40, 60] {
+        // (m terms of F at 2 m digits: a fixed amount of work, no clock)
+        let r = apply(cx, b, "calc_talbot", &[f, s, t, b.int(m)])?;
+        let r = apply(cx, b, "n", &[r])?;
+        let View::Real(v) = h.view(r) else { return Ok(None) };
+        vals.push(v);
+    }
+    let (v1, v2) = (vals[0], vals[1]);
+    if !v2.is_finite() || (v1 - v2).abs() > 1e-12 * v2.abs().max(1.0) {
+        return Ok(None);
+    }
+    Ok(Some(h.real(v2)))
 }
 
 /// Does `t` mention no symbol but `x` and the constants?

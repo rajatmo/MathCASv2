@@ -207,7 +207,7 @@ inverse_laplace_transform(exp(-s)/s, s, t)
 #= heaviside_theta(-1 + t)
 
 #% text
-# A transform with no rule stays a call: a pure polynomial in `s` (its inverse is a derivative of `dirac_delta`, which is given only next to a proper part), a growing exponential, and an essential singularity at 0 combined with a pole:
+# A transform with no rule stays a call: a pure polynomial in `s` (its inverse is a derivative of `dirac_delta`, which is given only next to a proper part) and a growing exponential:
 
 #% cell
 inverse_laplace_transform(s^2, s, t)
@@ -219,10 +219,13 @@ inverse_laplace_transform(exp(s), s, t)
 #% output
 #= inverse_laplace_transform(exp(s), s, t)
 
+#% text
+# An essential singularity at 0 times a power, `s^n exp(a/s)` with `n < 0`, inverts term by term from `exp(a/s) = sum(a^k s^-k/k!)`; here the result is `bessel_j(0, 2 sqrt(t))`:
+
 #% cell
 inverse_laplace_transform(exp(-1/s)/s, s, t)
 #% output
-#= inverse_laplace_transform(exp(-1/s)/s, s, t)
+#= hypergeometric_0f1_regularized(1, -t)
 
 #% text
 # An undefined function stays a call:

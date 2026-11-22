@@ -25,7 +25,10 @@ use mc_eval::{NativeCx, Res};
 /// The table of the Laplace transform (`t` the variable, `s` the transform's; one-letter parameters, see
 /// [`super::pattern`]). Sources: Abramowitz and Stegun 29.3 (Bessel functions 29.3.56-60, error functions
 /// 29.3.43-45, logarithms 29.3.105-109, integral sines and cosines 29.3.97-99); Laguerre polynomials from their
-/// generating function.
+/// generating function; `sin(a t^2)` and `cos(a t^2)` from the Gaussian `exp(-c t^2)` at `c = -+ i a` with the
+/// Fresnel integrals (DLMF 7.2.6-7.2.8); `airy_ai(t)` from its equation `Ai'' = t Ai`, which turns into `L' + s^2 L
+/// = s Ai(0) + Ai'(0)` with `L(0) = 1/3` (DLMF 9.10.11), solved with the Kummer functions of `s^3/3`, real and
+/// entire in `s`.
 pub(crate) const TABLE: &str = r#"
 [bessel_j(0, a*t), (s^2 + a^2)^(-1/2), true, re(s) > abs(im(a))]
 [bessel_j(n, a*t), a^n*(s^2 + a^2)^(-1/2)*(s + (s^2 + a^2)^(1/2))^(-n), true, re(s) > abs(im(a))]
@@ -57,6 +60,9 @@ pub(crate) const TABLE: &str = r#"
 [sin(a*t^(1/2)), (1/2)*a*pi^(1/2)*s^(-3/2)*exp(-a^2/(4*s)), true, re(s) > 0]
 [t^(-1/2)*cos(a*t^(1/2)), (pi/s)^(1/2)*exp(-a^2/(4*s)), true, re(s) > 0]
 [dirac_delta(t), 1]
+[sin(a*t^2), (1/4)*(2*pi/a)^(1/2)*((1 - 2*fresnel_c(s/(2*pi*a)^(1/2)))*cos(s^2/(4*a)) + (1 - 2*fresnel_s(s/(2*pi*a)^(1/2)))*sin(s^2/(4*a))), a > 0, re(s) > 0]
+[cos(a*t^2), (1/4)*(2*pi/a)^(1/2)*((1 - 2*fresnel_s(s/(2*pi*a)^(1/2)))*cos(s^2/(4*a)) - (1 - 2*fresnel_c(s/(2*pi*a)^(1/2)))*sin(s^2/(4*a))), a > 0, re(s) > 0]
+[airy_ai(a*t), exp(-s^3/(3*a^3))*(1/3 - s/a*hypergeometric_1f1(1/3, 4/3, s^3/(3*a^3))/(3^(1/3)*gamma(1/3)) + s^2/(2*a^2)*hypergeometric_1f1(2/3, 5/3, s^3/(3*a^3))/(3^(2/3)*gamma(2/3)))/a, a > 0]
 "#;
 
 /// The Laplace transform of `f` in `t` at `s`, or `None`.

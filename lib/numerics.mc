@@ -728,7 +728,20 @@ fn nl_uc(f, g, tau, t, asm) = {
     }
     if ok then simplify(r, assumptions: asm and fold((p, q) => p and q, map(x => x > 0, xs)))
     else if length(ts) == 1 and some([unit_box, unit_triangle, unit_step, heaviside_theta, piecewise], hd => not free_of([f, g], hd)) then nl_uc_pieces(f, g, ts[1], xs[1], asm)
+    else if length(ts) > 1 then nl_uc_separable(f, g, ts, xs, asm)
     else null
+  }
+}
+# several variables, f and g products of factors of one variable each: the integral over the box is the product
+# of the convolutions in each variable (Fubini), or null when a factor holds two variables or one stays unevaluated
+fn nl_uc_separable(f, g, ts, xs, asm) = {
+  let sf = nl_sep(f, ts)
+  let sg = nl_sep(g, ts)
+  if sf === null or sg === null then null else {
+    let rs = map(i => apply(unilateral_convolve, join([sf[1][i], sg[1][i], ts[i], xs[i]], if asm === true then [] else [assumptions -> asm])), range(length(ts)))
+    let p = sf[2]*sg[2]*product(rs)
+    # (a product of cases is put as one piecewise over the combined conditions)
+    if some(rs, r => not free_of(r, unilateral_convolve)) then null else if free_of(p, piecewise) then p else piecewise_expand(p)
   }
 }
 
@@ -761,7 +774,8 @@ fn nl_mc(f, g, x, y, asm, gc) = {
     }
     if ok then (if num then r else simplify(r, assumptions: asm and fold((p, q) => p and q, map(v => v > 0, ys))))
     else if length(ts) == 1 and not num then {
-      let pw = if some([unit_box, unit_triangle, piecewise], hd => not free_of([f, g], hd)) then nl_mc_pieces(f, g, ts[1], ys[1]) else null
+      let pw0 = if some([unit_box, unit_triangle, piecewise], hd => not free_of([f, g], hd)) then nl_mc_pieces(f, g, ts[1], ys[1]) else null
+      let pw = if pw0 === null and not free_of([f, g], unit_box) then nl_mc_box(f, g, ts[1], ys[1], asm) else pw0
       if not (pw === null) then pw
       else if asm === true then calc_mconv_mb(f, g, ts[1], ys[1], gc) else assuming(asm, calc_mconv_mb(f, g, ts[1], ys[1], gc))
     }
@@ -774,6 +788,30 @@ fn nl_mc(f, g, x, y, asm, gc) = {
 fn nl_mc_factors(e) = {
   let fs = if not is_atom(e) and head(e) === mul then apply(list, e) else [e]
   flatten(map(q => if not is_atom(q) and (head(q) === unit_box or head(q) === unit_triangle) and length(q) > 1 then map(a => apply(head(q), [a]), apply(list, q)) else [q], fs), 1)
+}
+
+# the factors of e in the variables vs, each split as far as it goes into factors of one variable: unit_box,
+# unit_triangle, unit_step and dirac_delta of several arguments into their factors of one argument (their
+# definition as products), exp(u1 + u2 + ...) into the exponentials of the summands grouped by variable
+fn nl_sep_factors(ex, vs) = {
+  let fs = if not is_atom(ex) and head(ex) === mul then apply(list, ex) else [ex]
+  let multi = q => not is_atom(q) and (head(q) === unit_box or head(q) === unit_triangle or head(q) === unit_step or head(q) === dirac_delta) and length(q) > 1
+  # (exp(u) is held as pow(e, u))
+  let expo = q => not is_atom(q) and head(q) === pow and q[1] === e and not is_atom(expand(q[2])) and head(expand(q[2])) === add
+  let group = u => {
+    let ts = apply(list, expand(u))
+    let per = map(v => calc_total(select(ts, s => not free_of(s, v))), vs)
+    let rest = calc_total(select(ts, s => every(vs, v => free_of(s, v))))
+    if some(ts, s => length(select(vs, v => not free_of(s, v))) > 1) then [exp(u)] else join([exp(rest)], map(p => exp(p), per))
+  }
+  flatten(map(q => if multi(q) then map(a => apply(head(q), [a]), apply(list, q)) else if expo(q) then group(q[2]) else [q], fs), 1)
+}
+# [the factors of one variable each, in the order of vs, and the factor free of them] of e, or null when a factor
+# holds two of the variables
+fn nl_sep(e, vs) = {
+  let fs = nl_sep_factors(e, vs)
+  if some(fs, q => length(select(vs, v => not free_of(q, v))) > 1) then null
+  else [map(v => product(select(fs, q => not free_of(q, v))), vs), product(select(fs, q => every(vs, v => free_of(q, v))))]
 }
 
 # several variables, f and g products of factors of one variable each: the product of the Mellin convolutions in
@@ -821,6 +859,30 @@ fn nl_mc_pieces(f, g, x, y) = {
     }, range(length(bs) - 1))
     let kept = select(cases, c => not (c[1] === 0))
     if some(cases, c => not free_of(c[1], integrate)) then null else piecewise(kept, 0)
+  }
+}
+
+# one variable, one of f, g a box unit_box(c x + d) (c > 0 a number, d symbolic), the other any h: the box is 1 for
+# lo < v < hi, lo = (-1/2 - d)/c, hi = (1/2 - d)/c, so for y > 0 the convolution integrate(h(u) box(y/u)/u, [u, 0,
+# inf]) is the integral of h(u)/u over y/hi < u < y/lo (to inf when lo <= 0), and 0 when hi <= 0; the cases as a
+# piecewise in d (refined under the assumptions); null when an integral has no closed form or the box is numeric
+fn nl_mc_box(f, g, x, y, asm) = {
+  let isbox = q => not is_atom(q) and head(q) === unit_box and length(q) == 1 and not (calc_lin(q[1], x) === null) and is_number(calc_lin(q[1], x)[1]) and calc_lin(q[1], x)[1] > 0 and not is_numeric(calc_lin(q[1], x)[2])
+  let bx = if isbox(g) and free_of(f, unit_box) then [f, g] else if isbox(f) and free_of(g, unit_box) then [g, f] else null
+  if bx === null then null else {
+    let h = bx[1]
+    let cd = calc_lin(bx[2][1], x)
+    let lo = (-1/2 - cd[2])/cd[1]
+    let hi = (1/2 - cd[2])/cd[1]
+    let a1 = asm and y > 0 and lo <= 0 and hi > 0
+    let a2 = asm and y > 0 and lo > 0
+    let open = integrate(h/x, [x, y/hi, inf], assumptions: a1)
+    let closed = integrate(h/x, [x, y/hi, y/lo], assumptions: a2)
+    if not free_of([open, closed], integrate) or head(open) === failure or head(closed) === failure then null
+    else {
+      let pw = piecewise([[simplify(open, assumptions: a1), lo <= 0 and hi > 0], [simplify(closed, assumptions: a2), lo > 0]], 0)
+      if asm === true then simplify(pw) else simplify(pw, assumptions: asm)
+    }
   }
 }
 

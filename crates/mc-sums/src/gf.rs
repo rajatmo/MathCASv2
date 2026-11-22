@@ -53,6 +53,42 @@ pub fn gf<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, n: T<'h>, z: T<'h>) -> Res<
             }
         }
     }
+    // sin(a n + b) and cos(a n + b): the imaginary and real parts of e^(i b)/(1 - z e^(i a)) as rational functions,
+    // (sin b - z sin(b - a))/(1 - 2 z cos a + z^2) and (cos b - z cos(b - a))/(1 - 2 z cos a + z^2), identities of
+    // formal power series for every a and b (sin and cos by their exponential forms)
+    if let View::App { head, args: &[x] } = h.view(f) {
+        let trig = if head == sx.sym("sin") {
+            Some("sin")
+        } else if head == sx.sym("cos") {
+            Some("cos")
+        } else {
+            None
+        };
+        if let Some(name) = trig {
+            let a = sx.ev("coefficient", &[x, n, sx.int(1)])?;
+            let b = sx.ev("coefficient", &[x, n, sx.int(0)])?;
+            let lin = sx.free(a, n) && sx.free(b, n) && sx.as_int(a) != Some(0) && {
+                let back = sx.mul(&[a, n])?;
+                let back = sx.add(&[back, b])?;
+                let d = sx.sub(x, back)?;
+                let d = sx.ev("expand", &[d])?;
+                sx.as_int(d) == Some(0)
+            };
+            if lin {
+                let ba = sx.sub(b, a)?;
+                let num0 = sx.ev(name, &[b])?;
+                let num1 = sx.ev(name, &[ba])?;
+                let zn1 = sx.mul(&[z, num1])?;
+                let num = sx.sub(num0, zn1)?;
+                let ca = sx.ev("cos", &[a])?;
+                let lin_z = sx.mul(&[sx.int(-2), z, ca])?;
+                let z2 = sx.pow(z, sx.int(2))?;
+                let den = sx.add(&[sx.int(1), lin_z, z2])?;
+                let v = sx.div(num, den)?;
+                return Ok(Some(sx.ev("together", &[v])?));
+            }
+        }
+    }
     if let Some((g, s)) = unknown(sx, f, n)? {
         let gn = h.app(g, &[n]);
         let big = unevaluated(sx, gn, z);

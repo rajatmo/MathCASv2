@@ -29,7 +29,9 @@ use mc_eval::{NativeCx, Res};
 /// `integrate(t^(n - 1) exp(-s t - a^2/(4 t)), [t, 0, inf]) = 2 (a/(2 sqrt(s)))^n bessel_k(n, a sqrt(s))` (DLMF
 /// 10.32.10); the Legendre functions from their Laplace integrals (Erdelyi et al., Tables of Integral Transforms I,
 /// 4.16), `legendre_p` for -1 < n < 0, where the integrand is integrable at 0, and the function of the second kind
-/// of type 3 (real for s > 1; `legendre_q(n, s)` there is the type 2 value, complex).
+/// of type 3 (real for s > 1; `legendre_q(n, s)` there is the type 2 value, complex); `(a s + b)^n` by the shift and
+/// the scaling of `s^n`; `s^n exp(a/s)` term by term from `exp(a/s) = sum(a^k s^-k/k!)` (A and S 29.3.81), the series
+/// of `t^(-n - 1) 0F1(; -n; a t)/gamma(-n)`, free of branches in `a`.
 pub(crate) const TABLE: &str = r#"
 [s^n, t^(-n - 1)/gamma(-n)]
 [(s^2 + a)^(-1/2), bessel_j(0, a^(1/2)*t)]
@@ -56,6 +58,8 @@ pub(crate) const TABLE: &str = r#"
 [s^(n/2)*bessel_k(n, a*s^(1/2)), (1/2)*(a/2)^n*t^(-n - 1)*exp(-a^2/(4*t))]
 [legendre_q(n, 0, 3, s), (pi/(2*t))^(1/2)*bessel_i(n + 1/2, t), n > -1]
 [legendre_p(n, s), -sin(pi*n)/pi*(2/(pi*t))^(1/2)*bessel_k(n + 1/2, t), -1 < n and n < 0]
+[(a*s + b)^n, a^n*exp(-b*t/a)*t^(-n - 1)/gamma(-n), refine(a > 0) and not is_integer(n)]
+[s^n*exp(a/s), t^(-n - 1)*hypergeometric_0f1_regularized(-n, a*t), n < 0]
 "#;
 
 /// The inverse Laplace transform of `big` in `s` at `t`, or `None`.

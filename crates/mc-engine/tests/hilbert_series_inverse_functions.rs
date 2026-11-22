@@ -54,8 +54,9 @@ fn hilbert_transform_rational_functions_with_parameters_and_multiple_poles() {
     assert_eq!(hilbert_matches_pv("t/(t^2 + 4)", "0.7"), "true");
     assert_eq!(hilbert_matches_pv("1/((t - 1)^2 + 4)^2", "1.3"), "true");
     assert_eq!(hilbert_matches_pv("t^3/(t^2 + 9)^2", "-0.4"), "true");
-    // a parameter of unknown sign leaves the transform
-    assert_eq!(ev("head(hilbert_transform(t/(t^2 + a^2), t, s)) === hilbert_transform"), "true");
+    // a parameter of unknown sign: the input depends on a^2 only, and -(a^2)^(1/2)/(a^2 + s^2) is -a/(a^2 + s^2) for
+    // re(a) > 0 (the documented case above) and its mirror for re(a) < 0
+    assert_eq!(same("hilbert_transform(t/(t^2 + a^2), t, s)", "-(a^2)^(1/2)/(a^2 + s^2)"), "true");
 }
 
 #[test]

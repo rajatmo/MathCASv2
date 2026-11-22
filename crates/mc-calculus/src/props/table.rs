@@ -322,6 +322,57 @@ pub static TABLE: &[Entry] = &[
         refs: "DLMF 5.2.2, 5.7.6",
         ..E
     },
+    // any order p: H(p, m) = Gamma(m + p)/(Gamma(m + 1) Gamma(p)) (psi(m + p) - psi(p)) with the removable points
+    // filled. Gamma(m + p) psi(m + p) has double poles at m + p = 0, -1, ...; 1/Gamma(m + 1) vanishes at m = -1, -2,
+    // ... (simple zeros, which do not meet those poles unless p is an integer); for an integer p <= 0, 1/Gamma(p) -> 0
+    // and psi(p)/Gamma(p) -> (-1)^(1 - p) (-p)!, so H(p, m) = (-1)^(1 - p) (-p)! Gamma(m + p)/Gamma(m + 1), the rational
+    // function with simple poles at m = 0, ..., -p (H(0, m) = 1/m). Meromorphic in m for every p.
+    Entry {
+        name: "hyper_harmonic_number",
+        arity: 2,
+        var: 1,
+        real: "(not_element($a, integers) or $a >= 1) and (not_element($u + $a, integers) or $u + $a > 0) or element($a, integers) and $a <= 0 and (not_element($u, integers) or $u < 0 or $u > -$a)",
+        complex: "(not_element($a, integers) or re($a) >= 1) and (not_element($u + $a, integers) or re($u + $a) > 0) or element($a, integers) and re($a) <= 0 and (not_element($u, integers) or re($u) < 0 or re($u) > -re($a))",
+        sr: Some(&[
+            ("(not_element($a, integers) or $a >= 1) and sin(pi*($u + $a)) == 0 and $u + $a <= 0", PO),
+            ("element($a, integers) and $a <= 0 and sin(pi*$u) == 0 and $u >= 0 and $u <= -$a", PO),
+        ]),
+        sc: Some(&[
+            ("(not_element($a, integers) or re($a) >= 1) and sin(pi*($u + $a)) == 0 and re($u + $a) <= 0", PO),
+            ("element($a, integers) and re($a) <= 0 and sin(pi*$u) == 0 and re($u) >= 0 and re($u) <= -re($a)", PO),
+        ]),
+        refs: "DLMF 5.2.1, 5.2.2, 5.7.6, 5.15.1",
+        ..E
+    },
+    // in the order p at an integer m >= 1: (p)_m/m! (psi(p + m) - psi(p)) = (p)_m/m! sum_(i < m) 1/(p + i), a
+    // polynomial of degree m - 1 (each 1/(p + i) cancels a factor of (p)_m): onto the reals exactly when m - 1 is odd
+    Entry {
+        name: "hyper_harmonic_number",
+        arity: 2,
+        var: 0,
+        when: "element($a, integers) and $a >= 1",
+        real: "true",
+        complex: "true",
+        sr: Some(NONE),
+        sc: Some(NONE),
+        onto: &[("mod($a, 2) == 1", false), ("", true)],
+        refs: "DLMF 5.2.5, 5.7.6",
+        ..E
+    },
+    // in the order p at any m: Gamma(m + p) psi(m + p) has double poles at p + m = 0, -1, ...; at p = 0, -1, ...
+    // psi(p)/Gamma(p) stays finite; for an integer m the function is a polynomial (m >= 1), 0 (m = 0) or 0 with
+    // removable points (m < 0, where 1/Gamma(m + 1) = 0)
+    Entry {
+        name: "hyper_harmonic_number",
+        arity: 2,
+        var: 0,
+        real: "element($a, integers) or not_element($u + $a, integers) or $u + $a > 0",
+        complex: "element($a, integers) or not_element($u + $a, integers) or re($u + $a) > 0",
+        sr: Some(&[("not_element($a, integers) and sin(pi*($u + $a)) == 0 and $u + $a <= 0", PO)]),
+        sc: Some(&[("not_element($a, integers) and sin(pi*($u + $a)) == 0 and re($u + $a) <= 0", PO)]),
+        refs: "DLMF 5.2.1, 5.7.6, 5.15.1",
+        ..E
+    },
     // functions of an integer: complex-valued off the integers (subfactorial: Gamma(z + 1, -1)/e, entire in z, DLMF
     // 8.2.(ii)); the alternating harmonic numbers (a factor (-1)^z); the tau function (integers only)
     Entry { name: "subfactorial", real: "element($u, integers) and $u >= 0", complex: "true", sr: Some(&[("true", BR)]), sc: Some(NONE), refs: "DLMF 8.2.(ii)", ..E },

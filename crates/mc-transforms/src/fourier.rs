@@ -29,7 +29,11 @@ use mc_eval::{NativeCx, Res};
 
 /// The exponential transform's table, kernel `exp(i SGN w t)` (`SGN` is 1 for the transform, -1 for the inverse).
 /// Sources: Gel'fand and Shilov I, chapter II.2 (steps, `1/t`, `abs(t)^a`, `log(abs(t))`); Erdélyi et al., *Tables
-/// of Integral Transforms* I (1954), 1.2 and 2.2.
+/// of Integral Transforms* I (1954), 1.2 and 2.2; `bessel_j(n, t)` of integer order from `J_n(t) = (1/pi)
+/// integrate(cos(n u - t sin(u)), [u, 0, pi])` (DLMF 10.9.2), whose transform is supported on `|s| < 1` with the
+/// Chebyshev polynomial `T_n(s)`; `sin_integral` from its derivative `sin(t)/t` (an odd principal value, no delta at
+/// 0); `dirac_comb` by Poisson summation (Gel'fand and Shilov I, II.2.4); `bessel_y(0, abs(t))` from the cosine
+/// transform of `Y_0` (Erdélyi et al. I, 1.13), 0 on `|s| < 1`.
 pub(crate) const TABLE: &str = r#"
 [unit_step(t), (pi/2)^(1/2)*dirac_delta(s) + SGN*im/((2*pi)^(1/2)*s)]
 [sign(t), SGN*im*(2/pi)^(1/2)/s]
@@ -43,6 +47,10 @@ pub(crate) const TABLE: &str = r#"
 [bessel_j(1, t)/t, (2 - 2*s^2)^(1/2)/pi^(1/2)*heaviside_theta(1 - s^2)]
 [(1 - t^2)^(-1/2)*unit_box(t/2), (pi/2)^(1/2)*bessel_j(0, abs(s))]
 [bessel_j(0, t), (2/pi)^(1/2)*(1 - s^2)^(-1/2)*heaviside_theta(1 - s^2)]
+[bessel_j(n, t), (2/pi)^(1/2)*(SGN*im)^n*chebyshev_t(n, s)*(1 - s^2)^(-1/2)*heaviside_theta(1 - s^2), is_integer(n)]
+[dirac_comb(a*t), (2*pi)^(-1/2)*dirac_comb(s/(2*pi*a))/abs(a)]
+[sin_integral(t), SGN*im*(pi/2)^(1/2)*heaviside_theta(1 - s^2)/s]
+[bessel_y(0, abs(t)), -(2/pi)^(1/2)*(s^2 - 1)^(-1/2)*heaviside_theta(s^2 - 1)]
 "#;
 
 /// The sine transform's table (`t` the variable, `s` the transform's, for `s > 0`). Sources: Erdélyi et al. I,
@@ -264,7 +272,11 @@ fn expo<'h>(
             let wp = h.sym_term(h.sym("transform·wp"));
             let sk = if even { Kind::FourierCos } else { Kind::FourierSin };
             let inner = Cx { b, stop: tc.stop, opts: super::Opts { conditions: false, strips: false, fourier: None }, depth: tc.depth + 1 };
-            if let Some(r) = sin_cos(cx, &inner, sk, !even, f, t, wp, depth + 1)? {
+            // on t > 0, where the half-line transforms integrate: sign(t) is 1 and abs(t) is t
+            let tpos = h.call(h.sym("greater"), &[t, b.zero()]);
+            let fp = cx.eval_assuming(&[tpos], b.call("refine", &[f]))?;
+            let fp = if is_failure(b, fp) { f } else { fp };
+            if let Some(r) = sin_cos(cx, &inner, sk, !even, fp, t, wp, depth + 1)? {
                 if !super::has_held(b, r, sk) {
                     let aw = b.call("abs", &[w]);
                     let r = subst(cx, b, r, wp, aw)?;
@@ -284,9 +296,10 @@ fn expo<'h>(
     direct(cx, b, f, t, w, sgn, false)
 }
 
-/// A rational function without real poles, numerator of lower degree: Jordan's lemma with the half plane chosen by
-/// the sign of `w`: `sqrt(2 pi) i (heaviside_theta(SGN w) sum(res, upper) - heaviside_theta(-SGN w) sum(res,
-/// lower))` (residues of `R(t) exp(i SGN w t)`).
+/// A rational function, numerator of lower degree, its real poles simple (the integral a principal value): Jordan's
+/// lemma with the half plane chosen by the sign of `w`: `sqrt(2 pi) i (heaviside_theta(SGN w) sum(res, upper) -
+/// heaviside_theta(-SGN w) sum(res, lower) + sign(SGN w) sum(res, real)/2)` (residues of `R(t) exp(i SGN w t)`; a
+/// pole on the path counts half, Titchmarsh, *Theory of Functions*, 3.12).
 fn rational_residues<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, t: T<'h>, w: T<'h>, sgn: i64) -> Res<Option<T<'h>>> {
     let h = b.heap();
     if !super::inverse::rational_in(b, f, t) {
@@ -302,7 +315,7 @@ fn rational_residues<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>,
     let Some(ps) = super::inverse::poles(cx, b, d, t)? else { return Ok(None) };
     let i = b.sym(h.sym("im"));
     let kern = cx.eval(b.mul(&[b.int(sgn), i, w]))?;
-    let (mut up, mut down) = (vec![], vec![]);
+    let (mut up, mut down, mut real) = (vec![], vec![], vec![]);
     for (p, m, q) in ps {
         let ip = apply(cx, b, "im_part", &[p])?;
         let side = sign(cx, b, ip)?;
@@ -310,6 +323,8 @@ fn rational_residues<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>,
         match side {
             Some(1) => up.push(res),
             Some(-1) => down.push(res),
+            // a simple real pole: the principal value takes half its residue on the side of the closing contour
+            Some(0) if m == 1 => real.push(res),
             _ => return Ok(None),
         }
     }
@@ -319,13 +334,16 @@ fn rational_residues<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>,
     let upper = super::inverse::trig_form(cx, b, upper)?;
     let lower = cx.eval(b.add(&down))?;
     let lower = super::inverse::trig_form(cx, b, lower)?;
+    let on_axis = cx.eval(b.add(&real))?;
+    let on_axis = super::inverse::trig_form(cx, b, on_axis)?;
     let v = b.mul(&[
         root,
         i,
-        b.sub(
+        b.add(&[
             b.mul(&[b.call("heaviside_theta", &[sw]), upper]),
-            b.mul(&[b.call("heaviside_theta", &[b.neg(sw)]), lower]),
-        ),
+            b.neg(b.mul(&[b.call("heaviside_theta", &[b.neg(sw)]), lower])),
+            b.mul(&[b.rat(1, 2), b.call("sign", &[sw]), on_axis]),
+        ]),
     ]);
     Ok(Some(cx.eval(v)?))
 }
@@ -493,6 +511,16 @@ fn sin_cos<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: Kind, sin: 
     }
     cx.tick(1)?;
     let f = sinc_as_sin(cx, b, f)?;
+    // the half-line transforms integrate over t > 0, where abs(t), sign(t) and (t^2)^(1/2) are t, 1 and t: the
+    // integrand without them (bessel_k(0, u (y^2)^(1/2)) is bessel_k(0, u y) there)
+    let root_sq = b.pow(b.pow(t, b.int(2)), b.rat(1, 2));
+    let f = if !is_free(b, f, h.sym_term(h.sym("abs"))) || !is_free(b, f, h.sym_term(h.sym("sign"))) || !is_free(b, f, root_sq) {
+        let tpos = h.call(h.sym("greater"), &[t, b.zero()]);
+        let fp = cx.eval_assuming(&[tpos], b.call("refine", &[f]))?;
+        if is_failure(b, fp) { f } else { fp }
+    } else {
+        f
+    };
     let f = super::laplace::split_powers(cx, b, f, t)?;
     // linearity
     let ts = terms(b, f);
@@ -542,7 +570,18 @@ fn sin_cos<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: Kind, sin: 
     let range = h.call(b.hd.list, &[t, b.zero(), inf]);
     let opt = h.call(h.sym("options"), &[h.call(h.sym(names::RULE), &[h.sym_term(h.sym("generate_conditions")), cx.bool(false)])]);
     let r = cx.eval_assuming(&[wpos], b.call("integrate", &[g, range, opt]))?;
-    if is_free(b, r, h.sym_term(h.sym("integrate"))) && !is_failure(b, r) && is_free(b, r, t) {
+    let integral = is_free(b, r, h.sym_term(h.sym("integrate"))) && !is_failure(b, r) && is_free(b, r, t);
+    // a modulated g(t): by the transforms of g where the integral has none, or one in real and imaginary parts of
+    // complex values
+    let parts = |x: T<'h>| !is_free(b, x, h.sym_term(h.sym("re"))) || !is_free(b, x, h.sym_term(h.sym("im_part")));
+    if !integral || parts(r) {
+        if let Some(m) = modulated(cx, tc, sin, f, t, w)? {
+            if !parts(m) && verify::sin_cos(cx, b, sin, f, t, w, m)? != verify::Verdict::Refuted {
+                return Ok(Some(simplify_positive(cx, b, m, wpos)?));
+            }
+        }
+    }
+    if integral {
         // the normalisation last, as the tables write it (sqrt(2/pi) times the integral)
         let r = simplify_positive(cx, b, r, wpos)?;
         return Ok(Some(cx.eval(b.mul(&[root, r]))?));
@@ -609,6 +648,21 @@ fn sin_cos<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: Kind, sin: 
             }
         }
     }
+    // the Hankel transform of order -1/2 (cosine) or 1/2 (sine): cos(x) = (pi x/2)^(1/2) J_(-1/2)(x) and sin(x) = (pi
+    // x/2)^(1/2) J_(1/2)(x), so the transform is w^(1/2) hankel_transform(f(t) t^(-1/2), t, w, -+1/2), whose
+    // Mellin-Barnes route knows the special functions with a Mellin transform (DLMF 10.16.1)
+    if depth <= 1 && tc.depth <= 1 && !is_free(b, f, t) {
+        let nu = if sin { b.rat(1, 2) } else { b.rat(-1, 2) };
+        let g = cx.eval(b.mul(&[f, b.pow(t, b.rat(-1, 2))]))?;
+        let hk = cx.eval_assuming(&[wpos], b.call("hankel_transform", &[g, t, w, nu]))?;
+        if is_free(b, hk, h.sym_term(h.sym("hankel_transform"))) && !is_failure(b, hk) && is_free(b, hk, t) {
+            let v = cx.eval(b.mul(&[b.pow(w, b.rat(1, 2)), hk]))?;
+            let v = simplify_positive(cx, b, v, wpos)?;
+            if verify::sin_cos(cx, b, sin, f, t, w, v)? != verify::Verdict::Refuted {
+                return Ok(Some(v));
+            }
+        }
+    }
     // the Laplace transform on the imaginary axis
     let s = h.sym_term(h.sym("transform·s"));
     let inner = Cx { b, stop: tc.stop, opts: super::Opts { conditions: false, strips: false, fourier: None }, depth: tc.depth + 1 };
@@ -637,6 +691,64 @@ fn sin_cos<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: Kind, sin: 
                 }
             }
         }
+    }
+    Ok(None)
+}
+
+/// A modulated function `g(t) sin(a t)` or `g(t) cos(a t)` (`a > 0`) by the products of the kernels:
+/// `sin(a t) cos(w t) = (sin((w + a) t) - sin((w - a) t))/2` and the like, so the cosine transform of `g sin(a t)`
+/// is `(G_s(w + a) - G_s(w - a))/2`, of `g cos(a t)` it is `(G_c(w + a) + G_c(w - a))/2`, the sine transform of `g
+/// sin(a t)` is `(G_c(w - a) - G_c(w + a))/2` and of `g cos(a t)` it is `(G_s(w + a) + G_s(w - a))/2` (`G_s`, `G_c`
+/// the sine and cosine transforms of `g`). `w - a` may be negative, where the tables' formulas (for positive
+/// arguments) hold only when `G_s` is odd and `G_c` even as written: that is checked, or `None`.
+fn modulated<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, sin: bool, f: T<'h>, t: T<'h>, w: T<'h>) -> Res<Option<T<'h>>> {
+    let b = tc.b;
+    let h = b.heap();
+    let fs = factors(b, f);
+    for (k, &g) in fs.iter().enumerate() {
+        let Some((n, [u])) = call_of(b, g) else { continue };
+        if n != "sin" && n != "cos" {
+            continue;
+        }
+        let Some((a, d)) = linear(cx, b, *u, t)? else { continue };
+        if !b.is_zero(d) || sign(cx, b, a)? != Some(1) {
+            continue;
+        }
+        let mut rest = fs.clone();
+        rest.remove(k);
+        let rest = cx.eval(b.mul(&rest))?;
+        if is_free(b, rest, t) {
+            continue;
+        }
+        let trig_sin = n == "sin";
+        let inner_sin = sin != trig_sin;
+        // (not a one-letter name: those are the tables' parameters)
+        let v = h.sym_term(h.sym("transform·mv"));
+        if tc.depth + 1 > MAX_DEPTH {
+            return Ok(None);
+        }
+        // the transform of g as a call of its own (the whole route of a transform, as at the top)
+        let ik = if inner_sin { Kind::FourierSin } else { Kind::FourierCos };
+        let r = cx.eval(b.call(ik.name(), &[rest, t, v]))?;
+        if super::has_held(b, r, ik) || is_failure(b, r) || !is_free(b, r, t) {
+            return Ok(None);
+        }
+        // the parity the formulas need
+        let rm = subst(cx, b, r, v, b.neg(v))?;
+        let par = if inner_sin { b.add(&[rm, r]) } else { b.sub(rm, r) };
+        let par = apply(cx, b, "simplify", &[par])?;
+        if !b.is_zero(par) {
+            return Ok(None);
+        }
+        let plus = subst(cx, b, r, v, b.add(&[w, a]))?;
+        let minus = subst(cx, b, r, v, b.sub(w, a))?;
+        let comb = match (sin, trig_sin) {
+            (false, true) => b.sub(plus, minus),
+            (true, true) => b.sub(minus, plus),
+            _ => b.add(&[plus, minus]),
+        };
+        let out = cx.eval(b.mul(&[b.rat(1, 2), comb]))?;
+        return Ok(Some(out));
     }
     Ok(None)
 }

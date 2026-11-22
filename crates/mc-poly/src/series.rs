@@ -1533,8 +1533,14 @@ fn result_term<'h>(env: &Env<'h>, req: &Request<'h, '_>, cs: Vec<T<'h>>, val: i6
                 cs2.push(c);
             }
         }
-        let v2 = v2.unwrap_or(r2.order());
-        return result_term(env, &r2, cs2, v2, r2.order(), again);
+        // the order term: the precision reached, O(t^prec), in the new exponents (never more than asked; when the
+        // reached precision falls short of the request, the order is the first multiple of g at or above it:
+        // erfi(sqrt(a))/sqrt(a) at a = 0 to a^3 was known to t^6 only and must not claim O(a^4))
+        let reached = (prec + g - 1).div_euclid(g);
+        let p2 = r2.order().min(reached);
+        let v2 = v2.unwrap_or(p2);
+        let cs2: Vec<T<'h>> = cs2.into_iter().take((p2 - v2).max(0) as usize).collect();
+        return result_term(env, &r2, cs2, v2, p2, again);
     }
     if req.den == 1 && req.inf == 0 {
         // an expansion from below in powers of (x0 - x): c (x0 - x)^k = (-1)^k c (x - x0)^k

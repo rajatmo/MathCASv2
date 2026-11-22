@@ -307,6 +307,18 @@ pub fn definite<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, 
 
 /// The finite sum with symbolic bounds.
 fn finite<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, hi: T<'h>, m: &mut Meter) -> Res<Option<T<'h>>> {
+    // harmonic numbers of the index: the nested sums first (checked, and fast; Zeilberger's method on a sum of three
+    // such terms, (k + 1) H(k)^2 - k H(k), did not finish in 10 s)
+    if sx.contains_any(f, &["harmonic_number", "multiple_harmonic_number"]) {
+        if let Some(s) = harmonic_parts(sx, f, k, lo, hi)? {
+            return Ok(Some(s));
+        }
+    }
+    // a hyperharmonic number of the index is written out in harmonic numbers by the library (the methods below took
+    // 10 s to give up on (k + 1) (H(k + 1) - 1) H(k))
+    if sx.contains_any(f, &["hyper_harmonic_number"]) {
+        return Ok(None);
+    }
     if let Some(g) = telescoping(sx, f, k, false)? {
         let hi1 = sx.plus(hi, 1)?;
         let a = sx.subst(g, k, hi1)?;
@@ -365,6 +377,29 @@ fn finite<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, hi: T<
     }
     // nested harmonic sums (the parts together: their stuffle products may share terms)
     crate::nested::harmonic_sum(sx, f, k, lo, hi)
+}
+
+/// A summand with harmonic numbers of the index by the nested sums, the parts free of harmonic numbers (a
+/// polynomial: H(k) + k H(k) - k) summed apart when the whole is not read at once.
+pub fn harmonic_parts<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, hi: T<'h>) -> Res<Option<T<'h>>> {
+    if let Some(s) = crate::nested::harmonic_sum(sx, f, k, lo, hi)? {
+        return Ok(Some(s));
+    }
+    let ex = sx.ev("expand", &[f])?;
+    let Some(parts) = sx.args_of(ex, names::ADD).map(<[T<'h>]>::to_vec) else { return Ok(None) };
+    let (hs, rest): (Vec<T<'h>>, Vec<T<'h>>) = parts.into_iter().partition(|&p| sx.contains_any(p, &["harmonic_number", "multiple_harmonic_number"]));
+    if hs.is_empty() || rest.is_empty() {
+        return Ok(None);
+    }
+    let hf = sx.add(&hs)?;
+    let rf = sx.add(&rest)?;
+    let Some(a) = crate::nested::harmonic_sum(sx, hf, k, lo, hi)? else { return Ok(None) };
+    let spec = sx.list(&[k, lo, hi]);
+    let b = sx.ev("sum", &[rf, spec])?;
+    if sx.contains_any(b, &["sum"]) {
+        return Ok(None);
+    }
+    Ok(Some(sx.add(&[a, b])?))
 }
 
 /// One hypergeometric term summed over a finite symbolic range.

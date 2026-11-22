@@ -32,7 +32,8 @@ use mc_eval::{NativeCx, Res};
 /// The table of the Mellin transform (`t` the variable, `s` the transform's). Sources: Oberhettinger 1974,
 /// sections 2 (exponentials and trigonometric functions), 6 (error functions and exponential integrals), 10
 /// (Bessel functions); products of two Bessel functions of one argument from DLMF 10.22.57 (written with the
-/// duplication formula, so gamma(1 - s) does not appear) and 10.43.19.
+/// duplication formula, so gamma(1 - s) does not appear) and 10.43.19; the Gauss function of `-t` from its
+/// Mellin-Barnes integral (DLMF 15.6.6 and 15.14.1).
 pub(crate) const TABLE: &str = r#"
 [bessel_j(n, t), 2^(s - 1)*gamma(n/2 + s/2)/gamma(n/2 - s/2 + 1), true, -re(n) < re(s) and re(s) < 3/2]
 [bessel_j(n, t)^2, gamma(n + s/2)*gamma(1/2 - s/2)/(2*pi^(1/2)*gamma(1 - s/2)*gamma(1 + n - s/2)), true, -2*re(n) < re(s) and re(s) < 1]
@@ -60,6 +61,7 @@ pub(crate) const TABLE: &str = r#"
 [(1 + t)^(-a), gamma(s)*gamma(a - s)/gamma(a), true, 0 < re(s) and re(s) < re(a)]
 [(1 + t^2)^(-1), (1/2)*pi*csc(pi*s/2), true, 0 < re(s) and re(s) < 2]
 [dirac_delta(t - 1), 1]
+[hypergeometric_2f1(a, b, c, -t), gamma(c)*gamma(s)*gamma(a - s)*gamma(b - s)/(gamma(a)*gamma(b)*gamma(c - s)), true, 0 < re(s) and re(s) < min(re(a), re(b))]
 "#;
 
 /// The table of the inverse Mellin transform (`s` the variable, `t` the result's).
@@ -254,6 +256,23 @@ fn mel<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, st: &mut State<'h>, f
                 st.cond = super::and(b, st.cond, Some(c));
             }
             return Ok(Some(subst(cx, b, r, s, b.add(&[s, a]))?));
+        }
+        // g a scaled function (f(c x^k)): its transform by the scaling rule, then shifted the same way
+        if depth < MAX_DEPTH && scale_of(cx, b, rest, x)?.is_some() {
+            let before = st.cond.take();
+            let inner = mel(cx, tc, st, rest, x, s, depth + 1)?;
+            let inner_cond = st.cond.take();
+            st.cond = before;
+            if let Some(r) = inner {
+                if let Some(c) = inner_cond {
+                    let c = subst(cx, b, c, s, b.add(&[s, a]))?;
+                    let c = cx.eval(c)?;
+                    st.cond = super::and(b, st.cond, Some(c));
+                }
+                let r = cx.eval(r)?;
+                st.checked = false;
+                return Ok(Some(subst(cx, b, r, s, b.add(&[s, a]))?));
+            }
         }
     }
     // unit_step(x - a) g and unit_step(a - x) g with a > 0: the integral over (a, inf) or (0, a)
@@ -574,6 +593,9 @@ fn scale_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>
             continue;
         };
         let a = cx.eval(a)?;
+        // a negative factor stays in f: f(-c x^k) is g(c x^k) with g(u) = f(-u), whose transform the table may know
+        // (the Gauss function of -x); the scale is c
+        let a = if sign(cx, b, a)? == Some(-1) { cx.eval(b.neg(a))? } else { a };
         match found {
             None => found = Some((a, k)),
             Some((a0, k0)) if a0 == a && k0 == k => {}

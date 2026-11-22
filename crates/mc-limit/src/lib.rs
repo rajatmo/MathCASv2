@@ -1424,6 +1424,16 @@ impl Native for LimitFn {
         let _scope = StopScope::enter(Some(&self.stop));
         let b = Build::new(h, &self.stop);
         let name = self.kind.name();
+        // asymptotic(f, [x, x0, n]) and the option series_term_goal: the expansion to a given order, by the library
+        if self.kind == Kind::Asymptotic {
+            let goal = args.last().and_then(|&o| args_of(&b, o, h.sym("options"))).is_some_and(|rs| {
+                rs.iter().any(|&r| matches!(h.view(r), View::App { args: &[k, _], .. } if b.sym_of(k) == Some(h.sym("series_term_goal"))))
+            });
+            let listed = args.get(1).and_then(|&s| args_of(&b, s, b.hd.list)).is_some_and(|it| it.len() == 3 && matches!(h.view(it[0]), View::Sym(_)));
+            if goal || listed {
+                return Ok(Reply::Decline);
+            }
+        }
         let (args, direction, toward) = match options(&b, name, args) {
             Ok(v) => v,
             Err(f) => return Ok(Reply::Done(f)),
@@ -1438,6 +1448,13 @@ impl Native for LimitFn {
                     return Ok(Reply::Again(v));
                 }
                 if self.kind == Kind::Limit {
+                    // 1/f continuous at the point with the value 0: |f| grows without bound from every direction
+                    let recip = apply(cx, &b, "cancel", &[b.pow(*f, b.int(-1))])?;
+                    if let Some(v) = plane_value(cx, &b, recip, *spec, false)? {
+                        if v == b.zero() {
+                            return Ok(Reply::Again(h.sym_term(h.sym("complex_infinity"))));
+                        }
+                    }
                     return Ok(plane_rays(cx, &b, *f, *spec)?.map_or(Reply::Decline, Reply::Done));
                 }
                 return Ok(Reply::Decline);

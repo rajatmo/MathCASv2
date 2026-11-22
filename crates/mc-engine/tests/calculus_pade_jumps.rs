@@ -274,10 +274,11 @@ fn asymptotic_solve_declines_where_a_puiseux_expansion_is_needed() {
 
 #[test]
 fn stability_of_recurrences_with_periodic_coefficients_declines() {
-    // was a condition from the eigenvalues at one step ("stable"); the products over two steps are 1/4 and 9/4
+    // was a condition from the eigenvalues at one step ("stable"); the products over two steps are 1/4 (x at even n) and
+    // 9/4 (x at odd n: x(n + 2) = (3/2)(3/2) x(n)), so x grows without bound: not stable
     assert_eq!(
         ev("r_stability_conditions([x(n_u + 1) == (1 / 2) * (2 + (-1)^n_u) * y(n_u), y(n_u + 1) == (1 / 2) * (2 - (-1)^n_u) * x(n_u)], [x, y], n_u)"),
-        "failure(unevaluated, r_stability_conditions, \"the equations are not autonomous: their coefficients depend on the variable\")"
+        "[[[0, 0], false]]"
     );
     // independent: iterating from (1, 1) the odd-step component grows like (9/4)^(n/2)
     assert_eq!(ev("v = nest(p => [(1/2)*(2 + (-1)^p[3])*p[2], (1/2)*(2 - (-1)^p[3])*p[1], p[3] + 1], [1, 1, 0], 40); abs(v[1]) + abs(v[2]) > 10^6"), "true");
