@@ -22,7 +22,10 @@
 # With several variables the candidates are the solutions of the Lagrange (KKT) equations for every set of active constraints; with as many active constraints as variables the constraints alone give the vertices (linear programs). Conditions may combine equations and inequalities with `and` and `or`; `minimize(f, element([x, y], disk()))` takes the region as the condition.
 
 #% item
-# A solution of the critical equations that leaves variables free has them set to 0. Far feasible points sampled along fixed directions decide unboundedness: values that keep falling give `-inf` for `min_value`.
+# Every set of active constraints must be accounted for. When the critical equations leave unknowns free (a curve of critical points) or are not solved, the critical values are found instead (elimination, then a feasible point at each value below the best, or a proof that there is none); a problem that stays open fails with the reason, never with the smallest value found elsewhere. Far feasible points sampled along fixed directions decide unboundedness: values that keep falling give `-inf` for `min_value`.
+
+#% item
+# A variable that enters only through `cos` and `sin`, with constant bounds, becomes the point `(cos t, sin t)` of the unit circle, cut to the arc its range sweeps; polar coordinates and trigonometric polynomials on boxes become algebraic problems, and the point maps back to an angle inside the range.
 
 #% item
 # Equal minima at several points: the smallest point (coordinate by coordinate) is given.
@@ -73,6 +76,14 @@ minimize([x^3 - 3*x, x >= -3 and x <= 3], x)
 minimize(x^2 + y^2 - 2*x + 4*y, [x, y])
 #% output
 #= [-5, [x -> 1, y -> -2]]
+
+#% text
+# Polar coordinates: the point of the unit disk nearest to (3, 4):
+
+#% cell
+minimize([(r*cos(t) - 3)^2 + (r*sin(t) - 4)^2, 0 <= r and r <= 1 and 0 <= t and t <= 2*pi], [r, t])
+#% output
+#= [16, [r -> 1, t -> atan(4/3)]]
 
 #% text
 # A linear function on a disk:

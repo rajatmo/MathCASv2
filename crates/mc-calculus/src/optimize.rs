@@ -9,9 +9,20 @@
 //!   points. The smallest value attained wins; when a limit is smaller (or equal and not attained) the minimum is
 //!   not attained: an infinite limit gives `[-inf, [x -> -inf]]` (the side where it is approached), a finite one
 //!   leaves the call unevaluated.
-//! - **Several variables**: the real critical points of the gradient (`solve`), when the function is bounded below
-//!   by the smallest critical value along every coordinate direction is not checked; only polynomials of even
-//!   total degree with a positive definite leading form are treated (a convex quadratic, a sum of even powers).
+//! - **Several variables**: the critical points of every face of the constraints (the Lagrange systems of every set
+//!   of active constraints, `minimize_n`). Every face must be accounted for. A system `solve` does not solve is
+//!   tried again with a factor of a product at a time and with an unknown that one equation determines uniquely
+//!   substituted (`solve_eliminating`), then without multipliers (the minors of the gradients). A family with an
+//!   integer parameter `c(1)` is enumerated between the bounds of a coordinate (`family`). A solution with unknowns
+//!   left free (a curve of critical points, where `solve` may also leave out isolated ones) gives a candidate, and
+//!   the face its critical values (`eliminate`, then `find_instance` for each value below the best,
+//!   `critical_values`, for polynomial systems with algebraic coefficients); a small exact algebraic problem goes
+//!   to the cylindrical decomposition after this native instead. Otherwise there is no answer, and a problem that
+//!   is not algebraic fails with the reason instead of returning the smallest value found.
+//! - **Angles** (`circle_problem`): a variable `t` that enters only through `cos(t)` and `sin(t)`, with constant
+//!   ends, becomes the point `(u, v) = (cos t, sin t)` of the unit circle, cut to the arc its range sweeps by the
+//!   chord through the arc's ends; the problem becomes algebraic in `u, v` (polar coordinates, trigonometric
+//!   polynomials on boxes) and its proved minimum maps back to `t = arg(u + i v) + 2 pi k`.
 //!
 //! Values are compared numerically (`n`), results are exact. `maximize` is `minimize` of `-f`.
 //!
@@ -43,6 +54,50 @@ pub enum Kind {
     ArgMax,
     /// `find_instance`
     FindInstance,
+}
+
+impl Kind {
+    fn name(self) -> &'static str {
+        match self {
+            Kind::Minimize => "minimize",
+            Kind::Maximize => "maximize",
+            Kind::MinValue => "min_value",
+            Kind::MaxValue => "max_value",
+            Kind::ArgMin => "arg_min",
+            Kind::ArgMax => "arg_max",
+            Kind::FindInstance => "find_instance",
+        }
+    }
+}
+
+/// Is every function of the variables in `t` a sum, product or power with a constant exponent, or a case function
+/// (`abs`, `max`, `piecewise`, ...) or norm of such (a problem the cylindrical decomposition or its recasts can take)?
+fn algebraic<'h>(b: &Build<'h>, t: T<'h>, vars: &[T<'h>]) -> bool {
+    let h = b.heap();
+    let mut stack = mc_api::walk::Walk::new(t);
+    while let Some(u) = stack.pop() {
+        let View::App { head, args } = h.view(u) else { continue };
+        // a composite head (`inactive(norm)`): its arguments decide
+        let name = match h.view(head) {
+            View::Sym(s) => h.sym_name(s),
+            _ => {
+                stack.extend(args.iter().copied());
+                continue;
+            }
+        };
+        let holds_var = vars.iter().any(|&x| !is_free(b, u, x));
+        if holds_var {
+            match name.as_str() {
+                names::ADD | names::MUL | "list" | "and" | "or" | "not" | "less" | "less_equal" | "greater" | "greater_equal" | "equal"
+                | "unequal" | "element" | "abs" | "real_abs" | "norm" | "max" | "min" | "sign" | "real_sign" | "boole" | "piecewise"
+                | "unit_step" | "clip" | "floor" | "ceiling" | "round" | "sqrt" | "inactive" | "dot" => {}
+                names::POW if args.len() == 2 && vars.iter().all(|&x| is_free(b, args[1], x)) => {}
+                _ => return false,
+            }
+        }
+        stack.extend(args.iter().copied());
+    }
+    true
 }
 
 /// The native.
@@ -81,6 +136,11 @@ impl<'h> C<'_, '_, '_, '_, 'h> {
             View::Int(k) => Some(k as f64),
             _ => None,
         })
+    }
+    /// Is `t` a number (`is_numeric`)?
+    fn is_number(&mut self, t: T<'h>) -> Res<bool> {
+        let r = self.ev("is_numeric", &[t])?;
+        Ok(self.cx.is_true(r))
     }
     fn inf(&self) -> T<'h> {
         let h = self.b.heap();
@@ -141,6 +201,7 @@ impl Native for OptNative {
         };
         let max = matches!(self.kind, Kind::Maximize | Kind::MaxValue | Kind::ArgMax);
         let g = if max { b.neg(f) } else { f };
+        let mut unproved = None;
         let r = match vars.as_slice() {
             [x] => match minimize1(&mut c, g, cond, *x, None)? {
                 // a periodic problem (objective and constraints): one period holds every value
@@ -155,12 +216,28 @@ impl Native for OptNative {
                         minimize1(&mut c, g, Some(k), *x, Some(b.call("and", &[lo, hi])))?
                     }
                     None => None,
-                },
+                }
+                // a trigonometric objective: the point (cos x, sin x) of the circle instead of x
+                .map_or_else(|| circle_problem(&mut c, g, cond, &vars), |r| Ok(Some(r)))?,
                 r => r,
             },
-            _ => minimize_n(&mut c, g, cond, &vars)?,
+            _ => match circle_problem(&mut c, g, cond, &vars)? {
+                Some(r) => Some(r),
+                None => minimize_n(&mut c, g, cond, &vars, &mut unproved)?,
+            },
         };
-        let Some((v, point)) = r else { return Ok(Reply::Decline) };
+        let Some((v, point)) = r else {
+            // candidates were found but the minimum is not proved: a problem that is not algebraic (which the
+            // cylindrical decomposition after this native cannot take) fails with the reason
+            if let Some(why) = unproved {
+                if !algebraic(&b, *fc, &vars) {
+                    let name = h.sym_term(h.sym(self.kind.name()));
+                    let tag = h.sym_term(h.sym("unsolved"));
+                    return Ok(Reply::Done(b.call(names::FAILURE, &[tag, name, h.string(why)])));
+                }
+            }
+            return Ok(Reply::Decline);
+        };
         let v = if max { c.cx.eval(b.neg(v))? } else { v };
         if point.len() != vars.len() {
             // unbounded: only the value is known
@@ -705,11 +782,18 @@ type Best<'h> = Option<(f64, T<'h>, Vec<T<'h>>, Vec<f64>)>;
 
 /// The minimum of `g` in several variables subject to `cond`: the candidates are the solutions of the Lagrange
 /// (KKT) systems of every set of active constraints (equations always active; with as many active constraints as
-/// variables the constraints alone); a solution leaving variables free has them set to 0. The smallest value at a
-/// feasible candidate is the minimum when no far feasible point (sampled along fixed directions) is smaller;
-/// `(-inf, [])` when the values keep falling far out.
+/// variables the constraints alone); a system not solved, or solved with unknowns left free, gives its critical
+/// values (`critical_values`). The smallest value at a feasible candidate is the minimum when no far feasible point
+/// (sampled along fixed directions) is smaller; `(-inf, [])` when the values keep falling far out. A face that is not
+/// accounted for gives `None` with the reason in `unproved`.
 #[allow(clippy::type_complexity)]
-fn minimize_n<'h>(c: &mut C<'_, '_, '_, '_, 'h>, g: T<'h>, cond: Option<T<'h>>, vars: &[T<'h>]) -> Res<Option<(T<'h>, Vec<T<'h>>)>> {
+fn minimize_n<'h>(
+    c: &mut C<'_, '_, '_, '_, 'h>,
+    g: T<'h>,
+    cond: Option<T<'h>>,
+    vars: &[T<'h>],
+    unproved: &mut Option<&'static str>,
+) -> Res<Option<(T<'h>, Vec<T<'h>>)>> {
     let b = c.b;
     let h = b.heap();
     let n = vars.len();
@@ -741,7 +825,6 @@ fn minimize_n<'h>(c: &mut C<'_, '_, '_, '_, 'h>, g: T<'h>, cond: Option<T<'h>>, 
             None => return Ok(None),
         },
     };
-    let reals = h.sym_term(h.sym("reals"));
     let grad_g = c.ev("d", &[g, c.list(vars)])?;
     let Some(grad_g) = c.cx.as_list(grad_g).map(|v| v.to_vec()).filter(|v| v.len() == n) else { return Ok(None) };
     let mut best: Best<'h> = None;
@@ -782,9 +865,43 @@ fn minimize_n<'h>(c: &mut C<'_, '_, '_, '_, 'h>, g: T<'h>, cond: Option<T<'h>>, 
             for &i in &active {
                 system.push(b.call("equal", &[cons[i].0, b.zero()]));
             }
-            let Some(sols) = solve_staged(c, &system, &unknowns, reals)? else { continue };
-            for rules in sols {
-                consider(c, g, vars, cons, &rules, &mut best)?;
+            // a face whose critical points are not all known can hold the minimum: no answer (a smaller value
+            // found elsewhere would not be proved the minimum)
+            let mut judged = judge(c, g, vars, cons, &system, &unknowns, &mut best)?;
+            // without multipliers: the gradients of g and of the active constraints dependent, every minor of
+            // order k + 1 zero (a superset of the critical points: the singular points of the face too)
+            if !judged && !active.is_empty() && active.len() < n {
+                let mut rows = vec![grad_g.clone()];
+                for &i in &active {
+                    let gr = c.ev("d", &[cons[i].0, c.list(vars)])?;
+                    let Some(gr) = c.cx.as_list(gr).map(|v| v.to_vec()) else { return Ok(None) };
+                    rows.push(gr);
+                }
+                let mut minors = vec![];
+                for cols in subsets(n, active.len() + 1) {
+                    let m: Vec<T<'h>> = rows.iter().map(|r| c.list(&cols.iter().map(|&j| r[j]).collect::<Vec<_>>())).collect();
+                    let d = c.ev("det", &[c.list(&m)])?;
+                    let d = c.ev("together", &[d])?;
+                    let d = c.ev("numerator", &[d])?;
+                    minors.push(b.call("equal", &[d, b.zero()]));
+                }
+                for &i in &active {
+                    minors.push(b.call("equal", &[cons[i].0, b.zero()]));
+                }
+                judged = judge(c, g, vars, cons, &minors, vars, &mut best)?;
+            }
+            // a small exact algebraic problem without a candidate yet: the cylindrical decomposition after this
+            // native proves it (and gives its own sample point)
+            let exact = |e: T<'h>| algebraic(b, e, vars) && !has_machine(h, e);
+            let region = cond.is_some_and(|k| find_call_of(h, k, h.sym("element")).is_some());
+            if !judged && best.is_none() && n <= 3 && !region && exact(g) && cons.iter().all(|&(e, _)| exact(e)) {
+                return Ok(None);
+            }
+            // the critical values instead of the points: finitely many, each attained at a feasible critical
+            // point or proved not to be
+            if !judged && !critical_values(c, g, vars, cons, &system, &unknowns, &mut best)? {
+                *unproved = Some("the critical points on a face of the constraints are not found");
+                return Ok(None);
             }
         }
     }
@@ -823,6 +940,244 @@ fn minimize_n<'h>(c: &mut C<'_, '_, '_, '_, 'h>, g: T<'h>, cond: Option<T<'h>>, 
     Ok(best.map(|(_, v, p, _)| (v, p)))
 }
 
+/// An end of a variable's range: (value, machine value, strict).
+type End<'h> = Option<(T<'h>, f64, bool)>;
+
+/// The constant ends of the range of `t` when every constraint of `cons` holding `t` is `a t + b <= 0` (or `< 0`)
+/// with numbers `a != 0` and `b`, at most one each way; with the indices of those constraints. `None` otherwise.
+#[allow(clippy::type_complexity)]
+fn constant_range<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cons: &[(T<'h>, Rel)], vars: &[T<'h>], t: T<'h>) -> Res<Option<(End<'h>, End<'h>, Vec<usize>)>> {
+    let b = c.b;
+    let (mut lo, mut hi, mut used) = (None, None, vec![]);
+    for (j, &(e, rel)) in cons.iter().enumerate() {
+        if is_free(b, e, t) {
+            continue;
+        }
+        if rel == Rel::Eq || vars.iter().any(|&y| y != t && !is_free(b, e, y)) {
+            return Ok(None);
+        }
+        let a = c.ev("d", &[e, t])?;
+        let rest = c.cx.eval(b.sub(e, b.mul(&[a, t])))?;
+        let rest = c.ev("expand", &[rest])?;
+        if !is_free(b, a, t) || !is_free(b, rest, t) {
+            return Ok(None);
+        }
+        let Some(an) = real_value(c, a)? else { return Ok(None) };
+        let end = c.cx.eval(b.neg(b.div(rest, a)))?;
+        let Some(en) = real_value(c, end)? else { return Ok(None) };
+        let slot = if an > 0.0 {
+            &mut hi
+        } else if an < 0.0 {
+            &mut lo
+        } else {
+            return Ok(None);
+        };
+        if slot.is_some() {
+            return Ok(None);
+        }
+        *slot = Some((end, en, rel == Rel::Lt));
+        used.push(j);
+    }
+    Ok(Some((lo, hi, used)))
+}
+
+/// The part of the unit circle `(u, v) = (cos t, sin t)` swept by `t` between the ends: `Some(None)` for the whole
+/// circle (a range of at least a period, attained at one end at least), `Some(Some(arc))` for a shorter closed range
+/// `[lo, hi]`: the arc is the circle cut by the chord through its ends, `u cos m + v sin m >= cos(w/2)` with `m`
+/// the middle and `w` the width. `None` when not decided (a short range with an open end, an empty range).
+fn circle_part<'h>(c: &mut C<'_, '_, '_, '_, 'h>, lo: End<'h>, hi: End<'h>, u: T<'h>, v: T<'h>) -> Res<Option<Option<T<'h>>>> {
+    let b = c.b;
+    let h = b.heap();
+    let (Some((l, ln, ls)), Some((r, rn, rs))) = (lo, hi) else { return Ok(Some(None)) };
+    let period = 2.0 * std::f64::consts::PI;
+    let pi = h.sym_term(h.sym("pi"));
+    let w = c.cx.eval(b.sub(r, l))?;
+    let wn = rn - ln;
+    if wn > period + 1e-9 {
+        return Ok(Some(None));
+    }
+    if (wn - period).abs() <= 1e-9 {
+        let gap = c.ev("simplify", &[b.sub(w, b.mul(&[b.int(2), pi]))])?;
+        return Ok((b.is_zero(gap) && !(ls && rs)).then_some(None));
+    }
+    if wn <= 1e-9 || ls || rs {
+        return Ok(None);
+    }
+    let m = c.cx.eval(b.div(b.add(&[l, r]), b.int(2)))?;
+    let side = b.add(&[b.mul(&[u, b.call("cos", &[m])]), b.mul(&[v, b.call("sin", &[m])])]);
+    let half = b.call("cos", &[b.div(w, b.int(2))]);
+    Ok(Some(Some(c.cx.eval(b.call("greater_equal", &[side, half]))?)))
+}
+
+/// Trigonometric problems on boxes (polar coordinates, angles): a variable `t` that enters the objective and the
+/// other constraints only through `cos(t)` and `sin(t)` (after `trig_expand`), and whose own constraints are
+/// constant ends, is replaced by the point `(u, v) = (cos t, sin t)` of the unit circle (`u^2 + v^2 == 1`, cut to
+/// the arc the range sweeps: `circle_part`). The feasible sets correspond point for point, so the two problems have
+/// the same values; the new one is algebraic in `u, v`, and its minimum comes from `minimize` (critical points of
+/// every face, or the cylindrical decomposition), proved there. The point maps back to `t = arg(u + i v) + 2 pi k`
+/// inside the range, and the objective is checked there. `None` when no variable qualifies or the new problem has
+/// no answer.
+#[allow(clippy::type_complexity)]
+fn circle_problem<'h>(c: &mut C<'_, '_, '_, '_, 'h>, g: T<'h>, cond: Option<T<'h>>, vars: &[T<'h>]) -> Res<Option<(T<'h>, Vec<T<'h>>)>> {
+    let b = c.b;
+    let h = b.heap();
+    let (sin_s, cos_s) = (h.sym("sin"), h.sym("cos"));
+    let trig = |t: T<'h>| find_call_of(h, t, sin_s).is_some() || find_call_of(h, t, cos_s).is_some();
+    if !trig(g) && !cond.is_some_and(trig) {
+        return Ok(None);
+    }
+    let cons: Conj<'h> = match cond {
+        None => vec![],
+        Some(k) => match constraints(c, k)? {
+            Some(mut bs) if bs.len() == 1 => bs.pop().unwrap_or_default(),
+            _ => return Ok(None),
+        },
+    };
+    // the candidates: variables with constant ends only, in a sine or cosine
+    let mut ranges: Vec<Option<(End<'h>, End<'h>, Vec<usize>)>> = vec![];
+    for &t in vars {
+        let inside = [g].iter().chain(cons.iter().map(|(e, _)| e)).any(|&e| {
+            [sin_s, cos_s].iter().any(|&s| {
+                let mut stack = mc_api::walk::Walk::new(e);
+                let mut hit = false;
+                while let Some(u) = stack.pop() {
+                    if let View::App { head, args } = h.view(u) {
+                        if b.sym_of(head) == Some(s) && args.iter().any(|&a| !is_free(b, a, t)) {
+                            hit = true;
+                            break;
+                        }
+                        stack.extend(args.iter().copied());
+                    }
+                }
+                hit
+            })
+        });
+        ranges.push(if inside { constant_range(c, &cons, vars, t)? } else { None });
+    }
+    let circles: Vec<(T<'h>, T<'h>)> = (0..vars.len())
+        .map(|i| (h.sym_term(h.sym(&format!("optimize`u{i}"))), h.sym_term(h.sym(&format!("optimize`v{i}")))))
+        .collect();
+    let mut parts_of: Vec<Option<Option<T<'h>>>> = vec![];
+    for (i, r) in ranges.iter().enumerate() {
+        parts_of.push(match r {
+            Some((lo, hi, _)) => circle_part(c, *lo, *hi, circles[i].0, circles[i].1)?,
+            None => None,
+        });
+    }
+    let mut eligible: Vec<bool> = parts_of.iter().map(|p| p.is_some()).collect();
+    // the objective and the other constraints in u, v; a variable left over after the substitution stays
+    let (g2, rest) = loop {
+        if !eligible.iter().any(|&e| e) {
+            return Ok(None);
+        }
+        let mut rules = vec![];
+        for (i, &t) in vars.iter().enumerate() {
+            if eligible[i] {
+                rules.push(c.rule(b.call("cos", &[t]), circles[i].0));
+                rules.push(c.rule(b.call("sin", &[t]), circles[i].1));
+            }
+        }
+        let rl = c.list(&rules);
+        let used: Vec<usize> = (0..vars.len()).filter(|&i| eligible[i]).flat_map(|i| ranges[i].as_ref().map(|r| r.2.clone()).unwrap_or_default()).collect();
+        let mut pieces = vec![];
+        for e in [g].into_iter().chain((0..cons.len()).filter(|j| !used.contains(j)).map(|j| cons[j].0)) {
+            let x = c.ev("trig_expand", &[e])?;
+            pieces.push(c.ev("rewrite", &[x, rl])?);
+        }
+        let mut changed = false;
+        for (i, &t) in vars.iter().enumerate() {
+            if eligible[i] && pieces.iter().any(|&p| !is_free(b, p, t)) {
+                eligible[i] = false;
+                changed = true;
+            }
+        }
+        if !changed {
+            let rels: Vec<Rel> = (0..cons.len()).filter(|j| !used.contains(j)).map(|j| cons[j].1).collect();
+            break (pieces[0], pieces[1..].iter().copied().zip(rels).collect::<Vec<_>>());
+        }
+    };
+    let mut vars2 = vec![];
+    let mut cond2 = vec![];
+    for (e, rel) in rest {
+        let op = match rel {
+            Rel::Le => "less_equal",
+            Rel::Lt => "less",
+            Rel::Eq => "equal",
+        };
+        cond2.push(b.call(op, &[e, b.zero()]));
+    }
+    for (i, &x) in vars.iter().enumerate() {
+        if !eligible[i] {
+            vars2.push(x);
+            continue;
+        }
+        let (u, v) = circles[i];
+        vars2.extend([u, v]);
+        cond2.push(b.call("equal", &[b.add(&[b.powi(u, 2), b.powi(v, 2)]), b.one()]));
+        if let Some(Some(arc)) = parts_of[i] {
+            cond2.push(arc);
+        }
+    }
+    let r = c.ev("minimize", &[c.list(&[g2, b.call("and", &cond2)]), c.list(&vars2)])?;
+    let Some(&[val, rules]) = c.cx.as_list(r) else { return Ok(None) };
+    let Some(rules) = c.cx.as_list(rules).map(|v| v.to_vec()).filter(|v| v.len() == vars2.len()) else { return Ok(None) };
+    let Some(valn) = real_value(c, val)? else { return Ok(None) };
+    let rl = c.list(&rules);
+    let pi = h.sym_term(h.sym("pi"));
+    let im = h.sym_term(h.sym("im"));
+    let period = 2.0 * std::f64::consts::PI;
+    let mut point = vec![];
+    for (i, &x) in vars.iter().enumerate() {
+        if !eligible[i] {
+            let p = c.ev("rewrite", &[x, rl])?;
+            point.push(p);
+            continue;
+        }
+        let (u, v) = circles[i];
+        let (u, v) = (c.ev("rewrite", &[u, rl])?, c.ev("rewrite", &[v, rl])?);
+        let theta = c.ev("arg", &[b.add(&[u, b.mul(&[im, v])])])?;
+        let Some(tn) = real_value(c, theta)? else { return Ok(None) };
+        let (lo, hi, _) = ranges[i].clone().unwrap_or((None, None, vec![]));
+        let near = |a: f64, z: f64| (a - z).abs() <= 1e-9 * (1.0 + z.abs());
+        let k = match (lo, hi) {
+            (Some((_, ln, ls)), _) => {
+                let k = ((ln - tn) / period - 1e-12).ceil();
+                if ls && near(tn + k * period, ln) {
+                    k + 1.0
+                } else {
+                    k
+                }
+            }
+            (None, Some((_, rn, rs))) => {
+                let k = ((rn - tn) / period + 1e-12).floor();
+                if rs && near(tn + k * period, rn) {
+                    k - 1.0
+                } else {
+                    k
+                }
+            }
+            (None, None) => 0.0,
+        };
+        let t = tn + k * period;
+        if lo.is_some_and(|(_, ln, _)| t < ln - 1e-9 * (1.0 + ln.abs())) || hi.is_some_and(|(_, rn, _)| t > rn + 1e-9 * (1.0 + rn.abs())) {
+            return Ok(None);
+        }
+        let p = b.add(&[theta, b.mul(&[b.int(2 * k as i64), pi])]);
+        point.push(c.ev("simplify", &[p])?);
+    }
+    // the objective at the point mapped back, and the point in the original constraints
+    let pr: Vec<T<'h>> = vars.iter().zip(&point).map(|(&x, &p)| c.rule(x, p)).collect();
+    let pr = c.list(&pr);
+    if !feasible(c, &cons, pr)? {
+        return Ok(None);
+    }
+    let at = c.ev("rewrite", &[g, pr])?;
+    match real_value(c, at)? {
+        Some(an) if (an - valn).abs() <= 1e-8 * (1.0 + valn.abs()) => Ok(Some((val, point))),
+        _ => Ok(None),
+    }
+}
+
 /// The bases `u` of the powers `u^(p/q)` in `g` with 0 < p/q < 1 and `u` depending on one of `vars` (a point where
 /// u vanishes has no gradient).
 fn radical_kink<'h>(b: &Build<'h>, g: T<'h>, vars: &[T<'h>]) -> Vec<T<'h>> {
@@ -851,7 +1206,344 @@ fn radical_kink<'h>(b: &Build<'h>, g: T<'h>, vars: &[T<'h>]) -> Vec<T<'h>> {
     out
 }
 
-/// Take the solution `rules` as a candidate when it is a real feasible point smaller than the best so far.
+/// The solutions of `system` in `unknowns` as candidates (`consider`); `false` when not solved or a solution cannot
+/// be judged.
+fn judge<'h>(
+    c: &mut C<'_, '_, '_, '_, 'h>,
+    g: T<'h>,
+    vars: &[T<'h>],
+    cons: &[(T<'h>, Rel)],
+    system: &[T<'h>],
+    unknowns: &[T<'h>],
+    best: &mut Best<'h>,
+) -> Res<bool> {
+    let Some(sols) = solve_eliminating(c, system, unknowns, 2)? else { return Ok(false) };
+    let mut all = true;
+    for rules in sols {
+        all &= consider(c, g, vars, cons, &rules, best)?;
+    }
+    Ok(all)
+}
+
+/// `solve_staged`, and when that gives no answer, an unknown with exactly one solution of one of the equations (no
+/// family, no condition: `x*log(y) == 2` gives `y -> exp(2/x)`) substituted into the others, up to `depth` times.
+#[allow(clippy::type_complexity)]
+fn solve_eliminating<'h>(c: &mut C<'_, '_, '_, '_, 'h>, system: &[T<'h>], unknowns: &[T<'h>], depth: usize) -> Res<Option<Vec<Vec<T<'h>>>>> {
+    let b = c.b;
+    let h = b.heap();
+    let reals = h.sym_term(h.sym("reals"));
+    // equations that are false (a constant gradient) leave no solution, true ones no condition
+    let mut eqs = vec![];
+    for &e in system {
+        let v = c.cx.eval(e)?;
+        if c.cx.is_false(v) {
+            return Ok(Some(vec![]));
+        }
+        if !c.cx.is_true(v) {
+            eqs.push(v);
+        }
+    }
+    let system = &eqs[..];
+    if let Some(s) = solve_staged(c, system, unknowns, reals)? {
+        return Ok(Some(s));
+    }
+    if depth == 0 {
+        return Ok(None);
+    }
+    // a product is zero where a factor is: one system per factor
+    for (i, &e) in system.iter().enumerate() {
+        let View::App { args: &[l, r], .. } = h.view(e) else { continue };
+        let d = c.cx.eval(b.sub(l, r))?;
+        let d = c.ev("factor", &[d])?;
+        let View::App { head, args: fs } = h.view(d) else { continue };
+        if b.sym_of(head) != Some(h.sym(names::MUL)) {
+            continue;
+        }
+        let fs: Vec<T<'h>> = fs.iter().copied().filter(|&f| unknowns.iter().any(|&u| !is_free(b, f, u))).collect();
+        if fs.len() < 2 || fs.len() > 4 {
+            continue;
+        }
+        let mut out = vec![];
+        for f in fs {
+            let mut sub = system.to_vec();
+            sub[i] = b.call("equal", &[f, b.zero()]);
+            let Some(sols) = solve_eliminating(c, &sub, unknowns, depth - 1)? else { return Ok(None) };
+            out.extend(sols);
+        }
+        return Ok(Some(out));
+    }
+    if system.len() < 2 {
+        return Ok(None);
+    }
+    let ce = h.sym("conditional_expression");
+    let cs = h.sym("c");
+    for (i, &e) in system.iter().enumerate() {
+        for (j, &u) in unknowns.iter().enumerate() {
+            if is_free(b, e, u) {
+                continue;
+            }
+            c.cx.tick(1)?;
+            let s = c.ev("solve", &[e, u, reals])?;
+            let Some(&[sol]) = c.cx.as_list(s) else { continue };
+            let Some(&[rule]) = c.cx.as_list(sol) else { continue };
+            let View::App { args: &[a, v], .. } = h.view(rule) else { continue };
+            // a condition that holds for every real value of the other unknowns (`im_part(1/x) == 0`) is dropped
+            let v = match h.view(v) {
+                View::App { head, args: &[w, cond] } if b.sym_of(head) == Some(ce) => {
+                    let real: Vec<T<'h>> = unknowns.iter().map(|&x| b.call("element", &[x, reals])).collect();
+                    let t = c.ev("simplify", &[cond, b.call("and", &real)])?;
+                    if !c.cx.is_true(t) {
+                        continue;
+                    }
+                    w
+                }
+                _ => v,
+            };
+            if a != u || !is_free(b, v, u) || find_call_of(h, v, ce).is_some() || find_call_of(h, v, cs).is_some() {
+                continue;
+            }
+            let r = c.list(&[c.rule(u, v)]);
+            let others: Vec<T<'h>> = unknowns.iter().enumerate().filter(|&(k, _)| k != j).map(|(_, &x)| x).collect();
+            let real: Vec<T<'h>> = others.iter().map(|&x| b.call("element", &[x, reals])).collect();
+            let real = b.call("and", &real);
+            let mut rest = vec![];
+            for (k, &f) in system.iter().enumerate() {
+                if k != i {
+                    // `log(exp(w)) == w` for the real unknowns
+                    let f = c.ev("rewrite", &[f, r])?;
+                    rest.push(c.ev("simplify", &[f, real])?);
+                }
+            }
+            let Some(sols) = solve_eliminating(c, &rest, &others, depth - 1)? else { continue };
+            let mut out = vec![];
+            for mut rs in sols {
+                let back = c.ev("rewrite", &[v, c.list(&rs)])?;
+                rs.push(c.rule(u, back));
+                out.push(rs);
+            }
+            return Ok(Some(out));
+        }
+    }
+    Ok(None)
+}
+
+/// The members of a family of solutions with one integer parameter `c(1)` that lie in the feasible set: a
+/// coordinate `a + s c(1)` (a number `s != 0`) ranges over [min, max] of its variable on the (algebraic) constraints,
+/// from `min_value` and `max_value`, which bounds `c(1)`; each member is a candidate. `false` when no coordinate is
+/// linear in `c(1)`, the bounds are not found, or there are more than 200 members.
+fn family<'h>(
+    c: &mut C<'_, '_, '_, '_, 'h>,
+    g: T<'h>,
+    vars: &[T<'h>],
+    cons: &[(T<'h>, Rel)],
+    rules: &[T<'h>],
+    general: &[T<'h>],
+    best: &mut Best<'h>,
+) -> Res<bool> {
+    let b = c.b;
+    let h = b.heap();
+    let c1 = b.call("c", &[b.one()]);
+    let c2 = b.call("c", &[b.int(2)]);
+    if general.iter().any(|&p| !is_free(b, p, c2)) || !cons.iter().all(|&(e, _)| algebraic(b, e, vars)) {
+        return Ok(false);
+    }
+    let ce = h.sym("conditional_expression");
+    let cond: Vec<T<'h>> = cons
+        .iter()
+        .map(|&(e, rel)| {
+            let op = match rel {
+                Rel::Le => "less_equal",
+                Rel::Lt => "less",
+                Rel::Eq => "equal",
+            };
+            b.call(op, &[e, b.zero()])
+        })
+        .collect();
+    let cond = b.call("and", &cond);
+    for (i, &p) in general.iter().enumerate() {
+        let p = match h.view(p) {
+            View::App { head, args: &[w, _] } if b.sym_of(head) == Some(ce) => w,
+            _ => p,
+        };
+        let slope = c.ev("d", &[p, c1])?;
+        if !is_free(b, slope, c1) || vars.iter().any(|&x| !is_free(b, slope, x)) {
+            continue;
+        }
+        let Some(sn) = real_value(c, slope)? else { continue };
+        if sn.abs() < 1e-12 {
+            continue;
+        }
+        let a = c.ev("rewrite", &[p, c.rule(c1, b.zero())])?;
+        if vars.iter().any(|&x| !is_free(b, a, x)) {
+            continue;
+        }
+        let Some(an) = real_value(c, a)? else { return Ok(false) };
+        let pair = c.list(&[vars[i], cond]);
+        let lo = c.ev("min_value", &[pair, c.list(vars)])?;
+        let hi = c.ev("max_value", &[pair, c.list(vars)])?;
+        let (Some(lo), Some(hi)) = (real_value(c, lo)?, real_value(c, hi)?) else { return Ok(false) };
+        let (k0, k1) = ((lo - an) / sn, (hi - an) / sn);
+        let (k0, k1) = (k0.min(k1).floor() as i64 - 1, k0.max(k1).ceil() as i64 + 1);
+        if k1 - k0 > 200 {
+            return Ok(false);
+        }
+        for k in k0..=k1 {
+            c.cx.tick(1)?;
+            let kr = c.list(&[c.rule(c1, b.int(k))]);
+            let mut member = vec![];
+            for &r in rules {
+                member.push(c.ev("rewrite", &[r, kr])?);
+            }
+            if !consider(c, g, vars, cons, &member, best)? {
+                return Ok(false);
+            }
+        }
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+/// The k-element subsets of 0..n, in order.
+fn subsets(n: usize, k: usize) -> Vec<Vec<usize>> {
+    let mut out = vec![];
+    let mut cur = vec![];
+    fn go(i: usize, n: usize, k: usize, cur: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
+        if cur.len() == k {
+            out.push(cur.clone());
+            return;
+        }
+        for j in i..n {
+            cur.push(j);
+            go(j + 1, n, k, cur, out);
+            cur.pop();
+        }
+    }
+    go(0, n, k, &mut cur, &mut out);
+    out
+}
+
+/// The critical points of a face when `solve` does not give them all (a curve of critical points, on which `g` is
+/// constant): the critical values are the real roots of the polynomial in `z` that `eliminate` leaves from the
+/// system with `z == g` (finitely many for a polynomial problem); from the smallest up, each value below the best
+/// so far is attained at a feasible critical point from `find_instance` (a candidate, and the face is done) or proved
+/// not to be (`find_instance` gives `[]`). `false` when a step gives no answer (no polynomial in `z`, roots or
+/// instances not found).
+fn critical_values<'h>(
+    c: &mut C<'_, '_, '_, '_, 'h>,
+    g: T<'h>,
+    vars: &[T<'h>],
+    cons: &[(T<'h>, Rel)],
+    system: &[T<'h>],
+    unknowns: &[T<'h>],
+    best: &mut Best<'h>,
+) -> Res<bool> {
+    let b = c.b;
+    let h = b.heap();
+    let z = h.sym_term(h.sym("optimize`z"));
+    // `eliminate` and `find_instance` decide polynomial systems with algebraic numbers as coefficients only
+    let rational = |t: T<'h>| {
+        let mut stack = mc_api::walk::Walk::new(t);
+        while let Some(u) = stack.pop() {
+            match h.view(u) {
+                View::Sym(_) if !unknowns.contains(&u) => return false,
+                View::App { head, args } => {
+                    let ok = match b.sym_of(head).map(|s| h.sym_name(s)) {
+                        Some(n) if n == names::POW => args.len() == 2 && matches!(h.view(args[1]), View::Int(_) | View::Rational { .. }),
+                        Some(n) => matches!(n.as_str(), names::ADD | names::MUL | "equal" | "less" | "less_equal"),
+                        None => false,
+                    };
+                    if !ok {
+                        return false;
+                    }
+                    stack.extend(args.iter().copied());
+                }
+                _ => {}
+            }
+        }
+        true
+    };
+    if !rational(g) || !system.iter().all(|&e| rational(e)) || !cons.iter().all(|&(e, _)| rational(e)) {
+        return Ok(false);
+    }
+    // machine numbers as the rationals they stand for; a denominator `q` cleared with a new unknown `w`,
+    // `w q == 1`, so that the points where it vanishes do not enter
+    let mut eqs = vec![];
+    let mut elim = unknowns.to_vec();
+    for &e in system.iter().chain([b.call("equal", &[z, g])].iter()) {
+        let d = match h.view(e) {
+            View::App { args: &[l, r], .. } => c.cx.eval(b.sub(l, r))?,
+            _ => e,
+        };
+        let d = c.ev("rationalize", &[d, b.zero()])?;
+        let d = c.ev("together", &[d])?;
+        let num = c.ev("numerator", &[d])?;
+        let den = c.ev("denominator", &[d])?;
+        eqs.push(b.call("equal", &[num, b.zero()]));
+        if !c.is_number(den)? {
+            let w = h.sym_term(h.sym(&format!("optimize`w{}", elim.len())));
+            eqs.push(b.call("equal", &[c.cx.eval(b.mul(&[w, den]))?, b.one()]));
+            elim.push(w);
+        }
+    }
+    let r = c.ev("eliminate", &[c.list(&eqs), c.list(&elim)])?;
+    if c.cx.is_false(r) {
+        return Ok(true);
+    }
+    let View::App { head, args: &[l, rr] } = h.view(r) else { return Ok(false) };
+    if b.sym_of(head) != Some(h.sym("equal")) {
+        return Ok(false);
+    }
+    let p = c.cx.eval(b.sub(l, rr))?;
+    if is_free(b, p, z) || unknowns.iter().any(|&x| !is_free(b, p, x)) {
+        return Ok(false);
+    }
+    let roots = c.ev("solve", &[b.call("equal", &[p, b.zero()]), z, h.sym_term(h.sym("reals"))])?;
+    let Some(items) = c.cx.as_list(roots).map(|v| v.to_vec()) else { return Ok(false) };
+    let mut vals = vec![];
+    for it in items {
+        let v = c.ev("rewrite", &[z, it])?;
+        let Some(vn) = real_value(c, v)? else { return Ok(false) };
+        vals.push((vn, v));
+    }
+    vals.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let gr = c.ev("rationalize", &[g, b.zero()])?;
+    let mut parts = vec![];
+    for &e in system {
+        parts.push(c.ev("rationalize", &[e, b.zero()])?);
+    }
+    for &(e, rel) in cons {
+        let e = c.ev("rationalize", &[e, b.zero()])?;
+        let op = match rel {
+            Rel::Le => "less_equal",
+            Rel::Lt => "less",
+            Rel::Eq => "equal",
+        };
+        parts.push(b.call(op, &[e, b.zero()]));
+    }
+    for (vn, v) in vals {
+        if best.as_ref().is_some_and(|bst| vn >= bst.0 - 1e-12 * (1.0 + vn.abs())) {
+            break;
+        }
+        c.cx.tick(1)?;
+        let mut at = parts.clone();
+        at.push(b.call("equal", &[gr, v]));
+        let fi = c.ev("find_instance", &[b.call("and", &at), c.list(unknowns)])?;
+        let Some(items) = c.cx.as_list(fi).map(|v| v.to_vec()) else { return Ok(false) };
+        let Some(&first) = items.first() else { continue };
+        let Some(rules) = c.cx.as_list(first).map(|v| v.to_vec()) else { return Ok(false) };
+        if !consider(c, g, vars, cons, &rules, best)? || !best.as_ref().is_some_and(|bst| bst.0 <= vn + 1e-9 * (1.0 + vn.abs())) {
+            return Ok(false);
+        }
+        break;
+    }
+    Ok(true)
+}
+
+/// Take the solution `rules` as a candidate when it is a real feasible point smaller than the best so far. `false`
+/// when the solution cannot be judged: a coordinate that is not a number (an unknown left free, an integer
+/// parameter `c(k)` of a periodic family). A solution set with free unknowns is not trusted to be complete either
+/// (`solve` of a system with a curve of solutions can leave out isolated ones: `solve([x*(x - 1) == 0, x*y == 0],
+/// [x, y])` gives `x == 0` only), so the minimum is then not proved.
 fn consider<'h>(
     c: &mut C<'_, '_, '_, '_, 'h>,
     g: T<'h>,
@@ -859,33 +1551,51 @@ fn consider<'h>(
     cons: &[(T<'h>, Rel)],
     rules: &[T<'h>],
     best: &mut Best<'h>,
-) -> Res<()> {
+) -> Res<bool> {
     let b = c.b;
-    // the variables' values, free ones set to 0
-    let zero_rules: Vec<T<'h>> = vars.iter().map(|&x| c.rule(x, b.zero())).collect();
-    let (rl, zl) = (c.list(rules), c.list(&zero_rules));
-    let mut point = vec![];
+    let rl = c.list(rules);
+    let mut general = vec![];
     for &x in vars {
-        let v = c.ev("rewrite", &[x, rl])?;
-        let v = c.ev("rewrite", &[v, zl])?;
-        if vars.iter().any(|&y| !is_free(b, v, y)) {
-            return Ok(());
+        general.push(c.ev("rewrite", &[x, rl])?);
+    }
+    let c1 = b.call("c", &[b.one()]);
+    if general.iter().any(|&p| !is_free(b, p, c1)) {
+        return family(c, g, vars, cons, rules, &general, best);
+    }
+    let free: Vec<T<'h>> = vars.iter().copied().filter(|&y| general.iter().any(|&p| !is_free(b, p, y))).collect();
+    if !free.is_empty() {
+        // a point of the set (the free variables at 0) is still a candidate; the set is not trusted complete
+        let zero: Vec<T<'h>> = free.iter().map(|&x| c.rule(x, b.zero())).collect();
+        let zl = c.list(&zero);
+        let mut fixed = vec![];
+        for (&x, &p) in vars.iter().zip(&general) {
+            let v = c.ev("rewrite", &[p, zl])?;
+            fixed.push(c.rule(x, v));
+        }
+        consider(c, g, vars, cons, &fixed, best)?;
+        return Ok(false);
+    }
+    let mut point = vec![];
+    for v in general {
+        if !c.is_number(v)? {
+            return Ok(false);
         }
         point.push(v);
     }
     let pr: Vec<T<'h>> = vars.iter().zip(&point).map(|(&x, &p)| c.rule(x, p)).collect();
     let pr = c.list(&pr);
     if !feasible(c, cons, pr)? {
-        return Ok(());
+        return Ok(true);
     }
     let v = c.ev("rewrite", &[g, pr])?;
-    let Some(nv) = real_value(c, v)? else { return Ok(()) };
     let mut key = vec![];
     for &p in &point {
         // a point with a non-real coordinate is not a point of the real problem
-        let Some(coord) = real_value(c, p)? else { return Ok(()) };
+        let Some(coord) = real_value(c, p)? else { return Ok(true) };
         key.push(coord);
     }
+    // outside the objective's real domain
+    let Some(nv) = real_value(c, v)? else { return Ok(true) };
     // ties go to the smaller point (coordinate by coordinate)
     let better = match best.as_ref() {
         None => true,
@@ -901,7 +1611,7 @@ fn consider<'h>(
         }
         *best = Some((nv, c.ev("simplify", &[v])?, pts, key));
     }
-    Ok(())
+    Ok(true)
 }
 
 /// Fixed sample directions: the axes both ways, the diagonals and a few others.

@@ -91,7 +91,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("piecewise_expand", "piecewise_expand(f), piecewise_expand(f, cond): nested piecewise, if, max, min, clip, unit_step, boole and abs as one piecewise([[v1, c1], ...], d); floor, ceiling, round and prime_pi of one variable inside a bounded cond"),
     ("function_poles", "function_poles(f, z), function_poles([f, cond], z): the poles of a meromorphic f with their orders, [[p1, m1], ...]; a family of poles as conditional_expression(p(c(1)), element(c(1), integers))"),
     ("function_meromorphic", "function_meromorphic(f, z): true when f is meromorphic (analytic but for poles) in the complex variables, or where cond holds for [f, cond]; false when not"),
-    ("minimize", "minimize(f, x), minimize([f, cond], x), minimize(f, [x, y]): the global minimum [value, [x -> point]] (one variable: critical points, ends of the domain, limits; several: convex quadratics)"),
+    ("minimize", "minimize(f, x), minimize([f, cond], x), minimize(f, [x, y]): the global minimum [value, [x -> point]] (one variable: critical points, ends of the domain, limits; several: the critical points of every face of the constraints, angles as points of the unit circle; a failure with the reason when a face is not solved)"),
     ("maximize", "maximize(f, x): the global maximum [value, [x -> point]], as minimize"),
     ("min_value", "min_value(f, x): the global minimum value"),
     ("max_value", "max_value(f, x): the global maximum value"),
