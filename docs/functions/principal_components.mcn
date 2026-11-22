@@ -15,6 +15,9 @@
 #% item
 # The sign of each axis is fixed by making the first component of the axis negative.
 
+#% item
+# `method: correlation` divides each centred column by its standard deviation first: the axes are the eigenvectors of the correlation matrix.
+
 #% section
 # Examples
 

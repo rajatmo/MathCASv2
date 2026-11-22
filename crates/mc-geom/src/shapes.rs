@@ -138,15 +138,27 @@ pub fn read_more<'h>(cx: &NativeCx<'_, '_, 'h>, name: &str, args: &[T<'h>]) -> O
                     _ => None,
                 }).collect()
             };
-            let l = cx.as_list(*idx)?;
-            let rings: Vec<Vec<Pt<'h>>> = match ix(l) {
-                Some(r) => vec![r],
-                None => l.iter().map(|&x| cx.as_list(x).and_then(ix)).collect::<Option<_>>()?,
+            // a ring of indices, or `outer -> holes` with the holes one ring or a list of rings
+            let ring = |t: T<'h>| -> Option<crate::region::Ring<'h>> {
+                if let Some(("rule", &[o, hs])) = crate::region::call_parts(h, t).as_ref().map(|(n, a)| (n.as_str(), *a)) {
+                    let outer = ix(cx.as_list(o)?)?;
+                    let hl = cx.as_list(hs)?;
+                    let holes: Vec<Vec<Pt<'h>>> = match ix(hl) {
+                        Some(r) if !hl.is_empty() => vec![r],
+                        _ => hl.iter().map(|&x| cx.as_list(x).and_then(ix)).collect::<Option<_>>()?,
+                    };
+                    return Some(crate::region::Ring { outer, holes });
+                }
+                Some(crate::region::Ring { outer: ix(cx.as_list(t)?)?, holes: vec![] })
             };
-            if rings.iter().any(|r| r.len() < 3) {
+            let rings: Vec<crate::region::Ring<'h>> = match ring(*idx) {
+                Some(r) => vec![r],
+                None => cx.as_list(*idx)?.iter().map(|&x| ring(x)).collect::<Option<_>>()?,
+            };
+            if rings.iter().any(|r| r.outer.len() < 3 || r.holes.iter().any(|x| x.len() < 3)) {
                 return None;
             }
-            Region::Polygon(rings.into_iter().map(|outer| crate::region::Ring { outer, holes: vec![] }).collect())
+            Region::Polygon(rings)
         }
         ("cylinder" | "cone", []) => {
             let (a, b) = (vec![h.int(0), h.int(0), h.int(-1)], vec![h.int(0), h.int(0), h.int(1)]);

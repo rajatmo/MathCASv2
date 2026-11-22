@@ -18,6 +18,9 @@
 #% item
 # When the padding is odd the extra entry goes to the right (or bottom); a size smaller than the array cuts it around its centre.
 
+#% item
+# A fourth argument `sparse_array` asks for a sparse array; `sparse_array` builds arrays dense, so the result is the same array.
+
 #% section
 # Examples
 

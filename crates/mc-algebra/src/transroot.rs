@@ -875,6 +875,130 @@ fn object_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, spec:
     })
 }
 
+/// The binary exponent of the larger nonzero part of the midpoint, without the floor of [`top`] (a root of size
+/// 2^-3000000 has that exponent); a very small number for 0.
+fn size_of(z: &CBall) -> i64 {
+    [&z.re.mid, &z.im.mid].iter().filter(|x| !x.is_zero()).map(|x| x.top()).max().unwrap_or(i64::MIN / 4)
+}
+
+/// The largest power of x whose shifted form `(x - q)^k` is expanded in [`shifted_value`].
+const SHIFT_EXPAND_DEGREE: i64 = 64;
+
+/// Does the term hold a power of x with an integer exponent beyond [`SHIFT_EXPAND_DEGREE`]?
+fn high_power<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, t: T<'h>, x: T<'h>) -> bool {
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        let View::App { head, args } = h.view(u) else { continue };
+        if head == h.sym_term(h.sym(names::POW))
+            && args.len() == 2
+            && contains(h, args[0], x)
+            && ar.num(args[1]).and_then(|n| n.as_int().map(|k| k.to_i64().is_none_or(|v| v.abs() > SHIFT_EXPAND_DEGREE))).unwrap_or(false)
+        {
+            return true;
+        }
+        stack.extend_from_slice(args);
+    }
+    false
+}
+
+/// The value w = r + q of a root object r of f plus an exact rational q, with `bits` correct bits relative to w,
+/// however small w is (decimal digits lost to the cancellation in r + q are not lost here): w is the root of
+/// g(w) = f(w - q), whose terms of low degree are expanded so that their constants cancel exactly (for
+/// f = x^1234567 + 5 x + 1 and q = 1/5, g(w) = 5 w + (w - 1/5)^1234567). Newton's iteration from the shifted root
+/// with steps measured relative to w, then Krawczyk's test on a box of radius |w| 2^-(p - 24): its root is the root
+/// of the object because the box lies inside the object's own proved box shifted by q, which holds one root.
+/// `None` when any step is not proved.
+fn shifted_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, spec: T<'h>, q: T<'h>, bits: u64) -> Res<Option<(CBall, bool)>> {
+    let h = cx.heap();
+    let ar = Arith::new(h);
+    let Some(Num::Real(qr @ Real::Exact(_))) = ar.num(q) else { return Ok(None) };
+    let Some((z0, real)) = object_value(cx, stop, spec, 128)? else { return Ok(None) };
+    let Some((x, body, _)) = object_parts(cx, spec)? else { return Ok(None) };
+    if transcendental(h, &ar, body, x) {
+        return Ok(None);
+    }
+    let shift = h.call(h.sym(names::ADD), &[x, ar.neg(q)]);
+    let (mut low, mut high) = (vec![], vec![]);
+    for t in terms_of(h, body) {
+        if high_power(h, &ar, t, x) {
+            high.push(t);
+        } else {
+            low.push(t);
+        }
+    }
+    let low = replace(cx, h.call(h.sym(names::ADD), &low), &[(x, shift)])?;
+    let low = cx.eval(h.call(h.sym("expand"), &[low]))?;
+    let high = replace(cx, h.call(h.sym(names::ADD), &high), &[(x, shift)])?;
+    let g = cx.eval(h.call(h.sym(names::ADD), &[low, high]))?;
+    let dg = derivative(cx, g, x)?;
+    let Some(fns) = graphs(h, &ar, &[g, dg], x, None) else { return Ok(None) };
+    metered(cx, stop, |m| {
+        let mut p = bits + 40;
+        for _ in 0..4 {
+            let Real::Ball(qb, _) = qr.to_kind(Kind::Ball, p) else { return Ok(None) };
+            let outer = z0.add(&CBall::real(qb), p);
+            let mut c = mid(&outer);
+            let mut settled = false;
+            for _ in 0..200 {
+                m.step(16)?;
+                let (Some(fc), Some(dc)) = (fns.at(0, &c, p), fns.at(1, &c, p)) else { return Ok(None) };
+                if fc.re.mid.is_zero() && fc.im.mid.is_zero() {
+                    settled = true;
+                    break;
+                }
+                let Some(step) = mid(&fc).div(&mid(&dc), p) else { return Ok(None) };
+                let step = if real { CBall::real(Ball::exact(step.re.mid.clone())) } else { mid(&step) };
+                c = mid(&c.sub(&step, p));
+                if size_of(&step) < size_of(&c) - p as i64 + 8 {
+                    settled = true;
+                    break;
+                }
+            }
+            if settled {
+                for k in 0..8 {
+                    m.step(16)?;
+                    let z = boxed(&c, &Mag::pow2(size_of(&c) - p as i64 + 24 + 3 * k), real);
+                    let Some(kz) = krawczyk(&fns, &z, p) else { continue };
+                    if inside(&kz, &z, real) && subset(&z, &outer) {
+                        let rel = |b: &Ball| b.rad.is_zero() || b.rad.log2() < (size_of(&kz) - bits as i64) as f64;
+                        if rel(&kz.re) && rel(&kz.im) {
+                            return Ok(Some((kz, real)));
+                        }
+                        break;
+                    }
+                }
+            }
+            p *= 2;
+        }
+        Ok(None)
+    })
+}
+
+/// The sums `q + r` in `t` of an exact rational q and a root object r (term, q, r): where r is near -q their
+/// digits cancel, which [`shifted_value`] avoids.
+fn shifted_sums<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, t: T<'h>) -> Vec<(T<'h>, T<'h>, T<'h>)> {
+    let mut out = vec![];
+    let mut stack = vec![t];
+    let mut seen = std::collections::HashSet::new();
+    while let Some(u) = stack.pop() {
+        if !seen.insert(u) || h.packed(u).is_some() {
+            continue;
+        }
+        if let Some(&[a, b]) = args_of(h, u, names::ADD) {
+            let exact = |e: T<'h>| matches!(ar.num(e), Some(Num::Real(Real::Exact(_))));
+            let (q, o) = if exact(a) { (a, b) } else { (b, a) };
+            if exact(q) && !exact(o) && objects(h, o) == [o] {
+                out.push((u, q, o));
+                continue;
+            }
+        }
+        if let View::App { args, .. } = h.view(u) {
+            stack.extend_from_slice(args);
+        }
+    }
+    out
+}
+
 /// The root objects of analytic functions inside `t` (shared subterms once).
 fn objects<'h>(h: &'h Heap, t: T<'h>) -> Vec<T<'h>> {
     let root = sym(h, "root");
@@ -910,6 +1034,23 @@ pub fn numeric_objects<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>
     }
     let ar = Arith::new(h);
     let mut rules = vec![];
+    // a sum of a rational and a root object, at d digits: the value of the sum itself, relative to its size
+    let mut t = t;
+    if let Some(d) = digits {
+        let bits = mc_numeric::numeval::first_precision(d) + 16;
+        let mut sums = vec![];
+        for (u, q, o) in shifted_sums(h, &ar, t) {
+            let View::App { args, .. } = h.view(o) else { continue };
+            if let Some((z, real)) = shifted_value(cx, stop, args[0], q, bits)? {
+                let z = if real { CBall::real(z.re) } else { z };
+                sums.push((u, mc_numeric::numeval::cball_term(&ar, z, bits)));
+            }
+        }
+        if !sums.is_empty() {
+            t = replace(cx, t, &sums)?;
+        }
+    }
+    let objs = objects(h, t);
     for o in objs {
         let View::App { args, .. } = h.view(o) else { continue };
         let bits = match digits {

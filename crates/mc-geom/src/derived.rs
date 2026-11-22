@@ -1,5 +1,5 @@
 //! Regions made from other regions: `winding_polygon` and `crossing_polygon` (the region a closed curve
-//! encloses by the non-zero winding rule or the even-odd rule), `polygon_decomposition` (triangles by ear clipping),
+//! encloses by the non-zero winding rule or the even-odd rule), `polygon_decomposition` (a convex polygon whole, otherwise triangles by ear clipping),
 //! `boolean_region` (any Boolean function of plane regions), `transformed_region` (a region under an affine
 //! `transformation_function`), `discretize_region` (a triangle mesh), `highlight_mesh` (a mesh with the cells of
 //! some dimensions drawn in a style) and `capsule_shape`.
@@ -83,6 +83,9 @@ pub fn enclosed<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], fill: Fill) -> R
         let e = E { h };
         return Ok(Reply::Done(e.f("polygon", &[cx.list(&pts), o])));
     }
+    if let Some(t) = space_polygon(cx, *c, fill)? {
+        return Ok(Reply::Done(t));
+    }
     // one closed curve, or a list of them (the rule is applied to all their edges together)
     let (rings, exact) = match curve(cx, *c)? {
         Some((ring, exact)) => (vec![ring], exact),
@@ -105,8 +108,64 @@ pub fn enclosed<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], fill: Fill) -> R
     Ok(Reply::Done(shapes_term(cx, &shapes, exact)))
 }
 
-/// `polygon_decomposition(region)` or `polygon_decomposition(region, triangle)`: the region (a polygon without
-/// holes, a rectangle, a triangle) as a list of triangles `polygon([p1, p2, p3], [1, 2, 3])`, anticlockwise.
+/// A closed curve of points in a plane of space (three or more coordinates): the points are put in coordinates of
+/// their plane (an orthonormal basis of the differences from the first point, by Gram-Schmidt); when the rule fills
+/// exactly the polygon of the curve (one ring without holes through its own corners) the result is
+/// `polygon(points, [1, ..., n])`, and when it fills nothing, `empty_region(d)`. Curves off a plane, and curves
+/// whose filled region is another polygon, give `None`.
+fn space_polygon<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: T<'h>, fill: Fill) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let e = E { h };
+    // the sense of turning in a plane of space depends on a chosen normal
+    if !matches!(fill, Fill::NonZero | Fill::EvenOdd) {
+        return Ok(None);
+    }
+    let Some(mut pts) = vectors(cx, c) else { return Ok(None) };
+    let d = pts[0].len();
+    if d < 3 || pts.len() < 3 {
+        return Ok(None);
+    }
+    if pts.len() > 3 && pts.first() == pts.last() {
+        pts.pop();
+    }
+    let Some(p) = points(cx, &pts)? else { return Ok(None) };
+    let scale = p.iter().flatten().fold(1.0f64, |m, x| m.max(x.abs()));
+    let diff: Vec<Vec<f64>> = p.iter().map(|q| q.iter().zip(&p[0]).map(|(a, b)| a - b).collect()).collect();
+    let mut basis: Vec<Vec<f64>> = vec![];
+    for v in &diff {
+        let mut w = v.clone();
+        for b in &basis {
+            let dot: f64 = w.iter().zip(b).map(|(x, y)| x * y).sum();
+            w.iter_mut().zip(b).for_each(|(x, y)| *x -= dot * y);
+        }
+        let len = w.iter().map(|x| x * x).sum::<f64>().sqrt();
+        if len > 1e-9 * scale {
+            if basis.len() == 2 {
+                return Ok(None);
+            }
+            basis.push(w.iter().map(|x| x / len).collect());
+        }
+    }
+    if basis.len() != 2 {
+        return Ok(None);
+    }
+    let ring: Vec<P> = diff.iter().map(|v| [0, 1].map(|k| v.iter().zip(&basis[k]).map(|(x, y)| x * y).sum::<f64>())).collect();
+    let shapes = clip::boolean_fill(std::slice::from_ref(&ring), &[], Op::Union, fill);
+    let close = |a: &P, b: &P| (a[0] - b[0]).abs() <= 1e-9 * scale && (a[1] - b[1]).abs() <= 1e-9 * scale;
+    match shapes.as_slice() {
+        [] => Ok(Some(e.f("empty_region", &[e.int(d as i64)]))),
+        [(outer, holes)] if holes.is_empty() && outer.len() == ring.len() && outer.iter().all(|q| ring.iter().any(|r| close(q, r))) => {
+            let idx: Vec<T<'h>> = (1..=pts.len() as i64).map(|i| e.int(i)).collect();
+            Ok(Some(e.f("polygon", &[e.list(&pts.iter().map(|q| e.list(q)).collect::<Vec<_>>()), e.list(&idx)])))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// `polygon_decomposition(region)`, `polygon_decomposition(region, convex)` or `polygon_decomposition(region,
+/// triangle)`: the region (a polygon without holes, a rectangle, a triangle, or an implicit region given by bounds on
+/// each coordinate) as a list of anticlockwise pieces `polygon(corners, [1, ..., k])`. A convex polygon is its own
+/// convex piece; otherwise, and always with `triangle`, the pieces are triangles.
 pub fn decomposition<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let e = E { h };
@@ -115,19 +174,130 @@ pub fn decomposition<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Repl
         [_, form] if matches!(h.view(*form), mc_core::View::Sym(s) if matches!(h.sym_name(s).as_str(), "triangle" | "convex")) => {}
         _ => return Ok(Reply::Decline),
     }
-    let Some(rs) = crate::construct::rings(cx, a[0])? else { return Ok(Reply::Decline) };
+    let triangles = a.len() == 2 && matches!(h.view(a[1]), mc_core::View::Sym(s) if h.sym_name(s) == "triangle");
+    let rs = match crate::construct::rings(cx, a[0])? {
+        Some(rs) => rs,
+        None => match implicit_box(cx, a[0])? {
+            Some((lo, hi)) => {
+                let boxed = e.f("rectangle", &[e.list(&lo), e.list(&hi)]);
+                match crate::construct::rings(cx, boxed)? {
+                    Some(rs) => rs,
+                    None => return Ok(Reply::Decline),
+                }
+            }
+            None => return Ok(Reply::Decline),
+        },
+    };
     let mut out = vec![];
     for (ring, num, holes) in &rs {
         if !holes.is_empty() {
             return Ok(Reply::Decline);
         }
         let pts: Vec<P> = num.iter().map(|p| [p[0], p[1]]).collect();
+        let corners_of =|cx: &mut NativeCx<'_, '_, 'h>, ix: &[usize]| -> Res<T<'h>> {
+            let mut cs = Vec::with_capacity(ix.len());
+            for &i in ix {
+                cs.push(cx.eval(e.list(&ring.outer[i]))?);
+            }
+            let idx: Vec<T<'h>> = (1..=ix.len() as i64).map(|k| e.int(k)).collect();
+            Ok(e.f("polygon", &[e.list(&cs), e.list(&idx)]))
+        };
+        // a convex polygon is its own convex piece (the default and `convex`)
+        if !triangles && convex(&pts) {
+            let ix: Vec<usize> = if signed_area2(&pts) >= 0.0 { (0..pts.len()).collect() } else { (0..pts.len()).rev().collect() };
+            out.push(corners_of(cx, &ix)?);
+            continue;
+        }
         for t in triangulate(&pts) {
-            let corners: Vec<T<'h>> = t.iter().map(|&i| e.list(&ring.outer[i])).collect();
-            out.push(e.f("polygon", &[e.list(&corners), e.list(&[e.int(1), e.int(2), e.int(3)])]));
+            out.push(corners_of(cx, &t)?);
         }
     }
     Ok(Reply::Done(e.list(&out)))
+}
+
+/// Twice the signed area of a ring (positive when anticlockwise).
+fn signed_area2(p: &[P]) -> f64 {
+    let n = p.len();
+    (0..n).map(|i| p[i][0] * p[(i + 1) % n][1] - p[(i + 1) % n][0] * p[i][1]).sum()
+}
+
+/// Whether a ring is a convex polygon: every turn has the sense of the whole ring (straight corners allowed), and
+/// it goes round once (the turning angles add up to one full turn).
+fn convex(p: &[P]) -> bool {
+    let n = p.len();
+    if n < 3 {
+        return false;
+    }
+    let s = signed_area2(p);
+    if s == 0.0 {
+        return false;
+    }
+    let scale = p.iter().fold(1.0f64, |m, q| m.max(q[0].abs()).max(q[1].abs()));
+    let mut total = 0.0;
+    for i in 0..n {
+        let (a, b, c) = (p[i], p[(i + 1) % n], p[(i + 2) % n]);
+        let (u, v) = ([b[0] - a[0], b[1] - a[1]], [c[0] - b[0], c[1] - b[1]]);
+        let cross = u[0] * v[1] - u[1] * v[0];
+        if cross * s.signum() < -1e-12 * scale * scale {
+            return false;
+        }
+        total += cross.atan2(u[0] * v[0] + u[1] * v[1]);
+    }
+    (total.abs() - std::f64::consts::TAU).abs() < 1e-6
+}
+
+/// The box of an implicit region of the plane given as bounds on each variable separately, `a <= x <= b` (strict
+/// or not: the decomposition is of the closure), with numeric bounds: `(lo, hi)` as terms.
+#[allow(clippy::type_complexity)]
+fn implicit_box<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<(Vec<T<'h>>, Vec<T<'h>>)>> {
+    let h = cx.heap();
+    let Some(Region::Implicit { cond, vars }) = read(cx, t) else { return Ok(None) };
+    if vars.len() != 2 {
+        return Ok(None);
+    }
+    let mut parts = vec![];
+    let mut stack = vec![cond];
+    while let Some(c) = stack.pop() {
+        match call_parts(h, c) {
+            Some((n, args)) if n == "and" => stack.extend(args.iter().copied()),
+            Some((n, args)) if matches!(n.as_str(), "less" | "less_equal" | "greater" | "greater_equal") && args.len() >= 2 => {
+                for w in args.windows(2) {
+                    let (small, big) = if n.starts_with("less") { (w[0], w[1]) } else { (w[1], w[0]) };
+                    parts.push((small, big));
+                }
+            }
+            _ => return Ok(None),
+        }
+    }
+    let mut lo: Vec<Option<(f64, T<'h>)>> = vec![None; 2];
+    let mut hi: Vec<Option<(f64, T<'h>)>> = vec![None; 2];
+    for (small, big) in parts {
+        let (k, bound, upper) = match (vars.iter().position(|&v| v == small), vars.iter().position(|&v| v == big)) {
+            (Some(k), None) => (k, big, true),
+            (None, Some(k)) => (k, small, false),
+            _ => return Ok(None),
+        };
+        let Some(x) = nums(cx, &[bound])?.and_then(|v| v.first().copied()).filter(|x| x.is_finite()) else { return Ok(None) };
+        let slot = if upper { &mut hi[k] } else { &mut lo[k] };
+        let tighter = match slot {
+            None => true,
+            Some((y, _)) => (upper && x < *y) || (!upper && x > *y),
+        };
+        if tighter {
+            *slot = Some((x, bound));
+        }
+    }
+    let mut l = vec![];
+    let mut u = vec![];
+    for k in 0..2 {
+        let (Some((a, at)), Some((b, bt))) = (lo[k], hi[k]) else { return Ok(None) };
+        if a >= b {
+            return Ok(None);
+        }
+        l.push(at);
+        u.push(bt);
+    }
+    Ok(Some((l, u)))
 }
 
 /// Whether the call `f(args)` for a Boolean function `f` is true.
@@ -314,7 +484,12 @@ pub fn transformed<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<
             let s2 = gram(0, 0);
             let similar = s2 > 0.0 && (0..n).all(|i| (0..n).all(|j| (gram(i, j) - if i == j { s2 } else { 0.0 }).abs() <= 1e-12 * s2));
             if !similar {
-                return Ok(Reply::Decline);
+                // a solid disk or ball under any other nonsingular affine map x -> L x + b is the ellipsoid
+                // (x - c')^T (r^2 L L^T)^-1 (x - c') <= 1 with c' = L c + b
+                return match (solid, ellipsoid_image(cx, *tf, c, *rad, n)?) {
+                    (true, Some(t)) => Ok(Reply::Done(t)),
+                    _ => Ok(Reply::Decline),
+                };
             }
             let Some(c2) = apply(cx, *tf, c)? else { return Ok(Reply::Decline) };
             let s = s2.sqrt();
@@ -334,6 +509,42 @@ pub fn transformed<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<
         Some(t) => Ok(Reply::Done(cx.eval(t)?)),
         None => Ok(Reply::Decline),
     }
+}
+
+/// `ellipsoid(L c + b, r^2 L L^T)` for `transformation_function(m)` with exact entries whose linear part L is
+/// nonsingular, or `None`.
+fn ellipsoid_image<'h>(cx: &mut NativeCx<'_, '_, 'h>, tf: T<'h>, c: &[T<'h>], rad: T<'h>, n: usize) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let e = E { h };
+    if !(2..=3).contains(&n) || inexact(h, tf) || inexact(h, rad) || c.iter().any(|&x| inexact(h, x)) {
+        return Ok(None);
+    }
+    let Some(("transformation_function", &[m])) = call_parts(h, tf).as_ref().map(|(k, a)| (k.as_str(), *a)) else { return Ok(None) };
+    let Some(rows) = cx.as_list(m).map(|l| l.to_vec()) else { return Ok(None) };
+    let mut l = vec![];
+    for r in rows.iter().take(n) {
+        let Some(x) = cx.as_list(*r).filter(|x| x.len() == n + 1) else { return Ok(None) };
+        l.push(x[..n].to_vec());
+    }
+    if l.len() != n {
+        return Ok(None);
+    }
+    let det = cx.eval(e.f("det", &[e.list(&l.iter().map(|r| e.list(r)).collect::<Vec<_>>())]))?;
+    if !crate::ex::num(cx, det)?.is_some_and(|v| v != 0.0) {
+        return Ok(None);
+    }
+    let Some(c2) = apply(cx, tf, c)? else { return Ok(None) };
+    let r2 = e.sq(rad);
+    let mut mat = vec![];
+    for i in 0..n {
+        let mut row = vec![];
+        for j in 0..n {
+            let s = e.add(&(0..n).map(|k| e.mul(&[l[i][k], l[j][k]])).collect::<Vec<_>>());
+            row.push(cx.eval(e.f("simplify", &[e.mul(&[r2, s])]))?);
+        }
+        mat.push(e.list(&row));
+    }
+    Ok(Some(e.f("ellipsoid", &[e.list(&c2), e.list(&mat)])))
 }
 
 /// A function of n coordinates that is affine: its linear part (m rows of n exact numbers) and its offset, read off
@@ -546,6 +757,8 @@ pub fn highlight<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h
         return Ok(Reply::Decline);
     }
     let dim = match cx.eval(e.f("region_embedding_dimension", &[m]))? {
+        // a mesh of the line is drawn on the x axis of the plane
+        v if matches!(h.view(v), mc_core::View::Int(1)) => 1,
         v if matches!(h.view(v), mc_core::View::Int(2)) => 2,
         v if matches!(h.view(v), mc_core::View::Int(3)) => 3,
         _ => return Ok(Reply::Decline),
@@ -561,11 +774,33 @@ pub fn highlight<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h
             return Ok(Reply::Decline);
         }
         let mut g = dirs;
-        g.push(prims);
+        g.push(if dim == 1 { on_axis(cx, prims) } else { prims });
         groups.push(e.list(&g));
     }
-    let g = e.f(if dim == 2 { "graphics" } else { "graphics3d" }, &[e.list(&groups)]);
+    let g = e.f(if dim <= 2 { "graphics" } else { "graphics3d" }, &[e.list(&groups)]);
     Ok(Reply::Done(cx.eval(e.f("show", &[m, g]))?))
+}
+
+/// Primitives of a mesh of the line with every point `[x]` written `[x, 0]` (on the x axis of the plane).
+fn on_axis<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> T<'h> {
+    let h = cx.heap();
+    if let Some(items) = cx.as_list(t) {
+        if let [x] = items {
+            use mc_core::View;
+            if matches!(h.view(*x), View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. }) {
+                return cx.list(&[*x, h.int(0)]);
+            }
+        }
+        let items = items.to_vec();
+        return cx.list(&items.into_iter().map(|x| on_axis(cx, x)).collect::<Vec<_>>());
+    }
+    match h.view(t) {
+        mc_core::View::App { head, args } => {
+            let args = args.to_vec();
+            h.app(head, &args.into_iter().map(|x| on_axis(cx, x)).collect::<Vec<_>>())
+        }
+        _ => t,
+    }
 }
 
 /// `capsule_shape()`, `capsule_shape([p1, p2])`, `capsule_shape([p1, p2], r)`: the points within r of the segment

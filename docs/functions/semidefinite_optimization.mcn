@@ -10,10 +10,16 @@
 # Details
 
 #% item
+# A single symbol as the variable is a vector variable whose length the dot products with it fix (`dot([a1, a2], v)` is `v1 a1 + v2 a2` for symmetric matrices).
+
+#% item
 # `vector_greater_equal([m, 0], [semidefinite_cone, n])` asks the matrix `m` to be positive semidefinite, that is all its principal minors to be non-negative.
 
 #% item
 # `semidefinite_optimization(c, [a0, a1, ..., an])` minimizes `c . x` such that `a0 + x1 a1 + ... + xn an` is positive semidefinite and returns the vector `x`.
+
+#% item
+# `semidefinite_optimization(c, [a0, ..., an], doms)` with `doms` `integers`, `reals` or a list of them asks the entries in `integers` to be integers (branch and bound, as for `linear_optimization`).
 
 #% item
 # A fourth argument selects the result as for `quadratic_optimization`.
@@ -38,6 +44,11 @@ semidefinite_optimization([2, 3], [[[0, 1], [1, 0]], [[1, 0], [0, 0]], [[0, 0], 
 semidefinite_optimization(x + 2*y, [x^2 + 2*y^2 <= 3, x + y == 2, x >= 1], [x, y])
 #% output
 #= [x -> 5/3, y -> 1/3]
+
+#% cell
+semidefinite_optimization(dot([1, 2], v), vector_greater_equal([dot([[[1, 0], [0, 0]], [[0, 0], [0, 1]]], v), -[[0, 1], [1, 0]]], [semidefinite_cone, 2]), v)
+#% output
+#= [v -> [2^(1/2), (1/2)*2^(1/2)]]
 
 #% section
 # See also

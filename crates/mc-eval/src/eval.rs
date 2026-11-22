@@ -1927,6 +1927,24 @@ impl<'k, 'h> Eval<'k, 'h> {
         r
     }
 
+    /// Whether the head of one of `args` holds rules attached to calls of `hs` (cheap: no matching).
+    pub(crate) fn has_attached(&self, hs: Sym, args: &[T<'h>]) -> bool {
+        let h = self.heap;
+        let defs = &self.k.defs;
+        // (one lookup for nearly every call: no symbol ever attached rules to `hs`)
+        if !defs.get(hs).is_some_and(SymDefs::is_attached_to) {
+            return false;
+        }
+        args.iter().any(|&a| {
+            attach_key(h, a)
+                .and_then(|g| sym_of(h, g))
+                .and_then(|s| defs.get(s))
+                .filter(|d| d.has_arg_rules())
+                .and_then(|d| d.arg_rules(hs))
+                .is_some_and(|rs| rs.len() > 0)
+        })
+    }
+
     fn dispatch_in(&self, cx: &mut Cx<'h>, t: T<'h>, hs: Sym, args: &[T<'h>], sc: &mut Scratch<'h>) -> Res<Option<T<'h>>> {
         let h = self.heap;
         let defs = &self.k.defs;

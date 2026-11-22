@@ -19,6 +19,9 @@
 # `linear_optimization(c, [a, b])` and `linear_optimization(c, [a, b], [aeq, beq])` give the vector `x` minimizing `dot(c, x)` under `dot(a, x) + b >= 0` (and `dot(aeq, x) + beq == 0`).
 
 #% item
+# `linear_optimization(c, [a, b], [aeq, beq], doms)` with `doms` `integers`, `reals` or a list of them, one per entry, asks the entries in `integers` to be integers: branch and bound over the problems with real entries (Land and Doig), at most 100 of them; machine numbers in the problem give the point in machine numbers.
+
+#% item
 # The problem is passed to `minimize`, so the answer is exact; use `minimize` for the optimal value as well. A problem that is infeasible or unbounded is returned as `minimize` gives it.
 
 #% section

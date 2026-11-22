@@ -180,7 +180,10 @@ fn interval_intersection_boxes(as, bs) = {
 # pieces common to all; the centered interval of the common box when a complex centered interval leaves one
 fn interval_intersection(parts...) when length(parts) >= 1 and every(parts, t => head(t) === interval or head(t) === centered_interval) = {
   let bs = fold((acc, p) => interval_intersection_boxes(acc, ls_boxes(p)), ls_boxes(parts[1]), rest(parts))
-  if every(bs, b => b[3] == 0 and b[4] == 0) then apply(interval, map(b => [b[1], b[2]], bs))
+  # (with an exact interval among the parts, machine bounds are taken as the exact numbers they are: the same set)
+  let exact = any_true(parts, t => head(t) === interval and every(flatten(apply(list, t)), u => is_exact(u)))
+  let bound = u => if exact and is_number(u) and is_inexact(u) then set_precision(u, inf) else u
+  if every(bs, b => b[3] == 0 and b[4] == 0) then apply(interval, map(b => [bound(b[1]), bound(b[2])], bs))
   else if length(bs) == 1 then {
     let b = bs[1]
     centered_interval((b[1] + b[2])/2 + im*(b[3] + b[4])/2, (b[2] - b[1])/2 + im*(b[4] - b[3])/2)

@@ -132,12 +132,12 @@ fn reported_images_with_a_pole_or_an_extremum() {
     // independent check: the minimum is J_0 at the first zero of J_1, inside the result and within 10^-12 of its end
     assert_eq!(ev(&mut e, "m = n(bessel_j(0, bessel_j_zero(1, 1)), 30); [min(r) <= m, m - min(r) < 10^-12]"), "[true, true]");
     // a step function that is not monotone takes a different value inside than at the ends (unit_box is 1 at 0)
-    assert_eq!(ev(&mut e, "unit_box(centered_interval(2, 3))"), "unit_box(centered_interval(2, 3))");
+    assert_eq!(ev(&mut e, "unit_box(centered_interval(2, 3))"), "unit_box(centered_interval(2.0, 3.0))");
     assert_eq!(ev(&mut e, "unit_box(interval([-1, 5]))"), "unit_box(interval([-1, 5]))");
     // monotone ones are the hull of the end values; a constant (arg on the positive reals) is a point
     assert_eq!(ev(&mut e, "[floor(interval([-1, 3/2])), floor(centered_interval(1.5, 0.4)), arg(interval([1, 3]))]"), "[interval([-1, 1]), 1, interval([0, 0])]");
     // centered intervals with a pole inside stay unevaluated
-    assert_eq!(ev(&mut e, "gamma(centered_interval(0, 0.5))"), "gamma(centered_interval(0, 0.5))");
+    assert_eq!(ev(&mut e, "gamma(centered_interval(0, 0.5))"), "gamma(centered_interval(0.0, 0.5))");
     assert_eq!(ev(&mut e, "tan(centered_interval(1.5, 0.5))"), "tan(centered_interval(1.5, 0.5))");
 }
 

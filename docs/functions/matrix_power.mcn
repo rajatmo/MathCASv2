@@ -12,6 +12,9 @@
 #% item
 # Integer powers by repeated squaring; negative powers through the inverse; other powers as the matrix function x^k.
 
+#% item
+# `matrix_power(m, k, v)` gives the power applied to the vector v, by k products with a vector when k is at most the size of m (no power of a large sparse matrix is formed).
+
 #% section
 # Examples
 
@@ -27,6 +30,11 @@ matrix_power([[1, 1], [1, 0]], 10)
 matrix_power([[1, 2], [3, 4]], -1)
 #% output
 #= [[-2, 1], [3/2, -1/2]]
+
+#% cell
+matrix_power([[1, 1], [1, 0]], 10, [1, 0])
+#% output
+#= [89, 55]
 
 #% subsection
 # Scope

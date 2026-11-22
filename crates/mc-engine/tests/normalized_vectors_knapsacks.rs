@@ -90,10 +90,14 @@ fn knapsack_with_several_bounds() {
         "[2, 0, 2]"
     );
     assert_eq!(ev("knapsack_solve([[8, 1], [6, 2, 20], [9, 7, 6]], [inf, 30, 5])"), "[1, 0, 4]");
-    // several optimal choices: unevaluated
+    // several optimal choices: one of them (payoff 35 within cost 30, as an enumeration finds)
+    let several = [(8, 9, 2), (4, 4, 5), (5, 6, 1000)];
+    let opt = brute(&several, (35, 30, 1000));
+    let got = ev("knapsack_solve([[8, 9, 2], [4, 4, 5], [5, 6]], [\"MaxTotalPayoff\" -> 35, \"MaxTotalCost\" -> 30])");
+    assert!(opt.len() > 1 && opt.iter().any(|o| list(o) == got), "{got} (optima {opt:?})");
     assert_eq!(
-        ev("knapsack_solve([[8, 9, 2], [4, 4, 5], [5, 6]], [\"MaxTotalPayoff\" -> 35, \"MaxTotalCost\" -> 30])"),
-        "knapsack_solve([[8, 9, 2], [4, 4, 5], [5, 6]], [\"MaxTotalPayoff\" -> 35, \"MaxTotalCost\" -> 30])"
+        ev("knapsack_solve([[8, 9, 2], [4, 4, 5], [5, 6]], [\"MaxTotalCost\" -> 30, \"MaxTotalPayoff\" -> 35])"),
+        got
     );
     // variations checked against an enumeration of every count vector
     let cases: [(&[Triple], Triple); 5] = [
@@ -106,11 +110,7 @@ fn knapsack_with_several_bounds() {
     for (items, caps) in cases {
         let opt = brute(items, caps);
         let got = knap(items, caps);
-        if opt.len() == 1 {
-            assert_eq!(got, list(&opt[0]), "{items:?} {caps:?}");
-        } else {
-            assert!(got.starts_with("knapsack_solve("), "{items:?} {caps:?}: {got} (optima {opt:?})");
-        }
+        assert!(opt.iter().any(|o| list(o) == got), "{items:?} {caps:?}: {got} (optima {opt:?})");
     }
     // quantities in the unit of their bound
     assert_eq!(

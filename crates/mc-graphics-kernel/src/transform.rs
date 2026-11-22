@@ -379,6 +379,18 @@ fn transformed_primitive<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>) -> Res<Opt
     let map = |cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>| -> Res<T<'h>> { cx.eval(h.app(tf, &[x])) };
     let one = |cx: &NativeCx<'_, '_, 'h>, x: T<'h>| cx.as_list(x).is_some();
     let rigid = matches!(kind, Kind::Translate | Kind::Rotate);
+    // a similarity x -> L x + b (L^T L = s^2 I) keeps round primitives round, the radius times s
+    let scale = match similarity_scale(cx, tf)? {
+        Some(s) if !rigid && matches!(pname.as_str(), "sphere" | "ball" | "cylinder") => Some(s),
+        _ => None,
+    };
+    let rigid = rigid || scale.is_some();
+    let scaled = |cx: &mut NativeCx<'_, '_, 'h>, r: T<'h>| -> Res<T<'h>> {
+        match scale {
+            Some(s) => cx.eval(h.call(h.sym(names::MUL), &[s, r])),
+            None => Ok(r),
+        }
+    };
     let rebuilt = match (pname.as_str(), pargs) {
         ("point" | "line" | "polygon" | "triangle", [c]) if one(cx, *c) => Some(h.call(ps, &[map(cx, *c)?])),
         ("cuboid", [a, b]) if matches!(kind, Kind::Translate | Kind::Scale) => Some(h.call(ps, &[map(cx, *a)?, map(cx, *b)?])),
@@ -388,18 +400,46 @@ fn transformed_primitive<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>) -> Res<Opt
             let hi = cx.eval(cx.list(&up))?;
             Some(h.call(ps, &[map(cx, *a)?, map(cx, hi)?]))
         }
-        ("sphere" | "ball", [c, r]) if rigid => Some(h.call(ps, &[map(cx, *c)?, *r])),
-        ("sphere" | "ball", [c]) if rigid => Some(h.call(ps, &[map(cx, *c)?])),
+        ("sphere" | "ball", [c, r]) if rigid => Some(h.call(ps, &[map(cx, *c)?, scaled(cx, *r)?])),
+        ("sphere" | "ball", [c]) if rigid && scale.is_none() => Some(h.call(ps, &[map(cx, *c)?])),
+        ("sphere" | "ball", [c]) if rigid => Some(h.call(ps, &[map(cx, *c)?, scaled(cx, h.int(1))?])),
         ("cylinder", []) if rigid => {
             let (lo, hi) = (cx.list(&[h.int(0), h.int(0), h.int(-1)]), cx.list(&[h.int(0), h.int(0), h.int(1)]));
             let ax = cx.list(&[lo, hi]);
-            Some(h.call(ps, &[map(cx, ax)?, h.int(1)]))
+            Some(h.call(ps, &[map(cx, ax)?, scaled(cx, h.int(1))?]))
         }
-        ("cylinder", [a]) if rigid => Some(h.call(ps, &[map(cx, *a)?, h.int(1)])),
-        ("cylinder", [a, r]) if rigid => Some(h.call(ps, &[map(cx, *a)?, *r])),
+        ("cylinder", [a]) if rigid => Some(h.call(ps, &[map(cx, *a)?, scaled(cx, h.int(1))?])),
+        ("cylinder", [a, r]) if rigid => Some(h.call(ps, &[map(cx, *a)?, scaled(cx, *r)?])),
         _ => None,
     };
     Ok(rebuilt)
+}
+
+/// The factor s of `transformation_function(m)` when its linear part L is a similarity (L^T L = s^2 I, checked in
+/// machine numbers): s = sqrt(sum_k L_k1^2) exactly; `None` otherwise.
+fn similarity_scale<'h>(cx: &mut NativeCx<'_, '_, 'h>, tf: T<'h>) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let View::App { args: &[m], .. } = h.view(tf) else { return Ok(None) };
+    let Some(rows) = matrix(cx, m) else { return Ok(None) };
+    let n = rows.len().saturating_sub(1);
+    if n == 0 || rows.iter().any(|r| r.len() != n + 1) {
+        return Ok(None);
+    }
+    let mut l = vec![vec![0.0; n]; n];
+    for i in 0..n {
+        for j in 0..n {
+            let v = cx.eval(h.call(h.sym("n"), &[rows[i][j]]))?;
+            let Some(x) = mc_graphics::num::number(h, v) else { return Ok(None) };
+            l[i][j] = x;
+        }
+    }
+    let gram = |i: usize, j: usize| (0..n).map(|k| l[k][i] * l[k][j]).sum::<f64>();
+    let s2 = gram(0, 0);
+    if !(s2 > 0.0 && (0..n).all(|i| (0..n).all(|j| (gram(i, j) - if i == j { s2 } else { 0.0 }).abs() <= 1e-12 * s2))) {
+        return Ok(None);
+    }
+    let sum = h.call(h.sym(names::ADD), &(0..n).map(|k| h.call(h.sym(names::POW), &[rows[k][0], h.int(2)])).collect::<Vec<_>>());
+    Ok(Some(cx.eval(h.call(h.sym("simplify"), &[h.call(h.sym("sqrt"), &[sum])]))?))
 }
 
 /// `dot(f1, f2, ...)` of transformation functions: their composition (the product of the homogeneous matrices), as

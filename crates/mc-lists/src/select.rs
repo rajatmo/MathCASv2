@@ -184,6 +184,10 @@ pub(crate) fn cases<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     let [xs, p] = *args else {
         return Ok(Reply::Decline);
     };
+    // a number or a string has no elements, so no case (a symbol stays: it may stand for a list)
+    if !matches!(h.view(xs), View::App { .. } | View::Sym(_)) {
+        return Ok(Reply::Done(cx.list(&[])));
+    }
     let (_, xs) = take!(lib.operand(h, t, xs, 1));
     let (mut m, rhs) = take!(pattern(lib, cx, t, p, true));
     let mut out = vec![];

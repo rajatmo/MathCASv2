@@ -968,7 +968,8 @@ fn nl_li_strip(v, d) = if d == 0 then (if is_list(v) then v[1] else v) else map(
 
 # function_interpolation(f, [x, a, b], ...): a function interpolating the expression f sampled on a grid (65 points
 # per dimension in one dimension, 33 in two, 17 in more) over the ranges
-fn function_interpolation(f, ranges...; interpolation_order = 3, max_recursion = automatic, accuracy_goal = automatic, precision_goal = automatic) = {
+fn function_interpolation(f, ranges0...; interpolation_order = 3, max_recursion = automatic, accuracy_goal = automatic, precision_goal = automatic) = {
+  let ranges = if nl_fi_region(ranges0) !== null then nl_fi_region(ranges0) else ranges0
   let d = length(ranges)
   let m = if d == 1 then 65 else if d == 2 then 33 else 17
   let grids = map(r => map(j => n(r[2] + (r[3] - r[2])*(j - 1)/(m - 1)), range(m)), ranges)
@@ -976,6 +977,11 @@ fn function_interpolation(f, ranges...; interpolation_order = 3, max_recursion =
   let sample = (lvl, sub) => if lvl > d then n(rewrite(f, sub)) else map(c => sample(lvl + 1, append(sub, vars[lvl] -> c)), grids[lvl])
   nl_li_fun(nl_fi_sample(f, vars, grids, 1, []), grids, constant_array(interpolation_order, d))
 }
+# function_interpolation(f, element([x, y, ...], region)): over the bounding box of the region (region_bounds)
+# (a region_difference lies in the box of the region the others are taken from)
+fn nl_fi_region(e) = if length(e) == 1 and not is_atom(e[1]) and head(e[1]) === element and length(e[1]) == 2 and is_list(e[1][1]) then nl_fi_box(e[1][1], nl_fi_bounds(e[1][2])) else null
+fn nl_fi_bounds(r) = if not is_atom(r) and head(r) === region_difference and length(r) >= 1 then nl_fi_bounds(r[1]) else region_bounds(r)
+fn nl_fi_box(vs, bs) = if is_matrix(bs) and length(bs) == length(vs) and length(bs[1]) == 2 and every(flatten(bs), x => is_real(n(x))) then map(i => [vs[i], bs[i][1], bs[i][2]], range(length(vs))) else null
 fn nl_fi_sample(f, vars, grids, lvl, sub) =
   if lvl > length(vars) then n(rewrite(f, sub)) else map(c => nl_fi_sample(f, vars, grids, lvl + 1, append(sub, vars[lvl] -> c)), grids[lvl])
 

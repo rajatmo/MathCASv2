@@ -15,6 +15,9 @@
 #% item
 # The object stays unevaluated; `normal(numeric_array(xs, type))` gives the list back, with the entries of an integer type kept to its range (`clip_and_coerce` as a third argument clips to the range, `round` rounds first) and those of a real type as machine reals (single-precision rounding of `"Real32"` is not applied).
 
+#% item
+# A conversion is a numeric array of the converted values: `numeric_array(xs, type, clip_and_coerce)` (or `round`), and a numeric array or `byte_array` given a type again, become `numeric_array(values, type)`; a real type gets machine reals (for `"Real32"` clipped to its range by `clip_and_coerce`).
+
 #% section
 # Examples
 
@@ -45,6 +48,11 @@ normal(numeric_array([0, 1000, 2000], "UnsignedInteger8", clip_and_coerce))
 normal(numeric_array([0.1, 1.1, 2.1], "UnsignedInteger8", round))
 #% output
 #= [0, 1, 2]
+
+#% cell
+numeric_array(numeric_array([-100, 0, 5, 120], "Integer8"), "UnsignedInteger8", clip_and_coerce)
+#% output
+#= numeric_array([0, 0, 5, 120], "UnsignedInteger8")
 
 #% section
 # See also

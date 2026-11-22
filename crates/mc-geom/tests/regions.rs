@@ -122,3 +122,17 @@ fn integrals_over_regions() {
         ("region_integrate(f(x, y), [x, y], point([[1, 2], [3, 4]]))", "f(1, 2) + f(3, 4)"),
     ]);
 }
+
+#[test]
+fn distances_to_a_disk_in_polar_coordinates() {
+    // the unit disk: the nearest point to (3, 4) is (3, 4)/5, at distance 5 - 1; a point inside at depth 1/2;
+    // a disk of radius 2 about (1, 0) with sine and cosine swapped and the angle first: (5, 3) is 5 from the centre
+    check(&[
+        ("region_nearest(parametric_region([r*cos(t), r*sin(t)], [[r, 0, 1], [t, 0, 2*pi]]), [3, 4])", "[3/5, 4/5]"),
+        ("region_distance(parametric_region([r*cos(t), r*sin(t)], [[r, 0, 1], [t, 0, 2*pi]]), [3, 4])", "4"),
+        ("signed_region_distance(parametric_region([r*cos(t), r*sin(t)], [[r, 0, 1], [t, 0, 2*pi]]), [0, 1/2])", "-1/2"),
+        ("region_distance(parametric_region([1 + r*sin(t), r*cos(t)], [[t, 0, 2*pi], [r, 0, 2]]), [5, 3])", "3"),
+        // half a turn is a half disk, not taken for a disk
+        ("region_nearest(parametric_region([r*cos(t), r*sin(t)], [[r, 0, 1], [t, 0, pi]]), [3, 4])", "region_nearest(parametric_region([r*cos(t), r*sin(t)], [[r, 0, 1], [t, 0, pi]]), [3, 4])"),
+    ]);
+}

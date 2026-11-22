@@ -17,6 +17,25 @@ graphics3d(b_spline_surface([[[0, 0, 0], [1, 0, 1], [2, 0, 0]], [[0, 1, 1], [1, 
 #% output
 #= image("b_spline_surface.files/b_spline_surface-1.svgz")
 
+#% subsection
+# Properties and relations
+
+#% text
+# A surface of at most four control points each way is one Bezier patch: its area (by quadrature) and the least and greatest value of each coordinate
+
+#% cell
+net = [[[0, 0, 0], [1, 0, 1], [2, 0, 0]], [[0, 1, 1], [1, 1, 3], [2, 1, 1]], [[0, 2, 0], [1, 2, 1], [2, 2, 0]]]
+
+#% cell
+area(b_spline_surface(net))
+#% output
+#= 5.868115116499664
+
+#% cell
+region_bounds(b_spline_surface(net))
+#% output
+#= [[0.0, 2.0], [0.0, 2.0], [0.0, 1.25]]
+
 #% section
 # See also
 

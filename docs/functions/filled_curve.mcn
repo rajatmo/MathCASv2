@@ -17,6 +17,14 @@ graphics([standard_blue, filled_curve([line([[0, 0], [1, 0]]), bezier_curve([[1,
 #% output
 #= image("filled_curve.files/filled_curve-1.svgz")
 
+#% text
+# As a region of the plane (one closed curve of straight and polynomial pieces): its area and centroid are exact, by Green's theorem; membership and distances are computed in machine numbers.
+
+#% cell
+r = filled_curve([b_spline_curve([[0, 0], [1, 1], [2, -1]])]); [area(r), region_centroid(r), region_member(r, [1, 0])]
+#% output
+#= [1, [1, -1/5], true]
+
 #% section
 # See also
 

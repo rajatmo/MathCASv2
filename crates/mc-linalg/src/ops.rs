@@ -245,6 +245,21 @@ pub fn dot<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'
             }
         }
     }
+    // tensors of rank three or more: the last index of the first contracted with the first of the second
+    if args.len() >= 2 && args.iter().all(|&t| is_array(t)) && (env.read(args[0]).is_none() || env.read(args[1]).is_none()) {
+        if let (Some(da), Some(db)) = (dims(env, args[0]), dims(env, args[1])) {
+            if da.len() > 2 || db.len() > 2 {
+                return contract_general(env, args, &da, &db, m);
+            }
+        }
+    }
+    // a rectangular tensor of rank three or more times a factor that is no array (a vector variable): the product
+    // stays, as it does for a matrix (a tensor of more than MAX_ENTRIES entries, which could not be multiplied out,
+    // goes on to the argument check)
+    let small = |d: &[usize]| d.iter().try_fold(1usize, |a, &x| a.checked_mul(x)).is_some_and(|s| s <= MAX_ENTRIES);
+    if args.len() == 2 && !is_array(args[1]) && env.read(args[0]).is_none() && dims(env, args[0]).is_some_and(|d| d.len() > 2 && small(&d)) {
+        return Ok(Out::Decline);
+    }
     let mut acc = take!(tensor_arg(env, args, 0));
     let mut val = args[0];
     for k in 1..args.len() {
@@ -262,6 +277,79 @@ pub fn dot<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'
         }
     }
     Ok(Out::Done(val))
+}
+
+/// The dimensions of a rectangular nested list (`[]` for an entry that is not a list); `None` when it is ragged.
+/// Each distinct subterm is measured once, so a nest of shared lists (`nest(x => [x, x], 1, 60)`) costs its depth.
+fn dims<'h>(env: &Env<'h>, t: T<'h>) -> Option<Vec<usize>> {
+    dims_in(env, t, &mut std::collections::HashMap::new())
+}
+
+type DimsSeen<'h> = std::collections::HashMap<T<'h>, Option<Vec<usize>>>;
+
+fn dims_in<'h>(env: &Env<'h>, t: T<'h>, seen: &mut DimsSeen<'h>) -> Option<Vec<usize>> {
+    if let Some(d) = seen.get(&t) {
+        return d.clone();
+    }
+    let d = dims_once(env, t, seen);
+    seen.insert(t, d.clone());
+    d
+}
+
+fn dims_once<'h>(env: &Env<'h>, t: T<'h>, seen: &mut DimsSeen<'h>) -> Option<Vec<usize>> {
+    if let Some(p) = env.h().packed(t) {
+        return Some(p.dims().iter().map(|&d| d as usize).collect());
+    }
+    let Some(items) = env.as_list(t) else { return Some(Vec::new()) };
+    let mut inner: Option<Vec<usize>> = None;
+    for &x in items {
+        let d = dims_in(env, x, seen)?;
+        match &inner {
+            None => inner = Some(d),
+            Some(i) if *i == d => {}
+            Some(_) => return None,
+        }
+    }
+    let mut out = vec![items.len()];
+    out.extend(inner.unwrap_or_default());
+    Some(out)
+}
+
+/// `dot(a, b, rest...)` with a tensor of rank three or more among the first two: `a . b` contracts the last index
+/// of `a` with the first of `b` (the sum over k of `a[..., k] b[k, ...]`); the products are built as sums and
+/// products of the entries and evaluated again, with the remaining factors.
+fn contract_general<'h>(env: &Env<'h>, args: &[T<'h>], da: &[usize], db: &[usize], m: &mut Meter) -> WorkResult<Out<'h>> {
+    let (Some(&n), Some(&n2)) = (da.last(), db.first()) else {
+        // a scalar factor: not a product of arrays
+        return Ok(Out::Done(env.bad_argument(if da.is_empty() { 1 } else { 2 })));
+    };
+    if n != n2 {
+        return Ok(Out::Done(env.failure("shape_mismatch", &[])));
+    }
+    let size = da[..da.len() - 1].iter().chain(&db[1..]).try_fold(n.max(1), |a, &d| a.checked_mul(d.max(1)));
+    if size.is_none_or(|s| s > MAX_ENTRIES) || env.over_memory(size.unwrap_or(usize::MAX), 32) {
+        return Err(Halt::Memory);
+    }
+    let h = env.h();
+    let b: Vec<T<'h>> = env.as_list(args[1]).map(|x| x.to_vec()).unwrap_or_default();
+    fn go<'h>(env: &Env<'h>, a: T<'h>, depth: usize, b: &[T<'h>], m: &mut Meter) -> WorkResult<T<'h>> {
+        let items = env.as_list(a).unwrap_or(&[]);
+        m.step(items.len() as u64 + 1)?;
+        let h = env.h();
+        if depth == 1 {
+            let prods: Vec<T<'h>> = items.iter().zip(b).map(|(&x, &y)| h.call(h.sym(names::MUL), &[x, y])).collect();
+            return Ok(if prods.is_empty() { h.int(0) } else { h.call(h.sym(names::ADD), &prods) });
+        }
+        let rows = items.iter().map(|&x| go(env, x, depth - 1, b, m)).collect::<WorkResult<Vec<T<'h>>>>()?;
+        Ok(env.list(&rows))
+    }
+    let c = go(env, args[0], da.len(), &b, m)?;
+    if args.len() == 2 {
+        return Ok(Out::Again(c));
+    }
+    let mut rest = vec![c];
+    rest.extend_from_slice(&args[2..]);
+    Ok(Out::Again(h.call(h.sym("dot"), &rest)))
 }
 
 /// `cross(u, v)`: the cross product of two vectors of length 3.

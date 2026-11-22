@@ -10,6 +10,9 @@
 # Details
 
 #% item
+# `function_interpolation(f, element([x, y, ...], region))` samples f over the bounding box of the region.
+
+#% item
 # `f` is sampled on an equally spaced grid (65 points in one dimension, 33 per variable in two, 17 in more) and interpolated as by `list_interpolation`, with `interpolation_order` (default 3).
 
 #% item
@@ -36,6 +39,11 @@ g = function_interpolation(sin(x)*y^2, [x, 0, 2], [y, 0, 2])
 [g(1.0, 1.5), sin(1.0)*1.5^2]
 #% output
 #= [1.8933097158177672, 1.8933097158177672]
+
+#% cell
+f = function_interpolation(x*y + z, element([x, y, z], cuboid([0, 0, 0], [1, 2, 3]))); f(0.5, 1.0, 2.0)
+#% output
+#= 2.499999999999999
 
 #% section
 # See also

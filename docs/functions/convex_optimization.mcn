@@ -15,6 +15,9 @@
 #% item
 # The problem is passed to `minimize`, which treats it by its general methods.
 
+#% item
+# `method: geometric_optimization` states a geometric program: its variables are positive, and the constraints `x > 0` are added. When the problem has machine numbers and is not solved as given, it is solved with each machine number taken as the rational it is and the point is given in machine numbers.
+
 #% section
 # Examples
 

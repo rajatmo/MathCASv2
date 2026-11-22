@@ -23,6 +23,16 @@ fn ls_normalized_by(v, r) = if is_numeric(r) and r == 0 then v else v/r
 rule normalized(v_) := ls_normalized_by(v, norm(v)) when is_list(v) or is_number(v)
 rule normalized(v_, f_) := ls_normalized_by(v, f(v)) when is_atom(f) or not (head(f) === options)
 rule normalized(v_) := time_series(normalized(v("Values")), v("Times")) when not is_atom(v) and head(v) === time_series
+# a sparse array too large to be built dense stays sparse_array(rules, dims, default): with the default 0 and
+# literal positions, its rules' values are divided by the norm of the values (the zeros add nothing to it)
+rule normalized(s_) := ls_sparse_map(s, ls_normalized_by(map(r => r[2], s[1]), norm(map(r => r[2], s[1])))) when ls_sparse_lit(s) and ls_sparse_default(s) == 0 and every(s[1], r => is_numeric(r[2]))
+# sparse_array(rules, ...) with literal positions (integers or lists of integers, all of one length) and at most a
+# size and a default
+fn ls_sparse_lit(s) = not is_atom(s) and head(s) === sparse_array and length(s) >= 1 and length(s) <= 3 and is_list(s[1]) and length(s[1]) > 0 and every(s[1], r => ls_is_rule(r) and (is_integer(r[1]) or (is_list(r[1]) and length(r[1]) > 0 and every(r[1], is_integer)))) and length(union(map(r => length(ls_sparse_pos(r[1])), s[1]))) == 1
+fn ls_sparse_pos(p) = if is_list(p) then p else [p]
+fn ls_sparse_default(s) = if length(s) == 3 then s[3] else 0
+# the same sparse array with the values vs in place of its rules' values
+fn ls_sparse_map(s, vs) = apply(sparse_array, join([map(k => s[1][k][1] -> vs[k], range(length(vs)))], rest(apply(list, s))))
 
 # angle_vector(phi): [cos(phi), sin(phi)]; angle_vector([r, phi]): the point of polar coordinates r, phi;
 # angle_vector([r, theta, phi]): the point of spherical coordinates (theta from the z axis); angle_vector(c, p):
@@ -279,6 +289,19 @@ fn nl_qm_null_space(m) = {
 rule row_reduce(m_) := nl_qm_row_reduce(m) when is_matrix(m) and nl_qm_ok(m)
 rule null_space(m_) := nl_qm_null_space(m) when is_matrix(m) and nl_qm_ok(m)
 rule rank(m_) := rank(nl_qm_split(m)[1]) when is_matrix(m) and nl_qm_ok(m)
+# unit_convert of a list of quantities: each one (in SI base units, or in the unit given)
+rule unit_convert(xs_) := map(x => unit_convert(x), xs) when is_list(xs) and length(xs) > 0 and every(xs, nl_qm_is)
+rule unit_convert(xs_, u_) := map(x => unit_convert(x, u), xs) when is_list(xs) and length(xs) > 0 and every(xs, nl_qm_is) and not is_list(u)
+# divisible(a, b) of quantities of one dimension: whether a/b, a number, is an integer
+fn nl_qm_ratio(a, b) = { let c = unit_convert(a, quantity_unit(b)); if nl_qm_is(c) and quantity_unit(c) === quantity_unit(b) then quantity_magnitude(c)/quantity_magnitude(b) else null }
+rule divisible(a_, b_) := is_integer(nl_qm_ratio(a, b)) when nl_qm_is(a) and nl_qm_is(b) and is_rational(nl_qm_ratio(a, b))
+# qr of a matrix of quantities of one unit u: q of the magnitudes (no unit) and r times u
+fn nl_qm_qr(m) = {
+  let s = nl_qm_split(m)
+  let f = qr(s[1])
+  if is_list(f) and length(f) == 2 then [f[1], map(r => map(x => quantity(x, s[2][1]), r), f[2])] else null
+}
+rule qr(m_) := nl_qm_qr(m) when is_matrix(m) and nl_qm_ok(m) and every(flatten(m), nl_qm_is) and length(union(nl_qm_split(m)[2])) == 1 and nl_qm_qr(m) !== null
 fn least_squares(m, b) when is_matrix(m) and is_list(b) and (nl_qm_has(m) or nl_qm_has(b)) and free_of(nl_qm_split(m)[1], failure) and free_of(nl_qm_split(b)[1], failure) = {
   let sm = nl_qm_split(m)
   let sb = nl_qm_split(b)
@@ -298,6 +321,70 @@ fn matrix_minimal_polynomial(m, x) when is_matrix(m) and nl_qm_ok(m) and length(
 # least_squares(m, b): the vector x minimizing |m . x - b| (the minimum-norm one when m is rank deficient), the
 # pseudo-inverse of m applied to b (a matrix b: column by column)
 fn least_squares(m, b) when is_matrix(m) and is_list(b) = dot(pseudo_inverse(m), b)
+# norm(m) of a 2 x 2 matrix with symbolic entries: the largest singular value, the square root of the larger
+# eigenvalue (t + sqrt(t^2 - 4 |det m|^2))/2 of m^H m, t = the sum of |m_ij|^2 (m^H m is Hermitian and positive
+# semidefinite, so the discriminant is not negative and the + root is the larger)
+fn ls_norm2(m) = {
+  let t = total(map(x => abs(x)^2, flatten(m)))
+  let d = abs(m[1][1]*m[2][2] - m[1][2]*m[2][1])^2
+  sqrt((t + sqrt(t^2 - 4*d))/2)
+}
+rule norm(m_) := ls_norm2(m) when is_matrix(m) and length(m) == 2 and length(m[1]) == 2 and not every(flatten(m), x => is_numeric(x)) and free_of(m, quantity) and free_of(m, failure) and not some(flatten(m), x => is_string(x) or is_list(x))
+
+# lu(m) of a square matrix with symbolic entries: [l, u, p] with m[p] == dot(l, u) as rational functions (Doolittle
+# elimination; a row swap only when the pivot is 0 as a rational function); like inverse, the factors hold where
+# the pivots are not 0. null when a column has no pivot (a singular matrix).
+fn ls_sym_lu(m) = {
+  let k0 = length(m)
+  var a = m
+  var l = identity_matrix(k0)
+  var p = range(k0)
+  var ok = true
+  for k in range(k0) {
+    if ok then {
+      let cand = select(range(k, k0), i => not (together(a[i][k]) === 0))
+      if length(cand) == 0 then { ok = false } else {
+        let q = cand[1]
+        if q != k then {
+          let ra = a[k]
+          a[k] = a[q]
+          a[q] = ra
+          let rp = p[k]
+          p[k] = p[q]
+          p[q] = rp
+          let rl = l[k]
+          l[k] = map(j => if j < k then l[q][j] else rl[j], range(k0))
+          l[q] = map(j => if j < k then rl[j] else l[q][j], range(k0))
+        }
+        for i in range(k + 1, k0) {
+          let f = together(a[i][k]/a[k][k])
+          l[i] = map(j => if j == k then f else l[i][j], range(k0))
+          a[i] = map(j => if j == k then 0 else together(a[i][j] - f*a[k][j]), range(k0))
+        }
+      }
+    }
+  }
+  if ok then [l, a, p] else null
+}
+rule lu(m_) := ls_sym_lu(m) when is_matrix(m) and length(m) == length(m[1]) and length(m) > 0 and not every(flatten(m), x => is_number(x)) and free_of(m, quantity) and free_of(m, failure) and not some(flatten(m), x => is_string(x) or is_list(x)) and ls_sym_lu(m) !== null
+
+# pseudo_inverse(m) of a matrix with symbolic entries, of generic full rank (the Gram determinant is not 0 as a
+# rational function): m^H (m m^H)^-1 for a wide matrix, (m^H m)^-1 m^H for a tall one; like inverse, the answer
+# holds where that determinant is not 0
+fn ls_sym_pinv(m) = {
+  let mh = conjugate(transpose(m))
+  let wide = length(m) <= length(m[1])
+  let g = if wide then dot(m, mh) else dot(mh, m)
+  if together(det(g)) === 0 then null else {
+    let p = if wide then dot(mh, inverse(g)) else dot(inverse(g), mh)
+    if is_matrix(p) then map(r => map(x => together(x), r), p) else null
+  }
+}
+rule pseudo_inverse(m_) := ls_sym_pinv(m) when is_matrix(m) and length(m[1]) > 0 and not every(flatten(m), x => is_number(x)) and free_of(m, quantity) and free_of(m, failure) and not some(flatten(m), x => is_string(x)) and ls_sym_pinv(m) !== null
+# least_squares(m, b, tolerance: t): the pseudo-inverse of m without the singular values below t times the largest
+# (two steps of iterative refinement, x + p . (b - m . x), take off most of the rounding of the first product)
+fn ls_refined(m, b, p) = { let x1 = dot(p, b); let x2 = x1 + dot(p, b - dot(m, x1)); x2 + dot(p, b - dot(m, x2)) }
+rule least_squares(m_, b_, options(tolerance -> t_)) := ls_refined(m, b, pseudo_inverse(m, tolerance: t)) when is_matrix(m) and is_list(b) and head(pseudo_inverse(m, tolerance: t)) === list
 
 # drazin_inverse(m): the Drazin inverse of the square matrix m, m^k (m^(2k + 1))^+ m^k with k the index of m (the
 # smallest k with rank(m^k) = rank(m^(k + 1)))
@@ -450,6 +537,9 @@ fn gaussian_matrix(p, ns) when is_list(ns) and length(ns) >= 1 and every(ns, k =
   let ks = map(i => gm_kernel(rs[1][i], rs[2][i], ns[i]), range(length(ns)))
   fold((a, b) => outer(mul, a, b), ks[1], rest(ks))
 }
+# the options method: gaussian (the sampled Gaussian) and standardized: true (the moment scaling above) name the
+# kernel these give
+fn gaussian_matrix(p, ns, o) when is_options(o) and opt_only(o, [method, standardized]) and opt_value(o, method, gaussian) === gaussian and opt_value(o, standardized, true) === true = gaussian_matrix(p, ns)
 
 # --- numbers ---
 
@@ -543,13 +633,26 @@ fn cumulant(r: Int, data) when is_list(data) and r >= 1 = cumulant(data, r)
 # array_rules(a), array_rules(a, v): the rules [i, j, ...] -> x of the entries x of the array a that differ from v
 # (0), followed by the rule of the other positions [_, _, ...] -> v
 fn array_rules(a) = array_rules(a, 0)
+# (the entries are read from the array flattened to its rank, and only the positions kept are built: a list of a
+# million entries takes a few seconds and no index list per entry)
 fn array_rules(a, v) when is_list(a) = {
   let d = dimensions(a)
-  let pos = select(ls_flat(ls_nd(d, [], idx => idx), length(d)), idx => not (ls_part_at(a, idx) === v))
-  append(map(idx => idx -> ls_part_at(a, idx), pos), constant_array(_, length(d)) -> v)
+  let f = if length(d) == 1 then a else flatten(a, length(d) - 1)
+  let ks = select(range(length(f)), k => not (f[k] === v))
+  let rs = if length(d) == 1 then map(k => [k] -> f[k], ks) else map(k => ls_ar_index(d, k) -> f[k], ks)
+  append(rs, constant_array(_, length(d)) -> v)
 }
-fn ls_part_at(a, idx) = fold((x, i) => x[i], a, idx)
-fn ls_flat(xs, k) = if k <= 1 then xs else flatten(xs, k - 1)
+# the position of the k-th entry, in row-major order, of an array of dimensions d
+fn ls_ar_index(d, k) = if length(d) == 1 then [k] else reverse(fold((st, dj) => [quotient(st[1], dj), append(st[2], mod(st[1], dj) + 1)], [k - 1, []], reverse(d))[2])
+# a sparse array too large to be built dense (sparse_array(rules, dims, default), literal positions): its rules in
+# the order of their positions, the first rule of a position winning, without the entries equal to v, then the rule
+# of the other positions -> the default
+fn array_rules(a, v) when ls_sparse_lit(a) and v === ls_sparse_default(a) = {
+  let rs = map(r => ls_sparse_pos(r[1]) -> r[2], a[1])
+  let firsts = map(g => g[1], gather_by(rs, r => r[1]))
+  let kept = select(sort_by(firsts, r => r[1]), r => not (r[2] === v))
+  append(kept, constant_array(_, length(rs[1][1])) -> v)
+}
 
 # matrix_minimal_polynomial(m, x): the monic polynomial in x of least degree that vanishes at the square matrix m
 # (the first linear dependency among the powers I, m, m^2, ...)
@@ -662,11 +765,15 @@ fn ls_axes(cov) = {
   let ord = reverse(ordering(map(v => re(n(v)), es[1])))
   map(i => { let v = es[2][i]/norm(es[2][i]); if re(n(v[1])) > 0 then -v else v }, ord)
 }
-fn principal_components(data) when is_matrix(data) and every(flatten(data), x => is_numeric(x)) = {
+# method: correlation divides each centred column by its standard deviation first (the axes of the correlation
+# matrix)
+fn principal_components(data; method = covariance) when is_matrix(data) and every(flatten(data), x => is_numeric(x)) and (method === covariance or method === correlation) = {
   let m = length(data)
   let c = length(data[1])
   let mu = map(j => total(map(r => r[j], data))/m, range(c))
-  let x = map(r => r - mu, data)
+  let x0 = map(r => r - mu, data)
+  let sd = map(j => sqrt(total(map(r => r[j]^2, x0))/(m - 1)), range(c))
+  let x = if method === correlation then map(r => r/sd, x0) else x0
   dot(x, transpose(ls_axes(dot(transpose(x), x)/(m - 1))))
 }
 fn karhunen_loeve_decomposition(data; standardized = false) when is_matrix(data) and every(flatten(data), x => is_numeric(x)) = {
@@ -705,6 +812,8 @@ rule min_machine_number := 2.2250738585072014e-308
 # set_accuracy(x, a): x with the precision of every number in it set so that its accuracy is a digits after the decimal
 # point (a number: precision a plus the decimal logarithm of its absolute value; a list or any other expression:
 # its parts; symbols stay)
+# infinite accuracy: every number as the exact rational it is, as set_precision(x, inf) gives it
+rule set_accuracy(x_, a_) := set_precision(x, inf) when a === inf
 rule set_accuracy(x_, a_) := map(t => set_accuracy(t, a), x) when is_list(x) and is_real(a)
 rule set_accuracy(x_, a_) := (if n(x) == 0 then set_precision(x, a) else set_precision(x, ceiling(a + log(abs(n(x)))/log(10)))) when is_numeric(x) and is_real(a) and not is_list(x)
 rule set_accuracy(x_, a_) := x when is_symbol(x) and not is_numeric(x) and is_real(a)
@@ -729,9 +838,13 @@ fn is_interval_member(i) = x => is_interval_member(i, x)
 
 # interval_union(i1, i2, ...): the union of the intervals as one interval (real pieces merged); the smallest
 # centered interval containing them when a complex centered interval is involved
+# (real pieces with an exact interval among the parts: the machine bounds of the centered intervals are taken as the
+# exact numbers they are, so the union stays exact, the same set)
 fn interval_union(parts...) when length(parts) >= 1 and every(parts, t => head(t) === interval or head(t) === centered_interval) = {
   let bs = flatten(map(ls_boxes, parts), 1)
-  if every(bs, b => b[3] == 0 and b[4] == 0) then apply(interval, map(b => [b[1], b[2]], bs))
+  let exact = any_true(parts, t => head(t) === interval and every(flatten(apply(list, t)), u => is_exact(u)))
+  let bound = u => if exact and is_number(u) and is_inexact(u) then set_precision(u, inf) else u
+  if every(bs, b => b[3] == 0 and b[4] == 0) then apply(interval, map(b => [bound(b[1]), bound(b[2])], bs))
   else {
     let lo = min(map(b => b[1], bs))
     let hi = max(map(b => b[2], bs))
@@ -740,6 +853,10 @@ fn interval_union(parts...) when length(parts) >= 1 and every(parts, t => head(t
     centered_interval((lo + hi)/2 + im*(ilo + ihi)/2, (hi - lo)/2 + im*(ihi - ilo)/2)
   }
 }
+
+# asech of a real centered interval below -1: there asech(x) = acosh(1/x) with 1/x in (-1, 0), where acosh(y) is
+# i acos(y) (the values on the cut, continuous from above), so the set of values is i acos(1/x) over the interval
+rule asech(x_) := im*acos(1/x) when not is_atom(x) and head(x) === centered_interval and length(x) == 2 and is_real(x[1]) and is_real(x[2]) and x[1] + abs(x[2]) < -1
 
 # --- knapsack ---
 
@@ -809,8 +926,8 @@ rule knapsack_solve(items_, cap_) := ls_knap_result(items, ls_knap(ls_knap_items
 # max total cost, max total count] (inf for no bound), or rules or an association with the keys "MaxTotalPayoff",
 # "MaxTotalCost" and "MaxTotalCount". The largest total payoff within all bounds, by dynamic programming over the
 # reachable (cost, payoff, count) totals of the items taken so far, each total keeping up to two count vectors
-# that reach it; the counts are given when exactly one count vector reaches the largest payoff, otherwise (several
-# optima, or no bound limits some item) the call stays unevaluated. Inexact numbers are taken as the rationals they
+# that reach it; the counts are one count vector that reaches the largest payoff (the first found, when several
+# do); when no bound limits some item the call stays unevaluated. Inexact numbers are taken as the rationals they
 # are, so equal totals are recognised exactly.
 fn ls_knap_caps(caps) = {
   if is_assoc(caps) then ls_knap_caps(map(k => k -> lookup(caps, k), keys(caps)))
@@ -864,7 +981,7 @@ fn ls_knap_multi(its0, caps0) = {
     let ks = keys(states)
     let best = max(map(k => k[2], ks))
     let vs = flatten(map(k => lookup(states, k), select(ks, k => k[2] == best)), 1)
-    if length(vs) == 1 then vs[1] else null
+    if length(vs) >= 1 then vs[1] else null
   }
 }
 fn ls_knap_multi_ok(its, caps) = length(its) > 0 and length(caps) == 3 and every(its, t => is_numeric(t[1]) and is_numeric(t[2]) and n(t[1]) >= 0 and n(t[2]) >= 0 and (t[3] === inf or is_integer(t[3]))) and every(caps, c => c === inf or (is_numeric(c) and n(c) >= 0))
@@ -911,8 +1028,9 @@ fn ls_cone_conditions(c) = {
   }
   else if head(c) === vector_greater_equal and length(c) == 2 and is_list(c[1]) and length(c[1]) == 2 and is_list(c[2]) and length(c[2]) >= 1 then {
     let kind = c[2][1]
-    let v = c[1][1]
-    let w = c[1][2]
+    # an inert sum inactive(add)(a0, dot(...)) is the matrix it stands for
+    let v = if free_of(c[1][1], inactive) then c[1][1] else activate(c[1][1])
+    let w = if free_of(c[1][2], inactive) then c[1][2] else activate(c[1][2])
     if kind === semidefinite_cone and is_matrix(v) then {
       let m = if is_matrix(w) then v - w else v
       let k = length(m)
@@ -1000,14 +1118,24 @@ rule semidefinite_optimization(f_, cons_, vars_, prop_) := ls_opt_result(f, ls_o
 
 # semidefinite_optimization(c, [a0, a1, ..., an]): the vector x minimizing c . x such that a0 + x1 a1 + ... + xn an is
 # positive semidefinite
-rule semidefinite_optimization(c_, mats_) := {
+rule semidefinite_optimization(c_, mats_) := ls_sdp(c, mats, constant_array(reals, length(c))) when is_vector(c) and is_list(mats) and length(mats) == length(c) + 1 and every(mats, is_matrix)
+# semidefinite_optimization(c, [a0, ..., an], doms): doms gives each entry's domain, integers or reals
+rule semidefinite_optimization(c_, mats_, doms_) := ls_sdp(c, mats, lo_domains(doms, length(c))) when is_vector(c) and is_list(mats) and length(mats) == length(c) + 1 and every(mats, is_matrix) and lo_domains(doms, length(c)) !== null and ls_sdp(c, mats, lo_domains(doms, length(c))) !== null
+fn ls_sdp(c, mats, doms) = {
   let k = length(c)
   let xs = map(i => to_expression(string_join(["sdp_x", to_string(i)])), range(k))
   let m = map(i => map(j => mats[1][i][j] + total(map(t => xs[t]*mats[t + 1][i][j], range(k))), range(length(mats[1]))), range(length(mats[1])))
+  let ints = select(range(k), i => doms[i] === integers)
   let cons = ls_cone_conditions(vector_greater_equal([m, 0], [semidefinite_cone, length(m)]))
-  let r = optimization_point(dot(c, xs), cons, xs)
-  if is_list(r) and length(r) > 0 and every(r, t => ls_is_rule(t)) then map(t => last(t), r) else r
-} when is_vector(c) and is_list(mats) and length(mats) == length(c) + 1 and every(mats, is_matrix)
+  if length(ints) > 0 then {
+    # integer entries: branch and bound over the semidefinite relaxations (lo_bb, lib/prelude.mc)
+    let r = lo_bb(dot(c, xs), flatten(map(lo_scalars, cons), 1), xs, ints, 0)
+    if is_list(r) and length(r) == 2 and is_list(r[2]) and r[1] !== inf then map(t => last(t), r[2]) else null
+  } else {
+    let r = optimization_point(dot(c, xs), cons, xs)
+    if is_list(r) and length(r) > 0 and every(r, t => ls_is_rule(t)) then map(t => last(t), r) else r
+  }
+}
 
 # quadratic_optimization([q, c], [a, b]), ([q, c], [a, b], [aeq, beq]): the vector x minimizing x . q . x/2 + c . x
 # under a . x + b >= 0 (and aeq . x + beq == 0)
@@ -1113,6 +1241,13 @@ rule pdf(d_, xs_) := {
 # sigma_ii sigma_jj) elementwise, and the density det(x)^((nu - p - 1)/2) exp(-tr(sigma^-1 x)/2)/(2^(nu p/2) det(sigma)^(nu/2) Gamma_p(nu/2))
 rule mean(d_) := d[1]*d[2] when head(d) === wishart_matrix_distribution
 rule variance(d_) := map(i => map(j => d[1]*(d[2][i][j]^2 + d[2][i][i]*d[2][j][j]), range(length(d[2]))), range(length(d[2]))) when head(d) === wishart_matrix_distribution
+# skewness and kurtosis elementwise: an entry is the sum of nu independent products x_i x_j of a normal pair with
+# s = sigma_ij, q = sigma_ii sigma_jj, whose cumulant generating function -log((1 - t (s + sqrt(q))) (1 - t (s -
+# sqrt(q))))/2 gives the cumulants k2 = s^2 + q, k3 = 2 s (s^2 + 3 q), k4 = 6 (s^4 + 6 s^2 q + q^2); the sum has
+# nu times each
+fn wishart_entries(d, f) = map(i => map(j => f(d[2][i][j], d[2][i][i]*d[2][j][j]), range(length(d[2]))), range(length(d[2])))
+rule skewness(d_) := wishart_entries(d, (s, q) => 2*s*(s^2 + 3*q)/(sqrt(d[1])*(s^2 + q)^(3/2))) when head(d) === wishart_matrix_distribution and is_matrix(d[2])
+rule kurtosis(d_) := wishart_entries(d, (s, q) => 3 + 6*(s^4 + 6*s^2*q + q^2)/(d[1]*(s^2 + q)^2)) when head(d) === wishart_matrix_distribution and is_matrix(d[2])
 rule random_variate(d_) := {
   let p = length(d[2])
   let l = cholesky(n(d[2]))
@@ -1260,7 +1395,19 @@ fn ls_ccond(c) = {
   else [c]
 }
 fn ls_opt(f, cons0, vars) = ls_with_params(f, cons0, vars, (f1, c1, v1) => ls_opt_plain(f1, c1, v1))
+# machine numbers in the problem: when it is not solved as given, the problem with each machine number taken as the
+# rational it is, solved exactly, then the point in machine numbers (minimize declines some problems with machine
+# numbers that it solves exactly)
+fn ls_has_inexact(e) = length(cases(e, u_ :> 1 when is_number(u) and is_inexact(u), [0, inf])) > 0
+fn ls_is_point(r) = is_list(r) and length(r) > 0 and every(r, t => ls_is_rule(t))
 fn ls_opt_plain(f, cons0, vars) = {
+  let r = ls_opt_exact(f, cons0, vars)
+  if ls_is_point(r) or not ls_has_inexact([f, cons0]) then r else {
+    let s = ls_opt_exact(rationalize(f, 0), rationalize(cons0, 0), vars)
+    if ls_is_point(s) then map(t => t[1] -> n(t[2]), s) else r
+  }
+}
+fn ls_opt_exact(f, cons0, vars) = {
   let cons = if is_list(cons0) then unique(cons0) else cons0
   if ls_special(f, cons, vars) then ls_run(f, cons, vars) else optimization_point(f, flatten(map(ls_cone_conditions, if is_list(cons) then cons else [cons]), 1), vars)
 }
@@ -1516,6 +1663,8 @@ rule rotation_matrix(uv_) := {
 # of the distribution the weights give the values); numbers by two passes (no cancellation), other
 # weights as one fraction, (W sum w d^2 - (sum w d)^2)/W^2 with its numerator expanded
 fn ls_weighted_ok(d, w) = is_list(d) and is_list(w) and length(d) == length(w) and length(d) > 0 and every(d, x => not is_list(x))
+# weights given as a function: the weight of each element is the function's value there
+rule weighted_data(d_, f_) := weighted_data(d, map(f, d)) when is_list(d) and length(d) > 0 and not is_list(f) and not is_numeric(f) and not is_string(f) and not (f === automatic) and not is_failure(f) and every(d, x => not is_list(x))
 rule variance(weighted_data(d_, w_)) := {
   let tw = total(w)
   if every(join(d, w), x => is_number(x)) then dot(w, (d - dot(d, w)/tw)^2)/tw else expand(tw*dot(w, d^2) - dot(w, d)^2)/tw^2
@@ -1853,6 +2002,9 @@ rule is_positive_definite_matrix(m_) := {
   let h = (m + conjugate(transpose(m)))/2
   every(range(length(m)), k => { let d = det(map(r => take(r, k), take(h, k))); n(re(d)) > 0 })
 } when is_matrix(m) and length(m) == length(m[1]) and every(flatten(m), x => is_numeric(x)) and not ls_numeric_matrix(m)
+# symbolic entries whose Hermitian part is a numeric matrix ([[1, a], [-conjugate(a), 2]]): that part decides
+fn ls_hermitian_part(m) = simplify((m + conjugate(transpose(m)))/2)
+rule is_positive_definite_matrix(m_) := is_positive_definite_matrix(ls_hermitian_part(m)) when is_matrix(m) and length(m) == length(m[1]) and not every(flatten(m), x => is_numeric(x)) and every(flatten(ls_hermitian_part(m)), x => is_numeric(x))
 
 # the tests of matrix shapes with tolerance: t (an entry counts as 0 when its size is at most t; a symbolic entry
 # when is_possible_zero says it is 0) and is_symmetric_matrix with same_test: f (f(m_ij, m_ji) for every pair)

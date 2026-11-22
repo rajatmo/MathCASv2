@@ -68,7 +68,7 @@ fn complex_values_at_machine_arguments() {
 fn extremes_of_uncertain_values() {
     check(&[
         ("max(interval([1, 3]), interval([-3, 5]))", "5"),
-        ("min(centered_interval(2, 1), centered_interval(1, 4))", "centered_interval(0, 3)"),
+        ("min(centered_interval(2, 1), centered_interval(1, 4))", "centered_interval(0.0, 3.0)"),
         ("min([1, around(-1.10001, 0.01)])", "around(-1.10001, 0.01)"),
         ("max([1, around(-1.10001, 0.01)])", "1"),
         ("max([quantity(3, \"Meters\"), quantity(200, \"Centimeters\")])", "quantity(3, \"Meters\")"),

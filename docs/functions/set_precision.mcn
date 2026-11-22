@@ -13,6 +13,9 @@
 # Details
 
 #% item
+# An exact integer exponent of a power stays exact, as with `n`.
+
+#% item
 # Machine reals are converted by their exact binary value, so `set_precision(0.1, 30)` shows the binary error of `0.1`. Exact numbers become balls of `d` digits.
 
 #% item
@@ -65,6 +68,11 @@ set_precision(2.0*x + 1/3, 10)
 [set_precision(0.1, 25), n(1/10, 25)]
 #% output
 #= [0.1000000000000000055511151, 0.10000000000000000000000000000]
+
+#% cell
+set_precision(x^3 + 2*y, 20)
+#% output
+#= 2.0000000000000000000*y + x^3
 
 #% section
 # See also

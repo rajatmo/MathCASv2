@@ -314,8 +314,11 @@ impl DistNative {
             Point::Cdf => Reply::Again(symbolic::cdf(b, &d, &ex, x, xq.as_ref(), &int)),
             Point::Survival => Reply::Again(symbolic::survival(b, &d, &ex, x, xq.as_ref(), &int)),
             Point::Quantile => {
-                if let Some(t) = symbolic::quantile(b, &d, &ex, x, xq.as_ref()) {
-                    return Ok(Reply::Again(t));
+                // (arbitrary-precision numbers go by the enclosures below)
+                if !(matches!(md, Mode::Ball(_)) && matches!(d.fam, Family::Gamma | Family::ChiSquare)) {
+                    if let Some(t) = symbolic::quantile(b, &d, &ex, x, xq.as_ref()) {
+                        return Ok(Reply::Again(t));
+                    }
                 }
                 match md {
                     Mode::Exact if d.fam.is_discrete() => exact_count_quantile(cx, &d, &ex, x)?,
@@ -394,7 +397,13 @@ impl DistNative {
         let k = match h.view(k) {
             View::Int(v) if (0..=symbolic::MAX_TERMS).contains(&v) => v,
             View::Int(_) => return Ok(Reply::Done(b.bad(self.name, "the order must be an integer from 0 to 200"))),
-            _ => return Ok(Reply::Decline),
+            // a symbolic order: the closed forms of the families that have one
+            _ => {
+                return Ok(match Dist::read(h, dt).and_then(|d| symbolic_central(b, &d, k)) {
+                    Some(t) => Reply::Again(t),
+                    None => Reply::Decline,
+                })
+            }
         };
         let var = || b.call("variance", &[dt]);
         Ok(Reply::Again(match k {
@@ -653,8 +662,42 @@ fn symbolic_moment<'h>(b: B<'h>, d: &Dist<'h>, k: T<'h>) -> Option<T<'h>> {
             let k1 = b.add(&[k, one]);
             b.div(b.sub(b.pow(p[1], k1), b.pow(p[0], k1)), b.mul(&[k1, b.sub(p[1], p[0])]))
         }
+        // E[X^k] of N(mu, sigma) for a natural k (Winkelbauer, "Moments and absolute moments of the normal
+        // distribution", 2012, eq. 9 in Kummer's function): sigma^k (k - 1)!! 1F1(-k/2; 1/2; -mu^2/(2 sigma^2)) for
+        // even k, mu sigma^(k - 1) k!! 1F1((1 - k)/2; 3/2; -mu^2/(2 sigma^2)) for odd k
+        Family::Normal => {
+            let z = b.neg(b.div(b.powi(p[0], 2), b.mul(&[b.int(2), b.powi(p[1], 2)])));
+            let even = b.mul(&[
+                b.pow(p[1], k),
+                b.call("factorial2", &[b.sub(k, one)]),
+                b.call("hypergeometric_1f1", &[b.mul(&[b.rat(-1, 2), k]), b.rat(1, 2), z]),
+            ]);
+            let odd = b.mul(&[
+                p[0],
+                b.pow(p[1], b.sub(k, one)),
+                b.call("factorial2", &[k]),
+                b.call("hypergeometric_1f1", &[b.mul(&[b.rat(1, 2), b.sub(one, k)]), b.rat(3, 2), z]),
+            ]);
+            let cond = b.call("equal", &[b.call("mod", &[k, b.int(2)]), b.int(0)]);
+            b.piecewise(&[(even, cond)], odd)
+        }
         _ => return None,
     })
+}
+
+/// The central moment E[(X - mu)^k] of a symbolic order k: of a gamma distribution Gamma(a, theta),
+/// theta^k U(-k, 1 - k - a, -a) (the binomial sum of the raw moments theta^j (a)_j (-a theta)^(k - j) is
+/// (-a theta)^k 2F0(-k, a;; 1/a), and z^-c 2F0(c, 1 + c - b;; -1/z) = U(c, b, z) with z = -a, c = -k); chi-square
+/// is Gamma(nu/2, 2).
+fn symbolic_central<'h>(b: B<'h>, d: &Dist<'h>, k: T<'h>) -> Option<T<'h>> {
+    let p = &d.p;
+    let (a, theta) = match d.fam {
+        Family::ChiSquare => (b.mul(&[b.rat(1, 2), p[0]]), b.int(2)),
+        Family::Gamma => (p[0], p[1]),
+        _ => return None,
+    };
+    let u = b.call("hypergeometric_u", &[b.neg(k), b.sub(b.sub(b.int(1), k), a), b.neg(a)]);
+    Some(b.mul(&[b.pow(theta, k), u]))
 }
 
 /// The (key, column) pairs of a dataset term `dataset(assoc(key -> column, ...))` (`None` for anything else).

@@ -90,7 +90,7 @@ fn functions_of_several_centered_intervals_are_enclosures_or_unevaluated() {
         }
     }
     // sums and products keep the exact ball rules
-    assert_eq!(ev("centered_interval(1, 1/10) + centered_interval(2, 1/10)"), "centered_interval(3.0, 0.20000000000000126)");
+    assert_eq!(ev("centered_interval(1, 1/10) + centered_interval(2, 1/10)"), "centered_interval(3.0, 0.20000000000000145)");
 }
 
 #[test]

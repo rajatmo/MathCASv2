@@ -20,6 +20,14 @@ mesh_primitives(m, 1)
 #% output
 #= [line([[0.0, 0.0], [1.0, 0.0]]), line([[1.0, 0.0], [0.0, 1.0]]), line([[0.0, 1.0], [0.0, 0.0]])]
 
+#% text
+# The cells of a dimension whose index matches a pattern
+
+#% cell
+mesh_primitives(m, [0, (k_ when is_odd(k))])
+#% output
+#= [point([0.0, 0.0]), point([0.0, 1.0])]
+
 #% section
 # See also
 

@@ -12,7 +12,8 @@
 //! the parameters positive), Student t (a golden-section search of the log-likelihood over ln n).
 //!
 //! Of the normal distribution either parameter may be known; of the binomial distribution the number of trials
-//! must be known; other families need all their parameters estimated.
+//! is estimated by likelihood (an integer, see `binomial_trials`) or must be known for the method of moments;
+//! other families need all their parameters estimated.
 use crate::build::B;
 use crate::data::{self, Data};
 use crate::family::{Dist, Family};
@@ -86,12 +87,15 @@ pub fn estimated<'h>(cx: &mut NativeCx<'_, '_, 'h>, name: &str, args: &[T<'h>]) 
         return fail("the data needs at least two values");
     }
     cx.tick(n as u64)?;
+    if d.fam == Family::Binomial && !known[0] && how == Method::Likelihood {
+        return binomial_trials(cx, &d, known[1], &dat);
+    }
     let partial_ok = matches!(d.fam, Family::Normal) || (d.fam == Family::Binomial && known[0] && !known[1]);
     if known.iter().any(|&k| k) && !partial_ok {
         return fail("only all parameters of this family can be estimated together (the trials of a binomial distribution must be known)");
     }
     if d.fam == Family::Binomial && !known[0] {
-        return fail("the number of trials of a binomial distribution must be given");
+        return fail("the number of trials of a binomial distribution must be given for the method of moments");
     }
     let closed = how == Method::Moments
         || matches!(
@@ -122,6 +126,79 @@ pub fn estimated<'h>(cx: &mut NativeCx<'_, '_, 'h>, name: &str, args: &[T<'h>]) 
     };
     let p: Vec<T<'h>> = d.p.iter().zip(&ps).zip(&known).map(|((&t, &v), &k)| if k { t } else { h.real(v) }).collect();
     Ok(Reply::Again(Dist { fam: d.fam, p }.term(h)))
+}
+
+/// The most trials the search of `binomial_trials` looks at above the largest count.
+const MAX_TRIALS: u64 = 10_000_000;
+
+/// Maximum likelihood of a binomial distribution whose number of trials n is unknown, from counts x_1..x_N.
+/// With p known the log-likelihood l(n) = sum log C(n, x_i) + (N n - S) log(1 - p) + const has the decreasing
+/// difference l(n + 1) - l(n) = sum log((n + 1)/(n + 1 - x_i)) + N log(1 - p), so its maximum is the first n >=
+/// max x where the difference is not positive. With p unknown the profile likelihood (p = mean/n) is unimodal in n
+/// and has a finite maximum exactly when the variance (divisor N) is below the mean (DeRiggi 1983, "Unimodality
+/// of likelihood functions for the binomial distribution", JASA 78); otherwise the likelihood grows towards the
+/// Poisson limit and there is no estimate. The estimate of n is an integer; p is mean/n as a machine real.
+fn binomial_trials<'h>(cx: &mut NativeCx<'_, '_, 'h>, d: &Dist<'h>, p_known: bool, dat: &Data<'h>) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let b = B::new(h);
+    let fail = |m: &str| Ok(Reply::Done(b.bad("estimated_distribution", m)));
+    let ar = Arith::new(h);
+    let v: Vec<f64> = match dat {
+        Data::Machine(v) => v.clone(),
+        Data::Terms(items) => items
+            .iter()
+            .map(|&x| match ar.num(x) {
+                Some(Num::Real(r)) => r.to_f64(),
+                _ => f64::NAN,
+            })
+            .collect(),
+    };
+    if v.iter().any(|&x| !(x >= 0.0 && x.fract() == 0.0 && x < 1e15)) {
+        return fail("the counts of a binomial distribution must be nonnegative integers");
+    }
+    let nn = v.len() as f64;
+    let xmax = v.iter().copied().fold(0.0, f64::max);
+    let s: f64 = v.iter().sum();
+    let mean = s / nn;
+    // l(n + 1) - l(n) of the log-likelihood
+    let diff: Box<dyn Fn(f64) -> f64> = if p_known {
+        let p = match ar.num(d.p[1]) {
+            Some(Num::Real(r)) => r.to_f64(),
+            _ => f64::NAN,
+        };
+        if !(p > 0.0 && p < 1.0) {
+            return fail("the probability of a binomial distribution must be between 0 and 1");
+        }
+        let v = v.clone();
+        Box::new(move |n: f64| v.iter().map(|&x| ((n + 1.0) / (n + 1.0 - x)).ln()).sum::<f64>() + nn * (1.0 - p).ln())
+    } else {
+        let var = v.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>() / nn;
+        if mean == 0.0 || var >= mean {
+            return fail("the variance of the counts is not below their mean: the likelihood has no maximum in the number of trials");
+        }
+        let v = v.clone();
+        // the profile log-likelihood with p = mean/n: its difference, the log C(n, x) terms giving
+        // log((n + 1)/(n + 1 - x))
+        let tail = move |n: f64| if nn * n > s { (nn * n - s) * (1.0 - mean / n).ln() } else { 0.0 };
+        Box::new(move |n: f64| {
+            v.iter().map(|&x| ((n + 1.0) / (n + 1.0 - x)).ln()).sum::<f64>() + s * (n / (n + 1.0)).ln() + tail(n + 1.0) - tail(n)
+        })
+    };
+    let mut n = xmax.max(1.0);
+    let mut steps = 0u64;
+    while diff(n) > 0.0 {
+        n += 1.0;
+        steps += 1;
+        if steps.is_multiple_of(4096) {
+            cx.tick(4096)?;
+        }
+        if steps > MAX_TRIALS {
+            return fail("the number of trials of the largest likelihood is beyond 10^7");
+        }
+    }
+    let ni = b.int(n as i64);
+    let p = if p_known { d.p[1] } else { h.real(mean / n) };
+    Ok(Reply::Again(Dist { fam: d.fam, p: vec![ni, p] }.term(h)))
 }
 
 /// The closed-form estimates as formulas over the data list, evaluated exactly.

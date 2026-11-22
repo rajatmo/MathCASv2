@@ -77,7 +77,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("matrix_function", "matrix_function(f, m): the matrix function f(m) (diagonal, triangular, eigenvector or interpolation forms)"),
     ("matrix_exp", "matrix_exp(m): the matrix exponential; matrix_exp(m, v) its product with v"),
     ("matrix_log", "matrix_log(m): the principal matrix logarithm"),
-    ("matrix_power", "matrix_power(m, k): the k-th matrix power (integer k by repeated squaring, negative k through the inverse)"),
+    ("matrix_power", "matrix_power(m, k): the k-th matrix power (integer k by repeated squaring, negative k through the inverse); matrix_power(m, k, v): the power applied to the vector v"),
     ("conjugate_transpose", "conjugate_transpose(m), conjugate_transpose(a, perm): the conjugate of the transpose of m (of a with its levels permuted as transpose does)"),
     ("hilbert_matrix", "hilbert_matrix(n): the n x n Hilbert matrix 1/(i + j - 1); hilbert_matrix([m, n]) rectangular"),
     ("rotation_matrix", "rotation_matrix(theta): the 2D rotation by theta; rotation_matrix(theta, w): the 3D rotation about the axis w"),

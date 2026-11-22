@@ -253,6 +253,13 @@ fn number_line_plot<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], o: Option<T<
                 pts.push(v);
                 continue;
             }
+            // a point of the line as a list of one coordinate
+            if let Some(&[x]) = cx.as_list(p) {
+                if let Some(v) = real(cx, x)? {
+                    pts.push(v);
+                    continue;
+                }
+            }
             if let Some((n, args)) = mc_geom::region::call_parts(h, p) {
                 if n == "interval" {
                     for &iv in args {

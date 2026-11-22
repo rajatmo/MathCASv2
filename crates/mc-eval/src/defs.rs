@@ -9,7 +9,7 @@ use crate::index::{Rule, RuleSet};
 use mc_core::{Heap, Raw, Sym, HOLE, T};
 use parking_lot::Mutex;
 use std::ptr::null_mut;
-use std::sync::atomic::{AtomicPtr, AtomicU32, AtomicU64, Ordering::*};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicU64, Ordering::*};
 
 /// Argument modes (semantics 5) of the built-ins and of symbols given attributes.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -170,6 +170,9 @@ pub(crate) struct SymDefs {
     /// the symbol's own rule set (null: none); replaced whole by [`Defs::unset`], the old one retired
     rules: AtomicPtr<RuleSet>,
     args: AtomicPtr<ArgNode>,
+    /// whether some symbol ever held argument-head rules for calls of this one (sticky: a cheap gate before the
+    /// arguments are looked at)
+    attached: AtomicBool,
 }
 
 // SAFETY: the raw pointers are owned boxes published by release stores and freed only with `&mut self`.
@@ -188,6 +191,7 @@ impl Default for SymDefs {
             compiled: AtomicU32::new(0),
             rules: AtomicPtr::new(null_mut()),
             args: AtomicPtr::new(null_mut()),
+            attached: AtomicBool::new(false),
         }
     }
 }
@@ -224,6 +228,12 @@ impl SymDefs {
     #[inline]
     pub(crate) fn has_arg_rules(&self) -> bool {
         !self.args.load(Acquire).is_null()
+    }
+
+    /// Whether some symbol ever held argument-head rules for calls of this one.
+    #[inline]
+    pub(crate) fn is_attached_to(&self) -> bool {
+        self.attached.load(Acquire)
     }
 
     /// The argument-head rules the symbol holds for outer head `outer`.
@@ -396,9 +406,11 @@ impl Defs {
         if let Some(sd) = self.syms.get_mut(s.0) {
             let version = *sd.version.get_mut() + 1;
             let native = *sd.native.get_mut();
+            let attached = *sd.attached.get_mut();
             *sd = SymDefs::default();
             *sd.version.get_mut() = version;
             *sd.native.get_mut() = native;
+            *sd.attached.get_mut() = attached;
         }
     }
 
@@ -498,6 +510,7 @@ impl Defs {
             Some(o) => match sd.arg_rules(o) {
                 Some(rs) => rs,
                 None => {
+                    self.syms.get_or_init(o.0).attached.store(true, Release);
                     let n = Box::into_raw(Box::new(ArgNode { outer: o, rs: RuleSet::new(ac_top), next: sd.args.load(Relaxed) }));
                     sd.args.store(n, Release);
                     // SAFETY: just published; freed only with `&mut` (drop or a safe point)

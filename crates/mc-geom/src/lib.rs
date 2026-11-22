@@ -30,6 +30,7 @@ pub mod flat;
 pub mod hrep;
 pub mod lens;
 pub mod mesh;
+mod patch;
 pub mod shapes;
 pub mod metric;
 pub mod props;
@@ -107,7 +108,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("region_disjoint", "region_disjoint(r1, r2, ...): whether no two of the regions have a point in common"),
     ("winding_polygon", "winding_polygon(curve): the region a closed curve (points, a line, a polygon) encloses by the non-zero winding rule, as a polygon"),
     ("crossing_polygon", "crossing_polygon(curve): the region a closed curve encloses by the even-odd rule, as a polygon"),
-    ("polygon_decomposition", "polygon_decomposition(reg): a polygon without holes (or a rectangle, triangle) as a list of triangles polygon([p1, p2, p3], [1, 2, 3])"),
+    ("polygon_decomposition", "polygon_decomposition(reg): a polygon without holes (or a rectangle, triangle, box given by bounds) as a list of convex pieces polygon(corners, [1, ..., k]); polygon_decomposition(reg, triangle) as triangles"),
     ("boolean_region", "boolean_region(f, [r1, r2, ...]): the plane region of the points whose membership in r1, r2, ... satisfies the Boolean function f (and, or, xor, or a function of true/false)"),
     ("transformed_region", "transformed_region(reg, tf): the region reg under the transformation_function tf or an affine function (points, lines, polygons, triangles, rectangles, cuboids, disks under similarities; boxes and simplices mapped onto the plane as their convex hull)"),
     ("discretize_region", "discretize_region(reg), discretize_region(reg, ranges): a triangle mesh_region of a plane region (disks as fine polygons), a line mesh of lines; for an implicit region a mesh on a grid (plane regions and surfaces as triangles, curves as segments)"),

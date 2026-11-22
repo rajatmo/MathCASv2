@@ -12,6 +12,9 @@
 #% item
 # The product applies its arguments from left to right: the image of x under `permutation_product(p, q)` is the image under q of the image under p.
 
+#% item
+# Permutation lists of one length, `[p(1), ..., p(n)]`, give the product as a permutation list.
+
 #% section
 # Examples
 
@@ -32,6 +35,14 @@ permutation_product(cycles([[2, 3]]), cycles([[1, 2]]))
 permutation_product(cycles([[1, 2, 3]]), cycles([[1, 2, 3]]), cycles([[1, 2, 3]]))
 #% output
 #= cycles([])
+
+#% text
+# Permutation lists:
+
+#% cell
+permutation_product([2, 3, 4, 1], [1, 3, 2, 4])
+#% output
+#= [3, 2, 4, 1]
 
 #% section
 # See also

@@ -4,7 +4,7 @@
 # transformed_region
 
 #% text
-# `transformed_region(reg, tf)`: the region reg under the transformation_function tf (points, lines, polygons, triangles, rectangles, cuboids, and disks or balls under similarities)
+# `transformed_region(reg, tf)`: the region reg under the transformation_function tf (points, lines, polygons, triangles, rectangles, cuboids, and disks or balls under similarities). A solid disk or ball under any other nonsingular affine map x -> L x + b with exact entries is the ellipsoid `ellipsoid(L c + b, r^2 L L^T)`, its canonical form.
 
 #% section
 # Examples
@@ -26,6 +26,11 @@ area(transformed_region(triangle(), shearing_transform(pi/6, [1, 0], [0, 1])))
 transformed_region(disk(), translation_transform([2, 3]))
 #% output
 #= disk([2, 3], 1)
+
+#% cell
+transformed_region(disk(), scaling_transform([3, 2]))
+#% output
+#= ellipsoid([0, 0], [[9, 0], [0, 4]])
 
 #% section
 # See also

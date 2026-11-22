@@ -613,10 +613,10 @@ fn num_pseudo_inverse(a: &[Num], r: usize, c: usize, m: &mut Meter) -> WorkResul
 }
 
 /// The pseudo-inverse of a machine matrix from its SVD: `v diag(1/s) u^H` over the singular values above the
-/// rank tolerance.
-fn machine_pseudo_inverse<S: Scalar>(a: &Mat<S>, m: &mut Meter) -> WorkResult<Mat<S>> {
+/// rank tolerance (`max(r, c) eps s_max`, or `t s_max` for the option `tolerance: t`).
+fn machine_pseudo_inverse<S: Scalar>(a: &Mat<S>, rel: Option<f64>, m: &mut Meter) -> WorkResult<Mat<S>> {
     let (u, s, v) = dense::svd(a, m)?;
-    let tol = a.rows.max(a.cols) as f64 * EPS * s.first().copied().unwrap_or(0.0);
+    let tol = rel.unwrap_or(a.rows.max(a.cols) as f64 * EPS) * s.first().copied().unwrap_or(0.0);
     let mut vs = v.clone();
     for (k, &sk) in s.iter().enumerate() {
         let f = if sk > tol { 1.0 / sk } else { 0.0 };
@@ -627,16 +627,41 @@ fn machine_pseudo_inverse<S: Scalar>(a: &Mat<S>, m: &mut Meter) -> WorkResult<Ma
     dense::mul(&vs, &u.adjoint(), m)
 }
 
-/// `pseudo_inverse(m)`: the Moore-Penrose inverse.
+/// The option `tolerance: t` (a real number t >= 0) of `pseudo_inverse`: `Some(None)` without options,
+/// `Some(Some(t))` with it, `None` for other options.
+fn tolerance_option<'h>(env: &Env<'h>, args: &[T<'h>]) -> Option<Option<f64>> {
+    let h = env.h();
+    let [_, opts] = args else { return Some(None) };
+    let View::App { head, args: rules } = h.view(*opts) else { return None };
+    if head != env.sym("options") {
+        return None;
+    }
+    let [rule] = rules else { return None };
+    let View::App { args: &[k, v], .. } = h.view(*rule) else { return None };
+    if !matches!(h.view(k), View::Sym(s) if h.sym_name(s) == "tolerance") {
+        return None;
+    }
+    let t = env.ar.num(v)?.as_real()?.to_f64();
+    (t.is_finite() && t >= 0.0).then_some(Some(t))
+}
+
+/// `pseudo_inverse(m)`, `pseudo_inverse(m, tolerance: t)`: the Moore-Penrose inverse (for machine matrices the
+/// singular values below t times the largest are dropped).
 pub fn pseudo_inverse<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
-    if args.len() != 1 {
+    let Some(rel) = tolerance_option(env, args) else { return Ok(Out::Decline) };
+    if args.is_empty() || args.len() > 2 {
         return Ok(Out::Decline);
     }
     let a = take!(matrix_arg(env, args, 0));
     let (r, c) = (a.rows(), a.cols());
+    // a tolerance below the rounding level max(r, c) eps is not resolved by machine arithmetic (the singular values
+    // there are rounding noise): not taken
+    if rel.is_some_and(|t| !a.domain.machine() || t < r.max(c) as f64 * EPS) {
+        return Ok(Out::Decline);
+    }
     Ok(match a.domain {
-        Domain::Real => Out::Done(env.real_matrix(&machine_pseudo_inverse(&a.reals(env), m)?)),
-        Domain::Complex => Out::Done(env.cx_matrix(&machine_pseudo_inverse(&a.complex(env), m)?)),
+        Domain::Real => Out::Done(env.real_matrix(&machine_pseudo_inverse(&a.reals(env), rel, m)?)),
+        Domain::Complex => Out::Done(env.cx_matrix(&machine_pseudo_inverse(&a.complex(env), rel, m)?)),
         Domain::Ball | Domain::ExactComplex | Domain::Rational => match num_pseudo_inverse(&a.nums(env), r, c, m)? {
             Ok(p) => Out::Done(env.matrix(c, r, &num_terms(env, &p))),
             Err(Undecided) => undecided(env),

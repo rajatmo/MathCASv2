@@ -44,7 +44,7 @@ interval_intersection(interval([-2, -1/2], [1/2, 2]), centered_interval(0, 1 + i
 #% cell
 interval_intersection(centered_interval(2 + 3*im, 1 + im), centered_interval(1 + im, 2 + 2*im))
 #% output
-#= centered_interval(2 + 5*im/2, 1 + im/2)
+#= centered_interval(2.0 + 2.5im, 1.0 + 0.5im)
 
 #% section
 # See also

@@ -1333,9 +1333,21 @@ fn centered_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>
             }
             return match fx.num(*p) {
                 Some(Num::Real(Real::Ball(..))) => Ok(from_ball(fx, *p)),
-                Some(Num::Real(Real::Machine(_))) => Ok(Some(fx.call("centered_interval", &[*p, fx.int(0)]))),
+                // a machine number stands for the numbers that round to it and to its neighbours: |x| eps
+                Some(Num::Real(Real::Machine(v))) => {
+                    let r = if v == 0.0 { fx.int(0) } else { fx.real(v.abs() * f64::EPSILON) };
+                    Ok(Some(fx.call("centered_interval", &[*p, r])))
+                }
                 Some(Num::Real(Real::Exact(_))) | Some(Num::Complex(Real::Exact(_), _)) => exact_enclosure(fx, *p),
-                Some(_) => Ok(None),
+                // a complex machine number or ball: the box of the enclosures of its two parts
+                Some(Num::Complex(re, im)) => {
+                    let (Some((mr, rr)), Some((mi, ri))) = (part_enclosure(&re), part_enclosure(&im)) else {
+                        return Ok(None);
+                    };
+                    let c = fx.ar.complex(fx.real(mr), fx.real(mi));
+                    let r = fx.ar.complex(fx.real(rr), fx.real(ri));
+                    Ok(Some(fx.call("centered_interval", &[c, r])))
+                }
                 // a numeric constant (e + i pi): the enclosure of its value; a symbol stays
                 None => exact_enclosure(fx, *p),
             };
@@ -1367,13 +1379,71 @@ fn centered_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>
         let b = fx.ar.ball_with_radius(c, r, BALL_BITS as u64);
         return Ok(b.and_then(|b| from_ball(fx, b)));
     }
-    let (c, r) = (a[0], a[1]);
-    let real = |fx: &Fx<'_, '_, '_, 'h>, x: T<'h>| fx.num(x).is_some_and(|n| n.as_real().is_some());
-    if !(real(fx, c) && real(fx, r)) {
+    // a centre and a radius: machine numbers, the centre rounded to the nearest and the radius rounded up with
+    // the rounding of the centre added to it, so that the interval holds the one given; a complex centre takes
+    // a complex radius (the half-widths of the box in the real and the imaginary direction)
+    let (Some(c), Some(r)) = (fx.num(a[0]), fx.num(a[1])) else { return Ok(None) };
+    let machine_only = |n: &Num| match n {
+        Num::Real(x) => matches!(x, Real::Machine(_)),
+        Num::Complex(x, y) => matches!((x, y), (Real::Machine(_), Real::Machine(_))),
+    };
+    if machine_only(&c) && machine_only(&r) {
         return Ok(None);
     }
-    // machine centre and radius are kept as given; exact ones stay exact
-    Ok(None)
+    let parts = |n: &Num| match n {
+        Num::Real(x) => (x.clone(), None),
+        Num::Complex(x, y) => (x.clone(), Some(y.clone())),
+    };
+    let ((cr, mut ci), (rr, ri)) = (parts(&c), parts(&r));
+    // a real centre with a complex radius is the box around c + 0 i
+    if ci.is_none() && ri.is_some() {
+        ci = Some(Real::int(0));
+    }
+    if ci.is_some() != ri.is_some() || rr.is_negative() || ri.as_ref().is_some_and(|y| y.is_negative()) {
+        return Ok(None);
+    }
+    let mut mids = vec![];
+    let mut rads = vec![];
+    for (cp, rp) in std::iter::once((cr, rr)).chain(ci.zip(ri)) {
+        let (Some((m, cm)), Some((rm, rrad))) = (part_enclosure(&cp), part_enclosure(&rp)) else {
+            return Ok(None);
+        };
+        // centre and radius both machine numbers exactly (0 and 1/2): the radius as it is, nothing to round
+        let rad = if cm == 0.0 && rrad == 0.0 { rm.abs() } else { (cm + rm.abs() + rrad) * (1.0 + 4.0 * f64::EPSILON) + f64::from_bits(1) };
+        if !(m.is_finite() && rad.is_finite()) {
+            return Ok(None);
+        }
+        mids.push(fx.real(m));
+        rads.push(fx.real(rad));
+    }
+    Ok(Some(if mids.len() == 2 {
+        let c = fx.ar.complex(mids[0], mids[1]);
+        let r = fx.ar.complex(rads[0], rads[1]);
+        fx.call("centered_interval", &[c, r])
+    } else {
+        fx.call("centered_interval", &[mids[0], rads[0]])
+    }))
+}
+
+/// A machine midpoint of a real number and a radius that holds the number around it: a machine number is
+/// itself, a ball its enclosure, an exact number the enclosure of a 100-bit ball of it.
+fn part_enclosure(x: &Real) -> Option<(f64, f64)> {
+    match x {
+        Real::Machine(v) => Some((*v, 0.0)),
+        Real::Ball(b, _) => Some(machine_ball(b)),
+        // a machine number exactly (0, 1/2, 3/8): itself
+        Real::Exact(q)
+            if (1..=1000).contains(&q.den.bits())
+                && q.num.mag.bits() <= 53
+                && q.den == mc_arith::num::Nat::from_u64(1).shl(q.den.bits() - 1) =>
+        {
+            Some((x.to_f64(), 0.0))
+        }
+        Real::Exact(_) => match x.to_kind(mc_arith::Kind::Ball, BALL_BITS as u64) {
+            Real::Ball(b, _) => Some(machine_ball(&b)),
+            _ => None,
+        },
+    }
 }
 
 /// The constructors.

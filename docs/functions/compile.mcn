@@ -16,6 +16,9 @@
 # Calls with arguments of the declared types run the compiled code; other calls, and calls whose results leave machine numbers, run the ordinary definition. The results are the same.
 
 #% item
+# `compile([x, ...], body)`, a parameter possibly written with a type `[x, _: Float]`, gives the function `(x, ...) => body`. A typed parameter takes only arguments of its type (`Float` any real number, `Integer` an integer, `Complex` any number): another argument gives `failure(argument_type, argument, type)`.
+
+#% item
 # `compile` runs immediately, but the compiled code is used from the next statement on; `compiled_info(f)` describes it.
 
 #% section
@@ -60,6 +63,22 @@ compile(steps)
 steps(27)
 #% output
 #= 111
+
+#% text
+# A list of parameters and a body; a typed parameter takes only arguments of its type:
+
+#% cell
+fc = compile([[x, _: Float]], x^2 + 1)
+
+#% cell
+[fc(1.5), fc(2)]
+#% output
+#= [3.25, 5]
+
+#% cell
+fc(im)
+#% output
+#! failure(argument_type, im, Float)
 
 #% subsection
 # Properties and relations

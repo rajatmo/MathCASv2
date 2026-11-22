@@ -838,6 +838,29 @@ pub(crate) fn map_thread<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
 /// goes on with the next element.
 pub(crate) fn scan<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // `scan(f, x, levels)`: f applied to the parts at the levels, inner parts first (the order of `level`)
+    if let [f, x, spec] = *args {
+        let Some(levels) = crate::levels::level_spec(h, spec) else { return Ok(Reply::Decline) };
+        let mut stop: Option<T<'h>> = None;
+        let mut visit = |cx: &mut NativeCx<'_, '_, 'h>, u: T<'h>, _: &[i64]| -> Res<Option<T<'h>>> {
+            if stop.is_some() {
+                return Ok(None);
+            }
+            cx.tick(1)?;
+            let v = apply(cx, f, &[u])?;
+            match cx.loop_signal(v) {
+                Some(LoopSignal::Break) => stop = Some(cx.null()),
+                Some(LoopSignal::Continue) => {}
+                None if lib.is_failure(h, v) => stop = Some(v),
+                None => {}
+            }
+            Ok(None)
+        };
+        return Ok(match crate::levels::walk(cx, x, levels, &mut visit)? {
+            Some(_) => Reply::Done(stop.unwrap_or_else(|| cx.null())),
+            None => Reply::Decline,
+        });
+    }
     let [f, xs] = *args else { return Ok(Reply::Decline) };
     let (_, xs) = take!(lib.operand(h, t, xs, 2));
     for &x in xs {

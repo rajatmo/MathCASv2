@@ -407,9 +407,14 @@ impl Native for OwnValues {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let [x] = args else { return Ok(Reply::Decline) };
-        let View::Sym(s) = h.view(*x) else { return Ok(Reply::Decline) };
+        let s = match h.view(*x) {
+            View::Sym(s) => s,
+            // a name as a string, as `names` gives it (as for `down_values`)
+            View::Str(n) => h.sym(n),
+            _ => return Ok(Reply::Decline),
+        };
         Ok(Reply::Done(match cx.own_value(s) {
-            Some(v) => cx.list(&[h.call(h.sym(names::RULE_DELAYED), &[*x, v])]),
+            Some(v) => cx.list(&[h.call(h.sym(names::RULE_DELAYED), &[h.sym_term(s), v])]),
             None => cx.list(&[]),
         }))
     }

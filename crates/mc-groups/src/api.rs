@@ -135,6 +135,22 @@ fn perm_of(h: &Heap, t: T<'_>) -> Option<Perm> {
     Some(p)
 }
 
+/// A permutation list `[p(1), ..., p(n)]` (each of 1..n once) as 0-based images.
+fn perm_list_of(h: &Heap, t: T<'_>) -> Option<Vec<usize>> {
+    let xs = ints(h, t)?;
+    let n = xs.len();
+    let mut seen = vec![false; n];
+    let mut out = Vec::with_capacity(n);
+    for x in xs {
+        let i = usize::try_from(x).ok().filter(|&i| (1..=n).contains(&i))? - 1;
+        if std::mem::replace(&mut seen[i], true) {
+            return None;
+        }
+        out.push(i);
+    }
+    Some(out)
+}
+
 fn perm_term<'h>(h: &'h Heap, p: &[u32]) -> T<'h> {
     let cs: Vec<T<'h>> = perm::cycles(p).iter().map(|c| ilist(h, c.iter().map(|&x| x as i64 + 1))).collect();
     h.call(h.sym("cycles"), &[tlist(h, &cs)])
@@ -248,6 +264,15 @@ fn f_cycles<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>
 
 fn f_product<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
     let h = cx.heap();
+    // permutation lists of one length (the images of 1, ..., n): the product as a permutation list, p1 applied
+    // first, so its i-th entry is pk(...p1(i))
+    if let Some(ls) = a.iter().map(|&x| perm_list_of(h, x)).collect::<Option<Vec<Vec<usize>>>>() {
+        if !ls.is_empty() && ls.iter().all(|l| l.len() == ls[0].len()) {
+            let r: Vec<i64> = (0..ls[0].len()).map(|i| ls.iter().fold(i, |j, l| l[j]) as i64 + 1).collect();
+            return Ok(Some(ilist(h, r)));
+        }
+        return Ok(None);
+    }
     let Some(ps) = a.iter().map(|&x| perm_of(h, x)).collect::<Option<Vec<Perm>>>() else { return Ok(None) };
     let n = ps.iter().map(|p| p.len()).max().unwrap_or(0);
     let mut r = perm::identity(n);

@@ -104,7 +104,13 @@ fn intervals_and_knapsack() {
     assert_eq!(ev("is_interval_member(interval([2, 5]), interval([4, 6]))"), "false");
     assert_eq!(ev("is_interval_member(centered_interval(2 + 3*im, 1 + im), e + pi*im)"), "true");
     assert_eq!(ev("interval_union(interval([1, 3]), interval([2, 4]))"), "interval([1, 4])");
-    assert_eq!(ev("interval_union(centered_interval(-1, 1/2), centered_interval(1, 1/2))"), "interval([-3/2, -1/2], [1/2, 3/2])");
+    // exact centres and radii become machine enclosures (rounded outward unless they are machine numbers exactly, as
+    // -1, 1 and 1/2 are), so the union holds [-3/2, -1/2] and [1/2, 3/2]
+    assert_eq!(ev("interval_union(centered_interval(-1, 1/2), centered_interval(1, 1/2))"), "interval([-1.5, -0.5], [0.5, 1.5])");
+    assert_eq!(
+        ev("u = interval_union(centered_interval(-1, 1/3), centered_interval(1, 1/3)); [u[1, 1] <= -4/3, u[1, 2] >= -2/3, u[2, 1] <= 2/3, u[2, 2] >= 4/3]"),
+        "[true, true, true, true]"
+    );
     assert_eq!(ev("knapsack_solve([[3, 4], [2, 5]], 10)"), "[2, 0]");
     assert_eq!(ev("knapsack_solve([[3, 2, 7], [2, 1, 5]], 10)"), "[3, 4]");
     assert_eq!(ev("knapsack_solve(assoc(\"apples\" -> [8, 3, 3], \"oranges\" -> [9, 7, 5]), 25)"), "assoc(\"apples\" -> 3, \"oranges\" -> 2)");
@@ -184,4 +190,22 @@ fn disk_and_diamond_matrices_agree_with_the_general_shape() {
     assert_eq!(ev("total(flatten(disk_matrix(50, 201)))"), "7845");
     // the general shape took 2.5 s (the bound includes starting a session)
     assert!(t0.elapsed() < std::time::Duration::from_secs(2), "took {:?}", t0.elapsed());
+}
+
+#[test]
+fn sparse_arrays_too_large_to_build_dense() {
+    // a vector of 2^20 entries stays sparse_array(rules): n keeps its positions exact
+    let s = "s = sparse_array(table([2^i] -> i, i, 20));";
+    assert_eq!(ev(&format!("{s} n(s)[1][1]")), "[2] -> 1.0");
+    // array_rules: the rules in the order of their positions, then the default
+    assert_eq!(ev(&format!("{s} r = array_rules(s); [length(r), r[1], r[20], r[21]]")), "[21, [2] -> 1, [1048576] -> 20, [_] -> 0]");
+    assert_eq!(ev("array_rules(sparse_array([[5, 1] -> x, [1, 2] -> 0, [1, 2] -> 7, [3, 3] -> y], [2000, 2000]))"), "[[3, 3] -> y, [5, 1] -> x, [_, _] -> 0]");
+    // a dense list of a million entries (an index list is built only for the entries kept)
+    assert_eq!(ev("r = array_rules(range(10^6)); [length(r), r[10^6], last(r)]"), "[1000001, [1000000] -> 1000000, [_] -> 0]");
+    assert_eq!(ev("array_rules([[[1, 0], [0, 2]], [[0, 0], [5, 0]]])"), "[[1, 1, 1] -> 1, [1, 2, 2] -> 2, [2, 2, 1] -> 5, [_, _, _] -> 0]");
+    // normalized: each value over the norm of the values, sqrt(1^2 + ... + 20^2) = sqrt(2870)
+    assert_eq!(
+        ev(&format!("{s} v = normalized(s); [abs(v[1][1][2] - 1/sqrt(2870.)) < 1e-16, abs(v[1][20][2] - 20/sqrt(2870.)) < 1e-15, total(map(r => r[2]^2, v[1]))]")),
+        "[true, true, 1]"
+    );
 }

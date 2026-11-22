@@ -278,7 +278,8 @@ impl Native for ColourTerm {
         }
         if let (true, [s]) = (self.0 == "rgb_color", args) {
             if let View::Str(s) = h.view(*s) {
-                return Ok(match hex_color(s) {
+                // "#rrggbb", or a colour of CSS by name ("Aqua")
+                return Ok(match hex_color(s).or_else(|| mc_graphics::color::css_color(s)) {
                     Some(c) => Reply::Done(rgb_term(h, c)),
                     None => bad(h, self.0, 1),
                 });
@@ -798,8 +799,9 @@ impl Native for ColorDistance {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let [a, b, rest @ ..] = args else { return Ok(Reply::Decline) };
-        // distance_function: a formula's name (a function of two L*a*b* colours is not read)
+        // distance_function: a formula's name, or a function of the two colours' L*a*b* coordinates as lists
         let mut formula = mc_graphics::color::Difference::Cie76;
+        let mut function = None;
         for &o in rest {
             let rules = match model::head_name(h, o) {
                 Some((n, &[k, v])) if n == names::RULE => match h.view(k) {
@@ -816,6 +818,7 @@ impl Native for ColorDistance {
                             None => return Ok(Reply::Decline),
                         },
                         View::Sym(s) if h.sym_name(s) == "automatic" => {}
+                        _ if model::head_name(h, v).is_some_and(|(n, _)| n == "fn" || n == "function") || matches!(h.view(v), View::Sym(_)) => function = Some(v),
                         _ => return Ok(Reply::Decline),
                     }
                 }
@@ -845,6 +848,11 @@ impl Native for ColorDistance {
             Ok(c) => c,
             Err(r) => return Ok(r.unwrap_or(Reply::Decline)),
         };
+        if let Some(f) = function {
+            let lab = |c: Rgba| cx.list(&mc_graphics::color::to_lab(c).map(|v| h.real(v)));
+            let (lp, lq) = (lab(p), lab(q));
+            return Ok(Reply::Again(h.app(f, &[lp, lq])));
+        }
         Ok(Reply::Done(h.real(mc_graphics::color::difference(p, q, formula))))
     }
 }

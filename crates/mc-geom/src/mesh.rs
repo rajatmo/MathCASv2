@@ -579,6 +579,12 @@ fn mesh_arg<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Mesh<'h>>
 /// `mesh_region(...)`, `boundary_mesh_region(...)`: the canonical form (unchanged when already canonical).
 pub fn construct<'h>(cx: &mut NativeCx<'_, '_, 'h>, name: &str, a: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // a mesh region of a mesh region of the same kind is that mesh region
+    if let [m] = a {
+        if crate::region::call_parts(h, *m).is_some_and(|(n, _)| n == name) {
+            return Ok(Reply::Done(*m));
+        }
+    }
     // the cells are held (a cell's index list is not a primitive's coordinates): their arguments are evaluated here
     let mut ev = Vec::with_capacity(a.len());
     for (i, &x) in a.iter().enumerate() {
@@ -628,8 +634,11 @@ fn eval_cells<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, depth: usize) -> Res<
     eval_cells(cx, v, depth + 1)
 }
 
-/// Which cells a specification picks: (dimension, indices from 0 or all).
-fn selection<'h>(cx: &NativeCx<'_, '_, 'h>, m: &Mesh<'h>, spec: T<'h>) -> Option<Vec<(usize, Option<Vec<usize>>)>> {
+/// Cells picked: (dimension, indices from 0 or all) for each dimension asked.
+type Selection = Vec<(usize, Option<Vec<usize>>)>;
+
+/// Which cells a specification picks.
+fn selection<'h>(cx: &NativeCx<'_, '_, 'h>, m: &Mesh<'h>, spec: T<'h>) -> Option<Selection> {
     let h = cx.heap();
     let top = m.dim();
     if let Some(d) = int_of(h, spec) {
@@ -651,10 +660,35 @@ fn selection<'h>(cx: &NativeCx<'_, '_, 'h>, m: &Mesh<'h>, spec: T<'h>) -> Option
     }
     let count = cells_of_dim(m, d).len();
     let idx = |x: T<'h>| int_of(h, x).filter(|&i| i >= 1 && i as usize <= count).map(|i| i as usize - 1);
-    match idx(k) {
-        Some(i) => Some(vec![(d, Some(vec![i]))]),
-        None => Some(vec![(d, Some(cx.as_list(k)?.iter().map(|&x| idx(x)).collect::<Option<_>>()?))]),
+    if let Some(i) = idx(k) {
+        return Some(vec![(d, Some(vec![i]))]);
     }
+    if let Some(l) = cx.as_list(k) {
+        return Some(vec![(d, Some(l.iter().map(|&x| idx(x)).collect::<Option<_>>()?))]);
+    }
+    None
+}
+
+/// The cells of dimension `d` whose index (from 1) matches the pattern `pat`: `[d, pat]`.
+fn pattern_selection<'h>(cx: &mut NativeCx<'_, '_, 'h>, m: &Mesh<'h>, spec: T<'h>) -> Res<Option<Selection>> {
+    let h = cx.heap();
+    let Some(&[d, k]) = cx.as_list(spec) else { return Ok(None) };
+    let Some(d) = int_of(h, d).filter(|&d| d >= 0 && d as usize <= m.dim()) else { return Ok(None) };
+    // a bare symbol is an index not yet known, not a pattern
+    if !matches!(h.view(k), View::App { .. }) {
+        return Ok(None);
+    }
+    let d = d as usize;
+    let mut picked = vec![];
+    for i in 0..cells_of_dim(m, d).len() {
+        let q = cx.eval(h.call(h.sym("is_match"), &[h.int(i as i64 + 1), k]))?;
+        match h.view(q) {
+            View::Sym(s) if h.sym_name(s) == "true" => picked.push(i),
+            View::Sym(s) if h.sym_name(s) == "false" => {}
+            _ => return Ok(None),
+        }
+    }
+    Ok(Some(vec![(d, Some(picked))]))
 }
 
 /// `mesh_cells(m, spec)` (primitive false) and `mesh_primitives(m, spec)` (true).
@@ -687,7 +721,13 @@ pub fn cells<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], primitive: bool) ->
             }
         }
     }
-    let Some(sel) = selection(cx, &m, *spec) else { return Ok(Reply::Decline) };
+    let sel = match selection(cx, &m, *spec) {
+        Some(s) => s,
+        None => match pattern_selection(cx, &m, *spec)? {
+            Some(s) => s,
+            None => return Ok(Reply::Decline),
+        },
+    };
     let mut out = vec![];
     for (d, idx) in &sel {
         let all = cells_of_dim(&m, *d);

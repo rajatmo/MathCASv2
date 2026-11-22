@@ -113,6 +113,33 @@ fn reset(r: &Real, p: Option<u64>) -> Option<Real> {
     })
 }
 
+/// The numbers of `x` with precision `p` (exact for `None`); an exact integer exponent of a power stays exact, as
+/// `n` keeps it (`x^3` is not `x^3.000`).
+fn reset_leaves<'h>(cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, x: T<'h>, p: Option<u64>) -> Res<T<'h>> {
+    let h = cx.heap();
+    map_leaves(
+        cx,
+        ar,
+        x,
+        &mut |cx, n, _| {
+            cx.tick(p.unwrap_or(64) / 1024)?;
+            let v = match n {
+                Num::Real(r) => reset(r, p).map(Num::Real),
+                Num::Complex(a, b) => reset(a, p).zip(reset(b, p)).map(|(a, b)| Num::complex(a, b)),
+            };
+            Ok(v.map_or(Leaf::Keep, |v| Leaf::With(ar.number(&v))))
+        },
+        &mut |cx, u| {
+            let View::App { head, args: &[b, e] } = h.view(u) else { return Ok(None) };
+            if head != h.sym_term(h.sym(mc_api::names::POW)) || !matches!(h.view(e), View::Int(_) | View::BigInt { .. }) || ar.num(b).is_some() {
+                return Ok(None);
+            }
+            let b2 = reset_leaves(cx, ar, b, p)?;
+            Ok(Some(if b2 == b { u } else { h.app(head, &[b2, e]) }))
+        },
+    )
+}
+
 /// `set_precision(x, d)`.
 pub(crate) fn set_precision<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let &[x, d] = args else { return Ok(Reply::Decline) };
@@ -134,20 +161,7 @@ pub(crate) fn set_precision<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, t: T<'
             &[h.sym_term(h.sym(mc_api::names::failure::MEMORY)), t],
         )));
     }
-    let y = map_leaves(
-        cx,
-        &ar,
-        x,
-        &mut |cx, n, _| {
-            cx.tick(p.unwrap_or(64) / 1024)?;
-            let v = match n {
-                Num::Real(r) => reset(r, p).map(Num::Real),
-                Num::Complex(a, b) => reset(a, p).zip(reset(b, p)).map(|(a, b)| Num::complex(a, b)),
-            };
-            Ok(v.map_or(Leaf::Keep, |v| Leaf::With(ar.number(&v))))
-        },
-        &mut |_, _| Ok(None),
-    )?;
+    let y = reset_leaves(cx, &ar, x, p)?;
     // closed numeric subterms that are not numbers (pi, sqrt(2), pi + 0.1~20) to d digits, the best value kept
     // where d is not reached; numbers keep the precision just set
     let (Some(d), None) = (digits, ar.num(y)) else { return Ok(Reply::Again(y)) };

@@ -819,6 +819,44 @@ impl Native for OptionValue {
     }
 }
 
+/// `options(name -> v, ...)`, the named arguments of a call (`f(x, name: v)`, syntax 4): the names are names, not
+/// expressions, so a symbol on the left of a rule is kept as it is (a variable `constants = ...` of the session
+/// does not turn `dt(e, constants: f)` into another option); the values and any other argument are evaluated. A
+/// failure among them is the value, as when the arguments were evaluated as usual.
+struct Options;
+
+impl Native for Options {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let rule = h.sym_term(h.sym(mc_api::names::RULE));
+        let mut out = Vec::with_capacity(args.len());
+        for &a in args {
+            let u = match h.view(a) {
+                View::App { head, args: &[k, v] } if head == rule && sym_of(h, k).is_some() => {
+                    let v = cx.eval(v)?;
+                    if is_failure(cx, v) {
+                        return Ok(Reply::Done(v));
+                    }
+                    h.app(rule, &[k, v])
+                }
+                _ => {
+                    let u = cx.eval(a)?;
+                    if is_failure(cx, u) {
+                        return Ok(Reply::Done(u));
+                    }
+                    u
+                }
+            };
+            out.push(u);
+        }
+        Ok(Reply::Done(h.call(h.sym("options"), &out)))
+    }
+}
+
 /// Register the language natives.
 pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     let a = |hold| Attributes { hold, ..Attributes::default() };
@@ -838,6 +876,7 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     k.register(h.sym("match"), keep(a(Hold::Rest)), Box::new(Match));
     k.register(h.sym("rewrite"), a(Hold::None), Box::new(Rewrite));
     k.register(h.sym("replace_list"), a(Hold::None), Box::new(ReplaceList));
+    k.register(h.sym("options"), a(Hold::All), Box::new(Options));
     k.register(h.sym("check_options"), a(Hold::None), Box::new(CheckOptions));
     k.register(h.sym("option_value"), a(Hold::None), Box::new(OptionValue));
     // a delayed rule holds its right side, a condition its test (they are evaluated when the rule fires)

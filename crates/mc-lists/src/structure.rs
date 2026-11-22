@@ -978,7 +978,11 @@ fn matchers<'l, 'h>(lib: &'l Lib, cx: &NativeCx<'_, '_, 'h>, r: T<'h>) -> Option
     };
     match cx.as_list(r) {
         Some(xs) => xs.iter().map(|&x| one(x)).collect(),
-        None => one(r).map(|m| vec![m]),
+        // an association is its list of rules
+        None => match h.view(r) {
+            View::App { head, args } if head == h.sym_term(h.sym("assoc")) => args.iter().map(|&x| one(x)).collect(),
+            _ => one(r).map(|m| vec![m]),
+        },
     }
 }
 

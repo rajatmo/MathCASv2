@@ -16,7 +16,7 @@
 # `centered_interval([[m, e, rm, re], p])` reads the centre m 2^e and the radius rm 2^re.
 
 #% item
-# `centered_interval(x)` of an exact number or a numeric constant gives a machine centre and a radius rounded up so that the interval holds x (a box for a complex x); of `interval([a, b])` it gives the midpoint and the half-width the same way. With two arguments the centre and the radius are kept as given.
+# `centered_interval(x)` of an exact number or a numeric constant gives a machine centre and a radius rounded up so that the interval holds x (a box for a complex x); of `interval([a, b])` it gives the midpoint and the half-width the same way. With two arguments that are not both machine numbers the centre becomes the nearest machine number and the radius a machine number rounded up, with the rounding of the centre added, so that the interval holds the one given (a centre and a radius that machine numbers hold exactly, as 2 and 1/2, are kept as they are); a machine number alone gets the radius |x| eps (the numbers that round to it and to its neighbours).
 
 #% section
 # Examples
@@ -27,7 +27,7 @@
 #% cell
 centered_interval(2, 0.1)
 #% output
-#= centered_interval(2, 0.1)
+#= centered_interval(2.0, 0.1)
 
 #% cell
 airy_ai(centered_interval(2, 0.1))
@@ -37,7 +37,7 @@ airy_ai(centered_interval(2, 0.1))
 #% cell
 centered_interval(1, 1/10) + 2
 #% output
-#= centered_interval(3.0000000000000004, 0.10000000000000595)
+#= centered_interval(3.0, 0.10000000000000617)
 
 #% cell
 centered_interval(1/3)

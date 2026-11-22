@@ -24,6 +24,14 @@ fn permutations() {
         ("cycles([[1, 2], [2, 3]])", "cycles([[1, 2], [2, 3]])"),
         // first (1 2), then (2 3): 1 -> 2 -> 3, 3 -> 2, 2 -> 1
         ("permutation_product(cycles([[1, 2]]), cycles([[2, 3]]))", "cycles([[1, 3, 2]])"),
+        // permutation lists: by hand, i -> p2(p1(i)): 1 -> 2 -> 3, 2 -> 3 -> 2, 3 -> 4 -> 4, 4 -> 1 -> 1; the same
+        // product as cycles, (1 2 3 4) then (2 3), read back as a list
+        ("permutation_product([2, 3, 4, 1], [1, 3, 2, 4])", "[3, 2, 4, 1]"),
+        ("permutation_list(permutation_product(cycles([[1, 2, 3, 4]]), cycles([[2, 3]])))", "[3, 2, 4, 1]"),
+        ("permutation_product([2, 1], [2, 1], [2, 1])", "[2, 1]"),
+        // not permutation lists, or of different lengths: unevaluated
+        ("permutation_product([2, 2], [1, 2])", "permutation_product([2, 2], [1, 2])"),
+        ("permutation_product([2, 1], [1, 2, 3])", "permutation_product([2, 1], [1, 2, 3])"),
         ("permutation_inverse(cycles([[1, 2, 3, 4]]))", "cycles([[1, 4, 3, 2]])"),
         ("permutation_power(cycles([[1, 2, 3, 4, 5, 6]]), 2)", "cycles([[1, 3, 5], [2, 4, 6]])"),
         ("permutation_power(cycles([[1, 2, 3]]), -1)", "cycles([[1, 3, 2]])"),

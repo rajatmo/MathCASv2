@@ -10,6 +10,9 @@
 # Details
 
 #% item
+# A matrix of quantities of one unit: q of the magnitudes and r with the unit.
+
+#% item
 # Machine matrices use Householder reflections; exact matrices give exact factors from Gram-Schmidt, with square roots where the column lengths need them.
 
 #% section
@@ -43,6 +46,11 @@ qr([[1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
 m = [[2.0, 1.0], [1.0, 3.0], [0.0, 1.0]]; f = qr(m); [norm(flatten(dot(f[1], f[2]) - m)) < 1.0e-14, round(dot(transpose(f[1]), f[1]), 1.0e-12)]
 #% output
 #= [true, [[1.0, 0.0], [0.0, 1.0]]]
+
+#% cell
+qr(quantity_array([[1, 4], [3, 5]], "Meters"))
+#% output
+#= [[[(1/10)*10^(1/2), (3/10)*10^(1/2)], [(3/10)*10^(1/2), (-1/10)*10^(1/2)]], [[quantity(10^(1/2), "Meters"), quantity((19/10)*10^(1/2), "Meters")], [quantity(0, "Meters"), quantity((7/10)*10^(1/2), "Meters")]]]
 
 #% section
 # See also

@@ -483,6 +483,28 @@ fn matrix_log_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 fn matrix_power_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let (mt, k) = (a[0], a[1]);
     let Some(m) = square(fx, mt) else { return Ok(None) };
+    // matrix_power(m, k, v): m^k applied to v, by k products with a vector (no power of m is formed)
+    if let [_, _, v] = a {
+        let Some(k) = fx.int_of(k).filter(|k| k.unsigned_abs() <= m.len() as u64) else {
+            // a power above the size (or not an integer): the power by squaring, then one product
+            let p = fx.eval(fx.call("matrix_power", &[mt, k]))?;
+            return Ok(Some(fx.call("dot", &[p, *v])));
+        };
+        let Some(vs) = fx.as_list(*v) else { return Ok(None) };
+        if vs.len() != m.len() {
+            return Ok(None);
+        }
+        let step = if k < 0 { fx.eval(fx.call("inverse", &[mt]))? } else { mt };
+        if fx.as_list(step).is_none() {
+            return Ok(Some(step));
+        }
+        let mut acc = *v;
+        for _ in 0..k.unsigned_abs() {
+            fx.tick(m.len() as u64 * m.len() as u64)?;
+            acc = fx.eval(fx.call("dot", &[step, acc]))?;
+        }
+        return Ok(Some(acc));
+    }
     if let Some(k) = fx.int_of(k) {
         let base = if k < 0 {
             let inv = fx.eval(fx.call("inverse", &[mt]))?;
@@ -1161,7 +1183,7 @@ pub static DEFS: &[Def] = &[
     def!("matrix_function", &[2, 3], matrix_function_e, "matrix_function(f, m): the matrix function f(m) (diagonal, triangular, eigenvector or interpolation forms)"),
     def!("matrix_exp", &[1, 2], matrix_exp_e, "matrix_exp(m): the matrix exponential; matrix_exp(m, v) its product with v"),
     def!("matrix_log", &[1], matrix_log_e, "matrix_log(m): the principal matrix logarithm"),
-    def!("matrix_power", &[2], matrix_power_e, "matrix_power(m, k): the k-th matrix power (integer k by repeated squaring, negative k through the inverse)"),
+    def!("matrix_power", &[2, 3], matrix_power_e, "matrix_power(m, k): the k-th matrix power (integer k by repeated squaring, negative k through the inverse); matrix_power(m, k, v): the power applied to the vector v"),
     def!("conjugate_transpose", &[1], conjugate_transpose_e, "conjugate_transpose(m), conjugate_transpose(a, perm): the conjugate of the transpose of m (of a with its levels permuted as transpose does)"),
     def!("hilbert_matrix", &[1, 2, 3], hilbert_matrix_e, "hilbert_matrix(n): the n x n Hilbert matrix 1/(i + j - 1); hilbert_matrix([m, n]) rectangular"),
     def!("sparse_array", &[1, 2, 3, 4], sparse_array_e, "sparse_array(rules, dims, default): the array with the values of position -> value rules (literal or pattern positions), built dense; sparse_array(automatic, dims, default, data): the compressed row form"),

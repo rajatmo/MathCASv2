@@ -15,6 +15,9 @@
 #% item
 # It maps over lists.
 
+#% item
+# `set_accuracy(x, inf)` is `set_precision(x, inf)`: every number in `x` as the exact rational it is.
+
 #% section
 # Examples
 

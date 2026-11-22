@@ -314,6 +314,15 @@ fn inv_recip<'h>(fx: &mut Fx<'_, '_, '_, 'h>, inverse: &str, x: T<'h>, at_zero: 
     if fx.infinity(x).is_some() {
         return closed(fx, inverse, fx.int(0));
     }
+    // 1/z -> 0 from every direction as z -> complex_infinity: the value is inverse(0) where the inverse is
+    // continuous at 0 (atan, acos, asin, atanh, asinh); acosh has its cut (-inf, 1) through 0, where the two
+    // sides tend to i pi/2 and -i pi/2, so asech(complex_infinity) has no limit
+    if x == fx.sym("complex_infinity") {
+        if inverse == "acosh" {
+            return Ok(Some(fx.sym("indeterminate")));
+        }
+        return closed(fx, inverse, fx.int(0));
+    }
     if fx.num(x).is_none() {
         return Ok(None);
     }

@@ -13,6 +13,9 @@
 # Details
 
 #% item
+# A tensor of rank three or more contracts its last index with the first index of the next factor.
+
+#% item
 # A vector is a list and a matrix a list of rows. Two vectors give the scalar product; a matrix and a vector give a vector; two matrices give the matrix product.
 
 #% item
@@ -158,6 +161,11 @@ dot([1, im], conjugate([1, im]))
 dot([1, 2], [1, 2, 3])
 #% output
 #! failure(shape_mismatch, dot)
+
+#% cell
+dot([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], [1, 10])
+#% output
+#= [[21, 43], [65, 87]]
 
 #% section
 # See also

@@ -13,6 +13,9 @@
 # Details
 
 #% item
+# A list of quantities is converted element by element.
+
+#% item
 # Conversion factors are exact, so exact magnitudes stay exact.
 
 #% item
@@ -46,6 +49,11 @@ unit_convert(quantity(30, "DegreesCelsius"), "DegreesFahrenheit")
 unit_convert(quantity(1, "Newtons"))
 #% output
 #= quantity(1, "Kilograms"*"Meters"/"Seconds"^2)
+
+#% cell
+unit_convert([quantity(2, "Yards"), quantity(3, "Inches")], "Feet")
+#% output
+#= [quantity(6, "Feet"), quantity(1/4, "Feet")]
 
 #% section
 # See also

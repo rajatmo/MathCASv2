@@ -17,6 +17,14 @@ canonicalize_polygon(rectangle())
 #% output
 #= polygon([[0, 0], [0, 1], [1, 0], [1, 1]], [1, 3, 4, 2])
 
+#% text
+# With `all` the parts of fewer than three corners are kept; with `full` their corners stay in the list but only the parts of three or more corners are indexed. A polygon in space keeps its corners in the order they first appear.
+
+#% cell
+canonicalize_polygon(polygon([[[1, 0], [0, 1], [-1, 0]], [[2, 2], [3, 3]]]), all)
+#% output
+#= polygon([[-1, 0], [0, 1], [1, 0], [2, 2], [3, 3]], [[1, 3, 2], [4, 5]])
+
 #% section
 # See also
 

@@ -101,6 +101,13 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     reg("aas_triangle", |cx, a| crate::construct::triangle_of(cx, a, "aas"));
     reg("perimeter", |cx, a| {
         if let [t] = a {
+            // an ellipse ellipsoid(c, m): the perimeter of the congruent axis-aligned ellipse
+            if let Some(q) = crate::quadric::ellipsoid_as_mapped(cx, *t)? {
+                if let Some(d) = crate::quadric::mapped_ellipse(cx, q)? {
+                    let h = cx.heap();
+                    return Ok(Reply::Done(cx.eval(h.call(h.sym("perimeter"), &[d]))?));
+                }
+            }
             // an implicit disk or ellipse: the perimeter of that region
             if let Some(q) = crate::quadric::quadric(cx, *t)? {
                 let h = cx.heap();
@@ -125,10 +132,17 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     reg("circumsphere", crate::construct::circumsphere);
     reg("region_moment", |cx, a| match lens(cx, a, 2)? {
         Some(r) => Ok(r),
-        None => match crate::lens::mapped_moment(cx, a)? {
-            Some(v) => Ok(Reply::Done(v)),
-            None => crate::construct::region_moment(cx, a),
-        },
+        None => {
+            // an ellipsoid(c, m): as the image of the unit disk or ball
+            let mapped = match a {
+                [t, ex] => crate::quadric::ellipsoid_as_mapped(cx, *t)?.map(|q| [q, *ex]),
+                _ => None,
+            };
+            match crate::lens::mapped_moment(cx, mapped.as_ref().map_or(a, |m| &m[..]))? {
+                Some(v) => Ok(Reply::Done(v)),
+                None => crate::construct::region_moment(cx, a),
+            }
+        }
     });
     reg("is_constant_region", crate::construct::is_constant_region);
     reg("is_simple_polygon", |cx, a| crate::construct::polygon_test(cx, a, false));
@@ -231,6 +245,38 @@ fn region_member<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h
             return Ok(Reply::Done(cx.eval(t)?));
         }
     }
+    if let Some(v) = curve_query(cx, *r, *p, CurveAsk::Member)? {
+        return Ok(Reply::Done(v));
+    }
+    // an ellipsoid(c, m): (x - c)^T m^-1 (x - c) <= 1
+    if let Some((ec, em)) = matrix_ellipsoid(cx, *r)? {
+        let e = E { h };
+        let inv = cx.eval(e.f("inverse", &[e.list(&em.iter().map(|row| e.list(row)).collect::<Vec<_>>())]))?;
+        let test = |cx: &mut NativeCx<'_, '_, 'h>, q: T<'h>| -> Res<Option<T<'h>>> {
+            let Some(x) = cx.as_list(q).map(|l| l.to_vec()).filter(|x| x.len() == ec.len()) else { return Ok(None) };
+            let d = e.list(&e.vsub(&x, &ec));
+            let form = cx.eval(e.f("expand", &[e.f("dot", &[d, e.f("dot", &[inv, d])])]))?;
+            Ok(Some(cx.eval(e.f("less_equal", &[form, e.int(1)]))?))
+        };
+        if is_vector(cx, *p) {
+            let Some(v) = test(cx, *p)? else { return Ok(Reply::Decline) };
+            if matches!(h.view(v), View::Sym(_)) {
+                return Ok(Reply::Done(v));
+            }
+            let c = cx.as_list(*p).map(|l| l.to_vec()).unwrap_or_default();
+            let vars = if c.len() == 1 { c[0] } else { e.f("alternatives", &c) };
+            return Ok(Reply::Done(e.f("and", &[e.f("element", &[vars, e.sym("reals")]), v])));
+        }
+        let Some(ps) = cx.as_list(*p).map(|l| l.to_vec()) else { return Ok(Reply::Decline) };
+        let mut out = vec![];
+        for q in ps {
+            match test(cx, q)? {
+                Some(v) => out.push(v),
+                None => return Ok(Reply::Decline),
+            }
+        }
+        return Ok(Reply::Done(cx.list(&out)));
+    }
     let Some(reg) = read_actual(cx, *r)? else { return Ok(Reply::Decline) };
     // several points
     if !is_vector(cx, *p) {
@@ -285,6 +331,47 @@ fn measure_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], want: Option<usize
             if let Some((len, _)) = crate::curves::length_and_moments(cx, &ps, false)? {
                 return finish(cx, len, inexact(h, *t));
             }
+        }
+    }
+    // a B-spline surface of one span: its area by quadrature
+    if let ([t], None | Some(2)) = (a, want) {
+        if let Some(net) = crate::patch::bezier_net(cx, *t)? {
+            return Ok(match crate::patch::area(&net) {
+                Some(v) => Reply::Done(crate::ex::real_term(h, v)),
+                None => Reply::Decline,
+            });
+        }
+    }
+    // a plane filled curve: its area by Green's theorem (a length of a region of the plane is undefined)
+    if let [t] = a {
+        if let Some(ps) = crate::curves::filled_pieces(cx, *t) {
+            match want {
+                Some(1) => return Ok(Reply::Done(h.sym_term(h.sym("undefined")))),
+                None | Some(2) => {
+                    if let Some((area, _)) = crate::curves::filled_area_and_centroid(cx, &ps)? {
+                        return finish(cx, area, inexact(h, *t));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    // an ellipsoid(c, m) of n dimensions: the unit ball's measure times sqrt(det m)
+    if let [t] = a {
+        if let Some((c, m)) = matrix_ellipsoid(cx, *t)? {
+            let n = c.len();
+            if want.is_some_and(|w| w != n) {
+                return Ok(Reply::Decline);
+            }
+            let e = E { h };
+            let det = e.f("det", &[e.list(&m.iter().map(|row| e.list(row)).collect::<Vec<_>>())]);
+            let unit = match n {
+                1 => e.int(2),
+                2 => e.pi(),
+                _ => e.mul(&[e.rat(4, 3), e.pi()]),
+            };
+            let v = e.f("simplify", &[e.mul(&[unit, e.sqrt(det)])]);
+            return finish(cx, v, inexact(h, *t));
         }
     }
     // a mesh of segments, triangles and polygons or tetrahedra (machine coordinates): the measure summed in machine
@@ -573,6 +660,16 @@ fn region_centroid<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<
         if let Some(q) = crate::quadric::quadric(cx, *t)? {
             return region_centroid(cx, &[q]);
         }
+        // a plane filled curve: the moments by Green's theorem over the area
+        if let Some(ps) = crate::curves::filled_pieces(cx, *t) {
+            if let Some((_, c)) = crate::curves::filled_area_and_centroid(cx, &ps)? {
+                return finish(cx, cx.list(&c), inexact(h, *t));
+            }
+        }
+        // an ellipsoid(c, m) is symmetric about its centre
+        if let Some((c, _)) = matrix_ellipsoid(cx, *t)? {
+            return finish(cx, cx.list(&c), inexact(h, *t));
+        }
         // a joined curve: the moments of its pieces over its length
         if let Some(ps) = crate::curves::pieces(cx, *t) {
             if let Some((len, ms)) = crate::curves::length_and_moments(cx, &ps, true)? {
@@ -647,6 +744,14 @@ fn region_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h
             return finish(cx, t, inexact(h, *r));
         }
     }
+    // a B-spline surface of one span: the extreme values of each coordinate (its bounds of every kind)
+    if let [r] | [r, _] = a {
+        if let Some(net) = crate::patch::bezier_net(cx, *r)? {
+            let Some(b) = crate::patch::bounds(&net) else { return Ok(Reply::Decline) };
+            let rows: Vec<T<'h>> = b.iter().map(|&(lo, hi)| cx.list(&[crate::ex::real_term(h, lo), crate::ex::real_term(h, hi)])).collect();
+            return Ok(Reply::Done(cx.list(&rows)));
+        }
+    }
     let Some(r) = (match a {
         [r] | [r, _] => read_actual(cx, *r)?,
         _ => None,
@@ -667,9 +772,184 @@ fn region_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply<'h
     }
 }
 
+/// What [`curve_query`] asks.
+#[derive(Clone, Copy, PartialEq)]
+enum CurveAsk {
+    Member,
+    Distance,
+    Signed,
+}
+
+/// Membership and distances of numeric points for a `joined_curve` or a plane `filled_curve` of polynomial pieces:
+/// the distance to each piece by [`crate::curves::piece_distance`]; a point of a filled curve is inside when it
+/// lies on the boundary or the curve winds about it (decided only when the point is farther from the curve than the
+/// error of the polyline the winding is counted on). `None` when the region is not such a curve, a point is not
+/// numeric, or a point is too near the boundary to decide.
+fn curve_query<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: T<'h>, p: T<'h>, ask: CurveAsk) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let (ps, filled) = match (crate::curves::pieces(cx, r), crate::curves::filled_pieces(cx, r)) {
+        (Some(ps), _) => (ps, false),
+        (None, Some(ps)) => (ps, true),
+        _ => return Ok(None),
+    };
+    if ask == CurveAsk::Signed && !filled {
+        return Ok(None);
+    }
+    let Some(num) = crate::curves::numeric_pieces(cx, &ps)? else { return Ok(None) };
+    let scale = num.iter().flatten().flatten().fold(1.0f64, |m, x| m.max(x.abs()));
+    let tol = 1e-10 * scale;
+    let err = crate::curves::polyline_error(&num);
+    let one = |cx: &mut NativeCx<'_, '_, 'h>, q: T<'h>| -> Res<Option<T<'h>>> {
+        let Some(c) = cx.as_list(q).map(|l| l.to_vec()) else { return Ok(None) };
+        let Some(x) = crate::ex::nums(cx, &c)? else { return Ok(None) };
+        if x.len() != num[0][0].len() {
+            return Ok(None);
+        }
+        let d = num.iter().map(|c| crate::curves::piece_distance(c, &x)).fold(f64::INFINITY, f64::min);
+        let inside = if d <= tol {
+            true
+        } else if !filled {
+            false
+        } else if d > 4.0 * err + tol {
+            crate::curves::winding_number(&num, &x) != 0
+        } else {
+            return Ok(None);
+        };
+        Ok(Some(match ask {
+            CurveAsk::Member => metric::truth(h, inside),
+            CurveAsk::Distance => h.real(if inside && filled { 0.0 } else { d }),
+            CurveAsk::Signed => h.real(if inside { if d <= tol { 0.0 } else { -d } } else { d }),
+        }))
+    };
+    if is_vector(cx, p) {
+        return one(cx, p);
+    }
+    let Some(qs) = cx.as_list(p).map(|l| l.to_vec()) else { return Ok(None) };
+    let mut out = vec![];
+    for q in qs {
+        match one(cx, q)? {
+            Some(v) => out.push(v),
+            None => return Ok(None),
+        }
+    }
+    Ok(Some(cx.list(&out)))
+}
+
+/// The nearest point of a sector of an annulus `annulus(c, [r0, r1], [t0, t1])` (exact data, t1 - t0 < 2 pi) to a
+/// point p, or its distance: with d = p - c, when the direction of d lies within [t0, t1] the nearest point is on
+/// the ray of d at the radius |d| clamped to [r0, r1]; otherwise (and as candidates always) it is the nearest point
+/// of one of the two straight edges c + s u(t_k), s = d.u(t_k) clamped to [r0, r1]. The candidates are compared in
+/// machine numbers and the winner is built exactly. `None` for other regions or symbolic data.
+fn sector_nearest<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: T<'h>, p: T<'h>, q: Query) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let e = E { h };
+    let Some(("annulus", &[c, rr, ang])) = call_parts(h, r).as_ref().map(|(n, a)| (n.as_str(), *a)) else { return Ok(None) };
+    let (Some(c), Some(&[r0, r1]), Some(&[t0, t1]), Some(pt)) = (cx.as_list(c).map(|l| l.to_vec()), cx.as_list(rr), cx.as_list(ang), cx.as_list(p).map(|l| l.to_vec())) else { return Ok(None) };
+    if c.len() != 2 || pt.len() != 2 {
+        return Ok(None);
+    }
+    let all = [c[0], c[1], r0, r1, t0, t1, pt[0], pt[1]];
+    let Some(v) = crate::ex::nums(cx, &all)? else { return Ok(None) };
+    let [cx0, cy0, a0, a1, s0, s1, px, py] = [v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]];
+    let tau = std::f64::consts::TAU;
+    if !(0.0 <= a0 && a0 <= a1 && s0 < s1 && s1 - s0 < tau) {
+        return Ok(None);
+    }
+    let (dx, dy) = (px - cx0, py - cy0);
+    let len = dx.hypot(dy);
+    // candidates: (distance, exact point)
+    let d = [e.sub(pt[0], c[0]), e.sub(pt[1], c[1])];
+    let mut best: Option<(f64, Vec<T<'h>>)> = None;
+    let mut consider = |dist: f64, pnt: Vec<T<'h>>| {
+        if best.as_ref().is_none_or(|b| dist < b.0 - 1e-12 * (1.0 + b.0)) {
+            best = Some((dist, pnt));
+        }
+    };
+    let ang_p = dy.atan2(dx);
+    let within = len > 0.0 && ((ang_p - s0).rem_euclid(tau) <= s1 - s0);
+    if within {
+        let (rad, rad_t) = if len < a0 { (a0, r0) } else if len > a1 { (a1, r1) } else { (len, e.sqrt(e.add(&[e.sq(d[0]), e.sq(d[1])]))) };
+        let scale = e.div(rad_t, e.sqrt(e.add(&[e.sq(d[0]), e.sq(d[1])])));
+        consider((len - rad).abs(), vec![e.add(&[c[0], e.mul(&[scale, d[0]])]), e.add(&[c[1], e.mul(&[scale, d[1]])])]);
+    }
+    for (s, st) in [(s0, t0), (s1, t1)] {
+        let (ux, uy) = (s.cos(), s.sin());
+        let proj = dx * ux + dy * uy;
+        let (sv, s_t) = if proj < a0 {
+            (a0, r0)
+        } else if proj > a1 {
+            (a1, r1)
+        } else {
+            (proj, e.add(&[e.mul(&[d[0], e.f("cos", &[st])]), e.mul(&[d[1], e.f("sin", &[st])])]))
+        };
+        let dist = (px - cx0 - sv * ux).hypot(py - cy0 - sv * uy);
+        consider(dist, vec![e.add(&[c[0], e.mul(&[s_t, e.f("cos", &[st])])]), e.add(&[c[1], e.mul(&[s_t, e.f("sin", &[st])])])]);
+    }
+    let Some((_, pnt)) = best else { return Ok(None) };
+    let pnt: Vec<T<'h>> = pnt.into_iter().map(|x| cx.eval(e.f("simplify", &[x]))).collect::<Res<_>>()?;
+    let t = match q {
+        Query::Distance => cx.eval(e.f("simplify", &[e.sqrt(e.add(&[e.sq(e.sub(pt[0], pnt[0])), e.sq(e.sub(pt[1], pnt[1]))]))]))?,
+        _ => cx.list(&pnt),
+    };
+    let numeric = inexact(h, r) || inexact(h, p);
+    Ok(Some(if numeric { cx.eval(h.call(h.sym("n"), &[t]))? } else { t }))
+}
+
+/// `parametric_region([c1 + s cos(t), c2 + s sin(t)], [[s, 0, R], [t, a, b]])` (either parameter first, cos and sin
+/// in either coordinate) with b - a at least a whole turn and R > 0 free of the parameters: the term `disk([c1, c2], R)`.
+fn polar_disk<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let e = E { h };
+    if !call_parts(h, t).is_some_and(|(n, _)| n == "parametric_region") {
+        return Ok(None);
+    }
+    let Some(Region::Parametric { fs, specs }) = read(cx, t) else { return Ok(None) };
+    let ([f0, f1], [p0, p1]) = (fs.as_slice(), specs.as_slice()) else { return Ok(None) };
+    fn has<'h>(h: &'h mc_core::Heap, t: T<'h>, x: T<'h>) -> bool {
+        t == x || matches!(h.view(t), View::App { head, args } if has(h, head, x) || args.iter().any(|&a| has(h, a, x)))
+    }
+    for ((s, s0, rad), (th, a, b)) in [(*p0, *p1), (*p1, *p0)] {
+        if !matches!(h.view(s), View::Sym(_)) || !matches!(h.view(th), View::Sym(_)) {
+            continue;
+        }
+        let (Some(s0), Some(rv), Some(a), Some(b)) = (num(cx, s0)?, num(cx, rad)?, num(cx, a)?, num(cx, b)?) else { continue };
+        if s0 != 0.0 || rv <= 0.0 || !rv.is_finite() || b - a < std::f64::consts::TAU - 1e-12 || has(h, rad, s) || has(h, rad, th) {
+            continue;
+        }
+        for (cf, sf) in [(*f0, *f1), (*f1, *f0)] {
+            let c0 = cx.eval(e.f("simplify", &[e.sub(cf, e.mul(&[s, e.f("cos", &[th])]))]))?;
+            let c1 = cx.eval(e.f("simplify", &[e.sub(sf, e.mul(&[s, e.f("sin", &[th])]))]))?;
+            if [c0, c1].iter().all(|&c| !has(h, c, s) && !has(h, c, th)) {
+                let centre = if cf == *f0 { e.list(&[c0, c1]) } else { e.list(&[c1, c0]) };
+                return Ok(Some(e.f("disk", &[centre, rad])));
+            }
+        }
+    }
+    Ok(None)
+}
+
 fn distance<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], q: Query) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [r, p] = a else { return Ok(Reply::Decline) };
+    let ask = match q {
+        Query::Distance => Some(CurveAsk::Distance),
+        Query::Signed => Some(CurveAsk::Signed),
+        _ => None,
+    };
+    if let Some(ask) = ask {
+        if let Some(v) = curve_query(cx, *r, *p, ask)? {
+            return Ok(Reply::Done(v));
+        }
+    }
+    if matches!(q, Query::Nearest | Query::Distance) && is_vector(cx, *p) {
+        if let Some(v) = sector_nearest(cx, *r, *p, q)? {
+            return Ok(Reply::Done(v));
+        }
+    }
+    // a disk in polar coordinates, [c1 + s cos(t), c2 + s sin(t)] for s in [0, R] and t over a whole turn
+    if let Some(disk) = polar_disk(cx, *r)? {
+        return distance(cx, &[disk, *p], q);
+    }
     // an implicit disk, circle, ball or sphere: the distances to that region
     if let Some(ball) = crate::quadric::quadric(cx, *r)? {
         if matches!(read(cx, ball), Some(Region::Ball { r: Radius::One(_), .. })) {

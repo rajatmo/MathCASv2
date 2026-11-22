@@ -904,7 +904,8 @@ pub(crate) fn count_distinct<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<
         });
     }
     let [xs] = *args else { return Ok(Reply::Decline) };
-    let xs = take!(lib.list_operand(h, t, xs, 1));
+    // the elements under any head (`quote(...)` holds them unevaluated)
+    let (_, xs) = take!(lib.elements_operand(h, t, xs, 1));
     cx.tick(xs.len() as u64)?;
     let set: rustc_hash::FxHashSet<T<'h>> = xs.iter().copied().collect();
     Ok(Reply::Done(h.int(set.len() as i64)))

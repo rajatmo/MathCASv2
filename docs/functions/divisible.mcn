@@ -10,6 +10,9 @@
 # Details
 
 #% item
+# Two quantities of one dimension: whether their ratio, a number, is an integer.
+
+#% item
 # Gaussian integers are included: `divisible(5, 2 + im)` is `true`.
 
 #% item
@@ -76,6 +79,11 @@ select(range(30), k => divisible(k, 3) or divisible(k, 5))
 [divisible(91, 7), mod(91, 7) == 0]
 #% output
 #= [true, true]
+
+#% cell
+divisible(quantity(8, "Feet"), quantity(2, "Inches"))
+#% output
+#= true
 
 #% section
 # See also

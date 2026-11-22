@@ -10,6 +10,9 @@
 # Details
 
 #% item
+# The options `method: gaussian` (the sampled Gaussian) and `standardized: true` (the moment scaling) name the kernel given without them.
+
+#% item
 # `gaussian_matrix([r, s])` uses the standard deviation `s`.
 
 #% item
@@ -43,6 +46,11 @@ gaussian_matrix([2, 1])
 gaussian_matrix([[3]])
 #% output
 #= [0.03663284536919403, 0.11128075847888486, 0.21674532140370778, 0.27068214949642655, 0.21674532140370778, 0.11128075847888486, 0.03663284536919403]
+
+#% cell
+gaussian_matrix(1, [1], method: gaussian, standardized: true) == gaussian_matrix(1, [1])
+#% output
+#= true
 
 #% section
 # See also

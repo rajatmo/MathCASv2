@@ -344,7 +344,18 @@ pub fn quantile<'h>(b: B<'h>, d: &Dist<'h>, ex: &Exact, q: T<'h>, qq: Option<&Ra
             if q1 {
                 return Some(if d.fam == Family::Beta { one } else { b.inf() });
             }
-            return None;
+            // the x with P(k, x/theta) = q, P the lower regularized gamma: theta times the point where
+            // Q(k, 0) - Q(k, z) = q
+            // (all numbers exact: the quantile stays, its digits come from the enclosure by n)
+            if qq.is_some() && ex.iter().all(|e| e.is_some()) {
+                return None;
+            }
+            let igr = |k: T<'h>| b.call("inverse_gamma_regularized", &[k, zero, q]);
+            return match d.fam {
+                Family::ChiSquare => Some(b.mul(&[two, igr(b.mul(&[b.rat(1, 2), p[0]]))])),
+                Family::Gamma => Some(b.mul(&[p[1], igr(p[0])])),
+                _ => None,
+            };
         }
         Family::Binomial | Family::Poisson | Family::Geometric => {
             if q0 {

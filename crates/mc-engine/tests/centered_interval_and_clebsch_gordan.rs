@@ -48,8 +48,10 @@ fn intervals_become_midpoint_and_half_width() {
 fn symbols_and_two_arguments_stay() {
     let mut e = CoreEngine::new();
     assert_eq!(ev(&mut e, "centered_interval(x)"), "centered_interval(x)");
-    assert_eq!(ev(&mut e, "centered_interval(2, 0.1)"), "centered_interval(2, 0.1)");
-    assert_eq!(ev(&mut e, "centered_interval(9.87)"), "centered_interval(9.87, 0)");
+    // an exact centre that is a machine number exactly and a machine radius: machine numbers, the radius as given
+    assert_eq!(ev(&mut e, "centered_interval(2, 0.1)"), "centered_interval(2.0, 0.1)");
+    // a machine number stands for the numbers that round to it: radius |x| eps
+    assert_eq!(ev(&mut e, "centered_interval(9.87)[2] == 9.87*2^-52"), "true");
 }
 
 #[test]

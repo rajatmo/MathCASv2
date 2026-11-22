@@ -587,6 +587,54 @@ struct CompileFn(Arc<Shared>);
 impl Native for CompileFn {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
+        // `compile([x, ...], body)`, a parameter possibly with a type `[x, _: Float]`: the function of the
+        // parameters, whose values are those of the body (a compiled specialisation gives the same values)
+        if let [ps, body] = *args {
+            if let View::App { head, args: params } = h.view(ps) {
+                if head == h.sym_term(h.sym("list")) {
+                    let mut names = vec![];
+                    // the conditions of the typed parameters: an argument of another kind is a failure that
+                    // names it and the type (`Float` takes any real number, `Integer` an integer, `Complex` any
+                    // number; the other types are not checked)
+                    let mut conds = vec![];
+                    for &p in params {
+                        let (p, ty) = match h.view(p) {
+                            View::App { head: l, args: &[x, t] } if l == head => (x, Some(t)),
+                            _ => (p, None),
+                        };
+                        if !matches!(h.view(p), View::Sym(_)) {
+                            return Ok(Reply::Done(failure(h, "not_compilable", &[ps, h.string("a parameter is not a symbol")])));
+                        }
+                        let tname = ty.and_then(|t| match h.view(t) {
+                            View::App { args: &[_, n], .. } => match h.view(n) {
+                                View::Sym(s) => Some((h.sym_name(s), n)),
+                                _ => None,
+                            },
+                            _ => None,
+                        });
+                        if let Some((tn, n)) = tname {
+                            let test = match tn.as_str() {
+                                "Float" | "Real" => Some(h.call(h.sym("and"), &[h.call(h.sym("is_number"), &[p]), h.call(h.sym("is_real"), &[p])])),
+                                "Integer" => Some(h.call(h.sym("is_integer"), &[p])),
+                                "Complex" => Some(h.call(h.sym("is_number"), &[p])),
+                                _ => None,
+                            };
+                            if let Some(test) = test {
+                                conds.push((test, p, n));
+                            }
+                        }
+                        names.push(p);
+                    }
+                    let list = h.app(head, &names);
+                    let mut b = body;
+                    for &(test, p, n) in conds.iter().rev() {
+                        let fail = failure(h, "argument_type", &[p, n]);
+                        b = h.call(h.sym("if"), &[test, b, fail]);
+                    }
+                    return Ok(Reply::Done(h.call(h.sym("fn"), &[list, b])));
+                }
+            }
+        }
         let (fterm, backend) = match args {
             [f] => (*f, Ok(Backend::Cranelift)),
             [f, opts] => (*f, backend_option(h, *opts)),

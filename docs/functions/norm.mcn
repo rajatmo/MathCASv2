@@ -19,6 +19,9 @@
 # Details
 
 #% item
+# The 2-norm of a 2 x 2 matrix with symbolic entries is the square root of the larger eigenvalue of m^H m, `sqrt((t + sqrt(t^2 - 4 |det m|^2))/2)` with t the sum of the squared moduli of the entries.
+
+#% item
 # `norm(v, inf)` is the largest absolute value of an entry.
 
 #% item
@@ -180,6 +183,11 @@ norm([1, 1], 2.5)
 norm([1, 1], 1/2)
 #% output
 #! failure(argument, norm, 2)
+
+#% cell
+refine(norm([[1, x], [3, 4]]), element(x, reals))
+#% output
+#= (1/2)*2^(1/2)*(26 + (18 + 6*x + x^2)^(1/2)*(34 - 6*x + x^2)^(1/2) + x^2)^(1/2)
 
 #% section
 # See also

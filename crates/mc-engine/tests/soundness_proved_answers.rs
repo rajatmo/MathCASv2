@@ -1316,14 +1316,14 @@ fn images_across_a_jump_with_a_continuous_derivative() {
     let mut e = CoreEngine::new();
     // acot jumps from -pi/2 to pi/2 at 0 while acot' = -1/(1 + x^2) stays bounded: no image is proved across 0
     assert_eq!(ev(&mut e, "acot(interval([-5, 5]))"), "acot(interval([-5, 5]))");
-    assert_eq!(ev(&mut e, "acot(centered_interval(0, 1))"), "acot(centered_interval(0, 1))");
+    assert_eq!(ev(&mut e, "acot(centered_interval(0, 1))"), "acot(centered_interval(0.0, 1.0))");
     // independent: values on the two sides of 0 lie far outside the old result [-acot 5, acot 5]
     assert!(holds(&mut e, "acot(-1/10) < -acot(5) and acot(1/10) > acot(5)"));
     // an end at 0 from the right is continuous (acot(0) = pi/2): decreasing on [0, 2]
     assert_eq!(ev(&mut e, "acot(interval([0, 2]))"), "interval([acot(2), (1/2)*pi])");
     // fractional_part jumps at the integers other than 0, mod(x, m) at the multiples of m
     assert_eq!(ev(&mut e, "fractional_part(interval([0.5, 1.5]))"), "fractional_part(interval([0.5, 1.5]))");
-    assert_eq!(ev(&mut e, "fractional_part(centered_interval(1, 0.25))"), "fractional_part(centered_interval(1, 0.25))");
+    assert_eq!(ev(&mut e, "fractional_part(centered_interval(1, 0.25))"), "fractional_part(centered_interval(1.0, 0.25))");
     assert_eq!(ev(&mut e, "mod(interval([0.5, 1.5]), -1)"), "mod(interval([0.5, 1.5]), -1)");
     assert!(holds(&mut e, "fractional_part(99/100) > 1/2 and fractional_part(101/100) < 1/2"));
     // continuous pieces keep their images: [1, 3/2] from the right of 1, [-3/2, -1] from the left of -1, mod by 2

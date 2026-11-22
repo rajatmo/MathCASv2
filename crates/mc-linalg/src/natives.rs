@@ -115,6 +115,36 @@ fn uncertain_entries<'h>(h: &'h Heap, args: &[T<'h>]) -> bool {
     false
 }
 
+/// Does a matrix argument hold both an inexact number and an entry that is not a number (`[[1.0 + im, 2], [0,
+/// 4 pi]]`)? The exact elimination keeps such products canonical (`(-12.0 + 48.0 im) pi`) and their numbers come out
+/// only when the result is evaluated again.
+fn inexact_with_symbols<'h>(h: &'h Heap, args: &[T<'h>]) -> bool {
+    let list = h.sym_term(h.sym(names::LIST));
+    let ar = Arith::new(h);
+    let (mut inexact, mut other) = (false, false);
+    let mut stack: Vec<T<'h>> = args.to_vec();
+    let mut budget = 100_000usize;
+    while let Some(t) = stack.pop() {
+        if h.packed(t).is_some() {
+            continue;
+        }
+        match h.view(t) {
+            View::App { head, args } if head == list => {
+                if budget < args.len() {
+                    return false;
+                }
+                budget -= args.len();
+                stack.extend_from_slice(args);
+            }
+            _ => match ar.num(t) {
+                Some(n) => inexact |= !n.is_exact(),
+                None => other = true,
+            },
+        }
+    }
+    inexact && other
+}
+
 /// Does a matrix argument hold a `quantity` entry?
 fn quantity_entries<'h>(h: &'h Heap, args: &[T<'h>]) -> bool {
     let list = h.sym_term(h.sym(names::LIST));
@@ -161,7 +191,7 @@ impl Native for LinalgNative {
         match r {
             // numbers with uncertainty and quantities among the entries: the result is evaluated again, so that
             // their arithmetic (left as canonical products and sums here) is carried out
-            Ok(Out::Done(t)) if uncertain_entries(h, args) => Ok(Reply::Again(t)),
+            Ok(Out::Done(t)) if uncertain_entries(h, args) || inexact_with_symbols(h, args) => Ok(Reply::Again(t)),
             Ok(Out::Done(t)) => Ok(Reply::Done(t)),
             Ok(Out::Again(t)) => Ok(Reply::Again(t)),
             Ok(Out::Decline) => Ok(Reply::Decline),

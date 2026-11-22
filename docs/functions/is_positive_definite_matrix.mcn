@@ -10,6 +10,9 @@
 # Details
 
 #% item
+# A matrix with symbolic entries is decided when its Hermitian part (m + m^H)/2 simplifies to a numeric matrix.
+
+#% item
 # A Hermitian (for real entries: symmetric) matrix is positive definite when all eigenvalues are positive; any other matrix is tested through its Hermitian part `(m + m^H)/2`. The test is Sylvester's criterion on it: every leading principal minor is positive.
 
 #% item
@@ -43,6 +46,11 @@ is_positive_definite_matrix([[2., -1., 0.], [-1., 2., -1.], [0., -1., 2.]])
 
 #% cell
 is_positive_definite_matrix([[2.3, -1.2], [0.6, 3.7]])
+#% output
+#= true
+
+#% cell
+is_positive_definite_matrix([[1, a], [-conjugate(a), 2]])
 #% output
 #= true
 

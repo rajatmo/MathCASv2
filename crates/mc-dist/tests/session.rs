@@ -161,7 +161,8 @@ const CASES: &[(&str, &str)] = &[
     ("estimated_distribution([1, 2, 3, 4, 6], uniform_distribution([a, b]))", "uniform_distribution([1, 6])"),
     ("estimated_distribution([1, 2, 3, 4, 6], exponential_distribution(l))", "exponential_distribution(5/16)"),
     ("estimated_distribution([3, 5, 4, 6], binomial_distribution(10, p))", "binomial_distribution(10, 9/20)"),
-    (r#"estimated_distribution([3, 5, 4, 6], binomial_distribution(n, p))"#, r#"failure(argument, estimated_distribution, "the number of trials of a binomial distribution must be given")"#),
+    // the number of trials by likelihood (the profile likelihood over n = 6, 7, ... is largest at 6)
+    (r#"estimated_distribution([3, 5, 4, 6], binomial_distribution(n, p))"#, r#"binomial_distribution(6, 0.75)"#),
     (r#"estimated_distribution([3, 5, 4, 6], gamma_distribution(2, t))"#, r#"failure(argument, estimated_distribution, "only all parameters of this family can be estimated together (the trials of a binomial distribution must be known)")"#),
     (r#"estimated_distribution([1, 2], normal_distribution(m, s), method: magic)"#, r#"failure(argument, estimated_distribution, "the option is method: likelihood or method: moments")"#),
     (r#"estimated_distribution([1], normal_distribution(m, s))"#, r#"failure(argument, estimated_distribution, "the data needs at least two values")"#),

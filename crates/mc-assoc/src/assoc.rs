@@ -459,6 +459,9 @@ pub(crate) fn insert<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
     let (a, k, e) = match *args {
         [a, e] => match lib.entry(h, e) {
             Some((k, _)) => (a, k, e),
+            // `insert(x, n)` with no association to insert into is the operator form: insert(x, n)(xs) is
+            // insert(xs, x, n)
+            None if lib.as_assoc(h, a).is_none() => return Ok(Reply::Decline),
             None => return Ok(Reply::Done(lib.bad_arg(h, t, 2))),
         },
         [a, k, v] => (a, k, lib.rule(h, k, v)),
@@ -479,6 +482,31 @@ pub(crate) fn insert<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
 /// `failure(argument, insert, 3)`.
 fn insert_into<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, x: T<'h>, e: T<'h>, pos: T<'h>) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // a path that goes on into an association (`[1, a]`, `[2, key(k)]`): the element at the first index takes the
+    // insertion at the rest of the path (a list of paths, `[[1], [3]]`, is not such a path)
+    if let (Some(&[first, ref rest @ ..]), View::App { head, args }) = (cx.as_list(pos), h.view(x)) {
+        let key_path = !rest.is_empty()
+            && rest.iter().any(|&q| !matches!(h.view(q), View::Int(_)))
+            && rest.iter().all(|&q| cx.as_list(q).is_none());
+        if let (true, View::Int(i)) = (key_path, h.view(first)) {
+            let n = args.len() as i64;
+            let i = if i < 0 { n + 1 + i } else { i };
+            if !(1..=n).contains(&i) {
+                return Ok(Reply::Done(lib.bad_arg(h, t, 3)));
+            }
+            let rest_pos = if let [one] = rest { *one } else { cx.list(rest) };
+            let inner = cx.eval(h.call(h.sym("insert"), &[args[(i - 1) as usize], e, rest_pos]))?;
+            if lib.is_failure(h, inner) {
+                return Ok(Reply::Done(inner));
+            }
+            if matches!(h.view(inner), View::App { head: g, .. } if g == h.sym_term(h.sym("insert"))) {
+                return Ok(Reply::Decline);
+            }
+            let mut out = args.to_vec();
+            out[(i - 1) as usize] = inner;
+            return Ok(Reply::Again(h.app(head, &out)));
+        }
+    }
     let ints = |p: T<'h>| -> Option<Vec<i64>> {
         match h.view(p) {
             View::Int(i) => Some(vec![i]),

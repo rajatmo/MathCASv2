@@ -570,6 +570,22 @@ impl<'k, 'h> Eval<'k, 'h> {
                 Go::Next(self.form_out(cx, r))
             }
             Some(Impl::Native { native, reads_term, curried, sym }) => {
+                // rules an argument's head attached to this function (`@on(g) rule g(x_)*g(y_) := ...`) come before
+                // the built-in (semantics 6.5): a native such as `mul` would otherwise answer first
+                if self.has_attached(*sym, vals) {
+                    let t = h.app(head, vals);
+                    match self.dispatch(cx, t) {
+                        Ok(Some(u)) => {
+                            e.t = t;
+                            attempt!(self, cx, e, self.tick(cx));
+                            e.call = Some(t);
+                            e.t = u;
+                            return Go::Again(e);
+                        }
+                        Ok(None) => {}
+                        Err(a) => return Go::Next(self.fail(cx, e, a)),
+                    }
+                }
                 // a curried call is always built: its native reads the head from the term
                 let reads_term = *reads_term || *curried;
                 let early = changed && !reads_term;

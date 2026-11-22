@@ -39,8 +39,9 @@ fn complex_centered_intervals_are_boxes() {
     // a complex radius rx + i ry is the box of the two parts; sums add the boxes
     let out = ev("r = centered_interval(0, 1 + im) + centered_interval(1, 1 + im); [abs(re(r[1]) - 1) < 1e-14, abs(im_part(r[1])) < 1e-14, abs(re(r[2]) - 2) < 1e-14, abs(im_part(r[2]) - 2) < 1e-14]");
     assert_eq!(out, "[true, true, true, true]");
-    // an interval mixed in: [1, 2] is 3/2 +- 1/2
-    let out = ev("r = interval([1, 2]) + centered_interval(2 + 3 * im, 1 + im); [abs(r[1] - (7/2 + 3 im)) < 1e-14, abs(r[2] - (3/2 + im)) < 1e-14]");
+    // an interval mixed in: [1, 2] is 3/2 +- 1/2 (the exact centre and radius become machine numbers rounded
+    // outwards, a few ulps wider)
+    let out = ev("r = interval([1, 2]) + centered_interval(2 + 3 * im, 1 + im); [abs(r[1] - (7/2 + 3 im)) < 1e-13, abs(r[2] - (3/2 + im)) < 1e-13]");
     assert_eq!(out, "[true, true]");
     // [-2.1, -1.9] (1.9..2.1 + i 2.9..3.1): the real part spans [-4.41, -3.61], the imaginary part [-6.51, -5.51]
     let out = ev("r = centered_interval(-2, 1 / 10) * centered_interval(2 + 3 * im, (1 + im) / 10); \

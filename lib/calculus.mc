@@ -2193,20 +2193,30 @@ fn convolve(f, g, x, y; assumptions = automatic, generate_conditions = automatic
 fn calc_dt1(e0, x, cs) = {
   # (the constants of a left derivative are those of this call: dropped here, put back by calc_dt_left)
   let e = rewrite(e0, dt(s_, t_, o_) :> dt(s, t))
-  let ss = select(calc_syms(e), s => not (s === x) and count(cs, s) == 0)
+  let ss = select(calc_syms(e), s => not (s === x) and count(cs, s) == 0 and not calc_dt_const(s))
   let rules = join([dt(s_, [x, k_]) :> derivative(k)(calc_dtf(s))(x), dt(s_, x) :> derivative(1)(calc_dtf(s))(x)], map(s => s -> calc_dtf(s)(x), ss))
-  let r = d(rewrite(e, rules), x)
+  let r = calc_dt_drop(d(rewrite(e, rules), x), cs)
   rewrite(r, [derivative(k_)(calc_dtf(s_))(t_) :> (if k == 1 then calc_dt_left(s, t, cs) else calc_dt_left(s, [t, k], cs)), calc_dtf(s_)(t_) :> s])
 }
+# a symbol with the attribute `constant` is a constant of dt, and so is every call of a function with it: its
+# derivatives are 0
+fn calc_dt_const(s) = is_symbol(s) and member_of(attributes(s), constant)
+fn calc_dt_drop(r, cs) = rewrite(r, (derivative(ks__)(f_)(as___) when is_symbol(f) and (calc_dt_const(f) or count(cs, f) > 0)) :> 0)
+fn calc_dt_consts(cs) = if is_list(cs) then cs else [cs]
+# the differential of a symbol under the constants of the call
+fn calc_dt_sym(s, cs) = if length(cs) == 0 then dt(s) else dt(s, constants: cs)
 # the total derivative of a symbol, left as it is; with the constants it was taken under (they stay constants when the
 # derivative is evaluated again)
 fn calc_dt_left(s, t, cs) = if length(cs) == 0 then dt(s, t) else dt(s, t, constants: cs)
 rule dt(s_, t_) := 1 when is_symbol(s) and s === t
 # calc_nopat(e): whether e contains no pattern (rules of dt are built with dt(s_, x) on their left side)
 fn calc_nopat(e) = if is_atom(e) then true else not (head(e) === any) and every(apply(list, e), calc_nopat)
-fn dt(e; constants = []) when (not is_symbol(e) or is_numeric(e)) and calc_nopat(e) = if is_numeric(e) then 0 else expand(calc_total(map(s => d(e, s)*dt(s), select(calc_syms(e), s => count(constants, s) == 0))))
-fn dt(e, specs...; constants = []) when length(specs) > 0 and (not is_symbol(e) or is_numeric(e)) and calc_nopat(e) =
-  fold((g, s) => if is_list(s) then nest(t => calc_dt1(t, s[1], constants), g, s[2]) else calc_dt1(g, s, constants), e, specs)
+fn dt(e; constants = []) when (not is_symbol(e) or is_numeric(e) or calc_dt_const(e)) and calc_nopat(e) = {
+  let cs = calc_dt_consts(constants)
+  if is_numeric(e) or calc_dt_const(e) then 0 else expand(calc_total(map(s => calc_dt_drop(d(e, s), cs)*calc_dt_sym(s, cs), select(calc_syms(e), s => count(cs, s) == 0 and not calc_dt_const(s)))))
+}
+fn dt(e, specs...; constants = []) when length(specs) > 0 and (not is_symbol(e) or is_numeric(e) or calc_dt_const(e)) and calc_nopat(e) =
+  fold((g, s) => if is_list(s) then nest(t => calc_dt1(t, s[1], calc_dt_consts(constants)), g, s[2]) else calc_dt1(g, s, calc_dt_consts(constants)), e, specs)
 
 # inverse_function(f): the inverse of a named elementary function (sin -> asin, exp -> log, ...), or of a function
 # of one argument whose equation f(y) == x solve can invert (the first solution, its constants c(k) set to 0); otherwise it stays unevaluated

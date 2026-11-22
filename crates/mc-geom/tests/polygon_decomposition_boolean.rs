@@ -38,10 +38,57 @@ fn enclosed_polygons() {
 #[test]
 fn decomposition() {
     check(&[
-        ("polygon_decomposition(rectangle())", "[polygon([[0, 1], [0, 0], [1, 0]], [1, 2, 3]), polygon([[1, 0], [1, 1], [0, 1]], [1, 2, 3])]"),
+        // a convex polygon is its own convex piece; triangles on request
+        ("polygon_decomposition(rectangle())", "[polygon([[0, 0], [1, 0], [1, 1], [0, 1]], [1, 2, 3, 4])]"),
+        ("polygon_decomposition(rectangle(), triangle)", "[polygon([[0, 1], [0, 0], [1, 0]], [1, 2, 3]), polygon([[1, 0], [1, 1], [0, 1]], [1, 2, 3])]"),
+        // a clockwise convex ring comes out anticlockwise
+        ("polygon_decomposition(polygon([[0, 0], [0, 2], [3, 0]]))", "[polygon([[3, 0], [0, 2], [0, 0]], [1, 2, 3])]"),
+        // the corners of the pieces are evaluated (the parallelogram's corners are sums)
+        ("polygon_decomposition(parallelogram(), triangle)", "[polygon([[1, 1], [0, 0], [1, 0]], [1, 2, 3]), polygon([[1, 0], [2, 1], [1, 1]], [1, 2, 3])]"),
+        // a box given by bounds on each coordinate, strict or not
+        ("polygon_decomposition(implicit_region((0 <= x and x <= 1) and (0 <= y and y <= 1), [x, y]))", "[polygon([[0, 0], [1, 0], [1, 1], [0, 1]], [1, 2, 3, 4])]"),
+        ("polygon_decomposition(implicit_region(-1 < x and x < 2 and y >= 0 and 3 > y, [x, y]))", "[polygon([[-1, 0], [2, 0], [2, 3], [-1, 3]], [1, 2, 3, 4])]"),
+        // not a box: unevaluated
+        ("polygon_decomposition(implicit_region(x + y <= 1 and x >= 0 and y >= 0, [x, y]))", "polygon_decomposition(implicit_region(x + y <= 1 and x >= 0 and y >= 0, [x, y]))"),
+        ("length(polygon_decomposition(polygon([[0, 0], [2, 0], [2, 2], [1, 1], [0, 2]])))", "3"),
         ("length(polygon_decomposition(polygon([[0, 0], [2, 0], [2, 2], [1, 1], [0, 2]]), triangle))", "3"),
         ("total(map(area, polygon_decomposition(polygon([[0, 0], [4, 0], [4, 1], [1, 1], [1, 3], [0, 3]]))))", "6"),
     ]);
+}
+
+#[test]
+fn mesh_cells_by_an_index_pattern() {
+    // the vertices of odd index: 1, 3 and 5
+    let m = "mesh_region([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [2.0, 2.0, 0.0], [0.0, 2.0, 0.0], [1.0, 1.0, 2.0]], [tetrahedron([[1, 2, 3, 5], [1, 3, 4, 5]])])";
+    check(&[
+        (&format!("mesh_primitives({m}, [0, (t_ when is_odd(t))])"), "[point([0.0, 0.0, 0.0]), point([2.0, 2.0, 0.0]), point([1.0, 1.0, 2.0])]"),
+        (&format!("mesh_cells({m}, [3, (t_ when t > 1)])"), "[tetrahedron([1, 3, 4, 5])]"),
+        (&format!("mesh_cells({m}, [0, (t_ when t > 9)])"), "[]"),
+    ]);
+}
+
+#[test]
+fn b_spline_surface_of_one_span() {
+    // the bicubic patch of a 4 x 4 net: its area by an independent 20-digit adaptive quadrature of |S_u x S_v|
+    // (tanh-sinh, derivatives by numerical differentiation) is 9.9560480867715569781; its x and y run over [1, 4]
+    // (the coordinates are linear in u and v) and z over [0, 1] (the corner (u, v) = (1, 0) has z = 1, the corner
+    // (0, 0) z = 0, and no control point lies outside 0 <= z <= 1)
+    let net = "[[[1, 1, 0], [1, 2, 0], [1, 3, 1], [1, 4, 0]], [[2, 1, 0], [2, 2, 1], [2, 3, 1], [2, 4, 1]], [[3, 1, 0], [3, 2, 1], [3, 3, 1], [3, 4, 0]], [[4, 1, 1], [4, 2, 1], [4, 3, 1], [4, 4, 0]]]";
+    approx(&format!("area(b_spline_surface({net}))"), 9.956_048_086_771_557);
+    approx(&format!("region_measure(b_spline_surface({net}))"), 9.956_048_086_771_557);
+    check(&[(&format!("region_bounds(b_spline_surface({net}))"), "[[1.0, 4.0], [1.0, 4.0], [0.0, 1.0]]")]);
+    // a flat bilinear patch is a parallelogram: area |(3, 0, 0) x (1, 2, 0)| = 6
+    approx("area(b_spline_surface([[[0, 0, 0], [1, 2, 0]], [[3, 0, 0], [4, 2, 0]]]))", 6.0);
+}
+
+#[test]
+fn highlighted_mesh_of_the_line() {
+    let m = "mesh_region([[0.0], [1.0], [2.0]], [line([[1, 2]]), point([[3]])])";
+    let mut e = CoreEngine::new();
+    for spec in ["style(0, red)", "1"] {
+        let s = eval(&mut e, &format!("head(highlight_mesh({m}, {spec}))"));
+        assert_eq!(s, "graphics", "{spec}");
+    }
 }
 
 #[test]

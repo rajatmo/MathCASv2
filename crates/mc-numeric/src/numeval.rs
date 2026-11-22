@@ -688,6 +688,26 @@ pub fn numericize<'h, S: Store + ?Sized>(
                         }
                     }
                 }
+                // the positions of a sparse array (the left sides of its rules) and its dimensions are indices: they
+                // stay exact, only the values and the default become numbers
+                if head == st.sym_term(st.sym("sparse_array")) {
+                    let list = st.sym_term(st.sym(names::LIST));
+                    let rule = st.sym_term(st.sym(names::RULE));
+                    if let Some(View::App { head: lh, args: items }) = args.first().map(|&a| st.view(a)) {
+                        if lh == list {
+                            for &r in items {
+                                if let View::App { head: rh, args: [p, _] } = st.view(r) {
+                                    if rh == rule {
+                                        done.insert(*p, *p);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(&d) = args.get(1) {
+                        done.insert(d, d);
+                    }
+                }
                 stack.extend(args.iter().filter(|a| !done.contains_key(a)).map(|&a| (a, false)));
                 continue;
             }

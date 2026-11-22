@@ -25,7 +25,7 @@
 # `knapsack_solve(items, [max_payoff, max_cost])` and `knapsack_solve(items, [max_payoff, max_cost, max_count])` bound the total payoff, the total cost and the total number of items (`inf` for no bound); the bounds may also be given as rules or an association with the keys "MaxTotalPayoff", "MaxTotalCost" and "MaxTotalCount".
 
 #% item
-# With several bounds the counts are given only when exactly one choice reaches the largest payoff; when several do, the call stays unevaluated. Payoffs and costs that are quantities are taken in the unit of their bound.
+# With several bounds the counts are one choice that reaches the largest payoff within every bound (when several do, the first one found); when no bound limits the count of some item the call stays unevaluated. Payoffs and costs that are quantities are taken in the unit of their bound.
 
 #% section
 # Examples

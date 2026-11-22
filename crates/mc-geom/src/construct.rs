@@ -454,10 +454,111 @@ fn indexed_term<'h>(e: E<'h>, pts: &[Vec<T<'h>>], idx: &[Vec<i64>], one: bool) -
     e.f("polygon", &[e.list(&pts.iter().map(|p| e.list(p)).collect::<Vec<_>>()), ix])
 }
 
+/// `canonicalize_polygon(polygon(parts), kind)` with `kind` `all` (every part, also those of fewer than three
+/// corners) or `full` (the corners of every part, the indices of the parts of three or more corners only), and `canonicalize_polygon(p)` of a polygon in space.
+/// In the plane the distinct corners are sorted and each part runs anticlockwise from its lowest index, as for
+/// one polygon; in space the corners are taken in their first appearance and each part keeps its order (there is
+/// no sense of turning without a chosen normal). Other polygons give `None`.
+fn canonical_parts<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let e = E { h };
+    let (t, keep_low) = match a {
+        [t] => (*t, None),
+        [t, k] => match h.view(*k) {
+            View::Sym(s) if h.sym_name(s) == "all" => (*t, Some(true)),
+            View::Sym(s) if h.sym_name(s) == "full" => (*t, Some(false)),
+            _ => return Ok(None),
+        },
+        _ => return Ok(None),
+    };
+    let Some(("polygon", &[p])) = call_parts(h, t).as_ref().map(|(n, a)| (n.as_str(), *a)) else { return Ok(None) };
+    let parts: Vec<Vec<Vec<T<'h>>>> = match crate::region::vectors(cx, p) {
+        Some(v) => vec![v],
+        None => {
+            let Some(l) = cx.as_list(p).map(|l| l.to_vec()) else { return Ok(None) };
+            let mut out = vec![];
+            for q in l {
+                let Some(v) = crate::region::vectors(cx, q) else { return Ok(None) };
+                out.push(v);
+            }
+            out
+        }
+    };
+    let Some(dim) = parts.first().and_then(|r| r.first()).map(|q| q.len()) else { return Ok(None) };
+    if parts.iter().any(|r| r.iter().any(|q| q.len() != dim)) || (dim == 2 && keep_low.is_none()) || dim < 2 {
+        return Ok(None);
+    }
+    // the corners of every part are kept; `full` indexes only the parts of three or more corners
+    let keep = |r: &Vec<Vec<T<'h>>>| keep_low.unwrap_or(false) || r.len() >= 3;
+    if !parts.iter().any(keep) {
+        return Ok(Some(e.f("empty_region", &[e.int(dim as i64)])));
+    }
+    let idx_term = |idx: &[Vec<i64>]| {
+        let ints = |v: &[i64]| e.list(&v.iter().map(|&i| e.int(i)).collect::<Vec<_>>());
+        if idx.len() == 1 { ints(&idx[0]) } else { e.list(&idx.iter().map(|v| ints(v)).collect::<Vec<_>>()) }
+    };
+    if dim > 2 {
+        let mut pts: Vec<Vec<T<'h>>> = vec![];
+        let mut idx = vec![];
+        for r in &parts {
+            let mut ring = vec![];
+            for q in r {
+                let k = match pts.iter().position(|x| x == q) {
+                    Some(k) => k,
+                    None => {
+                        pts.push(q.clone());
+                        pts.len() - 1
+                    }
+                };
+                ring.push(k as i64 + 1);
+            }
+            if keep(r) {
+                idx.push(ring);
+            }
+        }
+        return Ok(Some(e.f("polygon", &[e.list(&pts.iter().map(|q| e.list(q)).collect::<Vec<_>>()), idx_term(&idx)])));
+    }
+    // in the plane: numeric corners, sorted
+    let mut num_parts = vec![];
+    for r in &parts {
+        let Some(v) = points(cx, r)? else { return Ok(None) };
+        num_parts.push(v);
+    }
+    let mut pts: Vec<(Vec<f64>, Vec<T<'h>>)> = vec![];
+    for (ex, nu) in parts.iter().zip(&num_parts) {
+        for (q, v) in ex.iter().zip(nu) {
+            if !pts.iter().any(|x| x.0 == *v) {
+                pts.push((v.clone(), q.clone()));
+            }
+        }
+    }
+    pts.sort_by(|a, b| a.0[0].total_cmp(&b.0[0]).then(a.0[1].total_cmp(&b.0[1])));
+    let mut idx = vec![];
+    for (r, nu) in parts.iter().zip(&num_parts) {
+        if !keep(r) {
+            continue;
+        }
+        let mut ring: Vec<i64> = nu.iter().map(|q| pts.iter().position(|x| x.0 == *q).unwrap_or(0) as i64 + 1).collect();
+        if nu.len() >= 3 && signed_area(nu) < 0.0 {
+            ring.reverse();
+        }
+        if let Some(lo) = ring.iter().enumerate().min_by_key(|&(_, v)| *v).map(|(i, _)| i) {
+            ring.rotate_left(lo);
+        }
+        idx.push(ring);
+    }
+    Ok(Some(e.f("polygon", &[e.list(&pts.iter().map(|x| e.list(&x.1)).collect::<Vec<_>>()), idx_term(&idx)])))
+}
+
 /// `canonicalize_polygon(p)`, `outer_polygon(p)`, `inner_polygon(p)`, `polygon_coordinates(p)`.
 pub fn polygon_form<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], which: &str) -> Res<Reply<'h>> {
     let h = cx.heap();
     let e = E { h };
+    if which == "canonical" {
+        if let Some(r) = canonical_parts(cx, a)? {
+            return Ok(Reply::Done(r));
+        }
+    }
     let [t] = a else { return Ok(Reply::Decline) };
     let Some(rs) = rings(cx, *t)? else { return Ok(Reply::Decline) };
     let mut parts = vec![];

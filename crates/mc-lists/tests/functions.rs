@@ -237,7 +237,8 @@ fn selection() {
             ("cases(h(f(1), f(a)), f(_: Symbol))", "[f(a)]"),
             ("cases(xs, 7)", "[7]"),
             ("cases(xs, f(x_, x__))", "failure(argument, cases, 2)"),
-            ("cases(3, _)", "failure(argument, cases, 1)"),
+            // a number has no parts: no case
+            ("cases(3, _)", "[]"),
             ("count(xs, f(_))", "3"),
             ("count(xs, q(_))", "0"),
             ("count([1, 2, 1], 1)", "2"),

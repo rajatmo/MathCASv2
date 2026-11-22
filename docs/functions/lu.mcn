@@ -10,6 +10,9 @@
 # Details
 
 #% item
+# A matrix with symbolic entries is factored as rational functions (a row swap only where a pivot is 0 as a rational function); like `inverse`, the factors hold where the pivots are not 0.
+
+#% item
 # The permutation comes from partial pivoting (for exact matrices the first nonzero pivot, for machine matrices the largest).
 
 #% section
@@ -51,6 +54,11 @@ m = [[2, 1, 1], [4, -6, 0], [-2, 7, 2]]; f = lu(m); dot(f[1], f[2]) == m[f[3]]
 [product(table(f[2][k, k], k, 3)), det(m)]
 #% output
 #= [-16, -16]
+
+#% cell
+lu([[a, b], [c, d]])
+#% output
+#= [[[1, 0], [c/a, 1]], [[a, b], [0, (a*d - b*c)/a]], [1, 2]]
 
 #% section
 # See also
