@@ -1105,7 +1105,7 @@ function_bijective	symbolic	Calculus	function_bijective(f, x), function_bijectiv
 piecewise_expand	symbolic	Calculus	piecewise_expand(f), piecewise_expand(f, cond): nested piecewise, if, max, min, clip, unit_step, boole and abs as one piecewise([[v1, c1], ...], d); floor, ceiling, round and prime_pi of one variable inside a bounded cond
 function_poles	symbolic	Calculus	function_poles(f, z), function_poles([f, cond], z): the poles of a meromorphic f with their orders, [[p1, m1], ...]; a family of poles as conditional_expression(p(c(1)), element(c(1), integers))
 function_meromorphic	symbolic	Calculus	function_meromorphic(f, z): true when f is meromorphic (analytic but for poles) in the complex variables, or where cond holds for [f, cond]; false when not
-minimize	symbolic	Calculus	minimize(f, x), minimize([f, cond], x), minimize(f, [x, y]): the global minimum [value, [x -> point]] (one variable: critical points, ends of the domain, limits; several: convex quadratics)
+minimize	symbolic	Calculus	minimize(f, x), minimize([f, cond], x), minimize(f, [x, y]): the global minimum [value, [x -> point]] (one variable: critical points, ends of the domain, limits; several: the critical points of every face of the constraints, angles as points of the unit circle; a failure with the reason when a face is not solved)
 maximize	symbolic	Calculus	maximize(f, x): the global maximum [value, [x -> point]], as minimize
 min_value	symbolic	Calculus	min_value(f, x): the global minimum value
 max_value	symbolic	Calculus	max_value(f, x): the global maximum value
@@ -1829,7 +1829,7 @@ laplacian	higher	Linear algebra	laplacian(f, [x1, ..., xn]): the sum of the seco
 matrix_function	higher	Linear algebra	matrix_function(f, m): the matrix function f(m) (diagonal, triangular, eigenvector or interpolation forms)
 matrix_exp	higher	Linear algebra	matrix_exp(m): the matrix exponential; matrix_exp(m, v) its product with v
 matrix_log	higher	Linear algebra	matrix_log(m): the principal matrix logarithm
-matrix_power	higher	Linear algebra	matrix_power(m, k): the k-th matrix power (integer k by repeated squaring, negative k through the inverse)
+matrix_power	higher	Linear algebra	matrix_power(m, k): the k-th matrix power (integer k by repeated squaring, negative k through the inverse); matrix_power(m, k, v): the power applied to the vector v
 conjugate_transpose	higher	Linear algebra	conjugate_transpose(m), conjugate_transpose(a, perm): the conjugate of the transpose of m (of a with its levels permuted as transpose does)
 hilbert_matrix	higher	Linear algebra	hilbert_matrix(n): the n x n Hilbert matrix 1/(i + j - 1); hilbert_matrix([m, n]) rectangular
 rotation_matrix	higher	Linear algebra	rotation_matrix(theta): the 2D rotation by theta; rotation_matrix(theta, w): the 3D rotation about the axis w
@@ -1900,7 +1900,7 @@ region_within	higher	Regions	region_within(r1, r2): whether r2 lies inside r1
 region_disjoint	higher	Regions	region_disjoint(r1, r2, ...): whether no two of the regions have a point in common
 winding_polygon	higher	Regions	winding_polygon(curve): the region a closed curve (points, a line, a polygon) encloses by the non-zero winding rule, as a polygon
 crossing_polygon	higher	Regions	crossing_polygon(curve): the region a closed curve encloses by the even-odd rule, as a polygon
-polygon_decomposition	higher	Regions	polygon_decomposition(reg): a polygon without holes (or a rectangle, triangle) as a list of triangles polygon([p1, p2, p3], [1, 2, 3])
+polygon_decomposition	higher	Regions	polygon_decomposition(reg): a polygon without holes (or a rectangle, triangle, box given by bounds) as a list of convex pieces polygon(corners, [1, ..., k]); polygon_decomposition(reg, triangle) as triangles
 boolean_region	higher	Regions	boolean_region(f, [r1, r2, ...]): the plane region of the points whose membership in r1, r2, ... satisfies the Boolean function f (and, or, xor, or a function of true/false)
 transformed_region	higher	Regions	transformed_region(reg, tf): the region reg under the transformation_function tf or an affine function (points, lines, polygons, triangles, rectangles, cuboids, disks under similarities; boxes and simplices mapped onto the plane as their convex hull)
 discretize_region	higher	Regions	discretize_region(reg), discretize_region(reg, ranges): a triangle mesh_region of a plane region (disks as fine polygons), a line mesh of lines; for an implicit region a mesh on a grid (plane regions and surfaces as triangles, curves as segments)

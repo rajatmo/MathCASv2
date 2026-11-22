@@ -1515,13 +1515,6 @@ fn seq_poly_fit(seq, x) = {
 # dot(a, x) + b >= 0 (and dot(aeq, x) + beq == 0)
 rule linear_optimization(c_, ab_) := lo_matrix(c, ab, [[], []]) when is_vector(c) and lo_pair(ab)
 rule linear_optimization(c_, ab_, eq_) := lo_matrix(c, ab, eq) when is_vector(c) and lo_pair(ab) and lo_pair(eq)
-# linear_optimization(c, [a, b], [aeq, beq], doms): doms gives each entry's domain, integers or reals (one domain
-# for all, or a list with one per entry)
-rule linear_optimization(c_, ab_, eq_, doms_) := lo_matrix_in(c, ab, eq, lo_domains(doms, length(c))) when is_vector(c) and lo_pair(ab) and lo_pair(eq) and lo_domains(doms, length(c)) !== null and lo_matrix_in(c, ab, eq, lo_domains(doms, length(c))) !== null
-fn lo_domains(doms, k) = {
-  let ds = if is_list(doms) then doms else constant_array(doms, k)
-  if length(ds) == k and every(ds, d => d === integers or d === reals) then ds else null
-}
 rule linear_optimization(f_, cons_, vars_) := ls_opt(f, cons, vars) when not is_vector(f) and lo_dim_known(f, cons, vars)
 rule linear_fractional_optimization(f_, cons_, vars_) := ls_opt(f, cons, vars) when lo_dim_known(f, cons, vars)
 rule convex_optimization(f_, cons_, vars_) := ls_opt(f, cons, vars) when lo_dim_known(f, cons, vars)
@@ -1530,63 +1523,6 @@ rule convex_optimization(f_, cons_, vars_) := ls_opt(f, cons, vars) when lo_dim_
 rule convex_optimization(f_, cons_, vars_, options(method -> geometric_optimization)) := ls_opt(f, join(if is_list(cons) then cons else [cons], map(v => v > 0, if is_list(vars) then vars else [vars])), vars) when lo_dim_known(f, cons, vars) and every(if is_list(vars) then vars else [vars], is_symbol)
 fn lo_pair(ab) = is_list(ab) and length(ab) == 2 and is_list(ab[1]) and is_list(ab[2]) and (length(ab[1]) == 0 or is_matrix(ab[1]))
 fn lo_matrix(c, ab, eq) = lo_matrix_in(c, ab, eq, constant_array(reals, length(c)))
-fn lo_matrix_in(c, ab, eq, doms) = {
-  let nvar = length(c)
-  let xs = map(k => to_expression(string_join(["lo_x", to_string(k)])), range(nvar))
-  let ineq = map(k => dot(ab[1][k], xs) + ab[2][k] >= 0, range(length(ab[1])))
-  let equ = map(k => dot(eq[1][k], xs) + eq[2][k] == 0, range(length(eq[1])))
-  let ints = select(range(nvar), k => doms[k] === integers)
-  let all_c = join(ineq, equ)
-  if length(ints) > 0 then {
-    let r = lo_bb(dot(c, xs), all_c, xs, ints, 0)
-    if is_list(r) and length(r) == 2 and is_list(r[2]) and r[1] !== inf then map(t => t[2], r[2]) else null
-  } else {
-    let r = minimize([dot(c, xs), if length(all_c) == 0 then true else fold((a, b) => a and b, all_c[1], rest(all_c))], xs)
-    if is_list(r) and length(r) == 2 and is_list(r[2]) then map(t => t[2], r[2]) else r
-  }
-}
-
-# lo_bb(f, conds, xs, ints, depth): [value, rules] minimizing f under the list of conditions with the entries ints
-# (positions in xs) integers, by branch and bound (Land and Doig, Econometrica 28 (1960)): the relaxation with
-# real entries is solved by minimize; an integer entry with a value v that is not an integer splits the problem
-# into x <= floor(v) and x >= floor(v) + 1; a subproblem whose relaxed value is not below the best integer point
-# found so far is dropped. Machine numbers in the problem are taken as the rationals they are and the point is given
-# in machine numbers. [inf, ...] when no integer point is feasible; null when a relaxation is not solved, the
-# relaxation is unbounded, or more than 100 subproblems are needed.
-fn lo_bb(f0, conds0, xs, ints, depth) = {
-  let inexact = length(cases([f0, conds0], u_ :> 1 when is_number(u) and is_inexact(u), [0, inf])) > 0
-  let f = if inexact then rationalize(f0, 0) else f0
-  let conds = if inexact then rationalize(conds0, 0) else conds0
-  var best = null
-  var stack = [conds]
-  var nodes = 0
-  var ok = true
-  var infeasible = null
-  while ok and length(stack) > 0 {
-    let cs = last(stack)
-    stack = most(stack)
-    nodes = nodes + 1
-    if nodes > 100 then { ok = false } else {
-      let r = minimize([f, if length(cs) == 0 then true else fold((a, b) => a and b, cs[1], rest(cs))], xs)
-      if not (is_list(r) and length(r) == 2 and is_list(r[2]) and length(r[2]) == length(xs)) then { ok = false }
-      else if r[1] === inf then { infeasible = r }
-      else if not free_of(r, indeterminate) or not free_of(r[1], inf) then { ok = false }
-      else if best === null or r[1] < best[1] then {
-        let vals = map(t => t[2], r[2])
-        let bad = select(ints, k => not (floor(vals[k]) == vals[k]))
-        if length(bad) == 0 then { best = r } else {
-          let k = bad[1]
-          let fl = floor(vals[k])
-          stack = append(append(stack, append(cs, xs[k] >= fl + 1)), append(cs, xs[k] <= fl))
-        }
-      }
-    }
-  }
-  if not ok then null
-  else if best === null then infeasible
-  else if inexact then [n(best[1]), map(t => t[1] -> (if member(map(k => xs[k], ints), t[1]) then t[2] else n(t[2])), best[2])]
-  else best
-}
 fn lo_scalars(c) = {
   let cmp = (a, b, op) => lo_cmp(a, b, op)
   if is_atom(c) then [c]
@@ -1651,11 +1587,6 @@ fn na_single_real(x) = if not is_real(x) or x == 0 or abs(x) > 3.4e38 or abs(x) 
   let scale = 2^(e - 23)
   n(round(rationalize(x, 0)/scale)*scale)
 }
-# a conversion is a numeric array of the values: numeric_array(xs, type, mode) and a numeric array or byte array
-# given again a type become numeric_array(values, type)
-fn na_source(x) = if head(x) === numeric_array or head(x) === byte_array then normal(x) else x
-rule numeric_array(xs_, ty_, mode_) := numeric_array(numeric_array_values(na_source(xs), ty, mode), ty) when is_string(ty) and (mode === clip_and_coerce or mode === round or mode === coerce) and is_list(na_source(xs))
-rule numeric_array(xs_, ty_) := numeric_array(numeric_array_values(na_source(xs), ty, coerce), ty) when is_string(ty) and (head(xs) === numeric_array or head(xs) === byte_array) and is_list(na_source(xs))
 fn numeric_array_values(xs, ty, mode) when is_list(xs) = map(x => numeric_array_values(x, ty, mode), xs)
 fn numeric_array_values(xs, ty) when is_list(xs) = map(x => numeric_array_values(x, ty, coerce), xs)
 fn numeric_array_values(x, ty) = numeric_array_values(x, ty, coerce)

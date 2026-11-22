@@ -327,6 +327,8 @@ pub const INTERNAL: &[&str] = &[
     "match",
     "named",
     "option_value",
+    // the head named arguments `f(x, name: v)` lower to (syntax 4)
+    "options",
     "seq0",
     "seq1",
     "set",
